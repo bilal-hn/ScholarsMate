@@ -1,117 +1,107 @@
+import sys
 import os
-from pathlib import Path
-import fitz  # PyMuPDF
+
+# Automatically append the project root directory to sys.path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
+
+import numpy as np
+import chromadb
+from chromadb.utils import embedding_functions
 from langchain_core.documents import Document
-from langchain_text_splitters import RecursiveCharacterTextSplitter
+
+# Path where local ChromaDB database files will live on disk
+DB_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../chroma_db"))
+
+# Local, lightweight embedding model (runs completely offline on CPU)
+EMBEDDING_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
+
+embedding_fn = embedding_functions.SentenceTransformerEmbeddingFunction(
+    model_name=EMBEDDING_MODEL_NAME
+)
+
+# Persistent local client
+chroma_client = chromadb.PersistentClient(path=DB_DIR)
 
 
-def extract_pages_layout_aware(pdf_path: str) -> list[Document]:
-    """Reads a single PDF file, sorting text blocks by position (y0, x0)
-
-    to preserve standard multi-column academic reading order.
-    """
-    doc = fitz.open(pdf_path)
-    clean_doc_name = os.path.basename(pdf_path)
-    raw_pages = []
-
-    for page_num in range(len(doc)):
-        page = doc[page_num]
-
-        # Extract blocks: (x0, y0, x1, y1, text, block_no, block_type)
-        blocks = [b for b in page.get_text("blocks") if b[6] == 0]
-
-        # Sort top-to-bottom (y0), then left-to-right (x0)
-        blocks.sort(key=lambda b: (round(b[1], 1), round(b[0], 1)))
-
-        page_text = "\n\n".join(
-            b[4].strip() for b in blocks if b[4].strip()
-        )
-
-        if page_text:
-            raw_pages.append(
-                Document(
-                    page_content=page_text,
-                    metadata={
-                        "source": clean_doc_name,
-                        "page_number": page_num + 1,
-                    },
-                )
-            )
-
-    doc.close()
-    return raw_pages
-
-
-def process_path(
-    input_path: str, chunk_size: int = 1000, chunk_overlap: int = 100
-) -> list[Document]:
-    """Accepts either a single PDF file OR a folder directory.
-
-    Recursively scans for all .pdf files, extracts layout-aware text,
-    and returns overlapping chunks tagged with page citation IDs.
-    """
-    path = Path(input_path)
-    pdf_files = []
-
-    if path.is_file() and path.suffix.lower() == ".pdf":
-        pdf_files = [path]
-    elif path.is_dir():
-        pdf_files = list(path.glob("**/*.pdf"))
-    else:
-        print(f"Error: Path '{input_path}' is neither a valid PDF nor a directory.")
-        return []
-
-    if not pdf_files:
-        print(f"No PDF files found in '{input_path}'.")
-        return []
-
-    print(f"Found {len(pdf_files)} PDF file(s) to process.")
-
-    all_chunks = []
-    splitter = RecursiveCharacterTextSplitter(
-        chunk_size=chunk_size,
-        chunk_overlap=chunk_overlap,
-        separators=["\n\n", "\n", " ", ""],
+def get_or_create_collection(collection_name: str = "scholarsmate_docs"):
+    """Fetches or creates a ChromaDB collection using local embeddings."""
+    return chroma_client.get_or_create_collection(
+        name=collection_name,
+        embedding_function=embedding_fn,
+        metadata={"hnsw:space": "cosine"}
     )
 
-    for pdf_file in pdf_files:
-        print(f"Processing: {pdf_file.name}...")
-        raw_pages = extract_pages_layout_aware(str(pdf_file))
-        clean_doc_name = pdf_file.name
 
-        doc_chunks = splitter.split_documents(raw_pages)
+def store_chunks(chunks: list[Document], collection_name: str = "scholarsmate_docs"):
+    """Ingests LangChain Document chunks into ChromaDB and computes paper centroids."""
+    if not chunks:
+        print("No chunks provided for storage.")
+        return
 
-        # Inject citation IDs per document & page
-        page_counters = {}
-        for chunk in doc_chunks:
-            p_num = chunk.metadata["page_number"]
-            key = (clean_doc_name, p_num)
+    collection = get_or_create_collection(collection_name)
 
-            page_counters[key] = page_counters.get(key, 0) + 1
-            chunk_idx = page_counters[key]
+    ids = [chunk.metadata["chunk_id"] for chunk in chunks]
+    documents = [chunk.page_content for chunk in chunks]
+    metadatas = [chunk.metadata for chunk in chunks]
 
-            # Citation ID (e.g. "paper.pdf::p2::1")
-            chunk.metadata["chunk_id"] = f"{clean_doc_name}::p{p_num}::{chunk_idx}"
+    print(f"Storing {len(chunks)} chunks in ChromaDB at '{DB_DIR}'...")
+    
+    # Store text chunks and metadata into ChromaDB
+    collection.upsert(
+        ids=ids,
+        documents=documents,
+        metadatas=metadatas
+    )
 
-        all_chunks.extend(doc_chunks)
+    # Compute per-paper centroid vector for graph features
+    compute_paper_centroids(chunks, collection)
+    print("Ingestion into ChromaDB complete.")
 
-    return all_chunks
+
+def compute_paper_centroids(chunks: list[Document], collection):
+    """Calculates the average embedding vector per paper and logs it."""
+    paper_chunks_map = {}
+    for chunk in chunks:
+        doc_name = chunk.metadata["source"]
+        chunk_id = chunk.metadata["chunk_id"]
+        paper_chunks_map.setdefault(doc_name, []).append(chunk_id)
+
+    for doc_name, chunk_ids in paper_chunks_map.items():
+        # Fetch embeddings calculated by ChromaDB
+        results = collection.get(ids=chunk_ids, include=["embeddings"])
+        embeddings = results.get("embeddings")
+
+        if embeddings is not None and len(embeddings) > 0:
+            centroid = np.mean(embeddings, axis=0).tolist()
+            print(f"Calculated centroid vector for '{doc_name}' ({len(embeddings)} chunks).")
 
 
-# Alias for single-file backwards compatibility
-process_pdf = process_path
+def search_similar_chunks(query: str, top_k: int = 5, collection_name: str = "scholarsmate_docs"):
+    """Searches vector store for top-k most relevant chunks matching a query."""
+    collection = get_or_create_collection(collection_name)
+    results = collection.query(
+        query_texts=[query],
+        n_results=top_k
+    )
+    return results
 
 
 if __name__ == "__main__":
-    import sys
+    from backend.ingestion.pipeline import process_path
 
     if len(sys.argv) > 1:
-        target_path = sys.argv[1]
-        processed_chunks = process_path(target_path)
-        print(f"\n--- Ingestion Pipeline Output ---")
-        print(f"Total Chunks Generated: {len(processed_chunks)}")
-        if processed_chunks:
-            first_chunk = processed_chunks[3]
-            print(f"\nSample Chunk ID: {first_chunk.metadata['chunk_id']}")
-            print(f"Metadata: {first_chunk.metadata}")
-            print(f"Content Preview:\n{first_chunk.page_content[:250]}...")
+        target = sys.argv[1]
+        print(f"Running ingestion pipeline on: {target}")
+        doc_chunks = process_path(target)
+        
+        # Store in ChromaDB
+        store_chunks(doc_chunks)
+        
+        # Isolated test query
+        test_query = "What is the primary contribution or topic discussed?"
+        print(f"\n--- Testing Retrieval for Query: '{test_query}' ---")
+        retrieved = search_similar_chunks(test_query, top_k=3)
+        
+        for i, (doc, meta) in enumerate(zip(retrieved['documents'][0], retrieved['metadatas'][0])):
+            print(f"\nResult {i+1} [{meta['chunk_id']}]:")
+            print(f"Text Preview:\n{doc[:250]}...")
