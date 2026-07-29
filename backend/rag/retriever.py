@@ -1,13 +1,14 @@
 import sys
 import os
-from groq import Groq
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
-from backend.embeddings.vector_store import search_similar_chunks, get_or_create_collection
-
-api_key = os.getenv("GROQ_API_KEY")
-groq_client = Groq(api_key=api_key) if api_key else None
+from backend.embeddings.vector_store import (
+    search_similar_chunks,
+    get_all_chunks_for_doc,
+    list_indexed_documents
+)
+from backend.rag.router import classify_query_intent, groq_client
 
 
 def expand_query(original_query: str) -> list[str]:
@@ -16,11 +17,8 @@ def expand_query(original_query: str) -> list[str]:
         return [original_query]
 
     prompt = f"""
-    You are an academic retrieval optimizer. Given the user query, generate 2 alternative, 
-    highly specific search queries targeting research paper terminology (looking for methodologies, contributions, results).
-    Return ONLY the queries, one per line. No numbering, no introductory text.
-
-    User Query: {original_query}
+    Generate 2 alternative, highly specific academic search queries for: "{original_query}".
+    Return ONLY the queries, one per line. No numbering, no comments.
     """.strip()
 
     try:
@@ -35,74 +33,73 @@ def expand_query(original_query: str) -> list[str]:
         return [original_query]
 
 
-def get_first_page_chunks(collection_name: str = "scholarsmate_docs", limit: int = 3) -> list[dict]:
-    """Directly fetches Page 1 & Page 2 chunks to ensure abstract/intro context is available for global questions."""
-    try:
-        collection = get_or_create_collection(collection_name)
-        # Fetch chunks where page_number is 1 or 2
-        results = collection.get(
-            where={"page_number": {"$in": [1, 2]}},
-            include=["documents", "metadatas"],
-            limit=limit
-        )
-        
-        first_page_chunks = []
-        if results and results.get("documents"):
-            for doc_text, meta in zip(results["documents"], results["metadatas"]):
-                first_page_chunks.append({
-                    "chunk_id": meta.get("chunk_id", "Unknown"),
-                    "doc_name": meta.get("source", "Unknown"),
-                    "page_number": meta.get("page_number", 1),
-                    "content": doc_text,
-                })
-        return first_page_chunks
-    except Exception:
-        return []
+def retrieve_context(
+    query: str, 
+    top_k: int = 10, 
+    collection_name: str = "scholarsmate_docs",
+    explicit_docs: list[str] | None = None
+) -> tuple[list[dict], dict]:
+    """Dynamically retrieves context based on execution plan or explicit UI document parameters."""
+    available_docs = list_indexed_documents(collection_name)
+    
+    # 1. Get Execution Plan from Router
+    plan = classify_query_intent(query, available_docs)
+    
+    # Override target_docs if explicit UI selections were provided
+    target_docs = explicit_docs if (explicit_docs and len(explicit_docs) > 0) else plan.get("target_docs", available_docs)
+    retrieval_mode = plan.get("retrieval_mode", "vector_search")
 
+    print(f"\n[Execution Plan] Retrieval Mode: {retrieval_mode} | Generation Mode: {plan.get('generation_mode')} | Targets: {target_docs}")
 
-def retrieve_context(query: str, top_k: int = 8, collection_name: str = "scholarsmate_docs") -> list[dict]:
-    """Retrieves context across expanded queries and injects page 1 chunks for summary questions."""
-    queries = expand_query(query)
-    all_retrieved = {}
+    all_chunks = {}
 
-    # Check if query is asking for high-level paper overview
-    summary_keywords = ["contribution", "summary", "overview", "abstract", "propose", "main goal", "objective"]
-    is_summary_query = any(kw in query.lower() for kw in summary_keywords)
+    # Strategy A: Full Text Extraction (Single/Multi Summary)
+    if retrieval_mode == "full_text" and target_docs:
+        for doc in target_docs:
+            doc_chunks = get_all_chunks_for_doc(doc_name=doc, collection_name=collection_name)
+            for c in doc_chunks:
+                all_chunks[c["chunk_id"]] = c
+        return list(all_chunks.values()), plan
 
-    # 1. If it's a summary query, inject Page 1 & 2 chunks first
-    if is_summary_query:
-        fp_chunks = get_first_page_chunks(collection_name=collection_name)
-        for c in fp_chunks:
-            all_retrieved[c["chunk_id"]] = c
+    # Strategy B: Per-Document Balanced Search (Comparison)
+    if retrieval_mode == "per_document_search" and target_docs:
+        per_doc_k = max(3, top_k // len(target_docs))
+        for doc in target_docs:
+            results = search_similar_chunks(query=query, top_k=per_doc_k, collection_name=collection_name, doc_names=[doc])
+            if results and results.get("documents") and results["documents"][0]:
+                for text, meta in zip(results["documents"][0], results["metadatas"][0]):
+                    cid = meta.get("chunk_id", "Unknown")
+                    all_chunks[cid] = {
+                        "chunk_id": cid,
+                        "doc_name": meta.get("source", doc),
+                        "page_number": meta.get("page_number", 1),
+                        "content": text
+                    }
+        return list(all_chunks.values()), plan
 
-    # 2. Vector search across expanded queries
-    for q in queries:
-        results = search_similar_chunks(query=q, top_k=top_k, collection_name=collection_name)
+    # Strategy C: Standard Vector Search with Query Expansion
+    search_queries = expand_query(query)
+    for q in search_queries:
+        results = search_similar_chunks(query=q, top_k=top_k, collection_name=collection_name, doc_names=target_docs)
         if results and results.get("documents") and results["documents"][0]:
-            docs = results["documents"][0]
-            metadatas = results["metadatas"][0]
-
-            for doc_text, meta in zip(docs, metadatas):
-                chunk_id = meta.get("chunk_id", "Unknown")
-                if chunk_id not in all_retrieved:
-                    all_retrieved[chunk_id] = {
-                        "chunk_id": chunk_id,
+            for text, meta in zip(results["documents"][0], results["metadatas"][0]):
+                cid = meta.get("chunk_id", "Unknown")
+                if cid not in all_chunks:
+                    all_chunks[cid] = {
+                        "chunk_id": cid,
                         "doc_name": meta.get("source", "Unknown"),
-                        "page_number": meta.get("page_number", 0),
-                        "content": doc_text,
+                        "page_number": meta.get("page_number", 1),
+                        "content": text
                     }
 
-    return list(all_retrieved.values())[:top_k]
+    return list(all_chunks.values())[:top_k], plan
 
 
 def build_context_block(chunks: list[dict]) -> str:
-    """Formats retrieved chunks into a clean, structured block for prompt injection."""
     if not chunks:
-        return "No relevant documents found."
+        return "No relevant document context found."
 
-    context_lines = []
+    lines = []
     for c in chunks:
-        header = f"--- [Document: {c['doc_name']} | Page: {c['page_number']} | Chunk Tag: {c['chunk_id']}] ---"
-        context_lines.append(f"{header}\n{c['content']}\n")
-
-    return "\n".join(context_lines)
+        lines.append(f"--- [Document: {c['doc_name']} | Page: {c['page_number']} | Chunk Tag: {c['chunk_id']}] ---\n{c['content']}\n")
+    return "\n".join(lines)

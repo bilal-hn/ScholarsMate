@@ -2,8 +2,9 @@ from pydantic import BaseModel, Field
 
 
 class QueryRequest(BaseModel):
-    query: str = Field(..., example="What is the primary contribution of this paper?")
-    top_k: int = Field(default=5, ge=1, le=20, example=5)
+    query: str = Field(..., example="Compare the methodology in Arslan et al. with other papers.")
+    top_k: int = Field(default=10, ge=1, le=30, example=10)
+    doc_names: list[str] | None = Field(default=None, example=["sample.pdf"])
 
 
 class SourceItem(BaseModel):
@@ -22,7 +23,6 @@ class UploadResponse(BaseModel):
     message: str
     filename: str
     chunks_processed: int
-
 
 class DocumentListItem(BaseModel):
     doc_name: str

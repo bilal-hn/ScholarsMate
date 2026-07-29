@@ -78,9 +78,13 @@ async def upload_pdf(file: UploadFile = File(...)):
 
 @app.post("/api/query", response_model=QueryResponse)
 def query_rag(request: QueryRequest):
-    """Accepts a query, retrieves context from ChromaDB, and returns a source-locked answer."""
+    """Accepts a query, routes execution plan, and returns source-locked synthesis."""
     try:
-        result = generate_answer(query=request.query, top_k=request.top_k)
+        result = generate_answer(
+            query=request.query, 
+            top_k=request.top_k, 
+            explicit_docs=request.doc_names
+        )
         return QueryResponse(
             query=result["query"],
             answer=result["answer"],
