@@ -26,6 +26,27 @@ def get_or_create_collection(collection_name: str = "scholarsmate_docs"):
     )
 
 
+def store_chunks(chunks: list[Document], collection_name: str = "scholarsmate_docs"):
+    """Inserts or updates document chunks in ChromaDB with embeddings and metadata."""
+    if not chunks:
+        print("No chunks provided to store.")
+        return
+
+    collection = get_or_create_collection(collection_name)
+
+    documents = [c.page_content for c in chunks]
+    metadatas = [c.metadata for c in chunks]
+    ids = [c.metadata["chunk_id"] for c in chunks]
+
+    # Batch upsert to ChromaDB
+    collection.upsert(
+        ids=ids,
+        documents=documents,
+        metadatas=metadatas
+    )
+    print(f"Stored/Updated {len(chunks)} chunks in ChromaDB collection '{collection_name}'.")
+
+
 def search_similar_chunks(
     query: str, 
     top_k: int = 5, 
@@ -80,14 +101,13 @@ def get_all_chunks_for_doc(
 
 
 def list_indexed_documents(collection_name: str = "scholarsmate_docs") -> list[str]:
-    """Returns a list of unique document filenames stored in ChromaDB."""
+    """Returns a sorted list of unique source filenames stored in ChromaDB."""
     try:
         collection = get_or_create_collection(collection_name)
-        # Pass a higher limit or fetch all metadatas explicitly
         data = collection.get(include=["metadatas"], limit=10000)
         if not data or not data.get("metadatas"):
             return []
-        
+
         unique_docs = set()
         for meta in data["metadatas"]:
             if meta and "source" in meta:
@@ -96,3 +116,40 @@ def list_indexed_documents(collection_name: str = "scholarsmate_docs") -> list[s
     except Exception as e:
         print(f"Error listing documents: {e}")
         return []
+
+
+def get_indexed_document_catalog(collection_name: str = "scholarsmate_docs") -> list[dict]:
+    """Returns a list of dicts with source filenames and their actual paper titles."""
+    try:
+        collection = get_or_create_collection(collection_name)
+        data = collection.get(include=["metadatas"], limit=10000)
+        if not data or not data.get("metadatas"):
+            return []
+        
+        catalog = {}
+        for meta in data["metadatas"]:
+            if meta and "source" in meta:
+                source = meta["source"]
+                title = meta.get("paper_title", source)
+                catalog[source] = title
+                
+        return [{"filename": src, "title": ttl} for src, ttl in catalog.items()]
+    except Exception as e:
+        print(f"Error reading catalog: {e}")
+        return []
+
+
+if __name__ == "__main__":
+    from backend.ingestion.pipeline import process_path
+
+    if len(sys.argv) > 1:
+        target = sys.argv[1]
+        print(f"Processing path: '{target}'...")
+        doc_chunks = process_path(target)
+        if doc_chunks:
+            store_chunks(doc_chunks)
+            print(f"Done! {len(doc_chunks)} chunks stored.")
+        else:
+            print("No PDF files found to process.")
+    else:
+        print("Usage: python -m backend.embeddings.vector_store <path_to_pdf_or_folder>")

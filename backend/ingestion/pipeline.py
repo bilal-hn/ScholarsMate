@@ -5,24 +5,25 @@ from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 
-def extract_pages_layout_aware(pdf_path: str) -> list[Document]:
-    """Reads a PDF file and sorts text blocks column-by-column to keep 
-
-    two-column academic reading order intact.
-    """
+def extract_pages_layout_aware(pdf_path: str) -> tuple[list[Document], str]:
+    """Reads a PDF, extracts layout-aware text, and extracts paper title."""
     doc = fitz.open(pdf_path)
     clean_doc_name = os.path.basename(pdf_path)
     raw_pages = []
 
+    # Attempt to extract title from PyMuPDF metadata
+    extracted_title = doc.metadata.get("title", "").strip()
+
     for page_num in range(len(doc)):
         page = doc[page_num]
-
-        # Use sort=True: PyMuPDF sorts text blocks top-to-bottom, left-to-right
-        # while respecting multi-column boundaries.
         blocks = page.get_text("blocks", sort=True)
 
         # Filter out non-text blocks (b[6] != 0 are images/vectors)
         text_blocks = [b for b in blocks if b[6] == 0 and b[4].strip()]
+
+        # Fallback: Use first text block of Page 1 as paper title if metadata is empty
+        if page_num == 0 and not extracted_title and text_blocks:
+            extracted_title = text_blocks[0][4].strip().replace("\n", " ")
 
         page_text = "\n\n".join(b[4].strip() for b in text_blocks)
 
@@ -32,29 +33,26 @@ def extract_pages_layout_aware(pdf_path: str) -> list[Document]:
                     page_content=page_text,
                     metadata={
                         "source": clean_doc_name,
-                        "page_number": page_num + 1,  # 1-indexed page
+                        "paper_title": extracted_title or clean_doc_name,
+                        "page_number": page_num + 1,
                     },
                 )
             )
 
     doc.close()
-    return raw_pages
+    return raw_pages, (extracted_title or clean_doc_name)
 
 
 def process_path(
     input_path: str, chunk_size: int = 1000, chunk_overlap: int = 100
 ) -> list[Document]:
-    """Accepts a single PDF file OR directory, processes all papers layout-aware,
-
-    and generates overlapping chunks tagged with exact citation metadata.
-    """
     path = Path(input_path)
     pdf_files = []
 
     if path.is_file() and path.suffix.lower() == ".pdf":
         pdf_files = [path]
     elif path.is_dir():
-        pdf_files = list(path.glob("**/*.pdf"))
+        pdf_files = sorted(list(set(path.glob("**/*.pdf"))))
     else:
         print(f"Error: Path '{input_path}' is neither a valid PDF nor a directory.")
         return []
@@ -72,44 +70,38 @@ def process_path(
         separators=["\n\n", "\n", " ", ""],
     )
 
+    seen_doc_names = set()
+
     for pdf_file in pdf_files:
-        print(f"Processing: {pdf_file.name}...")
-        raw_pages = extract_pages_layout_aware(str(pdf_file))
         clean_doc_name = pdf_file.name
 
+        if clean_doc_name in seen_doc_names:
+            rel_path = str(pdf_file.relative_to(path if path.is_dir() else path.parent))
+            clean_doc_name = rel_path.replace("\\", "_").replace("/", "_")
+        
+        seen_doc_names.add(clean_doc_name)
+
+        print(f"Processing: {pdf_file.name} (as '{clean_doc_name}')...")
+        
+        # UNPACK TUPLE CORRECTLY HERE
+        raw_pages, paper_title = extract_pages_layout_aware(str(pdf_file))
+
+        # Pass ONLY raw_pages list to split_documents
         doc_chunks = splitter.split_documents(raw_pages)
 
         # Inject citation IDs per document & page
         page_counters = {}
         for chunk in doc_chunks:
             p_num = chunk.metadata["page_number"]
+            chunk.metadata["source"] = clean_doc_name
+            chunk.metadata["paper_title"] = paper_title
+            
             key = (clean_doc_name, p_num)
-
             page_counters[key] = page_counters.get(key, 0) + 1
             chunk_idx = page_counters[key]
 
-            # Standardized citation ID (e.g. "paper.pdf::p2::1")
             chunk.metadata["chunk_id"] = f"{clean_doc_name}::p{p_num}::{chunk_idx}"
 
         all_chunks.extend(doc_chunks)
 
     return all_chunks
-
-
-# Alias for single-file backwards compatibility
-process_pdf = process_path
-
-
-if __name__ == "__main__":
-    import sys
-
-    if len(sys.argv) > 1:
-        target_path = sys.argv[1]
-        processed_chunks = process_path(target_path)
-        print(f"\n--- Ingestion Pipeline Output ---")
-        print(f"Total Chunks Generated Across All Files: {len(processed_chunks)}")
-        if processed_chunks:
-            first_chunk = processed_chunks[0]
-            print(f"\nSample Chunk ID: {first_chunk.metadata['chunk_id']}")
-            print(f"Metadata: {first_chunk.metadata}")
-            print(f"Content Preview:\n{first_chunk.page_content[:250]}...")

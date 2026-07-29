@@ -5,7 +5,7 @@ from groq import Groq
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
-from backend.embeddings.vector_store import list_indexed_documents
+from backend.embeddings.vector_store import get_indexed_document_catalog, list_indexed_documents
 
 api_key = os.getenv("GROQ_API_KEY")
 groq_client = Groq(api_key=api_key) if api_key else None
@@ -22,18 +22,20 @@ def classify_query_intent(query: str, available_docs: list[str]) -> dict:
             "is_meta_query": False
         }
 
+    catalog = get_indexed_document_catalog()
+
     prompt = f"""
 You are an academic query execution planner for a multi-document RAG system.
 Analyze the user query and output a JSON execution plan.
 
-Indexed Documents in Workspace:
-{json.dumps(available_docs)}
+Indexed Documents in Workspace (Filenames & Paper Titles):
+{json.dumps(catalog)}
 
 User Query: "{query}"
 
 JSON Requirements:
 1. "scope": "single" | "named_subset" | "full_corpus"
-2. "target_docs": List of matching filenames from the Indexed Documents above that are referenced in the query. If broad or unclear, set to null.
+2. "target_docs": List of matching filenames from the Indexed Documents above that are referenced by title, topic, or filename in the user query. If broad or unclear, set to null.
 3. "retrieval_mode": 
    - "full_text": User wants a summary/overview/TL;DR of specific document(s).
    - "vector_search": Targeted Q&A or specific factual lookup across documents.
@@ -58,7 +60,7 @@ Return ONLY valid JSON matching this schema.
         )
         plan = json.loads(response.choices[0].message.content)
         
-        # Fallback target docs if null
+        # Fallback target docs if null or empty
         if not plan.get("target_docs"):
             plan["target_docs"] = available_docs
             
