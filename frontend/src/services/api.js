@@ -10,10 +10,57 @@ const apiClient = axios.create({
 });
 
 /**
- * Sends a research query to the ScholarsMate RAG backend.
- * @param {string} query - The user's input question.
- * @param {Array<string>} [docNames=null] - Optional list of selected document filenames.
- * @param {number} [topK=10] - Maximum chunks to retrieve.
+ * Health check endpoint to verify backend status.
+ */
+export const checkHealth = async () => {
+  try {
+    const response = await apiClient.get('/health');
+    return response.data;
+  } catch (error) {
+    console.error('Backend offline:', error.message);
+    return { status: 'offline' };
+  }
+};
+
+/**
+ * Retrieves the catalog of indexed documents and chunk counts.
+ */
+export const getDocuments = async () => {
+  try {
+    const response = await apiClient.get('/documents');
+    return response.data;
+  } catch (error) {
+    console.error('Failed to fetch document catalog:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+/**
+ * Uploads a PDF file to the backend ingestion pipeline.
+ * @param {File} file - PDF File object from input.
+ */
+export const uploadFile = async (file) => {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  try {
+    const response = await apiClient.post('/upload', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Upload failed:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+/**
+ * Sends a research query to the ScholarsMate RAG pipeline.
+ * @param {string} query - User question.
+ * @param {Array<string>} [docNames=null] - Selected document filters.
+ * @param {number} [topK=10] - Context chunk count limit.
  */
 export const sendQuery = async (query, docNames = null, topK = 10) => {
   try {
@@ -24,20 +71,7 @@ export const sendQuery = async (query, docNames = null, topK = 10) => {
     });
     return response.data;
   } catch (error) {
-    console.error('API Error in sendQuery:', error.response?.data || error.message);
+    console.error('Query execution failed:', error.response?.data || error.message);
     throw error;
-  }
-};
-
-/**
- * Health check endpoint to verify backend status.
- */
-export const checkHealth = async () => {
-  try {
-    const response = await apiClient.get('/health');
-    return response.data;
-  } catch (error) {
-    console.error('Backend server offline:', error.message);
-    return { status: 'offline' };
   }
 };
