@@ -36,7 +36,7 @@ export const getDocuments = async () => {
 };
 
 /**
- * Uploads a PDF file to the backend ingestion pipeline.
+ * Uploads a single PDF file to the backend ingestion pipeline.
  * @param {File} file - PDF File object from input.
  */
 export const uploadFile = async (file) => {
@@ -52,6 +52,29 @@ export const uploadFile = async (file) => {
     return response.data;
   } catch (error) {
     console.error('Upload failed:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+/**
+ * Creates a new research workspace by uploading and processing multiple PDF files or an entire folder of PDFs.
+ * @param {FileList|Array<File>} files - List or FileList of PDF files.
+ */
+export const createWorkspace = async (files) => {
+  const formData = new FormData();
+  Array.from(files).forEach((file) => {
+    formData.append('files', file);
+  });
+
+  try {
+    const response = await apiClient.post('/workspace/create', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Workspace creation failed:', error.response?.data || error.message);
     throw error;
   }
 };
