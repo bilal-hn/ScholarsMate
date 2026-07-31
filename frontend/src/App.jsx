@@ -28,28 +28,28 @@ export default function App() {
   }, []);
 
   return (
-    <div className="flex flex-col h-screen w-screen bg-slate-900 overflow-hidden font-sans">
-      {/* App Top Navbar */}
-      <header className="h-14 bg-slate-950 border-b border-slate-800 flex items-center justify-between px-6 shrink-0">
+    <div className="flex flex-col h-screen w-full bg-zinc-950 overflow-hidden font-sans">
+      {/* Top Navbar */}
+      <header className="h-14 bg-zinc-950 border-b border-zinc-800/80 flex items-center justify-between px-6 shrink-0 select-none">
         <div className="flex items-center gap-3">
-          <div className="h-9 w-9 rounded-xl bg-sky-500/10 border border-sky-500/30 flex items-center justify-center text-sky-400">
+          <div className="h-8 w-8 rounded-xl bg-amber-400/10 border border-amber-400/30 flex items-center justify-center text-amber-400">
             <GraduationCap className="h-5 w-5" />
           </div>
           <div>
-            <h1 className="font-bold text-slate-100 text-base leading-none">ScholarsMate</h1>
-            <p className="text-[10px] text-slate-400 mt-0.5">Source-Locked Research Intelligence Platform</p>
+            <h1 className="font-bold text-zinc-100 text-base leading-none">ScholarsMate</h1>
+            <p className="text-[10px] text-zinc-500 mt-0.5 font-medium">Source-Locked Research Intelligence</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-slate-900 border border-slate-800 text-xs">
-          <Activity className={`h-3.5 w-3.5 ${backendStatus === 'ok' || backendStatus === 'online' ? 'text-emerald-400' : 'text-amber-400'}`} />
-          <span className="capitalize text-slate-300">
+        <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-zinc-900 border border-zinc-800 text-xs">
+          <Activity className={`h-3.5 w-3.5 ${backendStatus === 'ok' || backendStatus === 'online' ? 'text-amber-400' : 'text-rose-400'}`} />
+          <span className="capitalize text-zinc-300 font-medium">
             {backendStatus === 'ok' || backendStatus === 'online' ? 'System Ready' : 'Backend Offline'}
           </span>
         </div>
       </header>
 
-      {/* Main Split Screen Workspace */}
+      {/* Main Split-Screen Workspace */}
       <div className="flex-1 flex overflow-hidden">
         <DocumentSidebar
           documents={documents}

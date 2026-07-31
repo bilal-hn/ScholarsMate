@@ -1,13 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { Send, Bot, User, FileCode, Loader2 } from 'lucide-react';
+import { Send, Sparkles, User, Loader2, BookOpen } from 'lucide-react';
 import { sendQuery } from '../services/api';
 
 export default function ChatInterface({ selectedDocs }) {
   const [messages, setMessages] = useState([
     {
       sender: 'bot',
-      text: 'Hello! Ask me questions about your indexed research papers.',
+      text: "Hello! I'm ScholarsMate. Ask me questions about your uploaded research papers.",
       sources: [],
     },
   ]);
@@ -15,7 +15,6 @@ export default function ChatInterface({ selectedDocs }) {
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef(null);
 
-  // Auto scroll to bottom of chat
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -58,33 +57,38 @@ export default function ChatInterface({ selectedDocs }) {
   };
 
   return (
-    <main className="flex-1 flex flex-col bg-slate-900 h-full">
-      {/* Active Target Banner */}
-      <div className="px-6 py-3 bg-slate-950/60 border-b border-slate-800 text-xs text-slate-400 flex items-center justify-between">
-        <span className="flex items-center gap-2">
-          <FileCode className="h-4 w-4 text-sky-400" />
-          Target Scope: {selectedDocs.length > 0 ? `${selectedDocs.length} selected doc(s)` : 'Full Workspace Library'}
-        </span>
+    <main className="flex-1 flex flex-col bg-zinc-950 h-full relative overflow-hidden">
+      {/* Target Scope Sub-header */}
+      <div className="px-6 py-2.5 bg-zinc-950 border-b border-zinc-800/60 text-xs text-zinc-400 flex items-center justify-between shrink-0">
+        <div className="flex items-center gap-2">
+          <BookOpen className="h-3.5 w-3.5 text-amber-400" />
+          <span>
+            Target Scope:{' '}
+            <strong className="text-zinc-200 font-medium">
+              {selectedDocs.length > 0 ? `${selectedDocs.length} selected doc(s)` : 'Full Workspace Library'}
+            </strong>
+          </span>
+        </div>
       </div>
 
       {/* Messages Thread */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-6">
+      <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6 max-w-4xl mx-auto w-full">
         {messages.map((msg, idx) => (
           <div
             key={idx}
-            className={`flex gap-4 max-w-4xl ${msg.sender === 'user' ? 'ml-auto justify-end' : ''}`}
+            className={`flex gap-4 ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             {msg.sender === 'bot' && (
-              <div className="h-8 w-8 rounded-xl bg-sky-500/10 border border-sky-500/30 flex items-center justify-center text-sky-400 shrink-0">
-                <Bot className="h-4 w-4" />
+              <div className="h-8 w-8 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
+                <Sparkles className="h-4 w-4" />
               </div>
             )}
 
             <div
-              className={`rounded-2xl p-5 space-y-3 ${
+              className={`rounded-2xl px-5 py-4 space-y-3 ${
                 msg.sender === 'user'
-                  ? 'bg-sky-600 text-slate-100 max-w-lg'
-                  : 'bg-slate-800/90 border border-slate-700/80 text-slate-200 w-full'
+                  ? 'bg-amber-400 text-zinc-950 font-medium max-w-xl shadow-md'
+                  : 'bg-zinc-900/80 border border-zinc-800 text-zinc-200 w-full'
               }`}
             >
               <div className="prose prose-invert max-w-none text-sm leading-relaxed">
@@ -93,14 +97,14 @@ export default function ChatInterface({ selectedDocs }) {
 
               {/* Source Badges */}
               {msg.sources && msg.sources.length > 0 && (
-                <div className="pt-3 border-t border-slate-700/60 flex flex-wrap gap-2">
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 w-full">
-                    Referenced Sources:
+                <div className="pt-3 border-t border-zinc-800 flex flex-wrap gap-2">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 w-full">
+                    Referenced Evidence:
                   </span>
                   {msg.sources.map((src, sIdx) => (
                     <span
                       key={sIdx}
-                      className="inline-flex items-center gap-1 text-[11px] font-mono bg-slate-900/80 border border-slate-700 text-sky-300 px-2.5 py-1 rounded-md"
+                      className="inline-flex items-center gap-1 text-[11px] font-mono bg-zinc-950 border border-zinc-700/80 text-amber-300 px-2.5 py-1 rounded-md"
                     >
                       📄 {src.doc_name} (p.{src.page_number})
                     </span>
@@ -110,7 +114,7 @@ export default function ChatInterface({ selectedDocs }) {
             </div>
 
             {msg.sender === 'user' && (
-              <div className="h-8 w-8 rounded-xl bg-slate-700 flex items-center justify-center text-slate-300 shrink-0">
+              <div className="h-8 w-8 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center text-zinc-300 shrink-0">
                 <User className="h-4 w-4" />
               </div>
             )}
@@ -119,32 +123,32 @@ export default function ChatInterface({ selectedDocs }) {
 
         {loading && (
           <div className="flex gap-4">
-            <div className="h-8 w-8 rounded-xl bg-sky-500/10 border border-sky-500/30 flex items-center justify-center text-sky-400">
-              <Bot className="h-4 w-4" />
+            <div className="h-8 w-8 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
+              <Sparkles className="h-4 w-4" />
             </div>
-            <div className="bg-slate-800/90 border border-slate-700 rounded-2xl px-5 py-4 flex items-center gap-3 text-slate-400 text-sm">
-              <Loader2 className="h-4 w-4 animate-spin text-sky-400" />
-              <span>Synthesizing answer from library...</span>
+            <div className="bg-zinc-900/80 border border-zinc-800 rounded-2xl px-5 py-4 flex items-center gap-3 text-zinc-400 text-sm">
+              <Loader2 className="h-4 w-4 animate-spin text-amber-400" />
+              <span>Synthesizing source-locked evidence...</span>
             </div>
           </div>
         )}
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input Form */}
-      <div className="p-4 border-t border-slate-800 bg-slate-950">
-        <form onSubmit={handleSubmit} className="max-w-4xl mx-auto flex gap-3">
+      {/* Floating Prompt Input Box */}
+      <div className="p-4 bg-zinc-950 border-t border-zinc-800/80 shrink-0">
+        <form onSubmit={handleSubmit} className="max-w-4xl mx-auto flex items-center gap-3 bg-zinc-900 border border-zinc-800 focus-within:border-amber-400/80 rounded-2xl px-4 py-2 transition-all shadow-lg">
           <input
             type="text"
-            placeholder="Ask a question about your research documents..."
+            placeholder="Ask anything about your research papers..."
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-sky-500 transition-colors"
+            className="flex-1 bg-transparent py-2.5 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none"
           />
           <button
             type="submit"
             disabled={loading || !input.trim()}
-            className="bg-sky-500 hover:bg-sky-400 disabled:bg-slate-800 disabled:text-slate-600 text-slate-950 font-semibold px-5 rounded-xl flex items-center justify-center transition-colors"
+            className="bg-amber-400 hover:bg-amber-300 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-950 p-2 rounded-xl flex items-center justify-center transition-colors shrink-0 cursor-pointer"
           >
             <Send className="h-4 w-4" />
           </button>

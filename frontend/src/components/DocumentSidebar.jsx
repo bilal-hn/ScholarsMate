@@ -1,12 +1,11 @@
 import React, { useState } from 'react';
-import { FileText, Upload, CheckSquare, Square, RefreshCw, AlertCircle } from 'lucide-react';
+import { FileText, Plus, CheckSquare, Square, RefreshCw, AlertCircle } from 'lucide-react';
 import { uploadFile } from '../services/api';
 
 export default function DocumentSidebar({ documents, selectedDocs, setSelectedDocs, refreshDocs, loadingDocs }) {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState(null);
 
-  // Toggle selection of a document for query scoping
   const toggleDoc = (docName) => {
     if (selectedDocs.includes(docName)) {
       setSelectedDocs(selectedDocs.filter((name) => name !== docName));
@@ -15,7 +14,6 @@ export default function DocumentSidebar({ documents, selectedDocs, setSelectedDo
     }
   };
 
-  // Toggle select all / clear all
   const toggleSelectAll = () => {
     if (selectedDocs.length === documents.length) {
       setSelectedDocs([]);
@@ -24,7 +22,6 @@ export default function DocumentSidebar({ documents, selectedDocs, setSelectedDo
     }
   };
 
-  // Handle PDF file upload
   const handleFileUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -39,40 +36,39 @@ export default function DocumentSidebar({ documents, selectedDocs, setSelectedDo
 
     try {
       await uploadFile(file);
-      await refreshDocs(); // Refresh list after successful upload
+      await refreshDocs();
     } catch (err) {
       setUploadError(err.response?.data?.detail || 'Failed to upload document.');
     } finally {
       setUploading(false);
-      e.target.value = ''; // Reset file input
+      e.target.value = '';
     }
   };
 
   return (
-    <aside className="w-80 bg-slate-950 border-r border-slate-800 flex flex-col h-full">
+    <aside className="w-80 bg-zinc-950 border-r border-zinc-800/80 flex flex-col h-full shrink-0 select-none">
       {/* Sidebar Header */}
-      <div className="p-4 border-b border-slate-800 flex items-center justify-between">
+      <div className="p-4 border-b border-zinc-800/80 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <FileText className="h-5 w-5 text-sky-400" />
-          <h2 className="font-semibold text-slate-100">Document Library</h2>
+          <FileText className="h-5 w-5 text-amber-400" />
+          <h2 className="font-semibold text-zinc-100 text-sm tracking-wide">Workspace Library</h2>
         </div>
         <button
           onClick={refreshDocs}
           title="Refresh Library"
-          className="text-slate-400 hover:text-sky-400 p-1 rounded-lg transition-colors"
+          className="text-zinc-400 hover:text-amber-400 p-1.5 rounded-lg hover:bg-zinc-900 transition-colors"
         >
-          <RefreshCw className={`h-4 w-4 ${loadingDocs ? 'animate-spin text-sky-400' : ''}`} />
+          <RefreshCw className={`h-4 w-4 ${loadingDocs ? 'animate-spin text-amber-400' : ''}`} />
         </button>
       </div>
 
-      {/* Upload Box */}
-      <div className="p-4 border-b border-slate-800">
-        <label className="flex flex-col items-center justify-center border-2 border-dashed border-slate-700 hover:border-sky-500 rounded-xl p-4 cursor-pointer bg-slate-900/50 transition-colors group">
-          <Upload className="h-6 w-6 text-slate-400 group-hover:text-sky-400 mb-2 transition-colors" />
-          <span className="text-xs font-medium text-slate-300">
-            {uploading ? 'Processing PDF...' : 'Upload PDF Document'}
+      {/* Upload PDF Box */}
+      <div className="p-4 border-b border-zinc-800/80">
+        <label className="flex items-center justify-center gap-2 w-full border border-dashed border-zinc-700 hover:border-amber-400/80 rounded-xl p-3 cursor-pointer bg-zinc-900/40 hover:bg-amber-500/5 transition-all group">
+          <Plus className="h-4 w-4 text-amber-400 group-hover:scale-110 transition-transform" />
+          <span className="text-xs font-medium text-zinc-200">
+            {uploading ? 'Processing PDF...' : 'Add PDF Document'}
           </span>
-          <span className="text-[10px] text-slate-500 mt-1">Click to select file</span>
           <input
             type="file"
             accept=".pdf"
@@ -82,21 +78,21 @@ export default function DocumentSidebar({ documents, selectedDocs, setSelectedDo
           />
         </label>
         {uploadError && (
-          <div className="mt-2 text-xs text-rose-400 flex items-center gap-1">
-            <AlertCircle className="h-3 w-3 shrink-0" />
+          <div className="mt-2 text-xs text-rose-400 flex items-center gap-1.5">
+            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
             <span>{uploadError}</span>
           </div>
         )}
       </div>
 
-      {/* Document Selection List */}
+      {/* Document Selection Catalog */}
       <div className="flex-1 overflow-y-auto p-4 space-y-2">
-        <div className="flex items-center justify-between text-xs text-slate-400 mb-3 px-1">
-          <span>{documents.length} File(s) Indexed</span>
+        <div className="flex items-center justify-between text-xs text-zinc-400 mb-3 px-1">
+          <span className="font-mono text-[11px] text-zinc-500">{documents.length} File(s) Indexed</span>
           {documents.length > 0 && (
             <button
               onClick={toggleSelectAll}
-              className="text-sky-400 hover:underline font-medium"
+              className="text-amber-400 hover:underline font-medium text-[11px]"
             >
               {selectedDocs.length === documents.length ? 'Deselect All' : 'Select All'}
             </button>
@@ -104,7 +100,7 @@ export default function DocumentSidebar({ documents, selectedDocs, setSelectedDo
         </div>
 
         {documents.length === 0 ? (
-          <div className="text-center py-8 text-xs text-slate-500">
+          <div className="text-center py-10 text-xs text-zinc-600">
             No documents in workspace.<br />Upload a PDF to get started.
           </div>
         ) : (
@@ -116,16 +112,16 @@ export default function DocumentSidebar({ documents, selectedDocs, setSelectedDo
                 onClick={() => toggleDoc(doc.doc_name)}
                 className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
                   isSelected
-                    ? 'bg-sky-950/40 border-sky-500/50 text-slate-100'
-                    : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:border-slate-700'
+                    ? 'bg-amber-500/10 border-amber-500/40 text-zinc-100 shadow-sm'
+                    : 'bg-zinc-900/40 border-zinc-800/60 text-zinc-400 hover:border-zinc-700 hover:text-zinc-300'
                 }`}
               >
-                <button className="mt-0.5 text-sky-400 shrink-0">
-                  {isSelected ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4 text-slate-600" />}
+                <button className="mt-0.5 text-amber-400 shrink-0">
+                  {isSelected ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4 text-zinc-700" />}
                 </button>
                 <div className="min-w-0 flex-1">
                   <p className="text-xs font-medium truncate leading-tight">{doc.doc_name}</p>
-                  <p className="text-[10px] text-slate-500 mt-1">{doc.chunk_count} text chunks</p>
+                  <p className="text-[10px] font-mono text-zinc-500 mt-1">{doc.chunk_count} text chunks</p>
                 </div>
               </div>
             );
