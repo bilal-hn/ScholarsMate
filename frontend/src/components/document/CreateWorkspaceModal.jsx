@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { Upload, FolderPlus, FileText, Loader2, X, AlertCircle } from 'lucide-react';
-import { createWorkspace } from '../services/api';
+import { createWorkspace } from '../../services/api';
 
 export default function CreateWorkspaceModal({ isOpen, onClose, onWorkspaceCreated }) {
   const [files, setFiles] = useState([]);
