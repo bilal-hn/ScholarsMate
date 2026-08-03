@@ -74,3 +74,5 @@ Return ONLY valid JSON matching this schema.
             "generation_mode": "single_pass",
             "is_meta_query": False
         }
+    
+    

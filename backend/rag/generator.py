@@ -1,5 +1,6 @@
 import sys
 import os
+import re
 from dotenv import load_dotenv
 from groq import Groq
 
@@ -13,13 +14,19 @@ from backend.embeddings.vector_store import list_indexed_documents
 api_key = os.getenv("GROQ_API_KEY")
 client = Groq(api_key=api_key) if api_key else None
 
+# Regex pattern for casual greetings, pleasantries, and conversational transitions
+GREETING_REGEX = re.compile(
+    r"^\s*(hi|hello|hey|greetings|good\s+(morning|afternoon|evening)|howdy|thanks|thank\s+you|who\s+are\s+you|what\s+can\s+you\s+do|one\s+more\s+question)\b",
+    re.IGNORECASE
+)
+
 
 def execute_map_reduce_synthesis(query: str, chunks: list[dict], model_name: str = "llama-3.3-70b-versatile") -> str:
     """Executes a 2-stage map-reduce pass for literature reviews over large context."""
     # Group chunks by document
     docs_map = {}
     for c in chunks:
-        docs_map.setdefault(c["doc_name"], []).append(c["content"])
+        docs_map.setdefault(c["doc_name"], []).append(c.get("content", c.get("text", "")))
 
     # Stage 1 (Map): Summarize each paper independently
     paper_summaries = []
@@ -63,16 +70,53 @@ def generate_answer(
     model_name: str = "llama-3.3-70b-versatile"
 ) -> dict:
     """Orchestrates query classification, context retrieval, and specialized model generation."""
+    clean_query = query.strip()
+
+    # -------------------------------------------------------------------------
+    # 0. Fast Path: Conversational & Greeting Router (No Groq/Retriever Calls)
+    # -------------------------------------------------------------------------
+    if GREETING_REGEX.search(clean_query) or len(clean_query.split()) <= 2:
+        lower_q = clean_query.lower()
+
+        if any(w in lower_q for w in ["hi", "hello", "hey", "greetings", "howdy"]):
+            answer_text = (
+                "Hello! I'm **ScholarsMate**, your research assistant. "
+                "Ask me any question about your uploaded research papers, or request a summary, "
+                "methodology breakdown, or comparative analysis across your workspace!"
+            )
+        elif any(w in lower_q for w in ["who are you", "what can you do"]):
+            answer_text = (
+                "I am **ScholarsMate**, a source-locked research intelligence system. "
+                "I analyze research papers in your workspace, synthesize findings with exact inline "
+                "citations, and prevent factual hallucinations by grounding responses strictly in your document context."
+            )
+        elif any(w in lower_q for w in ["thanks", "thank you"]):
+            answer_text = "You're welcome! Let me know if you have any more questions about your papers."
+        else:
+            answer_text = "Sure! What else would you like to know about your research papers?"
+
+        return {
+            "query": query,
+            "answer": answer_text,
+            "sources_used": []
+        }
+
+    # Verify API Client for Academic Paths
     if not client:
         raise ValueError("Groq API key is not configured in .env file.")
 
+    # -------------------------------------------------------------------------
     # 1. Retrieve Context & Execution Plan
-    retrieved_chunks, plan = retrieve_context(query=query, top_k=top_k, explicit_docs=explicit_docs)
+    # -------------------------------------------------------------------------
+    retrieved_chunks, plan = retrieve_context(query=clean_query, top_k=top_k, explicit_docs=explicit_docs)
 
-    # Fast Path A: Workspace Meta-Query (Bypasses LLM entirely)
+    # Path A: Workspace Meta-Query (Explicit workspace checks)
     if plan.get("is_meta_query"):
         docs = list_indexed_documents()
-        answer_text = f"Your workspace currently contains **{len(docs)} document(s)**:\n" + "\n".join([f"- `{d}`" for d in docs])
+        if not docs:
+            answer_text = "Your workspace currently has no documents indexed."
+        else:
+            answer_text = f"Your workspace currently contains **{len(docs)} document(s)**:\n" + "\n".join([f"- `{d}`" for d in docs])
         return {
             "query": query,
             "answer": answer_text,
@@ -81,11 +125,11 @@ def generate_answer(
 
     # Path B: Map-Reduce Synthesis (Literature Reviews over 3+ papers)
     if plan.get("generation_mode") == "map_reduce" and len(retrieved_chunks) > 12:
-        answer_text = execute_map_reduce_synthesis(query, retrieved_chunks, model_name=model_name)
+        answer_text = execute_map_reduce_synthesis(clean_query, retrieved_chunks, model_name=model_name)
     else:
         # Path C: Single-Pass or Structured Comparison
         context_block = build_context_block(retrieved_chunks)
-        full_prompt = construct_prompt(query=query, context_block=context_block)
+        full_prompt = construct_prompt(query=clean_query, context_block=context_block)
 
         chat_completion = client.chat.completions.create(
             messages=[{"role": "user", "content": full_prompt}],
@@ -94,17 +138,30 @@ def generate_answer(
         )
         answer_text = chat_completion.choices[0].message.content
 
+    # -------------------------------------------------------------------------
+    # 2. Source Deduplication (Ensures page badges render cleanly)
+    # -------------------------------------------------------------------------
+    raw_sources = [
+        {
+            "chunk_id": c.get("chunk_id", ""),
+            "doc_name": c.get("doc_name", "Unknown Document"),
+            "page_number": c.get("page_number", 1)
+        }
+        for c in retrieved_chunks
+    ]
+
+    unique_sources = []
+    seen = set()
+    for src in raw_sources:
+        key = (src["doc_name"], src["page_number"])
+        if key not in seen:
+            seen.add(key)
+            unique_sources.append(src)
+
     return {
         "query": query,
         "answer": answer_text,
-        "sources_used": [
-            {
-                "chunk_id": c["chunk_id"],
-                "doc_name": c["doc_name"],
-                "page_number": c["page_number"]
-            }
-            for c in retrieved_chunks
-        ]
+        "sources_used": unique_sources
     }
 
 

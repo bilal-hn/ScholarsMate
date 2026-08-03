@@ -2,10 +2,11 @@ import sys
 import os
 import shutil
 from pathlib import Path
+from typing import List
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
-# Ensure project root is in sys.path
+# Ensure project root is added to sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
 from backend.api.schemas import (
@@ -19,7 +20,7 @@ from backend.ingestion.pipeline import process_path
 from backend.embeddings.vector_store import store_chunks, get_or_create_collection
 from backend.rag.generator import generate_answer
 
-# Temp upload directory
+# Directory for uploaded documents
 UPLOADS_DIR = Path(__file__).parent.parent.parent / "data" / "uploads"
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -29,10 +30,10 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# Enable CORS for React frontend (Phase 6)
+# Enable CORS middleware for React frontend (Vite port 5173 / production)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Adjust in production
+    allow_origins=["*"],  # Adjust origin URL list for strict production environments
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -41,15 +42,15 @@ app.add_middleware(
 
 @app.get("/api/health")
 def health_check():
-    """Health check endpoint."""
-    return {"status": "ok", "service": "ScholarsMate Backend"}
+    """Health check endpoint to verify backend status."""
+    return {"status": "ok", "service": "ScholarsMate Backend API"}
 
 
 @app.post("/api/upload", response_model=UploadResponse)
 async def upload_pdf(file: UploadFile = File(...)):
-    """Uploads a PDF file, processes it via ingestion pipeline, and stores embeddings in ChromaDB."""
+    """Uploads a single PDF file, processes it via layout-aware pipeline, and stores embeddings in ChromaDB."""
     if not file.filename.lower().endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="Only PDF files are supported.")
+        raise HTTPException(status_code=400, detail="Only PDF documents are supported.")
 
     file_path = UPLOADS_DIR / file.filename
 
@@ -64,7 +65,10 @@ async def upload_pdf(file: UploadFile = File(...)):
     try:
         chunks = process_path(str(file_path))
         if not chunks:
-            raise HTTPException(status_code=400, detail="No readable text extracted from PDF.")
+            raise HTTPException(
+                status_code=400, 
+                detail="No readable text extracted from PDF. Check if the file is scanned or empty."
+            )
 
         store_chunks(chunks)
         return UploadResponse(
@@ -74,6 +78,44 @@ async def upload_pdf(file: UploadFile = File(...)):
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ingestion failed: {str(e)}")
+
+
+@app.post("/api/workspace/create", response_model=UploadResponse)
+async def create_workspace(files: List[UploadFile] = File(...)):
+    """Uploads a batch of PDF papers or folder contents, processes them via ingestion pipeline, and stores embeddings in ChromaDB."""
+    total_chunks = 0
+    processed_files = []
+
+    for file in files:
+        # Extract filename (handles paths passed during folder uploads)
+        filename = Path(file.filename).name
+        if not filename.lower().endswith(".pdf"):
+            continue
+
+        file_path = UPLOADS_DIR / filename
+        try:
+            with file_path.open("wb") as buffer:
+                shutil.copyfileobj(file.file, buffer)
+
+            chunks = process_path(str(file_path))
+            if chunks:
+                store_chunks(chunks)
+                total_chunks += len(chunks)
+                processed_files.append(filename)
+        except Exception as e:
+            print(f"Failed to process file {filename}: {str(e)}")
+
+    if not processed_files:
+        raise HTTPException(
+            status_code=400, 
+            detail="No valid readable PDF files were processed from the selected input."
+        )
+
+    return UploadResponse(
+        message=f"Workspace created with {len(processed_files)} document(s).",
+        filename=", ".join(processed_files),
+        chunks_processed=total_chunks,
+    )
 
 
 @app.post("/api/query", response_model=QueryResponse)
@@ -96,16 +138,17 @@ def query_rag(request: QueryRequest):
 
 @app.get("/api/documents", response_model=DocumentListResponse)
 def list_documents():
-    """Lists all documents stored in the vector database and their chunk counts."""
+    """Lists all documents stored in the vector database along with chunk counts."""
     try:
         collection = get_or_create_collection()
-        all_data = collection.get(include=["metadatas"])
+        all_data = collection.get(include=["metadatas"], limit=10000)
 
         doc_counts = {}
         if all_data and all_data.get("metadatas"):
             for meta in all_data["metadatas"]:
-                source = meta.get("source", "Unknown")
-                doc_counts[source] = doc_counts.get(source, 0) + 1
+                if meta and "source" in meta:
+                    source = meta["source"]
+                    doc_counts[source] = doc_counts.get(source, 0) + 1
 
         docs_list = [
             DocumentListItem(doc_name=name, chunk_count=count)
