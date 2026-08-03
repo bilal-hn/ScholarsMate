@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { GraducationCap, Loader2 } from 'lucide-react';
+import { GraduationCap, Loader2 } from 'lucide-react';
 import DocumentSelector from '../document/DocumentSelector';
 import ChatMessage from './ChatMessage';
 import ChatInput from './ChatInput';

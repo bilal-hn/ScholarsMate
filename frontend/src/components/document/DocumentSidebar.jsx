@@ -1,9 +1,16 @@
 import React from 'react';
-import { Plus, FolderKanban, FileText } from 'lucide-react';
+import { Plus, MessageSquare, Trash2, FolderKanban } from 'lucide-react';
 
-export default function DocumentSidebar({ documents, onOpenCreateModal }) {
+export default function DocumentSidebar({
+  workspaces,
+  activeWorkspaceId,
+  onSelectWorkspace,
+  onDeleteWorkspace,
+  onOpenCreateModal
+}) {
   return (
     <aside className="w-64 bg-zinc-950 border-r border-zinc-800/80 flex flex-col h-full shrink-0 select-none">
+      {/* New Workspace Button */}
       <div className="p-4">
         <button
           onClick={onOpenCreateModal}
@@ -14,20 +21,54 @@ export default function DocumentSidebar({ documents, onOpenCreateModal }) {
         </button>
       </div>
 
+      {/* Recent Workspaces List */}
       <div className="flex-1 overflow-y-auto px-3 py-2 space-y-1">
         <div className="px-3 py-2 text-[11px] font-semibold tracking-wider text-zinc-500 uppercase flex items-center justify-between">
-          <span>Active Session</span>
+          <span>Recent Workspaces</span>
           <FolderKanban className="h-3.5 w-3.5 text-zinc-600" />
         </div>
 
-        <div className="px-3 py-2.5 rounded-xl bg-zinc-900/60 border border-zinc-800/80 text-xs text-zinc-200 flex items-center gap-2.5">
-          <FileText className="h-4 w-4 text-amber-400 shrink-0" />
-          <span className="truncate font-medium">Research Workspace</span>
-        </div>
+        {workspaces.length === 0 ? (
+          <div className="px-3 py-6 text-center text-xs text-zinc-600">
+            No workspaces yet.<br />Click <strong className="text-zinc-400">+ New Workspace</strong> to begin.
+          </div>
+        ) : (
+          workspaces.map((ws) => {
+            const isActive = ws.id === activeWorkspaceId;
+            return (
+              <div
+                key={ws.id}
+                onClick={() => onSelectWorkspace(ws)}
+                className={`group flex items-center justify-between px-3 py-2.5 rounded-xl text-xs cursor-pointer transition-all ${
+                  isActive
+                    ? 'bg-zinc-900 text-zinc-100 font-medium border border-zinc-800'
+                    : 'text-zinc-400 hover:bg-zinc-900/50 hover:text-zinc-200'
+                }`}
+              >
+                <div className="flex items-center gap-2.5 truncate min-w-0 pr-2">
+                  <MessageSquare className={`h-4 w-4 shrink-0 ${isActive ? 'text-amber-400' : 'text-zinc-600'}`} />
+                  <span className="truncate">{ws.name}</span>
+                </div>
+
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDeleteWorkspace(ws.id);
+                  }}
+                  title="Delete Workspace"
+                  className="opacity-0 group-hover:opacity-100 text-zinc-600 hover:text-rose-400 p-1 rounded transition-opacity"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            );
+          })
+        )}
       </div>
 
+      {/* Footer Info */}
       <div className="p-4 border-t border-zinc-900 text-[11px] text-zinc-600 font-mono">
-        {documents.length} Document(s) Loaded
+        {workspaces.length} Active Workspace(s)
       </div>
     </aside>
   );
