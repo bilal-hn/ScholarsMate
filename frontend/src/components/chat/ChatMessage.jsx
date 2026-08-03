@@ -1,19 +1,68 @@
 import React from 'react';
 import ReactMarkdown from 'react-markdown';
-import { GraduationCap, User, FileText } from 'lucide-react';
+import rehypeRaw from 'rehype-raw';
+import { GraduationCap, User, FileText, Code2 } from 'lucide-react';
 
 export default function ChatMessage({ message }) {
   const isBot = message.sender === 'bot';
 
-  // Transforms inline string citations like [sample.pdf, p.1] into clean inline badges
-  const renderFormattedMarkdown = (content) => {
-    if (!content) return '';
-    // Regex matches [filename.pdf, p.X] or [filename.pdf, page X]
-    const citationRegex = /\[([^\]]+\.pdf),\s*(p(?:age)?\.\s*\d+)\]/gi;
+  // Converts Markdown table syntax into clean HTML tables
+  const preprocessTables = (content) => {
+    if (!content || !content.includes('|')) return content;
 
-    return content.replace(citationRegex, (match, doc, page) => {
-      return `<span class="inline-cite">📄 ${doc} (${page})</span>`;
+    const lines = content.split('\n');
+    let inTable = false;
+    let htmlOutput = [];
+    let tableRows = [];
+
+    lines.forEach((line) => {
+      const trimmed = line.trim();
+      if (trimmed.startsWith('|') && trimmed.endsWith('|')) {
+        if (/^\|[\s\-:]+(\|[\s\-:]+)*\|$/.test(trimmed)) {
+          return;
+        }
+        inTable = true;
+        const cells = trimmed
+          .split('|')
+          .slice(1, -1)
+          .map((c) => c.trim());
+        tableRows.push(cells);
+      } else {
+        if (inTable) {
+          htmlOutput.push(renderHtmlTable(tableRows));
+          tableRows = [];
+          inTable = false;
+        }
+        htmlOutput.push(line);
+      }
     });
+
+    if (inTable && tableRows.length > 0) {
+      htmlOutput.push(renderHtmlTable(tableRows));
+    }
+
+    return htmlOutput.join('\n');
+  };
+
+  const renderHtmlTable = (rows) => {
+    if (rows.length === 0) return '';
+    const header = rows[0];
+    const body = rows.slice(1);
+
+    const headerHtml = `<thead><tr>${header
+      .map((h) => `<th class="px-4 py-3 font-semibold text-amber-400 border-b border-zinc-800 text-left">${h}</th>`)
+      .join('')}</tr></thead>`;
+
+    const bodyHtml = `<tbody>${body
+      .map(
+        (row) =>
+          `<tr class="hover:bg-zinc-900/40 border-b border-zinc-800/50">${row
+            .map((c) => `<td class="px-4 py-3 text-zinc-300 leading-snug">${c}</td>`)
+            .join('')}</tr>`
+      )
+      .join('')}</tbody>`;
+
+    return `<div class="overflow-x-auto my-6 rounded-xl border border-zinc-800 bg-zinc-950/60 shadow-lg"><table class="w-full text-xs sm:text-sm border-collapse">${headerHtml}${bodyHtml}</table></div>`;
   };
 
   return (
@@ -28,10 +77,10 @@ export default function ChatMessage({ message }) {
       {/* Message Content Container */}
       <div className={`w-full max-w-3xl ${isBot ? 'pr-4' : ''}`}>
         {isBot ? (
-          /* Borderless, Clean Gemini-Style Text Output */
           <div className="space-y-4">
-            <div className="prose prose-invert max-w-none text-zinc-200 text-sm sm:text-[15px] leading-relaxed tracking-wide">
+            <div className="prose prose-invert max-w-none text-zinc-200 text-sm sm:text-[15px] leading-relaxed tracking-wide overflow-hidden">
               <ReactMarkdown
+                rehypePlugins={[rehypeRaw]}
                 components={{
                   h1: ({ children }) => (
                     <h1 className="text-lg font-bold text-zinc-100 mt-6 mb-3 tracking-tight border-b border-zinc-800/80 pb-2">
@@ -74,9 +123,36 @@ export default function ChatMessage({ message }) {
                       {children}
                     </blockquote>
                   ),
+
+                  /* --- CODE BLOCK RENDERERS --- */
+                  code: ({ inline, className, children, ...props }) => {
+                    return inline ? (
+                      <code className="bg-zinc-900 text-amber-300 font-mono text-[13px] px-1.5 py-0.5 rounded border border-zinc-800/80" {...props}>
+                        {children}
+                      </code>
+                    ) : (
+                      <code className="font-mono text-xs sm:text-sm text-amber-200/90" {...props}>
+                        {children}
+                      </code>
+                    );
+                  },
+                  pre: ({ children }) => (
+                    <div className="my-5 rounded-xl border border-zinc-800 bg-zinc-950/90 shadow-xl overflow-hidden">
+                      <div className="bg-zinc-900/80 px-4 py-2 border-b border-zinc-800/80 flex items-center justify-between text-xs text-zinc-400 font-mono">
+                        <span className="flex items-center gap-1.5 text-amber-400 font-semibold">
+                          <Code2 className="h-3.5 w-3.5" />
+                          Snippet / Extraction
+                        </span>
+                        <span>Code Block</span>
+                      </div>
+                      <pre className="p-4 overflow-x-auto font-mono text-xs sm:text-sm leading-relaxed text-zinc-200">
+                        {children}
+                      </pre>
+                    </div>
+                  )
                 }}
               >
-                {message.text}
+                {preprocessTables(message.text)}
               </ReactMarkdown>
             </div>
 
