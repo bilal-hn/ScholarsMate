@@ -1,6 +1,7 @@
 import sys
 import os
 import json
+import re
 from groq import Groq
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
@@ -11,16 +12,42 @@ api_key = os.getenv("GROQ_API_KEY")
 groq_client = Groq(api_key=api_key) if api_key else None
 
 
+def evaluate_query_scope_fallback(query: str) -> int:
+    """Fallback regex check to determine top_k depth if LLM router fails."""
+    query_lower = query.lower().strip()
+    
+    # Global/Synthesis scope triggers requiring higher retrieval density
+    global_synthesis_patterns = [
+        r"\b(all|every|entire|whole|complete|full)\b",
+        r"\b(summary|summarize|overview|synthesis)\b.*(paper|book|document|workspace)",
+        r"\bcompare\b.*(all|workspace|papers)",
+        r"\blist all\b",
+        r"\bextract all\b",
+        r"\bacross\b.*(papers|documents|workspace)",
+        r"\b(code|algorithm|pseudocode|equation)s?\b"
+    ]
+    
+    if any(re.search(pattern, query_lower) for pattern in global_synthesis_patterns):
+        return 18
+    return 6
+
+
 def classify_query_intent(query: str, available_docs: list[str]) -> dict:
-    """Uses Groq (Llama 3.1 8B) to output a structured JSON execution plan."""
+    """Uses Groq (Llama 3.1 8B) to output a structured JSON execution plan including dynamic top_k scope."""
+    fallback_k = evaluate_query_scope_fallback(query)
+    
+    default_plan = {
+        "scope": "full_corpus",
+        "target_docs": available_docs,
+        "retrieval_mode": "vector_search",
+        "generation_mode": "single_pass",
+        "is_meta_query": False,
+        "query_depth": "broad_synthesis" if fallback_k >= 18 else "focused",
+        "recommended_top_k": fallback_k
+    }
+
     if not groq_client:
-        return {
-            "scope": "full_corpus",
-            "target_docs": available_docs,
-            "retrieval_mode": "vector_search",
-            "generation_mode": "single_pass",
-            "is_meta_query": False
-        }
+        return default_plan
 
     catalog = get_indexed_document_catalog()
 
@@ -47,6 +74,8 @@ JSON Requirements:
    - "structured_comparison": Side-by-side comparative analysis of 2+ papers.
    - "no_llm": Direct data response (for metadata questions).
 5. "is_meta_query": true if the question can be answered purely by document count/names without reading text.
+6. "query_depth": "broad_synthesis" if query asks for summaries, all code blocks, full tables, or paper comparisons. "focused" if query asks a specific targeted question.
+7. "recommended_top_k": Integer (18-20 for broad_synthesis, 5-6 for focused).
 
 Return ONLY valid JSON matching this schema.
 """.strip()
@@ -64,15 +93,11 @@ Return ONLY valid JSON matching this schema.
         if not plan.get("target_docs"):
             plan["target_docs"] = available_docs
             
+        # Ensure top_k fallback if omitted by LLM
+        if "recommended_top_k" not in plan:
+            plan["recommended_top_k"] = 18 if plan.get("query_depth") == "broad_synthesis" else 6
+            
         return plan
     except Exception as e:
         print(f"[Router Warning] Fallback triggered due to classification error: {e}")
-        return {
-            "scope": "full_corpus",
-            "target_docs": available_docs,
-            "retrieval_mode": "vector_search",
-            "generation_mode": "single_pass",
-            "is_meta_query": False
-        }
-    
-    
+        return default_plan

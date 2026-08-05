@@ -44,7 +44,7 @@ def extract_pages_layout_aware(pdf_path: str) -> tuple[list[Document], str]:
 
 
 def process_path(
-    input_path: str, chunk_size: int = 1000, chunk_overlap: int = 100
+    input_path: str, chunk_size: int = 1200, chunk_overlap: int = 150
 ) -> list[Document]:
     path = Path(input_path)
     pdf_files = []
@@ -64,10 +64,20 @@ def process_path(
     print(f"Found {len(pdf_files)} PDF file(s) to process.")
 
     all_chunks = []
+    
+    # Code-aware & structure-preserving text splitter
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=chunk_size,
         chunk_overlap=chunk_overlap,
-        separators=["\n\n", "\n", " ", ""],
+        separators=[
+            "\n```",        # Code block boundaries
+            "\ndef ",       # Python functions
+            "\nclass ",     # Python classes
+            "\n\n",         # Paragraph breaks
+            "\n",           # Line breaks
+            " ",            # Words
+            ""
+        ],
     )
 
     seen_doc_names = set()
@@ -83,10 +93,8 @@ def process_path(
 
         print(f"Processing: {pdf_file.name} (as '{clean_doc_name}')...")
         
-        # UNPACK TUPLE CORRECTLY HERE
         raw_pages, paper_title = extract_pages_layout_aware(str(pdf_file))
 
-        # Pass ONLY raw_pages list to split_documents
         doc_chunks = splitter.split_documents(raw_pages)
 
         # Inject citation IDs per document & page
