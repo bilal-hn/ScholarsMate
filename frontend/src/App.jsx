@@ -3,6 +3,7 @@ import Header from './components/layout/Header';
 import DocumentSidebar from './components/document/DocumentSidebar';
 import ChatInterface from './components/chat/ChatInterface';
 import CreateWorkspaceModal from './components/document/CreateWorkspaceModal';
+import PdfViewer from './components/viewer/PdfViewer';
 import { getDocuments, checkHealth } from './services/api';
 
 export default function App() {
@@ -10,6 +11,10 @@ export default function App() {
   const [selectedDocs, setSelectedDocs] = useState([]);
   const [backendStatus, setBackendStatus] = useState('checking');
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // PDF Viewer split-screen state
+  const [activePdf, setActivePdf] = useState(null);
+  const [targetPage, setTargetPage] = useState(1);
 
   // Workspaces state synced with localStorage
   const [workspaces, setWorkspaces] = useState(() => {
@@ -69,6 +74,13 @@ export default function App() {
     }
   };
 
+  // Callback triggered when a user clicks a citation badge in ChatMessage
+  const handleSelectCitation = (docName, pageNum) => {
+    console.log(`[App.jsx Debug] Citation clicked: ${docName}, Page: ${pageNum}`);
+    setActivePdf(docName);
+    setTargetPage(pageNum || 1);
+  };
+
   return (
     <div className="flex flex-col h-screen w-full bg-zinc-950 overflow-hidden font-sans">
       <Header backendStatus={backendStatus} />
@@ -81,11 +93,30 @@ export default function App() {
           onDeleteWorkspace={handleDeleteWorkspace}
           onOpenCreateModal={() => setIsModalOpen(true)}
         />
-        <ChatInterface
-          documents={documents}
-          selectedDocs={selectedDocs}
-          setSelectedDocs={setSelectedDocs}
-        />
+
+        {/* Main Content Area: Dynamic Split-Screen Layout */}
+        <div className="flex-1 flex h-full overflow-hidden">
+          {/* Chat Interface Container */}
+          <div className={`h-full transition-all duration-300 ${activePdf ? 'w-1/2 border-r border-zinc-800' : 'w-full'}`}>
+            <ChatInterface
+              documents={documents}
+              selectedDocs={selectedDocs}
+              setSelectedDocs={setSelectedDocs}
+              onSelectCitation={handleSelectCitation}
+            />
+          </div>
+
+          {/* Interactive PDF Viewer Split Screen */}
+          {activePdf && (
+            <div className="w-1/2 h-full">
+              <PdfViewer
+                activePdf={activePdf}
+                targetPage={targetPage}
+                onClose={() => setActivePdf(null)}
+              />
+            </div>
+          )}
+        </div>
       </div>
 
       <CreateWorkspaceModal

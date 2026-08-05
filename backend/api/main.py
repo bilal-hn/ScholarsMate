@@ -20,6 +20,9 @@ from backend.ingestion.pipeline import process_path
 from backend.embeddings.vector_store import store_chunks, get_or_create_collection
 from backend.rag.generator import generate_answer
 
+# Import the PDF streaming router
+from backend.api.documents import router as documents_router
+
 # Directory for uploaded documents
 UPLOADS_DIR = Path(__file__).parent.parent.parent / "data" / "uploads"
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
@@ -38,6 +41,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include PDF streaming router
+app.include_router(documents_router)
 
 
 @app.get("/api/health")

@@ -3,7 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import { GraduationCap, User, FileText, Code2 } from 'lucide-react';
 
-export default function ChatMessage({ message }) {
+export default function ChatMessage({ message, onSelectCitation }) {
   const isBot = message.sender === 'bot';
 
   // Converts Markdown table syntax into clean HTML tables
@@ -156,21 +156,23 @@ export default function ChatMessage({ message }) {
               </ReactMarkdown>
             </div>
 
-            {/* Bottom Citation Badges */}
+            {/* Clickable Citation Badges */}
             {message.sources && message.sources.length > 0 && (
               <div className="pt-4 mt-6 border-t border-zinc-800/60 flex flex-wrap items-center gap-2">
                 <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 w-full mb-1">
                   Referenced Context Sources:
                 </span>
                 {message.sources.map((src, sIdx) => (
-                  <span
+                  <button
                     key={sIdx}
-                    className="inline-flex items-center gap-1.5 text-[11px] font-mono bg-zinc-900 border border-zinc-800 text-amber-300 px-2.5 py-1 rounded-lg"
+                    type="button"
+                    onClick={() => onSelectCitation && onSelectCitation(src.doc_name, src.page_number)}
+                    className="inline-flex items-center gap-1.5 text-[11px] font-mono bg-zinc-900 border border-zinc-800 hover:border-amber-500/50 text-amber-300 hover:text-amber-400 px-2.5 py-1 rounded-lg transition-all cursor-pointer group"
                   >
-                    <FileText className="h-3 w-3 text-amber-400 shrink-0" />
+                    <FileText className="h-3 w-3 text-amber-400 shrink-0 group-hover:scale-110 transition-transform" />
                     <span>{src.doc_name}</span>
                     <span className="text-zinc-500">(p.{src.page_number})</span>
-                  </span>
+                  </button>
                 ))}
               </div>
             )}

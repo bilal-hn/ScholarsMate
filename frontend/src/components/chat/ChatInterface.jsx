@@ -5,7 +5,12 @@ import ChatMessage from './ChatMessage';
 import ChatInput from './ChatInput';
 import { sendQuery } from '../../services/api';
 
-export default function ChatInterface({ documents, selectedDocs, setSelectedDocs }) {
+export default function ChatInterface({ 
+  documents, 
+  selectedDocs, 
+  setSelectedDocs, 
+  onSelectCitation 
+}) {
   const [messages, setMessages] = useState([
     {
       sender: 'bot',
@@ -72,7 +77,11 @@ export default function ChatInterface({ documents, selectedDocs, setSelectedDocs
       {/* Messages Thread */}
       <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6 max-w-4xl mx-auto w-full">
         {messages.map((msg, idx) => (
-          <ChatMessage key={idx} message={msg} />
+          <ChatMessage 
+            key={idx} 
+            message={msg} 
+            onSelectCitation={onSelectCitation} 
+          />
         ))}
 
         {loading && (
