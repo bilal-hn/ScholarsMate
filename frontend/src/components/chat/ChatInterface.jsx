@@ -9,7 +9,8 @@ export default function ChatInterface({
   documents, 
   selectedDocs, 
   setSelectedDocs, 
-  onSelectCitation 
+  onSelectCitation,
+  incomingMessage 
 }) {
   const [messages, setMessages] = useState([
     {
@@ -21,6 +22,13 @@ export default function ChatInterface({
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef(null);
+
+  // Appends incoming generated messages (e.g., Literature Reviews) from parent App component
+  useEffect(() => {
+    if (incomingMessage) {
+      setMessages((prev) => [...prev, incomingMessage]);
+    }
+  }, [incomingMessage]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });

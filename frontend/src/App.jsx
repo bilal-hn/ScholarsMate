@@ -16,6 +16,10 @@ export default function App() {
   const [activePdf, setActivePdf] = useState(null);
   const [targetPage, setTargetPage] = useState(1);
 
+  // Literature review loading state & generated content handler
+  const [isGeneratingReview, setIsGeneratingReview] = useState(false);
+  const [reviewTriggerMessage, setReviewTriggerMessage] = useState(null);
+
   // Workspaces state synced with localStorage
   const [workspaces, setWorkspaces] = useState(() => {
     const saved = localStorage.getItem('scholarsmate_workspaces');
@@ -81,6 +85,43 @@ export default function App() {
     setTargetPage(pageNum || 1);
   };
 
+  // Trigger handler for generating a workspace literature review
+  const handleGenerateReview = async () => {
+    setIsGeneratingReview(true);
+    try {
+      const response = await fetch('http://localhost:8000/api/workspace/literature-review', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ doc_names: selectedDocs }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      
+      // Pass the response to ChatInterface via state trigger
+      setReviewTriggerMessage({
+        sender: 'bot',
+        text: data.content,
+        sources: (data.documents_analyzed || []).map((doc) => ({
+          doc_name: doc,
+          page_number: 1,
+        })),
+      });
+    } catch (err) {
+      console.error('Failed to generate literature review:', err);
+      setReviewTriggerMessage({
+        sender: 'bot',
+        text: '⚠️ Failed to generate literature review. Please check backend connection.',
+        sources: [],
+      });
+    } finally {
+      setIsGeneratingReview(false);
+    }
+  };
+
   return (
     <div className="flex flex-col h-screen w-full bg-zinc-950 overflow-hidden font-sans">
       <Header backendStatus={backendStatus} />
@@ -92,6 +133,8 @@ export default function App() {
           onSelectWorkspace={handleSelectWorkspace}
           onDeleteWorkspace={handleDeleteWorkspace}
           onOpenCreateModal={() => setIsModalOpen(true)}
+          onGenerateReview={handleGenerateReview}
+          isGenerating={isGeneratingReview}
         />
 
         {/* Main Content Area: Dynamic Split-Screen Layout */}
@@ -103,6 +146,7 @@ export default function App() {
               selectedDocs={selectedDocs}
               setSelectedDocs={setSelectedDocs}
               onSelectCitation={handleSelectCitation}
+              incomingMessage={reviewTriggerMessage}
             />
           </div>
 

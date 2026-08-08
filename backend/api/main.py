@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import List
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
 # Ensure project root is added to sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
@@ -19,6 +20,7 @@ from backend.api.schemas import (
 from backend.ingestion.pipeline import process_path
 from backend.embeddings.vector_store import store_chunks, get_or_create_collection
 from backend.rag.generator import generate_answer
+from backend.rag.literature_review import generate_literature_review
 
 # Import the PDF streaming router
 from backend.api.documents import router as documents_router
@@ -32,6 +34,10 @@ app = FastAPI(
     description="Source-Locked Retrieval-Augmented Generation REST API",
     version="1.0.0",
 )
+
+# Request schema for Literature Review synthesis
+class ReviewRequest(BaseModel):
+    doc_names: List[str] = []
 
 # Enable CORS middleware for React frontend (Vite port 5173 / production)
 app.add_middleware(
@@ -140,6 +146,18 @@ def query_rag(request: QueryRequest):
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Query generation failed: {str(e)}")
+
+
+@app.post("/api/workspace/literature-review")
+def create_literature_review(request: ReviewRequest):
+    """Generates a structured, publication-level academic literature review across workspace documents."""
+    try:
+        result = generate_literature_review(doc_names=request.doc_names)
+        if "error" in result:
+            raise HTTPException(status_code=500, detail=result["error"])
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Literature review generation failed: {str(e)}")
 
 
 @app.get("/api/documents", response_model=DocumentListResponse)

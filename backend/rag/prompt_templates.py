@@ -36,6 +36,26 @@ You are ScholarsMate, an elite, source-locked academic research assistant specia
   "I could not find sufficient information regarding this question in the provided document context."
 """.strip()
 
+# Add to backend/rag/prompt_templates.py
+
+QUERY_REWRITE_PROMPT = """
+You are a query reformulation assistant for an academic research RAG system.
+Given a conversation history and a follow-up user query, rewrite the follow-up query to be a standalone, fully explicit search query that includes all relevant document names, concepts, and context from the history.
+
+CRITICAL RULES:
+1. Do NOT answer the query. Only rewrite it.
+2. If the user query is already self-contained, return it EXACTLY as written.
+3. Replace pronouns ("it", "they", "this paper", "that method") with specific entities from the chat history.
+4. Keep the output concise and optimized for vector semantic search.
+
+Chat History:
+{chat_history}
+
+Follow-up User Query: {query}
+
+Standalone Search Query:
+""".strip()
+
 
 def construct_prompt(query: str, context_block: str) -> str:
     """Assembles the user query and context block into a polished, professional prompt."""

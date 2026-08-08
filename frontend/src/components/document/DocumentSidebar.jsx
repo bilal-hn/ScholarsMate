@@ -1,23 +1,45 @@
 import React from 'react';
-import { Plus, MessageSquare, Trash2, FolderKanban } from 'lucide-react';
+import { Plus, MessageSquare, Trash2, FolderKanban, Sparkles, Loader2 } from 'lucide-react';
 
 export default function DocumentSidebar({
   workspaces,
   activeWorkspaceId,
   onSelectWorkspace,
   onDeleteWorkspace,
-  onOpenCreateModal
+  onOpenCreateModal,
+  onGenerateReview,
+  isGenerating
 }) {
   return (
     <aside className="w-64 bg-zinc-950 border-r border-zinc-800/80 flex flex-col h-full shrink-0 select-none">
-      {/* New Workspace Button */}
-      <div className="p-4">
+      {/* Top Action Buttons */}
+      <div className="p-4 space-y-2 border-b border-zinc-900">
+        {/* New Workspace Button */}
         <button
           onClick={onOpenCreateModal}
           className="w-full flex items-center justify-center gap-2.5 bg-amber-400 hover:bg-amber-300 text-zinc-950 font-semibold py-3 px-4 rounded-2xl transition-all shadow-md active:scale-95 cursor-pointer"
         >
           <Plus className="h-5 w-5 stroke-[2.5]" />
           <span className="text-sm">New Workspace</span>
+        </button>
+
+        {/* Generate Literature Review Button */}
+        <button
+          onClick={onGenerateReview}
+          disabled={isGenerating || workspaces.length === 0}
+          className="w-full flex items-center justify-center gap-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 font-medium py-2.5 px-4 rounded-xl text-xs transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer active:scale-95 shadow-sm"
+        >
+          {isGenerating ? (
+            <>
+              <Loader2 className="h-4 w-4 animate-spin text-amber-400" />
+              <span>Synthesizing Review...</span>
+            </>
+          ) : (
+            <>
+              <Sparkles className="h-4 w-4 text-amber-400 shrink-0" />
+              <span>Generate Literature Review</span>
+            </>
+          )}
         </button>
       </div>
 
