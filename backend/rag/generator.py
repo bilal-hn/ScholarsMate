@@ -67,6 +67,7 @@ def generate_answer(
     query: str, 
     top_k: int = 10, 
     explicit_docs: list[str] | None = None,
+    chat_history: list[dict] | None = None,  # FR-05.1: Added sliding window chat history
     model_name: str = "llama-3.3-70b-versatile"
 ) -> dict:
     """Orchestrates query classification, context retrieval, and specialized model generation."""
@@ -106,9 +107,14 @@ def generate_answer(
         raise ValueError("Groq API key is not configured in .env file.")
 
     # -------------------------------------------------------------------------
-    # 1. Retrieve Context & Execution Plan
+    # 1. Retrieve Context & Execution Plan (with FR-05 Context Memory Rewriting)
     # -------------------------------------------------------------------------
-    retrieved_chunks, plan = retrieve_context(query=clean_query, top_k=top_k, explicit_docs=explicit_docs)
+    retrieved_chunks, plan = retrieve_context(
+        query=clean_query, 
+        top_k=top_k, 
+        explicit_docs=explicit_docs,
+        chat_history=chat_history  # Pass sliding chat history to rewriter
+    )
 
     # Path A: Workspace Meta-Query (Explicit workspace checks)
     if plan.get("is_meta_query"):

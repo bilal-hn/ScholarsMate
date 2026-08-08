@@ -134,10 +134,17 @@ async def create_workspace(files: List[UploadFile] = File(...)):
 def query_rag(request: QueryRequest):
     """Accepts a query, routes execution plan, and returns source-locked synthesis."""
     try:
+        # Convert chat_history list of models to dictionaries for generator/retriever
+        history_list = [
+            msg.model_dump() if hasattr(msg, 'model_dump') else msg.dict() 
+            for msg in (request.chat_history or [])
+        ]
+
         result = generate_answer(
             query=request.query, 
             top_k=request.top_k, 
-            explicit_docs=request.doc_names
+            explicit_docs=request.doc_names,
+            chat_history=history_list  # Pass sliding chat window
         )
         return QueryResponse(
             query=result["query"],

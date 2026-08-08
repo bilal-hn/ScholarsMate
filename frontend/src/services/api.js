@@ -83,13 +83,23 @@ export const createWorkspace = async (files) => {
  * Sends a research query to the ScholarsMate RAG pipeline.
  * @param {string} query - User question.
  * @param {Array<string>} [docNames=null] - Selected document filters.
+ * @param {Array<Object>} [chatHistory=[]] - Full conversation history for sliding window memory.
  * @param {number} [topK=10] - Context chunk count limit.
  */
-export const sendQuery = async (query, docNames = null, topK = 10) => {
+export const sendQuery = async (query, docNames = null, chatHistory = [], topK = 10) => {
+  // Slice last 6 messages for the sliding context window (FR-05.1)
+  const formattedHistory = Array.isArray(chatHistory)
+    ? chatHistory.slice(-6).map((msg) => ({
+        sender: msg.sender || 'user',
+        text: msg.text || '',
+      }))
+    : [];
+
   try {
     const response = await apiClient.post('/query', {
       query: query,
       doc_names: docNames && docNames.length > 0 ? docNames : null,
+      chat_history: formattedHistory,
       top_k: topK,
     });
     return response.data;
