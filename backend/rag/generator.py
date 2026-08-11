@@ -1,8 +1,9 @@
 import sys
 import os
-import re
 from dotenv import load_dotenv
 from groq import Groq
+from google import genai
+from google.genai import types
 
 load_dotenv(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.env")))
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
@@ -10,37 +11,41 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")
 from backend.rag.retriever import retrieve_context, build_context_block
 from backend.rag.prompt_templates import construct_prompt, SOURCE_LOCKED_SYSTEM_PROMPT
 from backend.embeddings.vector_store import list_indexed_documents
+from backend.rag.router import classify_query_intent
 
-api_key = os.getenv("GROQ_API_KEY")
-client = Groq(api_key=api_key) if api_key else None
+# Groq Client setup (for low-latency single-pass completions)
+groq_api_key = os.getenv("GROQ_API_KEY")
+groq_client = Groq(api_key=groq_api_key) if groq_api_key else None
 
-# Regex pattern for casual greetings, pleasantries, and conversational transitions
-GREETING_REGEX = re.compile(
-    r"^\s*(hi|hello|hey|greetings|good\s+(morning|afternoon|evening)|howdy|thanks|thank\s+you|who\s+are\s+you|what\s+can\s+you\s+do|one\s+more\s+question)\b",
-    re.IGNORECASE
-)
+# Gemini Client setup (for heavy Map-Reduce synthesis over large document contexts)
+gemini_api_key = os.getenv("GEMINI_API_KEY")
+gemini_client = genai.Client(api_key=gemini_api_key) if gemini_api_key else None
 
 
-def execute_map_reduce_synthesis(query: str, chunks: list[dict], model_name: str = "llama-3.3-70b-versatile") -> str:
-    """Executes a 2-stage map-reduce pass for literature reviews over large context."""
+def execute_map_reduce_synthesis(query: str, chunks: list[dict]) -> str:
+    """Executes a 2-stage map-reduce pass over large contexts using Gemini 1.5 Flash."""
+    if not gemini_client:
+        raise ValueError("GEMINI_API_KEY is not configured in .env file.")
+
     # Group chunks by document
     docs_map = {}
     for c in chunks:
         docs_map.setdefault(c["doc_name"], []).append(c.get("content", c.get("text", "")))
 
-    # Stage 1 (Map): Summarize each paper independently
+    # Stage 1 (Map): Summarize each paper independently using Gemini
     paper_summaries = []
     for doc_name, text_list in docs_map.items():
-        doc_context = "\n".join(text_list[:10])  # Cap per paper
-        map_prompt = f"Provide a detailed summary of key findings in '{doc_name}':\n\n{doc_context}"
-        res = client.chat.completions.create(
-            messages=[{"role": "user", "content": map_prompt}],
-            model="llama-3.1-8b-instant",
-            temperature=0.2
+        doc_context = "\n".join(text_list)
+        map_prompt = f"Provide a detailed technical summary of key findings in '{doc_name}':\n\n{doc_context}"
+        
+        res = gemini_client.models.generate_content(
+            model="gemini-1.5-flash",
+            contents=map_prompt,
+            config=types.GenerateContentConfig(temperature=0.2)
         )
-        paper_summaries.append(f"### Paper Analysis: {doc_name}\n{res.choices[0].message.content}")
+        paper_summaries.append(f"### Paper Analysis: {doc_name}\n{res.text}")
 
-    # Stage 2 (Reduce): Synthesize all paper summaries into final literature review using 70B
+    # Stage 2 (Reduce): Synthesize all paper summaries into final literature review using Gemini
     combined_summaries = "\n\n".join(paper_summaries)
     reduce_prompt = f"""
 {SOURCE_LOCKED_SYSTEM_PROMPT}
@@ -55,89 +60,85 @@ def execute_map_reduce_synthesis(query: str, chunks: list[dict], model_name: str
 ### SYNTHESIZED LITERATURE REVIEW:
 """.strip()
 
-    final_res = client.chat.completions.create(
-        messages=[{"role": "user", "content": reduce_prompt}],
-        model=model_name,
-        temperature=0.1
+    final_res = gemini_client.models.generate_content(
+        model="gemini-1.5-flash",
+        contents=reduce_prompt,
+        config=types.GenerateContentConfig(temperature=0.1)
     )
-    return final_res.choices[0].message.content
+    return final_res.text
 
 
 def generate_answer(
     query: str, 
     top_k: int = 10, 
     explicit_docs: list[str] | None = None,
-    chat_history: list[dict] | None = None,  # FR-05.1: Added sliding window chat history
+    chat_history: list[dict] | None = None,  # FR-05.1: Sliding window chat history
     model_name: str = "llama-3.3-70b-versatile"
 ) -> dict:
-    """Orchestrates query classification, context retrieval, and specialized model generation."""
+    """Orchestrates LLM query classification, context retrieval, and specialized model generation."""
     clean_query = query.strip()
 
-    # -------------------------------------------------------------------------
-    # 0. Fast Path: Conversational & Greeting Router (No Groq/Retriever Calls)
-    # -------------------------------------------------------------------------
-    if GREETING_REGEX.search(clean_query) or len(clean_query.split()) <= 2:
-        lower_q = clean_query.lower()
-
-        if any(w in lower_q for w in ["hi", "hello", "hey", "greetings", "howdy"]):
-            answer_text = (
-                "Hello! I'm **ScholarsMate**, your research assistant. "
-                "Ask me any question about your uploaded research papers, or request a summary, "
-                "methodology breakdown, or comparative analysis across your workspace!"
-            )
-        elif any(w in lower_q for w in ["who are you", "what can you do"]):
-            answer_text = (
-                "I am **ScholarsMate**, a source-locked research intelligence system. "
-                "I analyze research papers in your workspace, synthesize findings with exact inline "
-                "citations, and prevent factual hallucinations by grounding responses strictly in your document context."
-            )
-        elif any(w in lower_q for w in ["thanks", "thank you"]):
-            answer_text = "You're welcome! Let me know if you have any more questions about your papers."
-        else:
-            answer_text = "Sure! What else would you like to know about your research papers?"
-
-        return {
-            "query": query,
-            "answer": answer_text,
-            "sources_used": []
-        }
-
-    # Verify API Client for Academic Paths
-    if not client:
+    if not groq_client:
         raise ValueError("Groq API key is not configured in .env file.")
 
     # -------------------------------------------------------------------------
-    # 1. Retrieve Context & Execution Plan (with FR-05 Context Memory Rewriting)
+    # 0. Single-Pass LLM Intent & Execution Router (F-02 Refined)
     # -------------------------------------------------------------------------
-    retrieved_chunks, plan = retrieve_context(
+    available_docs = list_indexed_documents()
+    plan = classify_query_intent(
         query=clean_query, 
-        top_k=top_k, 
-        explicit_docs=explicit_docs,
-        chat_history=chat_history  # Pass sliding chat history to rewriter
+        available_docs=available_docs, 
+        chat_history=chat_history
     )
+    intent = plan.get("intent", "NEW_QUERY")
+    print(f"\n[LLM Router] Intent: {intent} | Retrieval Mode: {plan.get('retrieval_mode')} | Targets: {plan.get('target_docs')}")
 
-    # Path A: Workspace Meta-Query (Explicit workspace checks)
+    # Branch A: CONVERSATIONAL Intent (Bypasses vector search completely)
+    if intent == "CONVERSATIONAL":
+        conv_prompt = f"You are ScholarsMate, a helpful academic research AI. Reply politely and concisely to: '{clean_query}'"
+        res = groq_client.chat.completions.create(
+            messages=[{"role": "user", "content": conv_prompt}],
+            model="llama-3.1-8b-instant",
+            temperature=0.5,
+            max_tokens=150
+        )
+        return {
+            "query": query,
+            "answer": res.choices[0].message.content,
+            "sources_used": []
+        }
+
+    # Branch B: Workspace Meta-Query (Explicit workspace checks)
     if plan.get("is_meta_query"):
-        docs = list_indexed_documents()
-        if not docs:
+        if not available_docs:
             answer_text = "Your workspace currently has no documents indexed."
         else:
-            answer_text = f"Your workspace currently contains **{len(docs)} document(s)**:\n" + "\n".join([f"- `{d}`" for d in docs])
+            answer_text = f"Your workspace currently contains **{len(available_docs)} document(s)**:\n" + "\n".join([f"- `{d}`" for d in available_docs])
         return {
             "query": query,
             "answer": answer_text,
             "sources_used": []
         }
 
-    # Path B: Map-Reduce Synthesis (Literature Reviews over 3+ papers)
+    # -------------------------------------------------------------------------
+    # 1. Retrieve Context (with FR-05 Context Memory Query Rewriting)
+    # -------------------------------------------------------------------------
+    retrieved_chunks, _ = retrieve_context(
+        query=clean_query, 
+        top_k=top_k, 
+        explicit_docs=explicit_docs,
+        chat_history=chat_history
+    )
+
+    # Branch C: Map-Reduce Synthesis (Literature Reviews over large contexts -> Uses Gemini 1.5 Flash)
     if plan.get("generation_mode") == "map_reduce" and len(retrieved_chunks) > 12:
-        answer_text = execute_map_reduce_synthesis(clean_query, retrieved_chunks, model_name=model_name)
+        answer_text = execute_map_reduce_synthesis(clean_query, retrieved_chunks)
     else:
-        # Path C: Single-Pass or Structured Comparison
+        # Branch D: Single-Pass or Structured Comparison -> Uses Groq 70B
         context_block = build_context_block(retrieved_chunks)
         full_prompt = construct_prompt(query=clean_query, context_block=context_block)
 
-        chat_completion = client.chat.completions.create(
+        chat_completion = groq_client.chat.completions.create(
             messages=[{"role": "user", "content": full_prompt}],
             model=model_name,
             temperature=0.0
