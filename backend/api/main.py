@@ -35,9 +35,11 @@ app = FastAPI(
     version="1.0.0",
 )
 
+
 # Request schema for Literature Review synthesis
 class ReviewRequest(BaseModel):
     doc_names: List[str] = []
+
 
 # Enable CORS middleware for React frontend (Vite port 5173 / production)
 app.add_middleware(
@@ -136,7 +138,7 @@ def query_rag(request: QueryRequest):
     try:
         # Convert chat_history list of models to dictionaries for generator/retriever
         history_list = [
-            msg.model_dump() if hasattr(msg, 'model_dump') else msg.dict() 
+            msg.model_dump() if hasattr(msg, "model_dump") else msg.dict() 
             for msg in (request.chat_history or [])
         ]
 

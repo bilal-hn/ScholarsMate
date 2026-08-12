@@ -23,34 +23,51 @@ gemini_client = genai.Client(api_key=gemini_api_key) if gemini_api_key else None
 
 
 def execute_map_reduce_synthesis(query: str, chunks: list[dict]) -> str:
-    """Executes a 2-stage map-reduce pass over large contexts using Gemini 1.5 Flash."""
+    """Executes a 2-stage map-reduce pass over large contexts using Gemini 1.5 / Flash."""
     if not gemini_client:
-        raise ValueError("GEMINI_API_KEY is not configured in .env file.")
+        raise ValueError("GEMINI_API_KEY is not configured in your .env file.")
 
-    # Group chunks by document
+    if not chunks:
+        return "No relevant document chunks retrieved to perform literature review synthesis."
+
+    # Group chunks safely by document
     docs_map = {}
     for c in chunks:
-        docs_map.setdefault(c["doc_name"], []).append(c.get("content", c.get("text", "")))
+        doc_name = c.get("doc_name") or c.get("source") or "Unknown Document"
+        text_content = c.get("content") or c.get("text") or ""
+        if text_content.strip():
+            docs_map.setdefault(doc_name, []).append(text_content)
+
+    if not docs_map:
+        return "Failed to extract valid text content from retrieved paper chunks."
 
     # Stage 1 (Map): Summarize each paper independently using Gemini
     paper_summaries = []
     for doc_name, text_list in docs_map.items():
-        doc_context = "\n".join(text_list)
-        map_prompt = f"Provide a detailed technical summary of key findings in '{doc_name}':\n\n{doc_context}"
+        doc_context = "\n\n".join(text_list[:12])  # Take up to 12 snippets per paper
+        map_prompt = f"""
+You are a research analyst. Provide a detailed, structured technical summary of key findings, methodology, and limitations for the paper '{doc_name}' based on these excerpts:
+
+{doc_context}
+""".strip()
         
-        res = gemini_client.models.generate_content(
-            model="gemini-1.5-flash",
-            contents=map_prompt,
-            config=types.GenerateContentConfig(temperature=0.2)
-        )
-        paper_summaries.append(f"### Paper Analysis: {doc_name}\n{res.text}")
+        try:
+            res = gemini_client.models.generate_content(
+                model="gemini-flash-latest",
+                contents=map_prompt,
+                config=types.GenerateContentConfig(temperature=0.2)
+            )
+            paper_summaries.append(f"### Paper Analysis: {doc_name}\n{res.text}")
+        except Exception as e:
+            print(f"[Map Stage Error] {doc_name}: {str(e)}")
+            paper_summaries.append(f"### Paper Analysis: {doc_name}\nExtraction unavailable due to model error.")
 
     # Stage 2 (Reduce): Synthesize all paper summaries into final literature review using Gemini
     combined_summaries = "\n\n".join(paper_summaries)
     reduce_prompt = f"""
 {SOURCE_LOCKED_SYSTEM_PROMPT}
 
-### INDIVIDUAL PAPER SUMMARIES:
+### INDIVIDUAL PAPER EXTRACTIONS:
 {combined_summaries}
 
 ---
@@ -58,14 +75,23 @@ def execute_map_reduce_synthesis(query: str, chunks: list[dict]) -> str:
 {query}
 
 ### SYNTHESIZED LITERATURE REVIEW:
+Provide a publication-grade Literature Review featuring:
+1. Abstract & Executive Summary
+2. Methodological Comparison Matrix (Markdown Table: Document | Methodology | Strengths | Limitations)
+3. Thematic Synthesis & Contrastive Analysis
+4. Identified Research Gaps
 """.strip()
 
-    final_res = gemini_client.models.generate_content(
-        model="gemini-1.5-flash",
-        contents=reduce_prompt,
-        config=types.GenerateContentConfig(temperature=0.1)
-    )
-    return final_res.text
+    try:
+        final_res = gemini_client.models.generate_content(
+            model="gemini-flash-latest",
+            contents=reduce_prompt,
+            config=types.GenerateContentConfig(temperature=0.1)
+        )
+        return final_res.text
+    except Exception as e:
+        print(f"[Reduce Stage Error]: {str(e)}")
+        raise RuntimeError(f"Gemini Literature Review Synthesis failed: {str(e)}")
 
 
 def generate_answer(
@@ -130,11 +156,11 @@ def generate_answer(
         chat_history=chat_history
     )
 
-    # Branch C: Map-Reduce Synthesis (Literature Reviews over large contexts -> Uses Gemini 1.5 Flash)
-    if plan.get("generation_mode") == "map_reduce" and len(retrieved_chunks) > 12:
+ # Branch C: Map-Reduce Synthesis (Literature Reviews over large contexts)
+    if plan.get("generation_mode") == "map_reduce" and len(retrieved_chunks) >= 8:
         answer_text = execute_map_reduce_synthesis(clean_query, retrieved_chunks)
     else:
-        # Branch D: Single-Pass or Structured Comparison -> Uses Groq 70B
+        # Branch D: Standard Single-Pass Synthesis using Groq 70B
         context_block = build_context_block(retrieved_chunks)
         full_prompt = construct_prompt(query=clean_query, context_block=context_block)
 
@@ -144,7 +170,6 @@ def generate_answer(
             temperature=0.0
         )
         answer_text = chat_completion.choices[0].message.content
-
     # -------------------------------------------------------------------------
     # 2. Source Deduplication (Ensures page badges render cleanly)
     # -------------------------------------------------------------------------

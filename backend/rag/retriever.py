@@ -72,7 +72,7 @@ def retrieve_context(
     top_k: int = 10, 
     collection_name: str = "scholarsmate_docs",
     explicit_docs: list[str] | None = None,
-    chat_history: list[dict] | None = None  # Added chat_history argument
+    chat_history: list[dict] | None = None
 ) -> tuple[list[dict], dict]:
     """Dynamically retrieves context based on execution plan or explicit UI document parameters."""
     
@@ -81,14 +81,17 @@ def retrieve_context(
 
     available_docs = list_indexed_documents(collection_name)
     
-    # 1. Get Execution Plan from Router using the standalone query
-    plan = classify_query_intent(search_query, available_docs)
+    # 1. Get Execution Plan from Router using standalone query AND chat_history
+    plan = classify_query_intent(search_query, available_docs, chat_history)
     
     # Override target_docs if explicit UI selections were provided
     target_docs = explicit_docs if (explicit_docs and len(explicit_docs) > 0) else plan.get("target_docs", available_docs)
     retrieval_mode = plan.get("retrieval_mode", "vector_search")
+    
+    # Use recommended_top_k from router if available, otherwise fall back to top_k
+    effective_top_k = plan.get("recommended_top_k", top_k)
 
-    print(f"\n[Execution Plan] Retrieval Mode: {retrieval_mode} | Generation Mode: {plan.get('generation_mode')} | Targets: {target_docs}")
+    print(f"\n[Execution Plan] Intent: {plan.get('intent')} | Retrieval Mode: {retrieval_mode} | Generation Mode: {plan.get('generation_mode')} | Targets: {target_docs} | Effective top_k: {effective_top_k}")
 
     all_chunks = {}
 
@@ -102,7 +105,7 @@ def retrieve_context(
 
     # Strategy B: Per-Document Balanced Search (Comparison)
     if retrieval_mode == "per_document_search" and target_docs:
-        per_doc_k = max(3, top_k // len(target_docs))
+        per_doc_k = max(3, effective_top_k // len(target_docs))
         for doc in target_docs:
             results = search_similar_chunks(query=search_query, top_k=per_doc_k, collection_name=collection_name, doc_names=[doc])
             if results and results.get("documents") and results["documents"][0]:
@@ -119,7 +122,7 @@ def retrieve_context(
     # Strategy C: Standard Vector Search with Query Expansion
     search_queries = expand_query(search_query)
     for q in search_queries:
-        results = search_similar_chunks(query=q, top_k=top_k, collection_name=collection_name, doc_names=target_docs)
+        results = search_similar_chunks(query=q, top_k=effective_top_k, collection_name=collection_name, doc_names=target_docs)
         if results and results.get("documents") and results["documents"][0]:
             for text, meta in zip(results["documents"][0], results["metadatas"][0]):
                 cid = meta.get("chunk_id", "Unknown")
@@ -131,7 +134,7 @@ def retrieve_context(
                         "content": text
                     }
 
-    return list(all_chunks.values())[:top_k], plan
+    return list(all_chunks.values())[:effective_top_k], plan
 
 
 def build_context_block(chunks: list[dict]) -> str:

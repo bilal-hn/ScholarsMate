@@ -57,6 +57,34 @@ Standalone Search Query:
 """.strip()
 
 
+ROUTER_CLASSIFICATION_PROMPT = """
+You are an execution router for ScholarsMate, an academic research RAG platform.
+Analyze the user query, available documents, and recent chat history to determine the optimal processing strategy.
+
+AVAILABLE DOCUMENTS:
+{available_docs}
+
+RECENT CHAT HISTORY:
+{chat_history}
+
+USER QUERY:
+"{query}"
+
+Classify into one of these intent modes:
+1. "CONVERSATIONAL": Casual greetings, thank yous, or meta-questions about ScholarsMate (no PDF retrieval needed).
+2. "FOLLOW_UP": Reference to previous chat messages (e.g., "summarise it", "go on", "why?").
+3. "NEW_QUERY": Standard or comparison question targeting research documents.
+
+OUTPUT FORMAT:
+Return ONLY a valid JSON object matching this schema:
+{{
+  "intent": "CONVERSATIONAL | FOLLOW_UP | NEW_QUERY",
+  "retrieval_mode": "vector_search | full_text | per_document_search",
+  "target_docs": ["doc1.pdf"]
+}}
+""".strip()
+
+
 def construct_prompt(query: str, context_block: str) -> str:
     """Assembles the user query and context block into a polished, professional prompt."""
     return f"""

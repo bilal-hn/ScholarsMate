@@ -19,7 +19,7 @@ Intercepts non-academic user messages (greetings, pleasantries, system meta-quer
 * **Execution Flow:**
   1. Frontend submits user query and sliding message history payload to `/api/query`.
   2. `classify_query_intent()` issues a single JSON-mode completion call to `llama-3.1-8b-instant`.
-  3. Based on the returned JSON schema (`intent`, `retrieval_mode`, `target_docs`), the generator branches to either conversational completion or vector context retrieval.
+  3. Based on the returned JSON schema (`intent`, `retrieval_mode`, `generation_mode`, `target_docs`, `recommended_top_k`), the generator branches to conversational completion, vector context retrieval, or Map-Reduce synthesis.
 
 ## 5. University Mapping
 * **SRS Requirement:** FR-02 (Conversational & Intent-Aware Routing)

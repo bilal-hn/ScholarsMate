@@ -2,20 +2,22 @@ from pydantic import BaseModel, Field
 
 
 class MessageItem(BaseModel):
-    sender: str = Field(..., example="user")
-    text: str = Field(..., example="What dataset did the BART paper use?")
+    sender: str = Field(..., json_schema_extra={"example": "user"})
+    text: str = Field(..., json_schema_extra={"example": "What dataset did the BART paper use?"})
 
 
 class QueryRequest(BaseModel):
-    query: str = Field(..., example="Compare the methodology in Arslan et al. with other papers.")
-    top_k: int = Field(default=10, ge=1, le=30, example=10)
-    doc_names: list[str] | None = Field(default=None, example=["sample.pdf"])
+    query: str = Field(..., json_schema_extra={"example": "Compare the methodology in Arslan et al. with other papers."})
+    top_k: int = Field(default=10, ge=1, le=30, json_schema_extra={"example": 10})
+    doc_names: list[str] | None = Field(default=None, json_schema_extra={"example": ["sample.pdf"]})
     chat_history: list[MessageItem] | None = Field(
         default_factory=list, 
-        example=[
-            {"sender": "user", "text": "What dataset did the BART paper use?"},
-            {"sender": "bot", "text": "The BART paper evaluated on CNN/DailyMail."}
-        ]
+        json_schema_extra={
+            "example": [
+                {"sender": "user", "text": "What dataset did the BART paper use?"},
+                {"sender": "bot", "text": "The BART paper evaluated on CNN/DailyMail."}
+            ]
+        }
     )
 
 
