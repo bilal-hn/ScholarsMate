@@ -3,19 +3,25 @@ import os
 import shutil
 from pathlib import Path
 from typing import List
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, UploadFile, File, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
 
 # Ensure project root is added to sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
+from backend.db.session import init_db, get_db
+from backend.db import crud
 from backend.api.schemas import (
     QueryRequest,
     QueryResponse,
     UploadResponse,
     DocumentListResponse,
     DocumentListItem,
+    ChatSessionResponse,
+    ChatSessionDetailResponse,
 )
 from backend.ingestion.pipeline import process_path
 from backend.embeddings.vector_store import store_chunks, get_or_create_collection
@@ -29,16 +35,29 @@ from backend.api.documents import router as documents_router
 UPLOADS_DIR = Path(__file__).parent.parent.parent / "data" / "uploads"
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan context manager to handle DB initialization on startup."""
+    await init_db()
+    yield
+
+
 app = FastAPI(
     title="ScholarsMate API",
     description="Source-Locked Retrieval-Augmented Generation REST API",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 
 # Request schema for Literature Review synthesis
 class ReviewRequest(BaseModel):
     doc_names: List[str] = []
+
+
+class CreateSessionRequest(BaseModel):
+    title: str = "New Research Chat"
 
 
 # Enable CORS middleware for React frontend (Vite port 5173 / production)
@@ -59,6 +78,106 @@ def health_check():
     """Health check endpoint to verify backend status."""
     return {"status": "ok", "service": "ScholarsMate Backend API"}
 
+
+# =============================================================================
+# CHAT SESSION MANAGEMENT ENDPOINTS
+# =============================================================================
+
+@app.post("/api/sessions", response_model=ChatSessionResponse)
+async def create_session(req: CreateSessionRequest, db: AsyncSession = Depends(get_db)):
+    """Creates a new persistent chat session thread."""
+    session = await crud.create_chat_session(db, title=req.title)
+    return session
+
+
+@app.get("/api/sessions", response_model=List[ChatSessionResponse])
+async def list_sessions(db: AsyncSession = Depends(get_db)):
+    """Lists all historical chat sessions ordered by latest update."""
+    return await crud.get_all_sessions(db)
+
+
+@app.get("/api/sessions/{session_id}", response_model=ChatSessionDetailResponse)
+async def get_session_details(session_id: str, db: AsyncSession = Depends(get_db)):
+    """Retrieves full chat message history for a specific session ID."""
+    messages = await crud.get_session_messages(db, session_id)
+    sessions = await crud.get_all_sessions(db)
+    session_meta = next((s for s in sessions if s.id == session_id), None)
+    
+    if not session_meta:
+        raise HTTPException(status_code=404, detail="Chat session not found.")
+        
+    return {
+        "id": session_meta.id,
+        "title": session_meta.title,
+        "created_at": session_meta.created_at,
+        "messages": messages,
+    }
+
+
+@app.delete("/api/sessions/{session_id}")
+async def delete_session_endpoint(session_id: str, db: AsyncSession = Depends(get_db)):
+    """Deletes a chat session and its associated message history."""
+    deleted = await crud.delete_session(db, session_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Chat session not found.")
+    return {"message": "Chat session successfully deleted."}
+
+
+# =============================================================================
+# CORE RAG QUERY ENDPOINT WITH AUTOMATIC DB PERSISTENCE
+# =============================================================================
+
+@app.post("/api/query", response_model=QueryResponse)
+async def query_rag(request: QueryRequest, db: AsyncSession = Depends(get_db)):
+    """Accepts a query, routes execution plan, saves chat turn to DB, and returns answer with citations."""
+    try:
+        # 1. Resolve or create active session_id
+        session_id = request.session_id
+        if not session_id:
+            new_session = await crud.create_chat_session(db, title=request.query[:40] + "...")
+            session_id = new_session.id
+
+        # 2. Fetch history from DB or fallback to payload chat_history
+        db_messages = await crud.get_session_messages(db, session_id)
+        if db_messages:
+            history_list = [{"sender": m.sender, "text": m.text} for m in db_messages[-6:]]
+        else:
+            history_list = [
+                msg.model_dump() if hasattr(msg, "model_dump") else msg.dict() 
+                for msg in (request.chat_history or [])
+            ]
+
+        # 3. Generate answer via RAG Pipeline
+        result = generate_answer(
+            query=request.query, 
+            top_k=request.top_k, 
+            explicit_docs=request.doc_names,
+            chat_history=history_list,
+        )
+
+        # 4. Save User prompt & Bot answer to Database
+        await crud.add_message(db, session_id=session_id, sender="user", text=request.query)
+        await crud.add_message(
+            db, 
+            session_id=session_id, 
+            sender="bot", 
+            text=result["answer"], 
+            sources=result["sources_used"],
+        )
+
+        return QueryResponse(
+            query=result["query"],
+            answer=result["answer"],
+            sources_used=result["sources_used"],
+            session_id=session_id,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Query generation failed: {str(e)}")
+
+
+# =============================================================================
+# UPLOAD & LITERATURE REVIEW ENDPOINTS
+# =============================================================================
 
 @app.post("/api/upload", response_model=UploadResponse)
 async def upload_pdf(file: UploadFile = File(...)):
@@ -81,7 +200,7 @@ async def upload_pdf(file: UploadFile = File(...)):
         if not chunks:
             raise HTTPException(
                 status_code=400, 
-                detail="No readable text extracted from PDF. Check if the file is scanned or empty."
+                detail="No readable text extracted from PDF. Check if the file is scanned or empty.",
             )
 
         store_chunks(chunks)
@@ -122,7 +241,7 @@ async def create_workspace(files: List[UploadFile] = File(...)):
     if not processed_files:
         raise HTTPException(
             status_code=400, 
-            detail="No valid readable PDF files were processed from the selected input."
+            detail="No valid readable PDF files were processed from the selected input.",
         )
 
     return UploadResponse(
@@ -130,31 +249,6 @@ async def create_workspace(files: List[UploadFile] = File(...)):
         filename=", ".join(processed_files),
         chunks_processed=total_chunks,
     )
-
-
-@app.post("/api/query", response_model=QueryResponse)
-def query_rag(request: QueryRequest):
-    """Accepts a query, routes execution plan, and returns source-locked synthesis."""
-    try:
-        # Convert chat_history list of models to dictionaries for generator/retriever
-        history_list = [
-            msg.model_dump() if hasattr(msg, "model_dump") else msg.dict() 
-            for msg in (request.chat_history or [])
-        ]
-
-        result = generate_answer(
-            query=request.query, 
-            top_k=request.top_k, 
-            explicit_docs=request.doc_names,
-            chat_history=history_list  # Pass sliding chat window
-        )
-        return QueryResponse(
-            query=result["query"],
-            answer=result["answer"],
-            sources_used=result["sources_used"],
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Query generation failed: {str(e)}")
 
 
 @app.post("/api/workspace/literature-review")
