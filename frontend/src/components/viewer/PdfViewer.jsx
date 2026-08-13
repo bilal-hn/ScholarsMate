@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import { X, ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from 'lucide-react';
 
@@ -11,7 +11,7 @@ export default function PdfViewer({ activePdf, targetPage, onClose }) {
   const [scale, setScale] = useState(1.0);
 
   // Sync page number when user clicks a new citation source
-  React.useEffect(() => {
+  useEffect(() => {
     if (targetPage) setPageNumber(targetPage);
   }, [targetPage]);
 
@@ -23,7 +23,7 @@ export default function PdfViewer({ activePdf, targetPage, onClose }) {
     <div className="h-full flex flex-col bg-zinc-950 border-l border-zinc-800 text-zinc-200">
       {/* Top Controls Bar */}
       <div className="h-14 px-4 bg-zinc-900 border-b border-zinc-800 flex items-center justify-between shrink-0">
-        <span className="font-mono text-xs text-amber-400 font-medium truncate max-w-[180px]">
+        <span className="font-mono text-xs text-amber-400 font-medium truncate max-w-[180px]" title={activePdf}>
           {activePdf}
         </span>
 
@@ -33,7 +33,7 @@ export default function PdfViewer({ activePdf, targetPage, onClose }) {
             <button
               disabled={pageNumber <= 1}
               onClick={() => setPageNumber((prev) => Math.max(prev - 1, 1))}
-              className="hover:text-amber-400 disabled:opacity-30"
+              className="hover:text-amber-400 disabled:opacity-30 transition-colors cursor-pointer"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
@@ -41,27 +41,37 @@ export default function PdfViewer({ activePdf, targetPage, onClose }) {
               {pageNumber} / {numPages || '--'}
             </span>
             <button
-              disabled={pageNumber >= numPages}
+              disabled={!numPages || pageNumber >= numPages}
               onClick={() => setPageNumber((prev) => Math.min(prev + 1, numPages))}
-              className="hover:text-amber-400 disabled:opacity-30"
+              className="hover:text-amber-400 disabled:opacity-30 transition-colors cursor-pointer"
             >
               <ChevronRight className="h-4 w-4" />
             </button>
           </div>
 
           <div className="flex items-center gap-1 bg-zinc-950 px-2 py-1 rounded border border-zinc-800">
-            <button onClick={() => setScale((s) => Math.max(s - 0.2, 0.6))} className="hover:text-amber-400">
+            <button 
+              onClick={() => setScale((s) => Math.max(s - 0.2, 0.6))} 
+              className="hover:text-amber-400 transition-colors cursor-pointer"
+            >
               <ZoomOut className="h-3.5 w-3.5" />
             </button>
             <span>{Math.round(scale * 100)}%</span>
-            <button onClick={() => setScale((s) => Math.min(s + 0.2, 2.0))} className="hover:text-amber-400">
+            <button 
+              onClick={() => setScale((s) => Math.min(s + 0.2, 2.0))} 
+              className="hover:text-amber-400 transition-colors cursor-pointer"
+            >
               <ZoomIn className="h-3.5 w-3.5" />
             </button>
           </div>
         </div>
 
         {/* Close Split View */}
-        <button onClick={onClose} className="p-1 rounded hover:bg-zinc-800 text-zinc-400 hover:text-zinc-100">
+        <button 
+          onClick={onClose} 
+          className="p-1 rounded hover:bg-zinc-800 text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer"
+          title="Close Viewer"
+        >
           <X className="h-5 w-5" />
         </button>
       </div>
@@ -73,7 +83,12 @@ export default function PdfViewer({ activePdf, targetPage, onClose }) {
           onLoadSuccess={onDocumentLoadSuccess}
           className="shadow-2xl rounded-lg overflow-hidden border border-zinc-800"
         >
-          <Page pageNumber={pageNumber} scale={scale} renderTextLayer={true} renderAnnotationLayer={false} />
+          <Page 
+            pageNumber={pageNumber} 
+            scale={scale} 
+            renderTextLayer={true} 
+            renderAnnotationLayer={false} 
+          />
         </Document>
       </div>
     </div>

@@ -4,6 +4,7 @@ import DocumentSelector from '../document/DocumentSelector';
 import ChatMessage from './ChatMessage';
 import ChatInput from './ChatInput';
 import { sendQuery } from '../../services/api';
+import { APP_CONFIG } from '../../theme/constants';
 
 export default function ChatInterface({ 
   documents, 
@@ -15,7 +16,7 @@ export default function ChatInterface({
   const [messages, setMessages] = useState([
     {
       sender: 'bot',
-      text: "Hello! I'm ScholarsMate. Ask me questions about your uploaded research papers.",
+      text: APP_CONFIG.welcomeMessage || "Hello! I'm ScholarsMate. Ask me questions about your uploaded research papers.",
       sources: [],
     },
   ]);

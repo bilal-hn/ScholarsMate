@@ -42,7 +42,7 @@ export default function CreateWorkspaceModal({ isOpen, onClose, onWorkspaceCreat
     const finalName = workspaceName.trim() || `${files[0].name.replace('.pdf', '')} Workspace`;
 
     try {
-      const response = await createWorkspace(files);
+      await createWorkspace(files);
       const docNames = files.map((f) => f.name);
 
       await onWorkspaceCreated({

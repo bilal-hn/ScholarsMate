@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Plus, Trash2, MessageSquare, Loader2 } from 'lucide-react';
 import {
   getChatSessions,
   createChatSession,
@@ -13,7 +14,7 @@ export default function ChatSidebar({
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  // Fetch all saved sessions on mount
+  // Fetch all saved sessions on mount or when active session updates
   useEffect(() => {
     fetchSessions();
   }, [activeSessionId]);
@@ -58,43 +59,62 @@ export default function ChatSidebar({
   };
 
   return (
-    <div style={styles.sidebar}>
+    <div className="w-64 h-full bg-zinc-950 border-r border-zinc-800/80 flex flex-col p-4 shrink-0 select-none">
       {/* New Chat Button */}
-      <button style={styles.newChatBtn} onClick={handleCreateNewChat}>
-        <span style={{ fontSize: '18px', marginRight: '8px' }}>+</span>
-        New Research Chat
+      <button
+        onClick={handleCreateNewChat}
+        className="w-full flex items-center justify-center gap-2 bg-amber-400 hover:bg-amber-300 text-zinc-950 font-semibold py-2.5 px-4 rounded-xl text-xs transition-all shadow-md active:scale-95 cursor-pointer mb-5"
+      >
+        <Plus className="h-4 w-4 stroke-[2.5]" />
+        <span>New Research Chat</span>
       </button>
 
       {/* Header */}
-      <div style={styles.sectionHeader}>Saved Research Sessions</div>
+      <div className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500 mb-2 px-1">
+        Saved Research Sessions
+      </div>
 
       {/* Session List */}
-      <div style={styles.sessionList}>
+      <div className="flex-1 overflow-y-auto space-y-1 pr-1">
         {loading && sessions.length === 0 ? (
-          <div style={styles.loadingText}>Loading history...</div>
+          <div className="flex items-center justify-center gap-2 text-xs text-zinc-500 py-6">
+            <Loader2 className="h-3.5 w-3.5 animate-spin text-amber-400" />
+            <span>Loading history...</span>
+          </div>
         ) : sessions.length === 0 ? (
-          <div style={styles.emptyText}>No saved chats yet.</div>
+          <div className="text-xs text-zinc-600 text-center py-6">
+            No saved chats yet.
+          </div>
         ) : (
           sessions.map((session) => {
             const isActive = session.id === activeSessionId;
             return (
               <div
                 key={session.id}
-                style={{
-                  ...styles.sessionItem,
-                  ...(isActive ? styles.activeItem : {}),
-                }}
                 onClick={() => onSelectSession(session.id)}
+                className={`group flex items-center justify-between px-3 py-2.5 rounded-xl text-xs cursor-pointer transition-all ${
+                  isActive
+                    ? 'bg-zinc-900 text-zinc-100 font-medium border border-zinc-800'
+                    : 'text-zinc-400 hover:bg-zinc-900/50 hover:text-zinc-200'
+                }`}
               >
-                <div style={styles.sessionTitle} title={session.title}>
-                  📄 {session.title}
+                <div className="flex items-center gap-2.5 truncate min-w-0 pr-2">
+                  <MessageSquare
+                    className={`h-3.5 w-3.5 shrink-0 ${
+                      isActive ? 'text-amber-400' : 'text-zinc-600'
+                    }`}
+                  />
+                  <span className="truncate" title={session.title}>
+                    {session.title}
+                  </span>
                 </div>
+
                 <button
-                  style={styles.deleteBtn}
                   onClick={(e) => handleDelete(e, session.id)}
                   title="Delete Session"
+                  className="opacity-0 group-hover:opacity-100 text-zinc-600 hover:text-rose-400 p-1 rounded transition-opacity"
                 >
-                  ✕
+                  <Trash2 className="h-3.5 w-3.5" />
                 </button>
               </div>
             );
@@ -104,90 +124,3 @@ export default function ChatSidebar({
     </div>
   );
 }
-
-// Lightweight Inline Styles
-const styles = {
-  sidebar: {
-    width: '260px',
-    height: '100%',
-    backgroundColor: '#1f2937',
-    color: '#f3f4f6',
-    display: 'flex',
-    flexDirection: 'column',
-    padding: '16px',
-    boxSizing: 'border-box',
-    borderRight: '1px solid #374151',
-  },
-  newChatBtn: {
-    width: '100%',
-    padding: '10px 14px',
-    backgroundColor: '#2563eb',
-    color: '#ffffff',
-    border: 'none',
-    borderRadius: '6px',
-    cursor: 'pointer',
-    fontWeight: '600',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: '20px',
-    transition: 'background-color 0.2s',
-  },
-  sectionHeader: {
-    fontSize: '12px',
-    fontWeight: 'bold',
-    textTransform: 'uppercase',
-    letterSpacing: '0.05em',
-    color: '#9ca3af',
-    marginBottom: '10px',
-  },
-  sessionList: {
-    flex: 1,
-    overflowY: 'auto',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '6px',
-  },
-  sessionItem: {
-    padding: '10px 12px',
-    borderRadius: '6px',
-    backgroundColor: '#374151',
-    cursor: 'pointer',
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    transition: 'background-color 0.2s',
-  },
-  activeItem: {
-    backgroundColor: '#1d4ed8',
-    fontWeight: '600',
-  },
-  sessionTitle: {
-    fontSize: '14px',
-    whiteSpace: 'nowrap',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    maxWidth: '180px',
-  },
-  deleteBtn: {
-    background: 'none',
-    border: 'none',
-    color: '#9ca3af',
-    cursor: 'pointer',
-    fontSize: '12px',
-    padding: '2px 6px',
-    borderRadius: '4px',
-  },
-  loadingText: {
-    fontSize: '13px',
-    color: '#9ca3af',
-    textAlign: 'center',
-    marginTop: '20px',
-  },
-  emptyText: {
-    fontSize: '13px',
-    color: '#6b7280',
-    textAlign: 'center',
-    marginTop: '20px',
-  },
-};
