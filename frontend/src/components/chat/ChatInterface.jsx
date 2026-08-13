@@ -19,11 +19,12 @@ export default function ChatInterface({
       sources: [],
     },
   ]);
+  const [activeSessionId, setActiveSessionId] = useState(null);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef(null);
 
-  // Appends incoming generated messages (e.g., Literature Reviews) from parent App component
+  // Appends incoming generated messages (e.g., Literature Reviews)
   useEffect(() => {
     if (incomingMessage) {
       setMessages((prev) => [...prev, incomingMessage]);
@@ -44,11 +45,26 @@ export default function ChatInterface({
 
     const userMessage = input.trim();
     setInput('');
-    setMessages((prev) => [...prev, { sender: 'user', text: userMessage }]);
+    
+    // Construct updated local history array
+    const newMessages = [...messages, { sender: 'user', text: userMessage }];
+    setMessages(newMessages);
     setLoading(true);
 
     try {
-      const result = await sendQuery(userMessage, selectedDocs);
+      // Pass user query, selected docs, full local message history, and active session ID
+      const result = await sendQuery(
+        userMessage, 
+        selectedDocs, 
+        newMessages, 
+        activeSessionId
+      );
+
+      // Track activeSessionId created or returned by the backend
+      if (result.session_id && result.session_id !== activeSessionId) {
+        setActiveSessionId(result.session_id);
+      }
+
       setMessages((prev) => [
         ...prev,
         {

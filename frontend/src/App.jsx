@@ -4,7 +4,7 @@ import DocumentSidebar from './components/document/DocumentSidebar';
 import ChatInterface from './components/chat/ChatInterface';
 import CreateWorkspaceModal from './components/document/CreateWorkspaceModal';
 import PdfViewer from './components/viewer/PdfViewer';
-import { getDocuments, checkHealth } from './services/api';
+import { getDocuments, checkHealth, generateLiteratureReview } from './services/api';
 
 export default function App() {
   const [documents, setDocuments] = useState([]);
@@ -85,23 +85,13 @@ export default function App() {
     setTargetPage(pageNum || 1);
   };
 
-  // Trigger handler for generating a workspace literature review
+  // Trigger handler for generating a workspace literature review using api service
   const handleGenerateReview = async () => {
     setIsGeneratingReview(true);
     try {
-      const response = await fetch('http://localhost:8000/api/workspace/literature-review', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ doc_names: selectedDocs }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error status: ${response.status}`);
-      }
-
-      const data = await response.json();
+      const data = await generateLiteratureReview(selectedDocs);
       
-      // Pass the response to ChatInterface via state trigger
+      // Pass the generated markdown review to ChatInterface
       setReviewTriggerMessage({
         sender: 'bot',
         text: data.content,

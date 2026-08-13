@@ -5,7 +5,6 @@ from sqlalchemy.orm import DeclarativeBase
 # Reads PostgreSQL URL in production or defaults to local SQLite file
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./scholarsmate.db")
 
-# Fix for Heroku/Render postgres:// prefix if deploying later
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+asyncpg://", 1)
 
