@@ -1,11 +1,21 @@
 import os
+import hashlib
 from pathlib import Path
 import fitz  # PyMuPDF
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 
-def extract_pages_layout_aware(pdf_path: str) -> tuple[list[Document], str]:
+def calculate_sha256(file_path: str) -> str:
+    """Computes the deterministic SHA-256 hash of a file."""
+    sha256_hash = hashlib.sha256()
+    with open(file_path, "rb") as f:
+        for byte_block in iter(lambda: f.read(65536), b""):
+            sha256_hash.update(byte_block)
+    return sha256_hash.hexdigest()
+
+
+def extract_pages_layout_aware(pdf_path: str, file_hash: str) -> tuple[list[Document], str]:
     """Reads a PDF, extracts layout-aware text, and extracts paper title."""
     doc = fitz.open(pdf_path)
     clean_doc_name = os.path.basename(pdf_path)
@@ -33,6 +43,7 @@ def extract_pages_layout_aware(pdf_path: str) -> tuple[list[Document], str]:
                     page_content=page_text,
                     metadata={
                         "source": clean_doc_name,
+                        "file_hash": file_hash,
                         "paper_title": extracted_title or clean_doc_name,
                         "page_number": page_num + 1,
                     },
@@ -44,8 +55,15 @@ def extract_pages_layout_aware(pdf_path: str) -> tuple[list[Document], str]:
 
 
 def process_path(
-    input_path: str, chunk_size: int = 1200, chunk_overlap: int = 150
+    input_path: str, 
+    chunk_size: int = 1200, 
+    chunk_overlap: int = 150,
+    check_dedup: bool = True
 ) -> list[Document]:
+    """Processes PDF files with built-in SHA-256 deduplication."""
+    # Delayed import to avoid circular imports
+    from backend.embeddings.vector_store import is_document_already_indexed
+
     path = Path(input_path)
     pdf_files = []
 
@@ -65,17 +83,17 @@ def process_path(
 
     all_chunks = []
     
-    # Code-aware & structure-preserving text splitter
+    # Structure-preserving text splitter
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=chunk_size,
         chunk_overlap=chunk_overlap,
         separators=[
-            "\n```",        # Code block boundaries
-            "\ndef ",       # Python functions
-            "\nclass ",     # Python classes
-            "\n\n",         # Paragraph breaks
-            "\n",           # Line breaks
-            " ",            # Words
+            "\n```",         # Code block boundaries
+            "\ndef ",        # Python functions
+            "\nclass ",      # Python classes
+            "\n\n",          # Paragraph breaks
+            "\n",            # Line breaks
+            " ",             # Words
             ""
         ],
     )
@@ -91,9 +109,17 @@ def process_path(
         
         seen_doc_names.add(clean_doc_name)
 
-        print(f"Processing: {pdf_file.name} (as '{clean_doc_name}')...")
+        # 1. Compute SHA-256 Hash
+        file_hash = calculate_sha256(str(pdf_file))
+
+        # 2. Deduplication check: skip if already indexed in vector database
+        if check_dedup and is_document_already_indexed(file_hash):
+            print(f"[Deduplication Notice] Skipping '{clean_doc_name}' (Hash: {file_hash[:10]}... already indexed).")
+            continue
+
+        print(f"Processing: {pdf_file.name} (SHA-256: {file_hash[:10]}...)...")
         
-        raw_pages, paper_title = extract_pages_layout_aware(str(pdf_file))
+        raw_pages, paper_title = extract_pages_layout_aware(str(pdf_file), file_hash)
 
         doc_chunks = splitter.split_documents(raw_pages)
 
@@ -102,6 +128,7 @@ def process_path(
         for chunk in doc_chunks:
             p_num = chunk.metadata["page_number"]
             chunk.metadata["source"] = clean_doc_name
+            chunk.metadata["file_hash"] = file_hash
             chunk.metadata["paper_title"] = paper_title
             
             key = (clean_doc_name, p_num)

@@ -1,5 +1,6 @@
 import sys
 import os
+import re
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
@@ -13,36 +14,70 @@ from backend.rag.prompt_templates import QUERY_REWRITE_PROMPT
 
 
 def rewrite_query_with_history(query: str, chat_history: list[dict] = None) -> str:
-    """FR-05.2: Rewrites ambiguous follow-up queries into standalone search queries using sliding context."""
+    """FR-05.2: Rewrites ambiguous follow-up queries into standalone search queries using sliding context.
+    
+    Filters out conversational greetings and sanitizes quotes to prevent hallucinated search queries.
+    """
+    clean_query = query.strip()
     if not chat_history or len(chat_history) == 0 or not groq_client:
-        return query
+        return clean_query
 
-    # Format sliding window (last 6 messages)
-    formatted_history = ""
+    # Filter out casual bot pleasantries from context to avoid rewriting greetings into research queries
+    filtered_history = []
     for msg in chat_history[-6:]:
-        # Support both dictionary and pydantic object access
         sender = msg.get("sender") if isinstance(msg, dict) else getattr(msg, "sender", "user")
         text = msg.get("text") if isinstance(msg, dict) else getattr(msg, "text", "")
+        
+        # Skip pure conversational greetings
+        if any(greet in text.lower() for greet in ["how may i assist", "hello! i'm scholarsmate", "good day"]):
+            continue
+        
         role = "User" if sender == "user" else "Assistant"
-        formatted_history += f"{role}: {text}\n"
+        filtered_history.append(f"{role}: {text}")
+
+    if not filtered_history:
+        return clean_query
+
+    formatted_history = "\n".join(filtered_history)
 
     try:
-        prompt = QUERY_REWRITE_PROMPT.format(
-            chat_history=formatted_history.strip(),
-            query=query
-        )
+        prompt = f"""
+You are an academic search query optimizer for a research document RAG system.
+Given the conversation context and a user query, determine if the query is a follow-up referring to previous topics/papers.
+
+Rules:
+1. If the user query is a standalone question or general summary request (e.g., "summarise the paper", "give summary of the full paper"), DO NOT inject conversational greetings, pleasantries, or random names from chat history.
+2. If the user refers to pronouns or previous context (e.g., "explain its results", "why did they use it?"), resolve the pronoun using the conversation context.
+3. Return ONLY the search query string. Do NOT add explanations, quotes, or markdown formatting.
+
+Recent Conversation:
+{formatted_history.strip()}
+
+User Query: {clean_query}
+
+Standalone Search Query:
+""".strip()
+
         response = groq_client.chat.completions.create(
             messages=[{"role": "user", "content": prompt}],
             model="llama-3.1-8b-instant",
-            temperature=0.0,  # Zero temp for precise structural rewrite
-            max_tokens=150
+            temperature=0.0,
+            max_tokens=80
         )
         rewritten = response.choices[0].message.content.strip()
-        print(f"\n[F-05 Query Rewriter] Raw: '{query}' -> Standalone: '{rewritten}'")
+
+        # Clean outer single/double quotes, newlines, and trailing punctuation
+        rewritten = re.sub(r'^["\']|["\']$', '', rewritten).strip()
+
+        # Fallback to original query if rewriter produced empty or excessively short text
+        if not rewritten or len(rewritten) < 3:
+            return clean_query
+
+        print(f"\n[F-05 Query Rewriter] Raw: '{clean_query}' -> Standalone: '{rewritten}'")
         return rewritten
     except Exception as e:
         print(f"[F-05 Query Rewriter Error]: {str(e)}")
-        return query
+        return clean_query
 
 
 def expand_query(original_query: str) -> list[str]:
@@ -51,9 +86,9 @@ def expand_query(original_query: str) -> list[str]:
         return [original_query]
 
     prompt = f"""
-    Generate 2 alternative, highly specific academic search queries for: "{original_query}".
-    Return ONLY the queries, one per line. No numbering, no comments.
-    """.strip()
+Generate 2 alternative, highly specific academic search queries for: "{original_query}".
+Return ONLY the queries, one per line. No numbering, no comments.
+""".strip()
 
     try:
         response = groq_client.chat.completions.create(
@@ -81,19 +116,19 @@ def retrieve_context(
 
     available_docs = list_indexed_documents(collection_name)
     
-    # 1. Get Execution Plan from Router using standalone query AND chat_history
-    plan = classify_query_intent(search_query, available_docs, chat_history)
-    
-    # Strictly respect explicit_docs if supplied by the frontend workspace filter
+    # Strictly respect explicit_docs if supplied by the active frontend workspace filter
     if explicit_docs is not None:
-        target_docs = explicit_docs
+        target_docs = [d for d in explicit_docs if d]
     else:
-        target_docs = plan.get("target_docs", available_docs)
+        target_docs = available_docs
 
     # Return empty list immediately if active workspace has no documents
     if not target_docs:
         print("\n[Execution Plan] Workspace is empty. Returning empty context.")
-        return [], plan
+        return [], {"intent": "NEW_QUERY", "target_docs": []}
+
+    # 1. Get Execution Plan from Router using standalone query AND chat_history
+    plan = classify_query_intent(search_query, target_docs, chat_history)
 
     retrieval_mode = plan.get("retrieval_mode", "vector_search")
     effective_top_k = plan.get("recommended_top_k", top_k)
@@ -102,15 +137,20 @@ def retrieve_context(
 
     all_chunks = {}
 
-    # Strategy A: Full Text Extraction (Single/Multi Summary)
+    # Strategy A: Full Text / Overview Extraction (Summaries)
     if retrieval_mode == "full_text" and target_docs:
         for doc in target_docs:
             doc_chunks = get_all_chunks_for_doc(doc_name=doc, collection_name=collection_name)
+            
+            # Prioritize early chunks (Abstract, Intro, Table of Contents) for full summaries
             for c in doc_chunks:
                 all_chunks[c["chunk_id"]] = c
-        return list(all_chunks.values()), plan
+                
+        chunks_list = list(all_chunks.values())
+        # Cap to 30 chunks max to prevent blowing LLM context windows
+        return chunks_list[:30], plan
 
-    # Strategy B: Per-Document Balanced Search (Comparison)
+    # Strategy B: Per-Document Balanced Search (Multi-Paper Comparison)
     if retrieval_mode == "per_document_search" and target_docs:
         per_doc_k = max(3, effective_top_k // len(target_docs))
         for doc in target_docs:
@@ -145,6 +185,7 @@ def retrieve_context(
 
 
 def build_context_block(chunks: list[dict]) -> str:
+    """Formats retrieved chunks into a standard source-locked prompt context block."""
     if not chunks:
         return "No relevant document context found."
 

@@ -26,10 +26,24 @@ def get_or_create_collection(collection_name: str = "scholarsmate_docs"):
     )
 
 
+def is_document_already_indexed(file_hash: str, collection_name: str = "scholarsmate_docs") -> bool:
+    """FR-08: Checks if chunks matching this SHA-256 hash already exist in ChromaDB."""
+    try:
+        collection = get_or_create_collection(collection_name)
+        existing = collection.get(
+            where={"file_hash": file_hash},
+            limit=1
+        )
+        return len(existing["ids"]) > 0
+    except Exception as e:
+        print(f"Error during deduplication check: {e}")
+        return False
+
+
 def store_chunks(chunks: list[Document], collection_name: str = "scholarsmate_docs"):
     """Inserts or updates document chunks in ChromaDB with embeddings and metadata."""
     if not chunks:
-        print("No chunks provided to store.")
+        print("No new chunks to store.")
         return
 
     collection = get_or_create_collection(collection_name)
@@ -50,7 +64,7 @@ def store_chunks(chunks: list[Document], collection_name: str = "scholarsmate_do
 def search_similar_chunks(
     query: str, 
     top_k: int = 5, 
-    collection_name: str = "scholarsmate_docs",
+    collection_name: str = "scholarsmate_docs", 
     doc_names: list[str] | None = None
 ):
     """Searches vector store for top-k matching chunks, strictly enforcing document isolation."""
@@ -58,11 +72,10 @@ def search_similar_chunks(
     
     where_clause = None
 
-    # Strict isolation check
     if doc_names is not None:
         clean_docs = [d for d in doc_names if d and isinstance(d, str)]
         
-        # EDGE CASE FIX: If an empty workspace passes doc_names=[], short-circuit!
+        # Edge case: empty workspace
         if len(clean_docs) == 0:
             return {"ids": [[]], "documents": [[]], "metadatas": [[]], "distances": [[]]}
         
@@ -82,7 +95,7 @@ def search_similar_chunks(
 def get_all_chunks_for_doc(
     doc_name: str, 
     collection_name: str = "scholarsmate_docs", 
-    max_chunks: int = 250  # Increased limit so long papers aren't truncated
+    max_chunks: int = 250
 ) -> list[dict]:
     """Retrieves all chunks belonging to a specific document ordered by page number."""
     collection = get_or_create_collection(collection_name)
@@ -102,7 +115,6 @@ def get_all_chunks_for_doc(
                 "content": text
             })
     
-    # Sort by page number
     chunks.sort(key=lambda x: x["page_number"])
     return chunks
 
@@ -157,6 +169,6 @@ if __name__ == "__main__":
             store_chunks(doc_chunks)
             print(f"Done! {len(doc_chunks)} chunks stored.")
         else:
-            print("No PDF files found to process.")
+            print("No new PDF chunks needed indexing.")
     else:
         print("Usage: python -m backend.embeddings.vector_store <path_to_pdf_or_folder>")
