@@ -1,5 +1,12 @@
 // src/theme/constants.js
 
+export const APP_CONFIG = {
+  name: "ScholarsMate",
+  tagline: "Source-Locked Research Intelligence",
+  welcomeMessage: "Hello! I'm ScholarsMate. Ask me questions about your uploaded research papers.",
+  apiBaseUrl: "http://127.0.0.1:8000/api",
+};
+
 export const BRAND_CONFIG = {
   name: "ScholarsMate",
   tagline: "Source-Locked Research Intelligence",

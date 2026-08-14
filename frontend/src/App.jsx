@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Header from './components/layout/Header';
 import DocumentSidebar from './components/document/DocumentSidebar';
 import ChatInterface from './components/chat/ChatInterface';
@@ -54,6 +54,33 @@ export default function App() {
     fetchDocs();
   }, []);
 
+  // --------------------------------------------------------------------------
+  // WORKSPACE DOCUMENT ISOLATION FIX
+  // Derive active workspace object from state
+  // --------------------------------------------------------------------------
+  const activeWorkspace = useMemo(() => {
+    return workspaces.find((ws) => ws.id === activeWorkspaceId) || null;
+  }, [workspaces, activeWorkspaceId]);
+
+  // Filter global ChromaDB document catalog down to ONLY papers in active workspace
+  const scopedDocuments = useMemo(() => {
+    if (!activeWorkspace || !activeWorkspace.documents) {
+      return documents; // Fallback if no active workspace is selected
+    }
+    return documents.filter((doc) =>
+      activeWorkspace.documents.includes(doc.doc_name)
+    );
+  }, [documents, activeWorkspace]);
+
+  // Whenever the active workspace changes, reset selectedDocs filter to match
+  useEffect(() => {
+    if (activeWorkspace && activeWorkspace.documents) {
+      setSelectedDocs(activeWorkspace.documents);
+    } else {
+      setSelectedDocs(documents.map((d) => d.doc_name));
+    }
+  }, [activeWorkspace, documents]);
+
   const handleWorkspaceCreated = async (newWorkspace) => {
     setWorkspaces((prev) => [newWorkspace, ...prev]);
     setActiveWorkspaceId(newWorkspace.id);
@@ -62,7 +89,6 @@ export default function App() {
 
   const handleSelectWorkspace = (workspace) => {
     setActiveWorkspaceId(workspace.id);
-    // Scope filters to documents from this selected workspace
     if (workspace.documents && workspace.documents.length > 0) {
       setSelectedDocs(workspace.documents);
     } else {
@@ -78,20 +104,15 @@ export default function App() {
     }
   };
 
-  // Callback triggered when a user clicks a citation badge in ChatMessage
   const handleSelectCitation = (docName, pageNum) => {
-    console.log(`[App.jsx Debug] Citation clicked: ${docName}, Page: ${pageNum}`);
     setActivePdf(docName);
     setTargetPage(pageNum || 1);
   };
 
-  // Trigger handler for generating a workspace literature review using api service
   const handleGenerateReview = async () => {
     setIsGeneratingReview(true);
     try {
       const data = await generateLiteratureReview(selectedDocs);
-      
-      // Pass the generated markdown review to ChatInterface
       setReviewTriggerMessage({
         sender: 'bot',
         text: data.content,
@@ -127,12 +148,11 @@ export default function App() {
           isGenerating={isGeneratingReview}
         />
 
-        {/* Main Content Area: Dynamic Split-Screen Layout */}
+        {/* Main Content Area */}
         <div className="flex-1 flex h-full overflow-hidden">
-          {/* Chat Interface Container */}
           <div className={`h-full transition-all duration-300 ${activePdf ? 'w-1/2 border-r border-zinc-800' : 'w-full'}`}>
             <ChatInterface
-              documents={documents}
+              documents={scopedDocuments} // <--- Pass ONLY scoped workspace documents
               selectedDocs={selectedDocs}
               setSelectedDocs={setSelectedDocs}
               onSelectCitation={handleSelectCitation}
@@ -140,7 +160,7 @@ export default function App() {
             />
           </div>
 
-          {/* Interactive PDF Viewer Split Screen */}
+          {/* PDF Viewer Split Screen */}
           {activePdf && (
             <div className="w-1/2 h-full">
               <PdfViewer

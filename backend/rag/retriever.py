@@ -84,11 +84,18 @@ def retrieve_context(
     # 1. Get Execution Plan from Router using standalone query AND chat_history
     plan = classify_query_intent(search_query, available_docs, chat_history)
     
-    # Override target_docs if explicit UI selections were provided
-    target_docs = explicit_docs if (explicit_docs and len(explicit_docs) > 0) else plan.get("target_docs", available_docs)
+    # Strictly respect explicit_docs if supplied by the frontend workspace filter
+    if explicit_docs is not None:
+        target_docs = explicit_docs
+    else:
+        target_docs = plan.get("target_docs", available_docs)
+
+    # Return empty list immediately if active workspace has no documents
+    if not target_docs:
+        print("\n[Execution Plan] Workspace is empty. Returning empty context.")
+        return [], plan
+
     retrieval_mode = plan.get("retrieval_mode", "vector_search")
-    
-    # Use recommended_top_k from router if available, otherwise fall back to top_k
     effective_top_k = plan.get("recommended_top_k", top_k)
 
     print(f"\n[Execution Plan] Intent: {plan.get('intent')} | Retrieval Mode: {retrieval_mode} | Generation Mode: {plan.get('generation_mode')} | Targets: {target_docs} | Effective top_k: {effective_top_k}")

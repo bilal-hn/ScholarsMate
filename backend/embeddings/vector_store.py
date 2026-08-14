@@ -53,15 +53,22 @@ def search_similar_chunks(
     collection_name: str = "scholarsmate_docs",
     doc_names: list[str] | None = None
 ):
-    """Searches vector store for top-k matching chunks, with optional document filtering."""
+    """Searches vector store for top-k matching chunks, strictly enforcing document isolation."""
     collection = get_or_create_collection(collection_name)
     
     where_clause = None
-    if doc_names:
-        clean_docs = [d for d in doc_names if d]
+
+    # Strict isolation check
+    if doc_names is not None:
+        clean_docs = [d for d in doc_names if d and isinstance(d, str)]
+        
+        # EDGE CASE FIX: If an empty workspace passes doc_names=[], short-circuit!
+        if len(clean_docs) == 0:
+            return {"ids": [[]], "documents": [[]], "metadatas": [[]], "distances": [[]]}
+        
         if len(clean_docs) == 1:
             where_clause = {"source": clean_docs[0]}
-        elif len(clean_docs) > 1:
+        else:
             where_clause = {"source": {"$in": clean_docs}}
 
     results = collection.query(
@@ -75,7 +82,7 @@ def search_similar_chunks(
 def get_all_chunks_for_doc(
     doc_name: str, 
     collection_name: str = "scholarsmate_docs", 
-    max_chunks: int = 25
+    max_chunks: int = 250  # Increased limit so long papers aren't truncated
 ) -> list[dict]:
     """Retrieves all chunks belonging to a specific document ordered by page number."""
     collection = get_or_create_collection(collection_name)

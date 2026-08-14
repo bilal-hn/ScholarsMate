@@ -17,7 +17,6 @@ def evaluate_query_scope_fallback(query: str) -> int:
     """Fallback regex check to determine top_k depth if LLM router fails."""
     query_lower = query.lower().strip()
     
-    # Global/Synthesis scope triggers requiring higher retrieval density
     global_synthesis_patterns = [
         r"\b(all|every|entire|whole|complete|full)\b",
         r"\b(summary|summarize|overview|synthesis)\b.*(paper|book|document|workspace)",
@@ -35,11 +34,8 @@ def evaluate_query_scope_fallback(query: str) -> int:
 
 def classify_query_intent(query: str, available_docs: list[str], chat_history: list[dict] | None = None) -> dict:
     """
-    Uses Groq (Llama 3.1 8B) to output a structured JSON execution plan including:
-    - Intent classification (CONVERSATIONAL, FOLLOW_UP, NEW_QUERY)
-    - Sliding chat history context evaluation
-    - Retrieval and generation modes
-    - Dynamic top_k scope
+    Uses Groq (Llama 3.1 8B) to output a structured JSON execution plan.
+    Strictly scopes document catalog to available_docs (the active workspace).
     """
     fallback_k = evaluate_query_scope_fallback(query)
     
@@ -57,9 +53,10 @@ def classify_query_intent(query: str, available_docs: list[str], chat_history: l
     if not groq_client:
         return default_plan
 
-    catalog = get_indexed_document_catalog()
+    # Scope catalog strictly to active workspace documents
+    full_catalog = get_indexed_document_catalog()
+    catalog = [item for item in full_catalog if item["filename"] in available_docs] if available_docs else full_catalog
 
-    # Format sliding window (last 6 messages) for context awareness
     formatted_history = ""
     if chat_history:
         for msg in chat_history[-6:]:
@@ -72,7 +69,7 @@ def classify_query_intent(query: str, available_docs: list[str], chat_history: l
 You are an academic query execution planner for a multi-document RAG system named ScholarsMate.
 Analyze the user query, available document catalog, and recent chat history to output a structured JSON execution plan.
 
-Indexed Documents in Workspace (Filenames & Paper Titles):
+Indexed Documents in Active Workspace (Filenames & Paper Titles):
 {json.dumps(catalog)}
 
 Recent Chat History:
@@ -113,15 +110,12 @@ Return ONLY valid JSON matching this schema.
         )
         plan = json.loads(response.choices[0].message.content)
         
-        # Ensure default intent fallback
         if not plan.get("intent"):
             plan["intent"] = "NEW_QUERY"
 
-        # Fallback target docs if null or empty
         if not plan.get("target_docs"):
             plan["target_docs"] = available_docs
             
-        # Ensure top_k fallback if omitted by LLM
         if "recommended_top_k" not in plan:
             plan["recommended_top_k"] = 18 if plan.get("query_depth") == "broad_synthesis" else 6
             

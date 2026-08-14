@@ -13,11 +13,9 @@ from backend.rag.prompt_templates import construct_prompt, SOURCE_LOCKED_SYSTEM_
 from backend.embeddings.vector_store import list_indexed_documents
 from backend.rag.router import classify_query_intent
 
-# Groq Client setup (for low-latency single-pass completions)
 groq_api_key = os.getenv("GROQ_API_KEY")
 groq_client = Groq(api_key=groq_api_key) if groq_api_key else None
 
-# Gemini Client setup (for heavy Map-Reduce synthesis over large document contexts)
 gemini_api_key = os.getenv("GEMINI_API_KEY")
 gemini_client = genai.Client(api_key=gemini_api_key) if gemini_api_key else None
 
@@ -30,7 +28,6 @@ def execute_map_reduce_synthesis(query: str, chunks: list[dict]) -> str:
     if not chunks:
         return "No relevant document chunks retrieved to perform literature review synthesis."
 
-    # Group chunks safely by document
     docs_map = {}
     for c in chunks:
         doc_name = c.get("doc_name") or c.get("source") or "Unknown Document"
@@ -41,10 +38,9 @@ def execute_map_reduce_synthesis(query: str, chunks: list[dict]) -> str:
     if not docs_map:
         return "Failed to extract valid text content from retrieved paper chunks."
 
-    # Stage 1 (Map): Summarize each paper independently using Gemini
     paper_summaries = []
     for doc_name, text_list in docs_map.items():
-        doc_context = "\n\n".join(text_list[:12])  # Take up to 12 snippets per paper
+        doc_context = "\n\n".join(text_list[:12])
         map_prompt = f"""
 You are a research analyst. Provide a detailed, structured technical summary of key findings, methodology, and limitations for the paper '{doc_name}' based on these excerpts:
 
@@ -62,7 +58,6 @@ You are a research analyst. Provide a detailed, structured technical summary of 
             print(f"[Map Stage Error] {doc_name}: {str(e)}")
             paper_summaries.append(f"### Paper Analysis: {doc_name}\nExtraction unavailable due to model error.")
 
-    # Stage 2 (Reduce): Synthesize all paper summaries into final literature review using Gemini
     combined_summaries = "\n\n".join(paper_summaries)
     reduce_prompt = f"""
 {SOURCE_LOCKED_SYSTEM_PROMPT}
@@ -98,7 +93,7 @@ def generate_answer(
     query: str, 
     top_k: int = 10, 
     explicit_docs: list[str] | None = None,
-    chat_history: list[dict] | None = None,  # FR-05.1: Sliding window chat history
+    chat_history: list[dict] | None = None,
     model_name: str = "llama-3.3-70b-versatile"
 ) -> dict:
     """Orchestrates LLM query classification, context retrieval, and specialized model generation."""
@@ -108,18 +103,19 @@ def generate_answer(
         raise ValueError("Groq API key is not configured in .env file.")
 
     # -------------------------------------------------------------------------
-    # 0. Single-Pass LLM Intent & Execution Router (F-02 Refined)
+    # 0. Single-Pass LLM Intent & Execution Router (Scoped to Active Workspace)
     # -------------------------------------------------------------------------
-    available_docs = list_indexed_documents()
+    active_workspace_docs = explicit_docs if (explicit_docs is not None and len(explicit_docs) > 0) else list_indexed_documents()
+
     plan = classify_query_intent(
         query=clean_query, 
-        available_docs=available_docs, 
+        available_docs=active_workspace_docs, 
         chat_history=chat_history
     )
     intent = plan.get("intent", "NEW_QUERY")
     print(f"\n[LLM Router] Intent: {intent} | Retrieval Mode: {plan.get('retrieval_mode')} | Targets: {plan.get('target_docs')}")
 
-    # Branch A: CONVERSATIONAL Intent (Bypasses vector search completely)
+    # Branch A: CONVERSATIONAL Intent
     if intent == "CONVERSATIONAL":
         conv_prompt = f"You are ScholarsMate, a helpful academic research AI. Reply politely and concisely to: '{clean_query}'"
         res = groq_client.chat.completions.create(
@@ -134,20 +130,28 @@ def generate_answer(
             "sources_used": []
         }
 
-    # Branch B: Workspace Meta-Query (Explicit workspace checks)
+    # Branch B: Workspace Meta-Query
     if plan.get("is_meta_query"):
-        if not available_docs:
-            answer_text = "Your workspace currently has no documents indexed."
+        if not active_workspace_docs:
+            answer_text = "Your active workspace currently has no documents indexed."
         else:
-            answer_text = f"Your workspace currently contains **{len(available_docs)} document(s)**:\n" + "\n".join([f"- `{d}`" for d in available_docs])
+            answer_text = f"Your active workspace currently contains **{len(active_workspace_docs)} document(s)**:\n" + "\n".join([f"- `{d}`" for d in active_workspace_docs])
         return {
             "query": query,
             "answer": answer_text,
             "sources_used": []
         }
 
+    # Early exit safeguard if workspace has no documents
+    if explicit_docs is not None and len(explicit_docs) == 0:
+        return {
+            "query": query,
+            "answer": "There are no documents uploaded in this workspace. Please upload research papers to begin.",
+            "sources_used": []
+        }
+
     # -------------------------------------------------------------------------
-    # 1. Retrieve Context (with FR-05 Context Memory Query Rewriting)
+    # 1. Retrieve Context
     # -------------------------------------------------------------------------
     retrieved_chunks, _ = retrieve_context(
         query=clean_query, 
@@ -156,7 +160,7 @@ def generate_answer(
         chat_history=chat_history
     )
 
- # Branch C: Map-Reduce Synthesis (Literature Reviews over large contexts)
+    # Branch C: Map-Reduce Synthesis
     if plan.get("generation_mode") == "map_reduce" and len(retrieved_chunks) >= 8:
         answer_text = execute_map_reduce_synthesis(clean_query, retrieved_chunks)
     else:
@@ -170,8 +174,9 @@ def generate_answer(
             temperature=0.0
         )
         answer_text = chat_completion.choices[0].message.content
+
     # -------------------------------------------------------------------------
-    # 2. Source Deduplication (Ensures page badges render cleanly)
+    # 2. Source Deduplication
     # -------------------------------------------------------------------------
     raw_sources = [
         {
@@ -195,11 +200,3 @@ def generate_answer(
         "answer": answer_text,
         "sources_used": unique_sources
     }
-
-
-if __name__ == "__main__":
-    test_q = sys.argv[1] if len(sys.argv) > 1 else "Summarise the main contributions"
-    print(f"\n--- Testing Query: '{test_q}' ---")
-    result = generate_answer(test_q)
-    print("\n--- Answer ---")
-    print(result["answer"])

@@ -1,15 +1,31 @@
 @import "tailwindcss";
 
-/* Single Source of Truth for Design System / Colors */
+/* 
+  Deep Discord Dark Grey & Blurple Theme Override
+*/
 @theme {
-  --color-brand-bg: #09090b;       /* Zinc-950 pitch black background */
-  --color-brand-card: #18181b;     /* Zinc-900 surface */
-  --color-brand-border: #27272a;   /* Zinc-800 subtle borders */
-  --color-brand-amber: #f59e0b;    /* Primary Amber (Amber-500) */
-  --color-brand-amber-hover: #d97706; /* Amber-600 */
+  /* Deeper Discord Surface Colors (Mapped to Zinc utilities) */
+  --color-zinc-950: #1e1f22; /* Primary Chat Surface (Darkened from #313338) */
+  --color-zinc-900: #2b2d31; /* Sidebar, Cards & Floating Input (Darkened) */
+  --color-zinc-800: #111214; /* Deepest Background Panels & Dark Borders */
+  --color-zinc-700: #0e0f10; /* Ultra-Dark Borders & Dividers */
+
+  /* Discord High-Contrast Text Colors */
+  --color-zinc-100: #f2f3f5; /* Primary Header Text */
+  --color-zinc-200: #dbdee1; /* Body Text */
+  --color-zinc-300: #b5bac1; /* Muted Body Text */
+  --color-zinc-400: #949ba4; /* Subtitles & Badges */
+  --color-zinc-500: #80848e; /* Subtle Timestamps & Metadata */
+  --color-zinc-600: #4e5058; /* Disabled State & Dark Icons */
+
+  /* Discord Blurple Accent Colors (Mapped to Amber utilities) */
+  --color-amber-300: #7983f5; /* Hover Accent Highlight */
+  --color-amber-400: #5865f2; /* Discord Blurple Primary Accent */
+  --color-amber-500: #4752c4; /* Dark Blurple Active / Pressed State */
+  --color-amber-600: #3c45a5; /* Deep Blurple Border / Glow */
 }
 
-/* Lock full-screen workspace bounds and eliminate all default Vite centering */
+/* Lock full-screen workspace bounds */
 html,
 body,
 #root {
@@ -19,28 +35,28 @@ body,
   margin: 0 !important;
   padding: 0 !important;
   overflow: hidden !important;
-  background-color: var(--color-brand-bg) !important;
-  color: #f4f4f5;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background-color: var(--color-zinc-950) !important;
+  color: var(--color-zinc-200);
+  font-family: gg sans, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   text-align: left !important;
   border: none !important;
 }
 
-/* Custom Sleek Dark Scrollbar with Amber Hover Glow */
+/* Custom Sleek Dark Scrollbar */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--color-brand-bg);
+  background: var(--color-zinc-900);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--color-brand-border);
-  border-radius: 9999px;
+  background: var(--color-zinc-800);
+  border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #fbbf24; /* Amber hover highlight */
+  background: var(--color-amber-400); /* Blurple scrollbar hover glow */
 }

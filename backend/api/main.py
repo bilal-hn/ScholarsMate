@@ -28,10 +28,9 @@ from backend.embeddings.vector_store import store_chunks, get_or_create_collecti
 from backend.rag.generator import generate_answer
 from backend.rag.literature_review import generate_literature_review
 
-# Import the PDF streaming router
+# Import PDF streaming router
 from backend.api.documents import router as documents_router
 
-# Directory for uploaded documents
 UPLOADS_DIR = Path(__file__).parent.parent.parent / "data" / "uploads"
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -51,7 +50,6 @@ app = FastAPI(
 )
 
 
-# Request schema for Literature Review synthesis
 class ReviewRequest(BaseModel):
     doc_names: List[str] = []
 
@@ -60,16 +58,14 @@ class CreateSessionRequest(BaseModel):
     title: str = "New Research Chat"
 
 
-# Enable CORS middleware for React frontend (Vite port 5173 / production)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Adjust origin URL list for strict production environments
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Include PDF streaming router
 app.include_router(documents_router)
 
 
@@ -147,15 +143,18 @@ async def query_rag(request: QueryRequest, db: AsyncSession = Depends(get_db)):
                 for msg in (request.chat_history or [])
             ]
 
-        # 3. Generate answer via RAG Pipeline
+        # 3. Resolve active workspace document list (supports both doc_names and selected_docs)
+        target_documents = getattr(request, "doc_names", None) or getattr(request, "selected_docs", None) or []
+
+        # 4. Generate answer via RAG Pipeline (Locked to workspace)
         result = generate_answer(
             query=request.query, 
-            top_k=request.top_k, 
-            explicit_docs=request.doc_names,
+            top_k=getattr(request, "top_k", 10), 
+            explicit_docs=target_documents,
             chat_history=history_list,
         )
 
-        # 4. Save User prompt & Bot answer to Database
+        # 5. Save User prompt & Bot answer to Database
         await crud.add_message(db, session_id=session_id, sender="user", text=request.query)
         await crud.add_message(
             db, 
@@ -181,26 +180,24 @@ async def query_rag(request: QueryRequest, db: AsyncSession = Depends(get_db)):
 
 @app.post("/api/upload", response_model=UploadResponse)
 async def upload_pdf(file: UploadFile = File(...)):
-    """Uploads a single PDF file, processes it via layout-aware pipeline, and stores embeddings in ChromaDB."""
+    """Uploads a single PDF file, processes it, and stores embeddings in ChromaDB."""
     if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF documents are supported.")
 
     file_path = UPLOADS_DIR / file.filename
 
-    # Save uploaded file to temp disk storage
     try:
         with file_path.open("wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to save file: {str(e)}")
 
-    # Process and embed document
     try:
         chunks = process_path(str(file_path))
         if not chunks:
             raise HTTPException(
                 status_code=400, 
-                detail="No readable text extracted from PDF. Check if the file is scanned or empty.",
+                detail="No readable text extracted from PDF.",
             )
 
         store_chunks(chunks)
@@ -215,12 +212,11 @@ async def upload_pdf(file: UploadFile = File(...)):
 
 @app.post("/api/workspace/create", response_model=UploadResponse)
 async def create_workspace(files: List[UploadFile] = File(...)):
-    """Uploads a batch of PDF papers or folder contents, processes them via ingestion pipeline, and stores embeddings in ChromaDB."""
+    """Uploads a batch of PDF papers or folder contents and stores embeddings in ChromaDB."""
     total_chunks = 0
     processed_files = []
 
     for file in files:
-        # Extract filename (handles paths passed during folder uploads)
         filename = Path(file.filename).name
         if not filename.lower().endswith(".pdf"):
             continue
@@ -241,7 +237,7 @@ async def create_workspace(files: List[UploadFile] = File(...)):
     if not processed_files:
         raise HTTPException(
             status_code=400, 
-            detail="No valid readable PDF files were processed from the selected input.",
+            detail="No valid readable PDF files were processed.",
         )
 
     return UploadResponse(
