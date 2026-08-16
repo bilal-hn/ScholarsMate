@@ -14,6 +14,8 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")
 
 from backend.db.session import init_db, get_db
 from backend.db import crud
+from backend.db.models import User
+from backend.api.auth import get_current_user, AuthResponse
 from backend.api.schemas import (
     QueryRequest,
     QueryResponse,
@@ -77,31 +79,64 @@ def health_check():
 
 
 # =============================================================================
-# CHAT SESSION MANAGEMENT ENDPOINTS
+# AUTHENTICATION & IDENTITY ENDPOINTS (FR-07)
+# =============================================================================
+
+@app.get("/api/auth/me", response_model=AuthResponse)
+async def get_me(current_user: User = Depends(get_current_user)):
+    """Returns the authenticated Google user or active guest profile."""
+    return AuthResponse(
+        user_id=current_user.id,
+        name=current_user.name,
+        email=current_user.email,
+        avatar_url=current_user.avatar_url,
+        is_guest=current_user.is_guest,
+    )
+
+
+# =============================================================================
+# CHAT SESSION MANAGEMENT ENDPOINTS (MULTI-TENANT)
 # =============================================================================
 
 @app.post("/api/sessions", response_model=ChatSessionResponse)
-async def create_session(req: CreateSessionRequest, db: AsyncSession = Depends(get_db)):
-    """Creates a new persistent chat session thread."""
-    session = await crud.create_chat_session(db, title=req.title, doc_names=req.doc_names)
+async def create_session(
+    req: CreateSessionRequest, 
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Creates a new persistent chat session thread scoped to the current user."""
+    session = await crud.create_chat_session(
+        db, 
+        title=req.title, 
+        doc_names=req.doc_names,
+        user_id=current_user.id
+    )
     return session
 
 
 @app.get("/api/sessions", response_model=List[ChatSessionResponse])
-async def list_sessions(db: AsyncSession = Depends(get_db)):
-    """Lists all historical chat sessions ordered by latest update."""
-    return await crud.get_all_sessions(db)
+async def list_sessions(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Lists historical chat sessions belonging exclusively to the current user."""
+    return await crud.get_all_sessions(db, user_id=current_user.id)
 
 
 @app.get("/api/sessions/{session_id}", response_model=ChatSessionDetailResponse)
-async def get_session_details(session_id: str, db: AsyncSession = Depends(get_db)):
-    """Retrieves full chat message history for a specific session ID."""
-    messages = await crud.get_session_messages(db, session_id)
-    sessions = await crud.get_all_sessions(db)
+async def get_session_details(
+    session_id: str, 
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Retrieves full chat message history for a specific session ID owned by the user."""
+    sessions = await crud.get_all_sessions(db, user_id=current_user.id)
     session_meta = next((s for s in sessions if s.id == session_id), None)
     
     if not session_meta:
-        raise HTTPException(status_code=404, detail="Chat session not found.")
+        raise HTTPException(status_code=404, detail="Chat session not found or unauthorized.")
+
+    messages = await crud.get_session_messages(db, session_id)
         
     return {
         "id": session_meta.id,
@@ -112,39 +147,48 @@ async def get_session_details(session_id: str, db: AsyncSession = Depends(get_db
 
 
 @app.delete("/api/sessions/{session_id}")
-async def delete_session_endpoint(session_id: str, db: AsyncSession = Depends(get_db)):
-    """Deletes a chat session and its associated message history."""
-    deleted = await crud.delete_session(db, session_id)
+async def delete_session_endpoint(
+    session_id: str, 
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Deletes a chat session belonging to the current user."""
+    deleted = await crud.delete_session(db, session_id, user_id=current_user.id)
     if not deleted:
-        raise HTTPException(status_code=404, detail="Chat session not found.")
+        raise HTTPException(status_code=404, detail="Chat session not found or unauthorized.")
     return {"message": "Chat session successfully deleted."}
 
 
 # =============================================================================
-# CORE RAG QUERY ENDPOINT WITH AUTOMATIC DB PERSISTENCE & STALE SESSION HANDLING
+# CORE RAG QUERY ENDPOINT (TENANT-SCOPED PERSISTENCE)
 # =============================================================================
 
 @app.post("/api/query", response_model=QueryResponse)
-async def query_rag(request: QueryRequest, db: AsyncSession = Depends(get_db)):
-    """Accepts a query, routes execution plan, saves chat turn to DB, and returns answer with citations."""
+async def query_rag(
+    request: QueryRequest, 
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Accepts a query, routes execution plan, saves chat turn to user's DB session, and returns answer."""
     try:
         # 1. Resolve active workspace document list
         target_documents = getattr(request, "doc_names", None) or getattr(request, "selected_docs", None) or []
 
-        # 2. Check session existence to prevent foreign key errors on stale frontend sessions
+        # 2. Check session existence for this specific user
         session_id = request.session_id
         session_exists = False
         
         if session_id:
-            all_sessions = await crud.get_all_sessions(db)
-            session_exists = any(s.id == session_id for s in all_sessions)
+            user_sessions = await crud.get_all_sessions(db, user_id=current_user.id)
+            session_exists = any(s.id == session_id for s in user_sessions)
 
-        # Fallback: create fresh session if none provided or session ID is obsolete
+        # Fallback: create a fresh session linked to the current user
         if not session_id or not session_exists:
             new_session = await crud.create_chat_session(
                 db, 
                 title=request.query[:40] + "...", 
-                doc_names=target_documents
+                doc_names=target_documents,
+                user_id=current_user.id
             )
             session_id = new_session.id
 
@@ -189,7 +233,7 @@ async def query_rag(request: QueryRequest, db: AsyncSession = Depends(get_db)):
 
 
 # =============================================================================
-# UPLOAD & LITERATURE REVIEW ENDPOINTS
+# UPLOAD & WORKSPACE CREATION ENDPOINTS
 # =============================================================================
 
 @app.post("/api/upload", response_model=UploadResponse)
@@ -223,11 +267,12 @@ async def upload_pdf(file: UploadFile = File(...)):
 @app.post("/api/workspace/create", response_model=UploadResponse)
 async def create_workspace(
     files: List[UploadFile] = File(...),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """
     Uploads a batch of PDF papers, applies SHA-256 deduplication,
-    enforces a maximum of 3 identical duplicate workspaces, and indexes new chunks.
+    enforces a maximum of 3 identical duplicate workspaces per user, and indexes new chunks.
     """
     total_chunks = 0
     processed_files = []
@@ -260,19 +305,19 @@ async def create_workspace(
         )
 
     # -------------------------------------------------------------------------
-    # Enforce Maximum 3 Duplicate Workspaces via Exact Document List Matching
+    # Enforce Maximum 3 Duplicate Workspaces Per User
     # -------------------------------------------------------------------------
     target_docs_sorted = sorted(list(set(processed_files)))
-    existing_sessions = await crud.get_all_sessions(db)
+    user_sessions = await crud.get_all_sessions(db, user_id=current_user.id)
     
     matching_workspaces_count = 0
-    for session in existing_sessions:
+    for session in user_sessions:
         session_docs = getattr(session, "doc_names", None)
         if session_docs and isinstance(session_docs, list):
             if sorted(session_docs) == target_docs_sorted:
                 matching_workspaces_count += 1
 
-    print(f"\n[Workspace Limit Check] Found {matching_workspaces_count} existing sessions with documents: {target_docs_sorted}")
+    print(f"\n[Workspace Limit Check] User '{current_user.id}' has {matching_workspaces_count} sessions with documents: {target_docs_sorted}")
 
     if matching_workspaces_count >= 3:
         raise HTTPException(
@@ -283,9 +328,14 @@ async def create_workspace(
             )
         )
 
-    # Register initial session with its exact paper set
+    # Register initial session scoped to the current user
     default_title = f"{Path(processed_files[0]).stem} Workspace" if len(processed_files) == 1 else f"{len(processed_files)} Papers Workspace"
-    await crud.create_chat_session(db, title=default_title, doc_names=target_docs_sorted)
+    await crud.create_chat_session(
+        db, 
+        title=default_title, 
+        doc_names=target_docs_sorted, 
+        user_id=current_user.id
+    )
 
     return UploadResponse(
         message=f"Workspace created with {len(processed_files)} document(s).",
