@@ -56,6 +56,7 @@ class ReviewRequest(BaseModel):
 
 class CreateSessionRequest(BaseModel):
     title: str = "New Research Chat"
+    doc_names: List[str] = []
 
 
 app.add_middleware(
@@ -82,7 +83,7 @@ def health_check():
 @app.post("/api/sessions", response_model=ChatSessionResponse)
 async def create_session(req: CreateSessionRequest, db: AsyncSession = Depends(get_db)):
     """Creates a new persistent chat session thread."""
-    session = await crud.create_chat_session(db, title=req.title)
+    session = await crud.create_chat_session(db, title=req.title, doc_names=req.doc_names)
     return session
 
 
@@ -120,20 +121,34 @@ async def delete_session_endpoint(session_id: str, db: AsyncSession = Depends(ge
 
 
 # =============================================================================
-# CORE RAG QUERY ENDPOINT WITH AUTOMATIC DB PERSISTENCE
+# CORE RAG QUERY ENDPOINT WITH AUTOMATIC DB PERSISTENCE & STALE SESSION HANDLING
 # =============================================================================
 
 @app.post("/api/query", response_model=QueryResponse)
 async def query_rag(request: QueryRequest, db: AsyncSession = Depends(get_db)):
     """Accepts a query, routes execution plan, saves chat turn to DB, and returns answer with citations."""
     try:
-        # 1. Resolve or create active session_id
+        # 1. Resolve active workspace document list
+        target_documents = getattr(request, "doc_names", None) or getattr(request, "selected_docs", None) or []
+
+        # 2. Check session existence to prevent foreign key errors on stale frontend sessions
         session_id = request.session_id
-        if not session_id:
-            new_session = await crud.create_chat_session(db, title=request.query[:40] + "...")
+        session_exists = False
+        
+        if session_id:
+            all_sessions = await crud.get_all_sessions(db)
+            session_exists = any(s.id == session_id for s in all_sessions)
+
+        # Fallback: create fresh session if none provided or session ID is obsolete
+        if not session_id or not session_exists:
+            new_session = await crud.create_chat_session(
+                db, 
+                title=request.query[:40] + "...", 
+                doc_names=target_documents
+            )
             session_id = new_session.id
 
-        # 2. Fetch history from DB or fallback to payload chat_history
+        # 3. Fetch history from DB or fallback to payload chat_history
         db_messages = await crud.get_session_messages(db, session_id)
         if db_messages:
             history_list = [{"sender": m.sender, "text": m.text} for m in db_messages[-6:]]
@@ -142,9 +157,6 @@ async def query_rag(request: QueryRequest, db: AsyncSession = Depends(get_db)):
                 msg.model_dump() if hasattr(msg, "model_dump") else msg.dict() 
                 for msg in (request.chat_history or [])
             ]
-
-        # 3. Resolve active workspace document list (supports both doc_names and selected_docs)
-        target_documents = getattr(request, "doc_names", None) or getattr(request, "selected_docs", None) or []
 
         # 4. Generate answer via RAG Pipeline (Locked to workspace)
         result = generate_answer(
@@ -171,6 +183,8 @@ async def query_rag(request: QueryRequest, db: AsyncSession = Depends(get_db)):
             session_id=session_id,
         )
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Query generation failed: {str(e)}")
 
 
@@ -194,25 +208,27 @@ async def upload_pdf(file: UploadFile = File(...)):
 
     try:
         chunks = process_path(str(file_path))
-        if not chunks:
-            raise HTTPException(
-                status_code=400, 
-                detail="No readable text extracted from PDF.",
-            )
+        if chunks:
+            store_chunks(chunks)
 
-        store_chunks(chunks)
         return UploadResponse(
             message="Document successfully processed and indexed.",
             filename=file.filename,
-            chunks_processed=len(chunks),
+            chunks_processed=len(chunks) if chunks else 0,
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ingestion failed: {str(e)}")
 
 
 @app.post("/api/workspace/create", response_model=UploadResponse)
-async def create_workspace(files: List[UploadFile] = File(...)):
-    """Uploads a batch of PDF papers or folder contents and stores embeddings in ChromaDB."""
+async def create_workspace(
+    files: List[UploadFile] = File(...),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Uploads a batch of PDF papers, applies SHA-256 deduplication,
+    enforces a maximum of 3 identical duplicate workspaces, and indexes new chunks.
+    """
     total_chunks = 0
     processed_files = []
 
@@ -226,11 +242,14 @@ async def create_workspace(files: List[UploadFile] = File(...)):
             with file_path.open("wb") as buffer:
                 shutil.copyfileobj(file.file, buffer)
 
+            # process_path returns [] if already indexed via SHA-256 deduplication
             chunks = process_path(str(file_path))
             if chunks:
                 store_chunks(chunks)
                 total_chunks += len(chunks)
-                processed_files.append(filename)
+
+            # Always track filename whether newly embedded or deduplicated
+            processed_files.append(filename)
         except Exception as e:
             print(f"Failed to process file {filename}: {str(e)}")
 
@@ -239,6 +258,34 @@ async def create_workspace(files: List[UploadFile] = File(...)):
             status_code=400, 
             detail="No valid readable PDF files were processed.",
         )
+
+    # -------------------------------------------------------------------------
+    # Enforce Maximum 3 Duplicate Workspaces via Exact Document List Matching
+    # -------------------------------------------------------------------------
+    target_docs_sorted = sorted(list(set(processed_files)))
+    existing_sessions = await crud.get_all_sessions(db)
+    
+    matching_workspaces_count = 0
+    for session in existing_sessions:
+        session_docs = getattr(session, "doc_names", None)
+        if session_docs and isinstance(session_docs, list):
+            if sorted(session_docs) == target_docs_sorted:
+                matching_workspaces_count += 1
+
+    print(f"\n[Workspace Limit Check] Found {matching_workspaces_count} existing sessions with documents: {target_docs_sorted}")
+
+    if matching_workspaces_count >= 3:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"You already have {matching_workspaces_count} workspaces with this exact set of papers. "
+                "Please delete or reuse one of your existing workspaces to proceed."
+            )
+        )
+
+    # Register initial session with its exact paper set
+    default_title = f"{Path(processed_files[0]).stem} Workspace" if len(processed_files) == 1 else f"{len(processed_files)} Papers Workspace"
+    await crud.create_chat_session(db, title=default_title, doc_names=target_docs_sorted)
 
     return UploadResponse(
         message=f"Workspace created with {len(processed_files)} document(s).",

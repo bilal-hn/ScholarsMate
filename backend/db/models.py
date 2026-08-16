@@ -14,6 +14,7 @@ class ChatSession(Base):
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=generate_uuid)
     title: Mapped[str] = mapped_column(String, default="New Research Chat")
+    doc_names: Mapped[list[str]] = mapped_column(JSON, default=list)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
