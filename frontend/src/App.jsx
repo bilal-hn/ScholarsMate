@@ -106,22 +106,24 @@ export default function App() {
     return workspaces.find((ws) => ws.id === activeWorkspaceId) || null;
   }, [workspaces, activeWorkspaceId]);
 
+  // Strict Scoping: Return empty if no active workspace is selected
   const scopedDocuments = useMemo(() => {
     if (!activeWorkspace || !activeWorkspace.documents) {
-      return documents;
+      return [];
     }
     return documents.filter((doc) =>
       activeWorkspace.documents.includes(doc.doc_name)
     );
   }, [documents, activeWorkspace]);
 
+  // Strict Selection: Clear selected docs if no active workspace is selected
   useEffect(() => {
     if (activeWorkspace && activeWorkspace.documents) {
       setSelectedDocs(activeWorkspace.documents);
     } else {
-      setSelectedDocs(documents.map((d) => d.doc_name));
+      setSelectedDocs([]);
     }
-  }, [activeWorkspace, documents]);
+  }, [activeWorkspace]);
 
   const handleWorkspaceCreated = async (newWorkspace) => {
     await syncUserData();
@@ -199,6 +201,7 @@ export default function App() {
           onOpenCreateModal={() => setIsModalOpen(true)}
           onGenerateReview={handleGenerateReview}
           isGenerating={isGeneratingReview}
+          onAuthChange={handleAuthChange}
         />
 
         {/* Main Content Area */}
