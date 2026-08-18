@@ -4,13 +4,23 @@ import DocumentSidebar from './components/document/DocumentSidebar';
 import ChatInterface from './components/chat/ChatInterface';
 import CreateWorkspaceModal from './components/document/CreateWorkspaceModal';
 import PdfViewer from './components/viewer/PdfViewer';
-import { getDocuments, checkHealth, generateLiteratureReview } from './services/api';
+import { 
+  getDocuments, 
+  checkHealth, 
+  generateLiteratureReview, 
+  getChatSessions, 
+  deleteChatSession,
+  getCurrentUser
+} from './services/api';
 
 export default function App() {
   const [documents, setDocuments] = useState([]);
   const [selectedDocs, setSelectedDocs] = useState([]);
   const [backendStatus, setBackendStatus] = useState('checking');
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Authentication & Current User State
+  const [currentUser, setCurrentUser] = useState(null);
 
   // PDF Viewer split-screen state
   const [activePdf, setActivePdf] = useState(null);
@@ -20,25 +30,43 @@ export default function App() {
   const [isGeneratingReview, setIsGeneratingReview] = useState(false);
   const [reviewTriggerMessage, setReviewTriggerMessage] = useState(null);
 
-  // Workspaces state synced with localStorage
-  const [workspaces, setWorkspaces] = useState(() => {
-    const saved = localStorage.getItem('scholarsmate_workspaces');
-    return saved ? JSON.parse(saved) : [];
-  });
+  // Workspaces state synced from backend & fallback to localStorage
+  const [workspaces, setWorkspaces] = useState([]);
+  const [activeWorkspaceId, setActiveWorkspaceId] = useState(null);
 
-  const [activeWorkspaceId, setActiveWorkspaceId] = useState(() => {
-    return localStorage.getItem('scholarsmate_active_id') || null;
-  });
+  // --------------------------------------------------------------------------
+  // USER IDENTITY & WORKSPACE SYNC
+  // --------------------------------------------------------------------------
+  const syncUserData = async () => {
+    try {
+      // 1. Fetch current authenticated profile or guest token
+      const user = await getCurrentUser();
+      setCurrentUser(user);
 
-  useEffect(() => {
-    localStorage.setItem('scholarsmate_workspaces', JSON.stringify(workspaces));
-  }, [workspaces]);
+      // 2. Fetch sessions/workspaces belonging exclusively to this user
+      const backendSessions = await getChatSessions();
+      
+      const mappedWorkspaces = backendSessions.map((session) => ({
+        id: session.id,
+        name: session.title,
+        documents: session.doc_names || [],
+        createdAt: session.created_at,
+      }));
 
-  useEffect(() => {
-    if (activeWorkspaceId) {
-      localStorage.setItem('scholarsmate_active_id', activeWorkspaceId);
+      setWorkspaces(mappedWorkspaces);
+
+      // 3. Set active workspace
+      if (mappedWorkspaces.length > 0) {
+        const savedId = localStorage.getItem('scholarsmate_active_id');
+        const exists = mappedWorkspaces.some((ws) => ws.id === savedId);
+        setActiveWorkspaceId(exists ? savedId : mappedWorkspaces[0].id);
+      } else {
+        setActiveWorkspaceId(null);
+      }
+    } catch (err) {
+      console.error('Failed to sync user data:', err);
     }
-  }, [activeWorkspaceId]);
+  };
 
   const fetchDocs = async () => {
     try {
@@ -52,27 +80,41 @@ export default function App() {
   useEffect(() => {
     checkHealth().then((res) => setBackendStatus(res.status));
     fetchDocs();
+    syncUserData();
   }, []);
 
+  useEffect(() => {
+    if (activeWorkspaceId) {
+      localStorage.setItem('scholarsmate_active_id', activeWorkspaceId);
+    } else {
+      localStorage.removeItem('scholarsmate_active_id');
+    }
+  }, [activeWorkspaceId]);
+
+  // Handle Google OAuth login or logout
+  const handleAuthChange = async () => {
+    setActiveWorkspaceId(null);
+    setActivePdf(null);
+    await syncUserData();
+    await fetchDocs();
+  };
+
   // --------------------------------------------------------------------------
-  // WORKSPACE DOCUMENT ISOLATION FIX
-  // Derive active workspace object from state
+  // WORKSPACE DOCUMENT ISOLATION
   // --------------------------------------------------------------------------
   const activeWorkspace = useMemo(() => {
     return workspaces.find((ws) => ws.id === activeWorkspaceId) || null;
   }, [workspaces, activeWorkspaceId]);
 
-  // Filter global ChromaDB document catalog down to ONLY papers in active workspace
   const scopedDocuments = useMemo(() => {
     if (!activeWorkspace || !activeWorkspace.documents) {
-      return documents; // Fallback if no active workspace is selected
+      return documents;
     }
     return documents.filter((doc) =>
       activeWorkspace.documents.includes(doc.doc_name)
     );
   }, [documents, activeWorkspace]);
 
-  // Whenever the active workspace changes, reset selectedDocs filter to match
   useEffect(() => {
     if (activeWorkspace && activeWorkspace.documents) {
       setSelectedDocs(activeWorkspace.documents);
@@ -82,8 +124,10 @@ export default function App() {
   }, [activeWorkspace, documents]);
 
   const handleWorkspaceCreated = async (newWorkspace) => {
-    setWorkspaces((prev) => [newWorkspace, ...prev]);
-    setActiveWorkspaceId(newWorkspace.id);
+    await syncUserData();
+    if (newWorkspace?.id) {
+      setActiveWorkspaceId(newWorkspace.id);
+    }
     await fetchDocs();
   };
 
@@ -96,11 +140,16 @@ export default function App() {
     }
   };
 
-  const handleDeleteWorkspace = (id) => {
-    const updated = workspaces.filter((ws) => ws.id !== id);
-    setWorkspaces(updated);
-    if (activeWorkspaceId === id) {
-      setActiveWorkspaceId(updated.length > 0 ? updated[0].id : null);
+  const handleDeleteWorkspace = async (id) => {
+    try {
+      await deleteChatSession(id);
+      const updated = workspaces.filter((ws) => ws.id !== id);
+      setWorkspaces(updated);
+      if (activeWorkspaceId === id) {
+        setActiveWorkspaceId(updated.length > 0 ? updated[0].id : null);
+      }
+    } catch (err) {
+      console.error('Failed to delete workspace:', err);
     }
   };
 
@@ -135,7 +184,11 @@ export default function App() {
 
   return (
     <div className="flex flex-col h-screen w-full bg-zinc-950 overflow-hidden font-sans">
-      <Header backendStatus={backendStatus} />
+      <Header 
+        backendStatus={backendStatus} 
+        currentUser={currentUser} 
+        onAuthChange={handleAuthChange} 
+      />
 
       <div className="flex-1 flex overflow-hidden">
         <DocumentSidebar
@@ -152,11 +205,12 @@ export default function App() {
         <div className="flex-1 flex h-full overflow-hidden">
           <div className={`h-full transition-all duration-300 ${activePdf ? 'w-1/2 border-r border-zinc-800' : 'w-full'}`}>
             <ChatInterface
-              documents={scopedDocuments} // <--- Pass ONLY scoped workspace documents
+              documents={scopedDocuments}
               selectedDocs={selectedDocs}
               setSelectedDocs={setSelectedDocs}
               onSelectCitation={handleSelectCitation}
               incomingMessage={reviewTriggerMessage}
+              sessionId={activeWorkspaceId}
             />
           </div>
 

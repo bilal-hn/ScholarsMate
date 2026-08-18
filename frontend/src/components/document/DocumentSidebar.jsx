@@ -1,5 +1,6 @@
 import React from 'react';
 import { Plus, MessageSquare, Trash2, FolderKanban, Sparkles, Loader2 } from 'lucide-react';
+import { AuthProfile } from '../layout/AuthProfile';
 
 export default function DocumentSidebar({
   workspaces,
@@ -8,7 +9,8 @@ export default function DocumentSidebar({
   onDeleteWorkspace,
   onOpenCreateModal,
   onGenerateReview,
-  isGenerating
+  isGenerating,
+  onAuthChange
 }) {
   return (
     <aside className="w-64 bg-zinc-950 border-r border-zinc-800/80 flex flex-col h-full shrink-0 select-none">
@@ -88,9 +90,12 @@ export default function DocumentSidebar({
         )}
       </div>
 
-      {/* Footer Info */}
-      <div className="p-4 border-t border-zinc-900 text-[11px] text-zinc-600 font-mono">
-        {workspaces.length} Active Workspace(s)
+      {/* Footer Info & Auth Profile */}
+      <div className="border-t border-zinc-900 bg-zinc-950/95">
+        <div className="px-4 py-2 text-[11px] text-zinc-600 font-mono border-b border-zinc-900/60">
+          {workspaces.length} Active Workspace(s)
+        </div>
+        <AuthProfile onAuthChange={onAuthChange} />
       </div>
     </aside>
   );

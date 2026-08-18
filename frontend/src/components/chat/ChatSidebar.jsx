@@ -4,12 +4,14 @@ import {
   getChatSessions,
   createChatSession,
   deleteChatSession,
-} from '../services/api';
+} from '../../services/api';
+import { AuthProfile } from '../layout/AuthProfile';
 
 export default function ChatSidebar({
   activeSessionId,
   onSelectSession,
   onNewChat,
+  onAuthChange,
 }) {
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -55,6 +57,13 @@ export default function ChatSidebar({
       }
     } catch (err) {
       console.error('Failed to delete session:', err);
+    }
+  };
+
+  const handleAuthChange = async () => {
+    await fetchSessions();
+    if (onAuthChange) {
+      onAuthChange();
     }
   };
 
@@ -120,6 +129,11 @@ export default function ChatSidebar({
             );
           })
         )}
+      </div>
+
+      {/* User Auth Profile Footer */}
+      <div className="mt-auto pt-3 border-t border-zinc-800/80 -mx-4 -mb-4 px-4 bg-zinc-950/80">
+        <AuthProfile onAuthChange={handleAuthChange} />
       </div>
     </div>
   );

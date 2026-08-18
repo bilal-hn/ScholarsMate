@@ -1,6 +1,18 @@
 import axios from 'axios';
 
-const API_BASE_URL = 'http://127.0.0.1:8000/api';
+const API_BASE_URL = 'http://localhost:8000/api';
+
+/**
+ * Gets or creates a persistent anonymous Guest UUID.
+ */
+export const getGuestId = () => {
+  let guestId = localStorage.getItem('scholarsmate_guest_id');
+  if (!guestId) {
+    guestId = 'guest_' + Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
+    localStorage.setItem('scholarsmate_guest_id', guestId);
+  }
+  return guestId;
+};
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -8,6 +20,52 @@ const apiClient = axios.create({
     'Content-Type': 'application/json',
   },
 });
+
+// Automatically inject Guest ID or Google Auth Token into every request
+apiClient.interceptors.request.use((config) => {
+  const googleToken = localStorage.getItem('scholarsmate_auth_token');
+  if (googleToken) {
+    config.headers['Authorization'] = `Bearer ${googleToken}`;
+  } else {
+    config.headers['X-Guest-ID'] = getGuestId();
+  }
+  return config;
+});
+
+// =============================================================================
+// AUTH & IDENTITY API METHODS
+// =============================================================================
+
+/**
+ * Fetches the currently authenticated profile or active guest session.
+ */
+export const getCurrentUser = async () => {
+  try {
+    const response = await apiClient.get('/auth/me');
+    return response.data;
+  } catch (error) {
+    console.error('Failed to get current user:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+/**
+ * Saves Google ID token upon successful sign-in.
+ */
+export const setGoogleAuthToken = (token) => {
+  localStorage.setItem('scholarsmate_auth_token', token);
+};
+
+/**
+ * Clears Google token and reverts to guest mode.
+ */
+export const logoutUser = () => {
+  localStorage.removeItem('scholarsmate_auth_token');
+};
+
+// =============================================================================
+// CORE WORKSPACE & DOCUMENT METHODS
+// =============================================================================
 
 /**
  * Health check endpoint to verify backend status.
@@ -57,7 +115,7 @@ export const uploadFile = async (file) => {
 };
 
 /**
- * Creates a new research workspace by uploading and processing multiple PDF files or an entire folder of PDFs.
+ * Creates a new research workspace by uploading and processing multiple PDF files.
  * @param {FileList|Array<File>} files - List or FileList of PDF files.
  */
 export const createWorkspace = async (files) => {
@@ -102,10 +160,11 @@ export const generateLiteratureReview = async (docNames = []) => {
 /**
  * Creates a new chat session thread in the database.
  * @param {string} [title="New Research Chat"] - Session title.
+ * @param {Array<string>} [docNames=[]] - Associated document names.
  */
-export const createChatSession = async (title = 'New Research Chat') => {
+export const createChatSession = async (title = 'New Research Chat', docNames = []) => {
   try {
-    const response = await apiClient.post('/sessions', { title });
+    const response = await apiClient.post('/sessions', { title, doc_names: docNames });
     return response.data;
   } catch (error) {
     console.error('Failed to create chat session:', error.response?.data || error.message);
