@@ -1,9 +1,7 @@
 import sys
 import os
 from dotenv import load_dotenv
-from groq import Groq
-from google import genai
-from google.genai import types
+from litellm import completion
 
 load_dotenv(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.env")))
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
@@ -13,20 +11,39 @@ from backend.rag.prompt_templates import construct_prompt, SOURCE_LOCKED_SYSTEM_
 from backend.embeddings.vector_store import list_indexed_documents
 from backend.rag.router import classify_query_intent
 
-groq_api_key = os.getenv("GROQ_API_KEY")
-groq_client = Groq(api_key=groq_api_key) if groq_api_key else None
 
-gemini_api_key = os.getenv("GEMINI_API_KEY")
-gemini_client = genai.Client(api_key=gemini_api_key) if gemini_api_key else None
+def _resolve_api_key(provider: str, custom_keys: dict) -> str | None:
+    """Finds the provider's custom key or falls back to server environment variables."""
+    prov = provider.lower()
+    if custom_keys and custom_keys.get(prov):
+        return custom_keys[prov]
+
+    env_map = {
+        "groq": "GROQ_API_KEY",
+        "gemini": "GEMINI_API_KEY",
+        "google": "GEMINI_API_KEY",
+        "openai": "OPENAI_API_KEY",
+        "anthropic": "ANTHROPIC_API_KEY",
+        "deepseek": "DEEPSEEK_API_KEY",
+        "openrouter": "OPENROUTER_API_KEY",
+    }
+    env_var = env_map.get(prov, f"{prov.upper()}_API_KEY")
+    return os.getenv(env_var)
 
 
-def execute_map_reduce_synthesis(query: str, chunks: list[dict]) -> str:
-    """Executes a 2-stage map-reduce pass over large contexts using Gemini 1.5 / Flash."""
-    if not gemini_client:
-        raise ValueError("GEMINI_API_KEY is not configured in your .env file.")
-
+def execute_map_reduce_synthesis(
+    query: str, 
+    chunks: list[dict], 
+    model_name: str = "gemini/gemini-1.5-flash",
+    custom_keys: dict | None = None
+) -> str:
+    """Executes a 2-stage map-reduce pass over large contexts using LiteLLM."""
     if not chunks:
         return "No relevant document chunks retrieved to perform literature review synthesis."
+
+    keys = custom_keys or {}
+    provider = model_name.split("/")[0] if "/" in model_name else "gemini"
+    api_key = _resolve_api_key(provider, keys)
 
     docs_map = {}
     for c in chunks:
@@ -46,14 +63,15 @@ You are a research analyst. Provide a detailed, structured technical summary of 
 
 {doc_context}
 """.strip()
-        
+
         try:
-            res = gemini_client.models.generate_content(
-                model="gemini-flash-latest",
-                contents=map_prompt,
-                config=types.GenerateContentConfig(temperature=0.2)
+            res = completion(
+                model=model_name,
+                messages=[{"role": "user", "content": map_prompt}],
+                api_key=api_key,
+                temperature=0.2
             )
-            paper_summaries.append(f"### Paper Analysis: {doc_name}\n{res.text}")
+            paper_summaries.append(f"### Paper Analysis: {doc_name}\n{res.choices[0].message.content}")
         except Exception as e:
             print(f"[Map Stage Error] {doc_name}: {str(e)}")
             paper_summaries.append(f"### Paper Analysis: {doc_name}\nExtraction unavailable due to model error.")
@@ -78,15 +96,16 @@ Provide a publication-grade Literature Review featuring:
 """.strip()
 
     try:
-        final_res = gemini_client.models.generate_content(
-            model="gemini-flash-latest",
-            contents=reduce_prompt,
-            config=types.GenerateContentConfig(temperature=0.1)
+        final_res = completion(
+            model=model_name,
+            messages=[{"role": "user", "content": reduce_prompt}],
+            api_key=api_key,
+            temperature=0.1
         )
-        return final_res.text
+        return final_res.choices[0].message.content
     except Exception as e:
         print(f"[Reduce Stage Error]: {str(e)}")
-        raise RuntimeError(f"Gemini Literature Review Synthesis failed: {str(e)}")
+        raise RuntimeError(f"Literature Review Synthesis failed: {str(e)}")
 
 
 def generate_answer(
@@ -94,13 +113,16 @@ def generate_answer(
     top_k: int = 10, 
     explicit_docs: list[str] | None = None,
     chat_history: list[dict] | None = None,
-    model_name: str = "llama-3.3-70b-versatile"
+    model_name: str = "groq/llama-3.3-70b-versatile",
+    custom_keys: dict | None = None
 ) -> dict:
-    """Orchestrates LLM query classification, context retrieval, and specialized model generation."""
+    """Universal RAG inference across any model provider with dynamic key resolution."""
     clean_query = query.strip()
+    keys = custom_keys or {}
 
-    if not groq_client:
-        raise ValueError("Groq API key is not configured in .env file.")
+    # Extract provider prefix (e.g., 'groq' from 'groq/llama-3.3-70b-versatile')
+    provider = model_name.split("/")[0] if "/" in model_name else "groq"
+    active_key = _resolve_api_key(provider, keys)
 
     # -------------------------------------------------------------------------
     # 0. Single-Pass LLM Intent & Execution Router (Scoped to Active Workspace)
@@ -113,14 +135,15 @@ def generate_answer(
         chat_history=chat_history
     )
     intent = plan.get("intent", "NEW_QUERY")
-    print(f"\n[LLM Router] Intent: {intent} | Retrieval Mode: {plan.get('retrieval_mode')} | Targets: {plan.get('target_docs')}")
+    print(f"\n[LLM Router] Intent: {intent} | Retrieval Mode: {plan.get('retrieval_mode')} | Targets: {plan.get('target_docs')} | Model: {model_name}")
 
     # Branch A: CONVERSATIONAL Intent
     if intent == "CONVERSATIONAL":
         conv_prompt = f"You are ScholarsMate, a helpful academic research AI. Reply politely and concisely to: '{clean_query}'"
-        res = groq_client.chat.completions.create(
+        res = completion(
+            model=model_name,
             messages=[{"role": "user", "content": conv_prompt}],
-            model="llama-3.1-8b-instant",
+            api_key=active_key,
             temperature=0.5,
             max_tokens=150
         )
@@ -162,15 +185,21 @@ def generate_answer(
 
     # Branch C: Map-Reduce Synthesis
     if plan.get("generation_mode") == "map_reduce" and len(retrieved_chunks) >= 8:
-        answer_text = execute_map_reduce_synthesis(clean_query, retrieved_chunks)
+        answer_text = execute_map_reduce_synthesis(
+            clean_query, 
+            retrieved_chunks,
+            model_name=model_name,
+            custom_keys=keys
+        )
     else:
-        # Branch D: Standard Single-Pass Synthesis using Groq 70B
+        # Branch D: Standard Synthesis using the selected Model
         context_block = build_context_block(retrieved_chunks)
         full_prompt = construct_prompt(query=clean_query, context_block=context_block)
 
-        chat_completion = groq_client.chat.completions.create(
-            messages=[{"role": "user", "content": full_prompt}],
+        chat_completion = completion(
             model=model_name,
+            messages=[{"role": "user", "content": full_prompt}],
+            api_key=active_key,
             temperature=0.0
         )
         answer_text = chat_completion.choices[0].message.content

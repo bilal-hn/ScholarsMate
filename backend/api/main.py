@@ -1,8 +1,9 @@
 import sys
 import os
 import shutil
+import httpx
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, UploadFile, File, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
@@ -24,6 +25,8 @@ from backend.api.schemas import (
     DocumentListItem,
     ChatSessionResponse,
     ChatSessionDetailResponse,
+    FetchModelsRequest,
+    ModelItem,
 )
 from backend.ingestion.pipeline import process_path
 from backend.embeddings.vector_store import store_chunks, get_or_create_collection
@@ -61,6 +64,21 @@ class CreateSessionRequest(BaseModel):
     doc_names: List[str] = []
 
 
+def detect_provider(api_key: str) -> str:
+    key = api_key.strip()
+    if key.startswith("gsk_"):
+        return "groq"
+    if key.startswith("AIzaSy"):
+        return "gemini"
+    if key.startswith("sk-ant-"):
+        return "anthropic"
+    if key.startswith("sk-or-"):
+        return "openrouter"
+    if key.startswith("sk-"):
+        return "openai"
+    return "custom"
+
+
 # Configure CORS to allow authenticated requests from frontend origins
 app.add_middleware(
     CORSMiddleware,
@@ -83,6 +101,88 @@ app.include_router(documents_router)
 def health_check():
     """Health check endpoint to verify backend status."""
     return {"status": "ok", "service": "ScholarsMate Backend API"}
+
+
+# =============================================================================
+# BYOK LIVE MODEL DISCOVERY ENDPOINT
+# =============================================================================
+
+@app.post("/api/byok/fetch-models", response_model=List[ModelItem])
+async def fetch_available_models(req: FetchModelsRequest):
+    """Probes the provider API using the supplied key and returns available text models."""
+    provider = req.provider if req.provider != "auto" else detect_provider(req.api_key)
+    key = req.api_key.strip()
+    models = []
+
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        try:
+            if provider == "groq":
+                res = await client.get(
+                    "https://api.groq.com/openai/v1/models",
+                    headers={"Authorization": f"Bearer {key}"}
+                )
+                if res.status_code == 200:
+                    data = res.json()
+                    models = [
+                        ModelItem(id=f"groq/{m['id']}", name=m["id"], provider="groq")
+                        for m in data.get("data", []) if not m["id"].startswith("whisper")
+                    ]
+
+            elif provider == "gemini":
+                res = await client.get(
+                    f"https://generativelanguage.googleapis.com/v1beta/models?key={key}"
+                )
+                if res.status_code == 200:
+                    data = res.json()
+                    models = [
+                        ModelItem(
+                            id=f"gemini/{m['name'].replace('models/', '')}",
+                            name=m.get("displayName", m["name"]),
+                            provider="gemini"
+                        )
+                        for m in data.get("models", [])
+                        if "generateContent" in m.get("supportedGenerationMethods", [])
+                    ]
+
+            elif provider == "openai":
+                res = await client.get(
+                    "https://api.openai.com/v1/models",
+                    headers={"Authorization": f"Bearer {key}"}
+                )
+                if res.status_code == 200:
+                    data = res.json()
+                    valid_prefixes = ("gpt-4", "gpt-3.5", "o1", "o3", "chatgpt")
+                    models = [
+                        ModelItem(id=f"openai/{m['id']}", name=m["id"], provider="openai")
+                        for m in data.get("data", []) if m["id"].startswith(valid_prefixes)
+                    ]
+
+            elif provider == "openrouter":
+                res = await client.get(
+                    "https://openrouter.ai/api/v1/models",
+                    headers={"Authorization": f"Bearer {key}"}
+                )
+                if res.status_code == 200:
+                    data = res.json()
+                    models = [
+                        ModelItem(id=f"openrouter/{m['id']}", name=m.get("name", m["id"]), provider="openrouter")
+                        for m in data.get("data", [])[:30]
+                    ]
+
+            elif provider == "anthropic":
+                models = [
+                    ModelItem(id="anthropic/claude-3-5-sonnet-20241022", name="Claude 3.5 Sonnet", provider="anthropic"),
+                    ModelItem(id="anthropic/claude-3-opus-20240229", name="Claude 3 Opus", provider="anthropic"),
+                    ModelItem(id="anthropic/claude-3-5-haiku-20241022", name="Claude 3.5 Haiku", provider="anthropic"),
+                ]
+
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Failed to query {provider} models: {str(e)}")
+
+    if not models:
+        raise HTTPException(status_code=400, detail="Invalid API key or no models returned by provider.")
+
+    return models
 
 
 # =============================================================================
@@ -209,12 +309,14 @@ async def query_rag(
                 for msg in (request.chat_history or [])
             ]
 
-        # 4. Generate answer via RAG Pipeline (Locked to workspace)
+        # 4. Generate answer via RAG Pipeline with dynamic model & BYOK custom keys
         result = generate_answer(
             query=request.query, 
             top_k=getattr(request, "top_k", 10), 
             explicit_docs=target_documents,
             chat_history=history_list,
+            model_name=request.model_name or "groq/llama-3.3-70b-versatile",
+            custom_keys=request.custom_keys or {},
         )
 
         # 5. Save User prompt & Bot answer to Database

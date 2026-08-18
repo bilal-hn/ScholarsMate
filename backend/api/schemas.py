@@ -11,6 +11,7 @@ class QueryRequest(BaseModel):
     query: str = Field(..., json_schema_extra={"example": "Compare the methodology in Arslan et al. with other papers."})
     top_k: int = Field(default=10, ge=1, le=30, json_schema_extra={"example": 10})
     doc_names: list[str] | None = Field(default=None, json_schema_extra={"example": ["sample.pdf"]})
+    selected_docs: list[str] | None = Field(default=None, json_schema_extra={"example": ["sample.pdf"]})
     session_id: str | None = Field(default=None, json_schema_extra={"example": "123e4567-e89b-12d3-a456-426614174000"})
     chat_history: list[MessageItem] | None = Field(
         default_factory=list, 
@@ -21,6 +22,8 @@ class QueryRequest(BaseModel):
             ]
         }
     )
+    model_name: str | None = Field(default="groq/llama-3.3-70b-versatile", json_schema_extra={"example": "groq/llama-3.3-70b-versatile"})
+    custom_keys: dict[str, str] | None = Field(default_factory=dict, json_schema_extra={"example": {"groq": "gsk_...", "gemini": "AIzaSy..."}})
 
 
 class SourceItem(BaseModel):
@@ -34,6 +37,21 @@ class QueryResponse(BaseModel):
     answer: str
     sources_used: list[SourceItem]
     session_id: str | None = None
+
+
+# =============================================================================
+# BYOK & MODEL DISCOVERY SCHEMAS
+# =============================================================================
+
+class FetchModelsRequest(BaseModel):
+    api_key: str = Field(..., json_schema_extra={"example": "gsk_..."})
+    provider: str | None = Field(default="auto", json_schema_extra={"example": "groq"})
+
+
+class ModelItem(BaseModel):
+    id: str = Field(..., json_schema_extra={"example": "groq/llama-3.3-70b-versatile"})
+    name: str = Field(..., json_schema_extra={"example": "llama-3.3-70b-versatile"})
+    provider: str = Field(..., json_schema_extra={"example": "groq"})
 
 
 # =============================================================================
@@ -52,6 +70,7 @@ class ChatMessageResponse(BaseModel):
 class ChatSessionResponse(BaseModel):
     id: str
     title: str
+    doc_names: list[str] | None = None
     created_at: datetime
     updated_at: datetime
 

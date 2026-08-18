@@ -33,6 +33,52 @@ apiClient.interceptors.request.use((config) => {
 });
 
 // =============================================================================
+// BYOK & CLIENT-SIDE MODEL CONFIGURATION
+// =============================================================================
+
+/**
+ * Probes the backend discovery endpoint to test a key and return available models.
+ * @param {string} apiKey - API key to validate.
+ * @param {string} [provider="auto"] - Provider identifier or 'auto'.
+ */
+export const fetchModelsFromKey = async (apiKey, provider = 'auto') => {
+  try {
+    const response = await apiClient.post('/byok/fetch-models', {
+      api_key: apiKey,
+      provider: provider,
+    });
+    return response.data; // Returns [{ id, name, provider }]
+  } catch (error) {
+    console.error('Failed to discover models for key:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+/**
+ * Retrieves saved API keys, discovered models, and current active model from localStorage.
+ */
+export const getSavedBYOKConfig = () => {
+  try {
+    return {
+      keys: JSON.parse(localStorage.getItem('scholarsmate_byok_keys') || '{}'),
+      discoveredModels: JSON.parse(localStorage.getItem('scholarsmate_discovered_models') || '[]'),
+      activeModel: localStorage.getItem('scholarsmate_active_model') || 'groq/llama-3.3-70b-versatile',
+    };
+  } catch {
+    return { keys: {}, discoveredModels: [], activeModel: 'groq/llama-3.3-70b-versatile' };
+  }
+};
+
+/**
+ * Persists updated API keys, discovered models, and active model to localStorage.
+ */
+export const saveBYOKConfig = (keys = null, discoveredModels = null, activeModel = null) => {
+  if (keys !== null) localStorage.setItem('scholarsmate_byok_keys', JSON.stringify(keys));
+  if (discoveredModels !== null) localStorage.setItem('scholarsmate_discovered_models', JSON.stringify(discoveredModels));
+  if (activeModel !== null) localStorage.setItem('scholarsmate_active_model', activeModel);
+};
+
+// =============================================================================
 // AUTH & IDENTITY API METHODS
 // =============================================================================
 
@@ -214,20 +260,31 @@ export const deleteChatSession = async (sessionId) => {
 };
 
 /**
- * Sends a research query to the ScholarsMate RAG pipeline with session persistence.
+ * Sends a research query to the ScholarsMate RAG pipeline with BYOK support.
  * @param {string} query - User question.
  * @param {Array<string>} [docNames=null] - Selected document filters.
  * @param {Array<Object>} [chatHistory=[]] - Fallback conversation history.
  * @param {string|null} [sessionId=null] - Active chat session UUID.
  * @param {number} [topK=10] - Context chunk count limit.
+ * @param {string|null} [modelName=null] - Specific model ID to override active model.
  */
-export const sendQuery = async (query, docNames = null, chatHistory = [], sessionId = null, topK = 10) => {
+export const sendQuery = async (
+  query, 
+  docNames = null, 
+  chatHistory = [], 
+  sessionId = null, 
+  topK = 10,
+  modelName = null
+) => {
   const formattedHistory = Array.isArray(chatHistory)
     ? chatHistory.slice(-6).map((msg) => ({
         sender: msg.sender || 'user',
         text: msg.text || '',
       }))
     : [];
+
+  const { keys, activeModel } = getSavedBYOKConfig();
+  const selectedModel = modelName || activeModel;
 
   try {
     const response = await apiClient.post('/query', {
@@ -236,6 +293,8 @@ export const sendQuery = async (query, docNames = null, chatHistory = [], sessio
       session_id: sessionId || null,
       chat_history: formattedHistory,
       top_k: topK,
+      model_name: selectedModel,
+      custom_keys: keys,
     });
     return response.data;
   } catch (error) {
