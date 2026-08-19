@@ -53,7 +53,7 @@ apiClient.interceptors.response.use(
 );
 
 // =============================================================================
-// BYOK & CLIENT-SIDE MODEL CONFIGURATION
+// BYOK & CLIENT-SIDE MODEL CONFIGURATION (NO HARDCODED DEFAULTS)
 // =============================================================================
 
 /**
@@ -76,16 +76,27 @@ export const fetchModelsFromKey = async (apiKey, provider = 'auto') => {
 
 /**
  * Retrieves saved API keys, discovered models, and current active model from localStorage.
+ * Does not fall back to unconfigured providers.
  */
 export const getSavedBYOKConfig = () => {
   try {
-    return {
-      keys: JSON.parse(localStorage.getItem('scholarsmate_byok_keys') || '{}'),
-      discoveredModels: JSON.parse(localStorage.getItem('scholarsmate_discovered_models') || '[]'),
-      activeModel: localStorage.getItem('scholarsmate_active_model') || 'groq/llama-3.3-70b-versatile',
-    };
+    const keys = JSON.parse(localStorage.getItem('scholarsmate_byok_keys') || '{}');
+    const discoveredModels = JSON.parse(localStorage.getItem('scholarsmate_discovered_models') || '[]');
+    let activeModel = localStorage.getItem('scholarsmate_active_model') || '';
+
+    // If active model is missing or orphaned, sync to first valid discovered model
+    const isValidModel = discoveredModels.some((m) => m.id === activeModel);
+    if (!isValidModel && discoveredModels.length > 0) {
+      activeModel = discoveredModels[0].id;
+      localStorage.setItem('scholarsmate_active_model', activeModel);
+    } else if (discoveredModels.length === 0) {
+      activeModel = '';
+      localStorage.removeItem('scholarsmate_active_model');
+    }
+
+    return { keys, discoveredModels, activeModel };
   } catch {
-    return { keys: {}, discoveredModels: [], activeModel: 'groq/llama-3.3-70b-versatile' };
+    return { keys: {}, discoveredModels: [], activeModel: '' };
   }
 };
 
@@ -93,9 +104,15 @@ export const getSavedBYOKConfig = () => {
  * Persists updated API keys, discovered models, and active model to localStorage.
  */
 export const saveBYOKConfig = (keys = null, discoveredModels = null, activeModel = null) => {
-  if (keys !== null) localStorage.setItem('scholarsmate_byok_keys', JSON.stringify(keys));
-  if (discoveredModels !== null) localStorage.setItem('scholarsmate_discovered_models', JSON.stringify(discoveredModels));
-  if (activeModel !== null) localStorage.setItem('scholarsmate_active_model', activeModel);
+  if (keys !== null) {
+    localStorage.setItem('scholarsmate_byok_keys', JSON.stringify(keys));
+  }
+  if (discoveredModels !== null) {
+    localStorage.setItem('scholarsmate_discovered_models', JSON.stringify(discoveredModels));
+  }
+  if (activeModel !== null) {
+    localStorage.setItem('scholarsmate_active_model', activeModel);
+  }
 };
 
 // =============================================================================
@@ -204,7 +221,7 @@ export const createWorkspace = async (files) => {
 };
 
 /**
- * Generates a structured multi-paper literature review using Gemini.
+ * Generates a structured multi-paper literature review using active keys.
  * @param {Array<string>} [docNames=[]] - Selected document filters.
  */
 export const generateLiteratureReview = async (docNames = []) => {
@@ -289,10 +306,10 @@ export const deleteChatSession = async (sessionId) => {
  * @param {string|null} [modelName=null] - Specific model ID to override active model.
  */
 export const sendQuery = async (
-  query, 
-  docNames = null, 
-  chatHistory = [], 
-  sessionId = null, 
+  query,
+  docNames = null,
+  chatHistory = [],
+  sessionId = null,
   topK = 10,
   modelName = null
 ) => {
@@ -305,6 +322,10 @@ export const sendQuery = async (
 
   const { keys, activeModel } = getSavedBYOKConfig();
   const selectedModel = modelName || activeModel;
+
+  if (!selectedModel) {
+    throw new Error('No active model selected. Please add an API key in Settings first.');
+  }
 
   try {
     const response = await apiClient.post('/query', {

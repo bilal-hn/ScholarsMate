@@ -13,10 +13,18 @@ from backend.rag.router import classify_query_intent
 
 
 def _resolve_api_key(provider: str, custom_keys: dict) -> str | None:
-    """Finds the provider's custom key or falls back to server environment variables."""
+    """
+    Finds the provider's custom key, falls back to any available custom key,
+    or checks server environment variables.
+    """
     prov = provider.lower()
-    if custom_keys and custom_keys.get(prov):
-        return custom_keys[prov]
+    if custom_keys:
+        if custom_keys.get(prov):
+            return custom_keys[prov]
+        # Fallback to the first available custom key if specific provider key isn't mapped
+        for k, v in custom_keys.items():
+            if v and v.strip():
+                return v.strip()
 
     env_map = {
         "groq": "GROQ_API_KEY",
@@ -34,7 +42,7 @@ def _resolve_api_key(provider: str, custom_keys: dict) -> str | None:
 def execute_map_reduce_synthesis(
     query: str, 
     chunks: list[dict], 
-    model_name: str = "gemini/gemini-1.5-flash",
+    model_name: str,
     custom_keys: dict | None = None
 ) -> str:
     """Executes a 2-stage map-reduce pass over large contexts using LiteLLM."""
@@ -113,15 +121,29 @@ def generate_answer(
     top_k: int = 10, 
     explicit_docs: list[str] | None = None,
     chat_history: list[dict] | None = None,
-    model_name: str = "groq/llama-3.3-70b-versatile",
+    model_name: str | None = None,
     custom_keys: dict | None = None
 ) -> dict:
     """Universal RAG inference across any model provider with dynamic key resolution."""
     clean_query = query.strip()
     keys = custom_keys or {}
 
-    # Extract provider prefix (e.g., 'groq' from 'groq/llama-3.3-70b-versatile')
-    provider = model_name.split("/")[0] if "/" in model_name else "groq"
+    # 1. Resolve Target Model Dynamically
+    target_model = model_name
+    if not target_model or target_model == "groq/llama-3.3-70b-versatile":
+        if "gemini" in keys:
+            target_model = "gemini/gemini-1.5-flash"
+        elif "openai" in keys:
+            target_model = "openai/gpt-4o-mini"
+        elif "anthropic" in keys:
+            target_model = "anthropic/claude-3-5-haiku-20241022"
+        elif "openrouter" in keys:
+            target_model = "openrouter/auto"
+        else:
+            target_model = model_name or "gemini/gemini-1.5-flash"
+
+    # Extract provider prefix
+    provider = target_model.split("/")[0] if "/" in target_model else "gemini"
     active_key = _resolve_api_key(provider, keys)
 
     # -------------------------------------------------------------------------
@@ -129,19 +151,31 @@ def generate_answer(
     # -------------------------------------------------------------------------
     active_workspace_docs = explicit_docs if (explicit_docs is not None and len(explicit_docs) > 0) else list_indexed_documents()
 
-    plan = classify_query_intent(
-        query=clean_query, 
-        available_docs=active_workspace_docs, 
-        chat_history=chat_history
-    )
+    # Pass dynamic model and keys into router to prevent router fallback crashes
+    try:
+        plan = classify_query_intent(
+            query=clean_query, 
+            available_docs=active_workspace_docs, 
+            chat_history=chat_history,
+            model_name=target_model,
+            custom_keys=keys
+        )
+    except TypeError:
+        # Fallback if classify_query_intent has legacy signature
+        plan = classify_query_intent(
+            query=clean_query, 
+            available_docs=active_workspace_docs, 
+            chat_history=chat_history
+        )
+
     intent = plan.get("intent", "NEW_QUERY")
-    print(f"\n[LLM Router] Intent: {intent} | Retrieval Mode: {plan.get('retrieval_mode')} | Targets: {plan.get('target_docs')} | Model: {model_name}")
+    print(f"\n[LLM Router] Intent: {intent} | Retrieval Mode: {plan.get('retrieval_mode')} | Targets: {plan.get('target_docs')} | Model: {target_model}")
 
     # Branch A: CONVERSATIONAL Intent
     if intent == "CONVERSATIONAL":
         conv_prompt = f"You are ScholarsMate, a helpful academic research AI. Reply politely and concisely to: '{clean_query}'"
         res = completion(
-            model=model_name,
+            model=target_model,
             messages=[{"role": "user", "content": conv_prompt}],
             api_key=active_key,
             temperature=0.5,
@@ -188,16 +222,16 @@ def generate_answer(
         answer_text = execute_map_reduce_synthesis(
             clean_query, 
             retrieved_chunks,
-            model_name=model_name,
+            model_name=target_model,
             custom_keys=keys
         )
     else:
-        # Branch D: Standard Synthesis using the selected Model
+        # Branch D: Standard Synthesis using the dynamic Model
         context_block = build_context_block(retrieved_chunks)
         full_prompt = construct_prompt(query=clean_query, context_block=context_block)
 
         chat_completion = completion(
-            model=model_name,
+            model=target_model,
             messages=[{"role": "user", "content": full_prompt}],
             api_key=active_key,
             temperature=0.0

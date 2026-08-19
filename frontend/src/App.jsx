@@ -45,7 +45,7 @@ export default function App() {
   // --------------------------------------------------------------------------
   // USER IDENTITY & WORKSPACE SYNC
   // --------------------------------------------------------------------------
- const syncUserData = async () => {
+  const syncUserData = async () => {
     try {
       const user = await getCurrentUser();
       setCurrentUser(user);
@@ -87,6 +87,12 @@ export default function App() {
     checkHealth().then((res) => setBackendStatus(res.status));
     fetchDocs();
     syncUserData();
+
+    // Prompt user to configure API key on first visit if no models exist
+    const cfg = getSavedBYOKConfig();
+    if (!cfg.discoveredModels || cfg.discoveredModels.length === 0) {
+      setIsSettingsOpen(true);
+    }
   }, []);
 
   useEffect(() => {
@@ -239,6 +245,7 @@ export default function App() {
               availableModels={discoveredModels}
               currentModel={currentModel}
               onModelChange={handleModelChange}
+              onOpenSettings={() => setIsSettingsOpen(true)}
             />
           </div>
 
