@@ -38,19 +38,18 @@ export default function CreateWorkspaceModal({ isOpen, onClose, onWorkspaceCreat
     setProcessing(true);
     setError(null);
 
-    // Default name if left blank by user
-    const finalName = workspaceName.trim() || `${files[0].name.replace('.pdf', '')} Workspace`;
-
     try {
-      await createWorkspace(files);
-      const docNames = files.map((f) => f.name);
+      const response = await createWorkspace(files);
 
-      await onWorkspaceCreated({
-        id: Date.now().toString(),
-        name: finalName,
-        documents: docNames,
-        createdAt: new Date().toLocaleDateString(),
-      });
+      // Use real session ID and metadata returned from backend
+      if (onWorkspaceCreated) {
+        await onWorkspaceCreated({
+          id: response.session_id,
+          name: workspaceName.trim() || response.title,
+          documents: response.doc_names || files.map((f) => f.name),
+          createdAt: new Date().toISOString(),
+        });
+      }
 
       // Reset modal state
       setWorkspaceName('');

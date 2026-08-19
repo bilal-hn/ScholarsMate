@@ -1,16 +1,17 @@
 import React from 'react';
-import { Plus, MessageSquare, Trash2, FolderKanban, Sparkles, Loader2 } from 'lucide-react';
+import { Plus, MessageSquare, Trash2, FolderKanban, Sparkles, Loader2, Settings } from 'lucide-react';
 import { AuthProfile } from '../layout/AuthProfile';
 
 export default function DocumentSidebar({
-  workspaces,
+  workspaces = [],
   activeWorkspaceId,
   onSelectWorkspace,
   onDeleteWorkspace,
   onOpenCreateModal,
   onGenerateReview,
-  isGenerating,
-  onAuthChange
+  isGenerating = false,
+  onAuthChange,
+  onOpenSettings,
 }) {
   return (
     <aside className="w-64 bg-zinc-950 border-r border-zinc-800/80 flex flex-col h-full shrink-0 select-none">
@@ -90,12 +91,24 @@ export default function DocumentSidebar({
         )}
       </div>
 
-      {/* Footer Info & Auth Profile */}
+      {/* Footer Info, Auth Profile & Settings (Gemini Style) */}
       <div className="border-t border-zinc-900 bg-zinc-950/95">
         <div className="px-4 py-2 text-[11px] text-zinc-600 font-mono border-b border-zinc-900/60">
           {workspaces.length} Active Workspace(s)
         </div>
-        <AuthProfile onAuthChange={onAuthChange} />
+        <div className="p-2 flex items-center justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <AuthProfile onAuthChange={onAuthChange} />
+          </div>
+
+          <button
+            onClick={onOpenSettings}
+            title="BYOK & Model Settings"
+            className="p-2 rounded-xl text-zinc-500 hover:text-amber-400 hover:bg-zinc-900 border border-transparent hover:border-zinc-800 transition-all cursor-pointer shrink-0"
+          >
+            <Settings className="h-4 w-4" />
+          </button>
+        </div>
       </div>
     </aside>
   );

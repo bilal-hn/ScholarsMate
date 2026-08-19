@@ -11,7 +11,11 @@ export default function ChatInterface({
   selectedDocs, 
   setSelectedDocs, 
   onSelectCitation,
-  incomingMessage 
+  incomingMessage,
+  sessionId,
+  availableModels = [],
+  currentModel,
+  onModelChange
 }) {
   const [messages, setMessages] = useState([
     {
@@ -20,10 +24,17 @@ export default function ChatInterface({
       sources: [],
     },
   ]);
-  const [activeSessionId, setActiveSessionId] = useState(null);
+  const [activeSessionId, setActiveSessionId] = useState(sessionId || null);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef(null);
+
+  // Sync activeSessionId with prop when workspace changes
+  useEffect(() => {
+    if (sessionId !== undefined) {
+      setActiveSessionId(sessionId);
+    }
+  }, [sessionId]);
 
   // Appends incoming generated messages (e.g., Literature Reviews)
   useEffect(() => {
@@ -41,7 +52,7 @@ export default function ChatInterface({
   }, [messages, loading]);
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
+    e?.preventDefault();
     if (!input.trim() || loading) return;
 
     const userMessage = input.trim();
@@ -53,12 +64,14 @@ export default function ChatInterface({
     setLoading(true);
 
     try {
-      // Pass user query, selected docs, full local message history, and active session ID
+      // Pass user query, selected docs, full message history, active session ID, topK, and currentModel
       const result = await sendQuery(
         userMessage, 
         selectedDocs, 
         newMessages, 
-        activeSessionId
+        activeSessionId,
+        10,
+        currentModel
       );
 
       // Track activeSessionId created or returned by the backend
@@ -79,7 +92,7 @@ export default function ChatInterface({
         ...prev,
         {
           sender: 'bot',
-          text: '⚠️ Generation failed. Please check backend connection.',
+          text: `⚠️ Generation failed: ${err.response?.data?.detail || err.message || 'Please check backend connection.'}`,
           sources: [],
         },
       ]);
@@ -90,7 +103,7 @@ export default function ChatInterface({
 
   return (
     <main className="flex-1 flex flex-col bg-zinc-950 h-full relative overflow-hidden">
-      {/* Top Header Bar with Extracted Document Selector */}
+      {/* Top Header Bar with Document Selector */}
       <div className="px-6 py-2.5 bg-zinc-950 border-b border-zinc-800/60 flex items-center justify-between shrink-0 z-20">
         <DocumentSelector
           documents={documents}
@@ -123,12 +136,15 @@ export default function ChatInterface({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Extracted Floating Chat Input */}
+      {/* Floating Chat Input with Integrated Model Switcher */}
       <ChatInput
         input={input}
         setInput={setInput}
         onSubmit={handleSubmit}
         loading={loading}
+        availableModels={availableModels}
+        currentModel={currentModel}
+        onModelChange={onModelChange}
       />
     </main>
   );

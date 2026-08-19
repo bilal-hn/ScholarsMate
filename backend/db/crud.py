@@ -1,8 +1,89 @@
-from typing import List, Optional
+import json
+import uuid
+from datetime import datetime
+from typing import List, Optional, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from backend.db.models import ChatSession, ChatMessage
+from backend.db.models import ChatSession, ChatMessage, User
 
+
+def _normalize_json_list(val: Any) -> list:
+    """Safely coerces strings, None, or JSON objects into a native Python list."""
+    if isinstance(val, list):
+        return val
+    if isinstance(val, str):
+        try:
+            parsed = json.loads(val)
+            return parsed if isinstance(parsed, list) else []
+        except Exception:
+            return []
+    return []
+
+
+# =============================================================================
+# USER MANAGEMENT HELPERS
+# =============================================================================
+
+async def get_or_create_guest_user(db: AsyncSession, guest_id: str) -> User:
+    """Retrieves or registers an anonymous guest profile."""
+    stmt = select(User).where(User.id == guest_id)
+    result = await db.execute(stmt)
+    user = result.scalar_one_or_none()
+
+    if not user:
+        user = User(
+            id=guest_id,
+            name="Guest Researcher",
+            email=None,
+            avatar_url=None,
+            is_guest=True,
+            created_at=datetime.utcnow()
+        )
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
+
+    return user
+
+
+async def get_or_create_google_user(
+    db: AsyncSession, 
+    google_id: str, 
+    name: str, 
+    email: str, 
+    avatar_url: Optional[str] = None
+) -> User:
+    """Retrieves or registers an authenticated Google account."""
+    stmt = select(User).where(User.id == google_id)
+    result = await db.execute(stmt)
+    user = result.scalar_one_or_none()
+
+    if not user:
+        user = User(
+            id=google_id,
+            name=name,
+            email=email,
+            avatar_url=avatar_url,
+            is_guest=False,
+            created_at=datetime.utcnow()
+        )
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
+    else:
+        # Update user metadata if changed
+        user.name = name
+        user.email = email
+        user.avatar_url = avatar_url
+        await db.commit()
+        await db.refresh(user)
+
+    return user
+
+
+# =============================================================================
+# CHAT SESSION CRUD
+# =============================================================================
 
 async def create_chat_session(
     db: AsyncSession, 
@@ -11,14 +92,19 @@ async def create_chat_session(
     user_id: Optional[str] = None
 ) -> ChatSession:
     """Creates a new persistent chat session thread linked to a specific user/tenant."""
+    target_docs = doc_names if isinstance(doc_names, list) else []
+    
     session = ChatSession(
         title=title,
-        doc_names=doc_names or [],
+        doc_names=target_docs,
         user_id=user_id
     )
     db.add(session)
     await db.commit()
     await db.refresh(session)
+    
+    # Ensure doc_names is exposed as a list for immediate Pydantic serialization
+    session.doc_names = _normalize_json_list(session.doc_names)
     return session
 
 
@@ -32,7 +118,13 @@ async def get_all_sessions(
         stmt = stmt.where(ChatSession.user_id == user_id)
         
     result = await db.execute(stmt)
-    return list(result.scalars().all())
+    sessions = list(result.scalars().all())
+
+    # Guarantee doc_names on each record is deserialized as a Python list
+    for s in sessions:
+        s.doc_names = _normalize_json_list(s.doc_names)
+
+    return sessions
 
 
 async def get_session_messages(
@@ -45,7 +137,12 @@ async def get_session_messages(
         .where(ChatMessage.session_id == session_id)
         .order_by(ChatMessage.timestamp.asc())
     )
-    return list(result.scalars().all())
+    messages = list(result.scalars().all())
+
+    for m in messages:
+        m.sources_used = _normalize_json_list(m.sources_used)
+
+    return messages
 
 
 async def add_message(
@@ -63,8 +160,18 @@ async def add_message(
         sources_used=sources or []
     )
     db.add(message)
+
+    # Touch session timestamp
+    stmt = select(ChatSession).where(ChatSession.id == session_id)
+    session_res = await db.execute(stmt)
+    session = session_res.scalar_one_or_none()
+    if session:
+        session.updated_at = datetime.utcnow()
+
     await db.commit()
     await db.refresh(message)
+    
+    message.sources_used = _normalize_json_list(message.sources_used)
     return message
 
 

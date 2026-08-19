@@ -68,7 +68,7 @@ def detect_provider(api_key: str) -> str:
     key = api_key.strip()
     if key.startswith("gsk_"):
         return "groq"
-    if key.startswith("AIzaSy"):
+    if key.startswith("AIzaSy") or key.startswith("AQ.") or key.startswith("AQ"):
         return "gemini"
     if key.startswith("sk-ant-"):
         return "anthropic"
@@ -130,19 +130,29 @@ async def fetch_available_models(req: FetchModelsRequest):
 
             elif provider == "gemini":
                 res = await client.get(
-                    f"https://generativelanguage.googleapis.com/v1beta/models?key={key}"
+                    "https://generativelanguage.googleapis.com/v1beta/models",
+                    headers={
+                        "x-goog-api-key": key,
+                        "Content-Type": "application/json"
+                    }
                 )
                 if res.status_code == 200:
                     data = res.json()
                     models = [
                         ModelItem(
                             id=f"gemini/{m['name'].replace('models/', '')}",
-                            name=m.get("displayName", m["name"]),
+                            name=m.get("displayName", m["name"].replace("models/", "")),
                             provider="gemini"
                         )
                         for m in data.get("models", [])
                         if "generateContent" in m.get("supportedGenerationMethods", [])
+                        and not any(x in m["name"] for x in ["embedding", "aqa", "imagen"])
                     ]
+                else:
+                    raise HTTPException(
+                        status_code=400, 
+                        detail=f"Gemini API error ({res.status_code}): {res.text}"
+                    )
 
             elif provider == "openai":
                 res = await client.get(
@@ -373,7 +383,7 @@ async def upload_pdf(file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=f"Ingestion failed: {str(e)}")
 
 
-@app.post("/api/workspace/create", response_model=UploadResponse)
+@app.post("/api/workspace/create")
 async def create_workspace(
     files: List[UploadFile] = File(...),
     current_user: User = Depends(get_current_user),
@@ -381,7 +391,8 @@ async def create_workspace(
 ):
     """
     Uploads a batch of PDF papers, applies SHA-256 deduplication,
-    enforces a maximum of 3 identical duplicate workspaces per user, and indexes new chunks.
+    enforces a maximum of 3 identical duplicate workspaces per user, indexes new chunks,
+    and returns the registered session metadata.
     """
     total_chunks = 0
     processed_files = []
@@ -439,18 +450,21 @@ async def create_workspace(
 
     # Register initial session scoped to the current user
     default_title = f"{Path(processed_files[0]).stem} Workspace" if len(processed_files) == 1 else f"{len(processed_files)} Papers Workspace"
-    await crud.create_chat_session(
+    new_session = await crud.create_chat_session(
         db, 
         title=default_title, 
         doc_names=target_docs_sorted, 
         user_id=current_user.id
     )
 
-    return UploadResponse(
-        message=f"Workspace created with {len(processed_files)} document(s).",
-        filename=", ".join(processed_files),
-        chunks_processed=total_chunks,
-    )
+    return {
+        "message": f"Workspace created with {len(processed_files)} document(s).",
+        "filename": ", ".join(processed_files),
+        "chunks_processed": total_chunks,
+        "session_id": new_session.id,
+        "title": new_session.title,
+        "doc_names": target_docs_sorted,
+    }
 
 
 @app.post("/api/workspace/literature-review")

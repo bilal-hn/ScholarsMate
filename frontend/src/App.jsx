@@ -3,6 +3,7 @@ import Header from './components/layout/Header';
 import DocumentSidebar from './components/document/DocumentSidebar';
 import ChatInterface from './components/chat/ChatInterface';
 import CreateWorkspaceModal from './components/document/CreateWorkspaceModal';
+import SettingsModal from './components/layout/SettingsModal';
 import PdfViewer from './components/viewer/PdfViewer';
 import { 
   getDocuments, 
@@ -10,7 +11,9 @@ import {
   generateLiteratureReview, 
   getChatSessions, 
   deleteChatSession,
-  getCurrentUser
+  getCurrentUser,
+  getSavedBYOKConfig,
+  saveBYOKConfig
 } from './services/api';
 
 export default function App() {
@@ -18,6 +21,11 @@ export default function App() {
   const [selectedDocs, setSelectedDocs] = useState([]);
   const [backendStatus, setBackendStatus] = useState('checking');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
+  // BYOK Discovered Models & Active Model Selection
+  const [discoveredModels, setDiscoveredModels] = useState(() => getSavedBYOKConfig().discoveredModels);
+  const [currentModel, setCurrentModel] = useState(() => getSavedBYOKConfig().activeModel);
 
   // Authentication & Current User State
   const [currentUser, setCurrentUser] = useState(null);
@@ -37,29 +45,27 @@ export default function App() {
   // --------------------------------------------------------------------------
   // USER IDENTITY & WORKSPACE SYNC
   // --------------------------------------------------------------------------
-  const syncUserData = async () => {
+ const syncUserData = async () => {
     try {
-      // 1. Fetch current authenticated profile or guest token
       const user = await getCurrentUser();
       setCurrentUser(user);
 
-      // 2. Fetch sessions/workspaces belonging exclusively to this user
       const backendSessions = await getChatSessions();
       
-      const mappedWorkspaces = backendSessions.map((session) => ({
+      const mappedWorkspaces = (backendSessions || []).map((session) => ({
         id: session.id,
         name: session.title,
-        documents: session.doc_names || [],
+        documents: Array.isArray(session.doc_names) ? session.doc_names : [],
         createdAt: session.created_at,
       }));
 
       setWorkspaces(mappedWorkspaces);
 
-      // 3. Set active workspace
       if (mappedWorkspaces.length > 0) {
         const savedId = localStorage.getItem('scholarsmate_active_id');
-        const exists = mappedWorkspaces.some((ws) => ws.id === savedId);
-        setActiveWorkspaceId(exists ? savedId : mappedWorkspaces[0].id);
+        const activeExists = mappedWorkspaces.some((ws) => ws.id === savedId);
+        const selectedId = activeExists ? savedId : mappedWorkspaces[0].id;
+        setActiveWorkspaceId(selectedId);
       } else {
         setActiveWorkspaceId(null);
       }
@@ -160,6 +166,19 @@ export default function App() {
     setTargetPage(pageNum || 1);
   };
 
+  // --------------------------------------------------------------------------
+  // BYOK & MODEL SELECTION HANDLERS
+  // --------------------------------------------------------------------------
+  const handleConfigUpdated = (models, active) => {
+    setDiscoveredModels(models);
+    setCurrentModel(active);
+  };
+
+  const handleModelChange = (modelId) => {
+    setCurrentModel(modelId);
+    saveBYOKConfig(null, null, modelId);
+  };
+
   const handleGenerateReview = async () => {
     setIsGeneratingReview(true);
     try {
@@ -188,8 +207,10 @@ export default function App() {
     <div className="flex flex-col h-screen w-full bg-zinc-950 overflow-hidden font-sans">
       <Header 
         backendStatus={backendStatus} 
-        currentUser={currentUser} 
-        onAuthChange={handleAuthChange} 
+        availableModels={discoveredModels}
+        currentModel={currentModel}
+        onModelChange={handleModelChange}
+        onOpenSettings={() => setIsSettingsOpen(true)}
       />
 
       <div className="flex-1 flex overflow-hidden">
@@ -202,6 +223,7 @@ export default function App() {
           onGenerateReview={handleGenerateReview}
           isGenerating={isGeneratingReview}
           onAuthChange={handleAuthChange}
+          onOpenSettings={() => setIsSettingsOpen(true)}
         />
 
         {/* Main Content Area */}
@@ -214,6 +236,9 @@ export default function App() {
               onSelectCitation={handleSelectCitation}
               incomingMessage={reviewTriggerMessage}
               sessionId={activeWorkspaceId}
+              availableModels={discoveredModels}
+              currentModel={currentModel}
+              onModelChange={handleModelChange}
             />
           </div>
 
@@ -234,6 +259,12 @@ export default function App() {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onWorkspaceCreated={handleWorkspaceCreated}
+      />
+
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        onConfigUpdated={handleConfigUpdated}
       />
     </div>
   );

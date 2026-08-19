@@ -8,7 +8,11 @@ const API_BASE_URL = 'http://localhost:8000/api';
 export const getGuestId = () => {
   let guestId = localStorage.getItem('scholarsmate_guest_id');
   if (!guestId) {
-    guestId = 'guest_' + Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
+    guestId =
+      'guest_' +
+      (typeof crypto !== 'undefined' && crypto.randomUUID
+        ? crypto.randomUUID()
+        : Math.random().toString(36).substring(2, 15) + Date.now().toString(36));
     localStorage.setItem('scholarsmate_guest_id', guestId);
   }
   return guestId;
@@ -31,6 +35,22 @@ apiClient.interceptors.request.use((config) => {
   }
   return config;
 });
+
+// Automatically catch 401 Unauthorized (expired Google token) and revert cleanly to Guest Mode
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response && error.response.status === 401) {
+      const existingToken = localStorage.getItem('scholarsmate_auth_token');
+      if (existingToken) {
+        console.warn('Google session expired. Clearing token and reverting to guest mode.');
+        localStorage.removeItem('scholarsmate_auth_token');
+        window.location.reload();
+      }
+    }
+    return Promise.reject(error);
+  }
+);
 
 // =============================================================================
 // BYOK & CLIENT-SIDE MODEL CONFIGURATION
@@ -184,7 +204,7 @@ export const createWorkspace = async (files) => {
 };
 
 /**
- * Generates a structured multi-paper literature review using Gemini 1.5.
+ * Generates a structured multi-paper literature review using Gemini.
  * @param {Array<string>} [docNames=[]] - Selected document filters.
  */
 export const generateLiteratureReview = async (docNames = []) => {
