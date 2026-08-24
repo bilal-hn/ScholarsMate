@@ -149,20 +149,12 @@ def retrieve_context(
     explicit_docs: list[str] | None = None,
     chat_history: list[dict] | None = None,
     model_name: str = "gemini/gemini-2.5-flash",
-    custom_keys: dict | None = None
+    custom_keys: dict | None = None,
+    plan: dict | None = None,
 ) -> tuple[list[dict], dict]:
-    """Dynamically retrieves context based on execution plan or explicit UI document parameters."""
-    
-    # Step 0: Rewrite follow-up query to be standalone
-    search_query = rewrite_query_with_history(
-        query=query, 
-        chat_history=chat_history, 
-        model_name=model_name, 
-        custom_keys=custom_keys
-    )
-
+    """Retrieves context using a precomputed execution plan (classify once per turn)."""
     available_docs = list_indexed_documents(collection_name)
-    
+
     # Strictly respect explicit_docs if supplied by active workspace
     if explicit_docs is not None:
         target_docs = [d for d in explicit_docs if d]
@@ -171,24 +163,42 @@ def retrieve_context(
 
     if not target_docs:
         print("\n[Execution Plan] Workspace is empty. Returning empty context.")
-        return [], {"intent": "NEW_QUERY", "target_docs": []}
+        return [], plan or {"intent": "NEW_QUERY", "target_docs": []}
 
-    # 1. Get Execution Plan from Router
-    plan = classify_query_intent(
-        query=search_query, 
-        available_docs=target_docs, 
-        chat_history=chat_history,
-        model_name=model_name,
-        custom_keys=custom_keys
-    )
+    # Classify only when the caller did not already produce a plan
+    if plan is None:
+        plan = classify_query_intent(
+            query=query,
+            available_docs=target_docs,
+            chat_history=chat_history,
+            model_name=model_name,
+            custom_keys=custom_keys,
+        )
+
+    intent = plan.get("intent", "NEW_QUERY")
+
+    # Rewrite pronouns only for follow-ups; standalone queries search as written
+    search_query = query
+    if intent == "FOLLOW_UP":
+        search_query = rewrite_query_with_history(
+            query=query,
+            chat_history=chat_history,
+            model_name=model_name,
+            custom_keys=custom_keys,
+        )
 
     retrieval_mode = plan.get("retrieval_mode", "vector_search")
     effective_top_k = plan.get("recommended_top_k", top_k)
 
-    print(f"\n[Execution Plan] Intent: {plan.get('intent')} | Retrieval Mode: {retrieval_mode} | Generation Mode: {plan.get('generation_mode')} | Targets: {target_docs} | Effective top_k: {effective_top_k}")
+    print(
+        f"\n[Execution Plan] Intent: {intent} | Rewrite: {intent == 'FOLLOW_UP'} | "
+        f"Search query: '{search_query}' | Retrieval Mode: {retrieval_mode} | "
+        f"Generation Mode: {plan.get('generation_mode')} | Targets: {target_docs} | "
+        f"Effective top_k: {effective_top_k}"
+    )
 
-    # Exit early for conversational or meta-queries
-    if plan.get("intent") == "CONVERSATIONAL" or plan.get("is_meta_query"):
+    # Safety net if conversational/meta accidentally reach retrieval
+    if intent == "CONVERSATIONAL" or plan.get("is_meta_query"):
         return [], plan
 
     all_chunks = {}

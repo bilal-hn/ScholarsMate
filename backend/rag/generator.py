@@ -283,13 +283,16 @@ def generate_answer(
         }
 
     # -------------------------------------------------------------------------
-    # 1. Retrieve Context
+    # 1. Retrieve Context (reuse the single-turn plan; rewrite only on FOLLOW_UP)
     # -------------------------------------------------------------------------
-    retrieved_chunks, _ = retrieve_context(
-        query=clean_query, 
-        top_k=top_k, 
+    retrieved_chunks, plan = retrieve_context(
+        query=clean_query,
+        top_k=top_k,
         explicit_docs=explicit_docs,
-        chat_history=chat_history
+        chat_history=chat_history,
+        model_name=target_model,
+        custom_keys=keys,
+        plan=plan,
     )
 
     # Branch C: Map-Reduce Synthesis
