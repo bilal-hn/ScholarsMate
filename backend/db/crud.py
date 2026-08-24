@@ -26,13 +26,15 @@ def _normalize_json_list(val: Any) -> list:
 
 async def get_or_create_guest_user(db: AsyncSession, guest_id: str) -> User:
     """Retrieves or registers an anonymous guest profile."""
-    stmt = select(User).where(User.id == guest_id)
+    resolved_id = guest_id.strip() if (guest_id and guest_id.strip()) else f"guest_{uuid.uuid4()}"
+    
+    stmt = select(User).where(User.id == resolved_id)
     result = await db.execute(stmt)
     user = result.scalar_one_or_none()
 
     if not user:
         user = User(
-            id=guest_id,
+            id=resolved_id,
             name="Guest Researcher",
             email=None,
             avatar_url=None,
@@ -40,8 +42,13 @@ async def get_or_create_guest_user(db: AsyncSession, guest_id: str) -> User:
             created_at=datetime.utcnow()
         )
         db.add(user)
-        await db.commit()
-        await db.refresh(user)
+        try:
+            await db.commit()
+            await db.refresh(user)
+        except Exception:
+            await db.rollback()
+            res = await db.execute(select(User).where(User.id == resolved_id))
+            user = res.scalar_one_or_none()
 
     return user
 
@@ -54,13 +61,14 @@ async def get_or_create_google_user(
     avatar_url: Optional[str] = None
 ) -> User:
     """Retrieves or registers an authenticated Google account."""
-    stmt = select(User).where(User.id == google_id)
+    stmt = select(User).where(User.google_id == google_id)
     result = await db.execute(stmt)
     user = result.scalar_one_or_none()
 
     if not user:
         user = User(
-            id=google_id,
+            id=str(uuid.uuid4()),
+            google_id=google_id,
             name=name,
             email=email,
             avatar_url=avatar_url,
@@ -68,10 +76,14 @@ async def get_or_create_google_user(
             created_at=datetime.utcnow()
         )
         db.add(user)
-        await db.commit()
-        await db.refresh(user)
+        try:
+            await db.commit()
+            await db.refresh(user)
+        except Exception:
+            await db.rollback()
+            res = await db.execute(select(User).where(User.google_id == google_id))
+            user = res.scalar_one_or_none()
     else:
-        # Update user metadata if changed
         user.name = name
         user.email = email
         user.avatar_url = avatar_url
@@ -95,15 +107,17 @@ async def create_chat_session(
     target_docs = doc_names if isinstance(doc_names, list) else []
     
     session = ChatSession(
+        id=str(uuid.uuid4()),
         title=title,
         doc_names=target_docs,
-        user_id=user_id
+        user_id=user_id,
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow()
     )
     db.add(session)
     await db.commit()
     await db.refresh(session)
     
-    # Ensure doc_names is exposed as a list for immediate Pydantic serialization
     session.doc_names = _normalize_json_list(session.doc_names)
     return session
 
@@ -120,7 +134,6 @@ async def get_all_sessions(
     result = await db.execute(stmt)
     sessions = list(result.scalars().all())
 
-    # Guarantee doc_names on each record is deserialized as a Python list
     for s in sessions:
         s.doc_names = _normalize_json_list(s.doc_names)
 
@@ -154,14 +167,16 @@ async def add_message(
 ) -> ChatMessage:
     """Adds a new message to a chat session and updates the session timestamp."""
     message = ChatMessage(
+        id=str(uuid.uuid4()),
         session_id=session_id,
         sender=sender,
         text=text,
-        sources_used=sources or []
+        sources_used=sources or [],
+        timestamp=datetime.utcnow()
     )
     db.add(message)
 
-    # Touch session timestamp
+    # Touch session updated_at timestamp
     stmt = select(ChatSession).where(ChatSession.id == session_id)
     session_res = await db.execute(stmt)
     session = session_res.scalar_one_or_none()

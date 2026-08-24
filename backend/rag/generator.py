@@ -21,7 +21,7 @@ def _resolve_api_key(provider: str, custom_keys: dict) -> str | None:
     if custom_keys:
         if custom_keys.get(prov):
             return custom_keys[prov]
-        # Fallback to the first available custom key if specific provider key isn't mapped
+        # Fallback to first available custom key if specific provider key isn't mapped
         for k, v in custom_keys.items():
             if v and v.strip():
                 return v.strip()
@@ -39,6 +39,85 @@ def _resolve_api_key(provider: str, custom_keys: dict) -> str | None:
     return os.getenv(env_var)
 
 
+def _execute_completion_with_fallback(
+    model_name: str, 
+    messages: list, 
+    custom_keys: dict,
+    temperature: float = 0.0,
+    max_tokens: int | None = None
+):
+    """
+    Attempts execution with primary model. If 404 (deprecated), 429 (quota),
+    or 503 (high demand) occurs, gracefully steps through active high-availability fallbacks.
+    """
+    provider = model_name.split("/")[0] if "/" in model_name else "gemini"
+
+    # Define high-quota, current fallback chains based on primary provider
+    if provider in ("gemini", "google"):
+        fallback_chain = [
+            model_name,
+            "gemini/gemini-2.5-flash",
+            "gemini/gemini-2.5-flash-lite",
+            "gemini/gemini-3.5-flash",
+            "gemini/gemini-3.1-flash-lite",
+        ]
+    elif provider == "groq":
+        fallback_chain = [
+            model_name,
+            "groq/llama-3.3-70b-versatile",
+            "groq/llama-3.1-8b-instant",
+        ]
+    elif provider == "openai":
+        fallback_chain = [
+            model_name,
+            "openai/gpt-4o-mini",
+            "openai/gpt-4o",
+        ]
+    else:
+        fallback_chain = [model_name]
+
+    # Deduplicate while keeping order
+    models_to_try = list(dict.fromkeys(fallback_chain))
+
+    last_error = None
+    for model in models_to_try:
+        current_provider = model.split("/")[0] if "/" in model else "gemini"
+        active_key = _resolve_api_key(current_provider, custom_keys)
+
+        call_kwargs = {
+            "model": model,
+            "messages": messages,
+            "api_key": active_key,
+            "temperature": temperature
+        }
+        if max_tokens:
+            call_kwargs["max_tokens"] = max_tokens
+
+        try:
+            return completion(**call_kwargs)
+        except Exception as e:
+            err_str = str(e)
+            print(f"[LLM Warning] Model '{model}' execution failed: {err_str}")
+            last_error = e
+
+            # Only retry if error is transient, rate-limited, high-demand, or deprecated model
+            is_recoverable = any(
+                code in err_str for code in [
+                    "404", "429", "503", 
+                    "RESOURCE_EXHAUSTED", "RateLimitError", 
+                    "ServiceUnavailableError", "NotFoundError", "quota", "no longer available"
+                ]
+            )
+            if is_recoverable:
+                print(f"[LLM Fallback] Attempting next available model in chain...")
+                continue
+            
+            # Non-recoverable error (e.g. invalid API key format)
+            raise e
+
+    raise RuntimeError(f"All model fallbacks failed. Last encountered error: {str(last_error)}")
+
+
 def execute_map_reduce_synthesis(
     query: str, 
     chunks: list[dict], 
@@ -50,8 +129,6 @@ def execute_map_reduce_synthesis(
         return "No relevant document chunks retrieved to perform literature review synthesis."
 
     keys = custom_keys or {}
-    provider = model_name.split("/")[0] if "/" in model_name else "gemini"
-    api_key = _resolve_api_key(provider, keys)
 
     docs_map = {}
     for c in chunks:
@@ -73,10 +150,10 @@ You are a research analyst. Provide a detailed, structured technical summary of 
 """.strip()
 
         try:
-            res = completion(
-                model=model_name,
+            res = _execute_completion_with_fallback(
+                model_name=model_name,
                 messages=[{"role": "user", "content": map_prompt}],
-                api_key=api_key,
+                custom_keys=keys,
                 temperature=0.2
             )
             paper_summaries.append(f"### Paper Analysis: {doc_name}\n{res.choices[0].message.content}")
@@ -104,10 +181,10 @@ Provide a publication-grade Literature Review featuring:
 """.strip()
 
     try:
-        final_res = completion(
-            model=model_name,
+        final_res = _execute_completion_with_fallback(
+            model_name=model_name,
             messages=[{"role": "user", "content": reduce_prompt}],
-            api_key=api_key,
+            custom_keys=keys,
             temperature=0.1
         )
         return final_res.choices[0].message.content
@@ -124,34 +201,31 @@ def generate_answer(
     model_name: str | None = None,
     custom_keys: dict | None = None
 ) -> dict:
-    """Universal RAG inference across any model provider with dynamic key resolution."""
+    """Universal RAG inference across any model provider with dynamic key resolution & fallback."""
     clean_query = query.strip()
     keys = custom_keys or {}
 
     # 1. Resolve Target Model Dynamically
     target_model = model_name
-    if not target_model or target_model == "groq/llama-3.3-70b-versatile":
+    if not target_model or "llama" in target_model:
         if "gemini" in keys:
-            target_model = "gemini/gemini-1.5-flash"
+            target_model = "gemini/gemini-2.5-flash"
         elif "openai" in keys:
             target_model = "openai/gpt-4o-mini"
         elif "anthropic" in keys:
             target_model = "anthropic/claude-3-5-haiku-20241022"
         elif "openrouter" in keys:
             target_model = "openrouter/auto"
+        elif "groq" in keys:
+            target_model = "groq/llama-3.3-70b-versatile"
         else:
-            target_model = model_name or "gemini/gemini-1.5-flash"
-
-    # Extract provider prefix
-    provider = target_model.split("/")[0] if "/" in target_model else "gemini"
-    active_key = _resolve_api_key(provider, keys)
+            target_model = "gemini/gemini-2.5-flash"
 
     # -------------------------------------------------------------------------
     # 0. Single-Pass LLM Intent & Execution Router (Scoped to Active Workspace)
     # -------------------------------------------------------------------------
     active_workspace_docs = explicit_docs if (explicit_docs is not None and len(explicit_docs) > 0) else list_indexed_documents()
 
-    # Pass dynamic model and keys into router to prevent router fallback crashes
     try:
         plan = classify_query_intent(
             query=clean_query, 
@@ -160,13 +234,14 @@ def generate_answer(
             model_name=target_model,
             custom_keys=keys
         )
-    except TypeError:
-        # Fallback if classify_query_intent has legacy signature
-        plan = classify_query_intent(
-            query=clean_query, 
-            available_docs=active_workspace_docs, 
-            chat_history=chat_history
-        )
+    except Exception as router_err:
+        print(f"[Router Notice] Defaulting intent routing: {router_err}")
+        # Safe fallback if router encounters an issue
+        lowered = clean_query.lower()
+        if lowered in ["hi", "hello", "hey", "help", "who are you", "what can you do"]:
+            plan = {"intent": "CONVERSATIONAL"}
+        else:
+            plan = {"intent": "NEW_QUERY", "retrieval_mode": "vector_search", "generation_mode": "single_pass"}
 
     intent = plan.get("intent", "NEW_QUERY")
     print(f"\n[LLM Router] Intent: {intent} | Retrieval Mode: {plan.get('retrieval_mode')} | Targets: {plan.get('target_docs')} | Model: {target_model}")
@@ -174,10 +249,10 @@ def generate_answer(
     # Branch A: CONVERSATIONAL Intent
     if intent == "CONVERSATIONAL":
         conv_prompt = f"You are ScholarsMate, a helpful academic research AI. Reply politely and concisely to: '{clean_query}'"
-        res = completion(
-            model=target_model,
+        res = _execute_completion_with_fallback(
+            model_name=target_model,
             messages=[{"role": "user", "content": conv_prompt}],
-            api_key=active_key,
+            custom_keys=keys,
             temperature=0.5,
             max_tokens=150
         )
@@ -226,14 +301,14 @@ def generate_answer(
             custom_keys=keys
         )
     else:
-        # Branch D: Standard Synthesis using the dynamic Model
+        # Branch D: Standard Synthesis using Dynamic Model
         context_block = build_context_block(retrieved_chunks)
         full_prompt = construct_prompt(query=clean_query, context_block=context_block)
 
-        chat_completion = completion(
-            model=target_model,
+        chat_completion = _execute_completion_with_fallback(
+            model_name=target_model,
             messages=[{"role": "user", "content": full_prompt}],
-            api_key=active_key,
+            custom_keys=keys,
             temperature=0.0
         )
         answer_text = chat_completion.choices[0].message.content

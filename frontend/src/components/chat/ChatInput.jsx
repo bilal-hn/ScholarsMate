@@ -22,41 +22,7 @@ export default function ChatInput({
     }
   };
 
-  // Group models by provider
-  const groupedModels = useMemo(() => {
-    const groups = {};
-    availableModels.forEach((model) => {
-      const prov = (model.provider || 'custom').toLowerCase();
-      if (!groups[prov]) {
-        groups[prov] = [];
-      }
-      groups[prov].push(model);
-    });
-    return groups;
-  }, [availableModels]);
-
-  // Automatically expand the active model's provider when opening dropdown
-  useEffect(() => {
-    if (isDropdownOpen && currentModel) {
-      const activeObj = availableModels.find((m) => m.id === currentModel);
-      if (activeObj) {
-        setExpandedProvider(activeObj.provider?.toLowerCase() || null);
-      }
-    }
-  }, [isDropdownOpen, currentModel, availableModels]);
-
-  // Close dropdown on outside click
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setIsDropdownOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  // Format model card labels and descriptions
+  // 1. Format model card labels and descriptions with strict hierarchy
   const formatModelInfo = (model) => {
     const rawId = model?.id || '';
     const rawName = model?.name || rawId;
@@ -67,19 +33,32 @@ export default function ChatInput({
       .replace(/^gemini-/i, '')
       .replace(/^openai\//i, '')
       .replace(/^groq\//i, '')
-      .replace(/^anthropic\//i, '');
+      .replace(/^anthropic\//i, '')
+      .replace(/-/g, ' ');
 
+    cleanTitle = cleanTitle
+      .split(' ')
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(' ');
+
+    const lower = (rawId + ' ' + rawName).toLowerCase();
     let subtitle = 'General intelligence';
-    const lower = rawId.toLowerCase();
 
-    if (lower.includes('flash-lite') || lower.includes('haiku') || lower.includes('mini')) {
-      subtitle = 'Fastest answers';
-    } else if (lower.includes('flash') || lower.includes('turbo')) {
-      subtitle = 'All-around help';
+    // Evaluated from most specific to general to ensure distinct badges
+    if (lower.includes('deep-research') || lower.includes('deep research') || lower.includes('research')) {
+      subtitle = 'Autonomous research agent';
+    } else if (lower.includes('custom tools') || lower.includes('agent') || lower.includes('antigravity')) {
+      subtitle = 'Tool use & workflows';
+    } else if (lower.includes('gemma') || lower.includes('llama') || lower.includes('banana')) {
+      subtitle = 'Open foundation weights';
+    } else if (lower.includes('lite') || lower.includes('8b') || lower.includes('haiku') || lower.includes('mini')) {
+      subtitle = 'Fastest answers & lowest latency';
     } else if (lower.includes('pro') || lower.includes('opus') || lower.includes('o1') || lower.includes('o3')) {
-      subtitle = 'Advanced reasoning';
-    } else if (lower.includes('thinking') || lower.includes('reason')) {
-      subtitle = 'Complex problem solving';
+      subtitle = 'Advanced reasoning & STEM';
+    } else if (lower.includes('omni')) {
+      subtitle = 'Multimodal reasoning';
+    } else if (lower.includes('flash') || lower.includes('turbo')) {
+      subtitle = 'All-around balance & speed';
     }
 
     return {
@@ -89,7 +68,63 @@ export default function ChatInput({
     };
   };
 
-  const selectedModelObj = availableModels.find((m) => m.id === currentModel) || availableModels[0];
+  // 2. Client-side safeguard to filter out non-chat tools and deduplicate entries
+  const filteredModels = useMemo(() => {
+    const blacklisted = [
+      'tts', 'lyria', 'robotics', 'computer-use', 
+      'imagen', 'embedding', 'aqa', '2.5-flash', '2.5-pro'
+    ];
+    
+    const seen = new Set();
+    const result = [];
+
+    (availableModels || []).forEach((m) => {
+      const raw = (m.id || '').toLowerCase();
+      const isBad = blacklisted.some((bad) => raw.includes(bad));
+      if (!isBad && !seen.has(m.id)) {
+        seen.add(m.id);
+        result.push(m);
+      }
+    });
+
+    return result;
+  }, [availableModels]);
+
+  // 3. Group models by provider
+  const groupedModels = useMemo(() => {
+    const groups = {};
+    filteredModels.forEach((model) => {
+      const prov = (model.provider || 'custom').toLowerCase();
+      if (!groups[prov]) {
+        groups[prov] = [];
+      }
+      groups[prov].push(model);
+    });
+    return groups;
+  }, [filteredModels]);
+
+  // 4. Automatically expand active provider on open
+  useEffect(() => {
+    if (isDropdownOpen && currentModel) {
+      const activeObj = filteredModels.find((m) => m.id === currentModel);
+      if (activeObj) {
+        setExpandedProvider(activeObj.provider?.toLowerCase() || null);
+      }
+    }
+  }, [isDropdownOpen, currentModel, filteredModels]);
+
+  // 5. Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const selectedModelObj = filteredModels.find((m) => m.id === currentModel) || filteredModels[0];
   const currentFormatted = formatModelInfo(selectedModelObj);
 
   return (
@@ -117,11 +152,11 @@ export default function ChatInput({
             <Plus className="h-5 w-5" />
           </button>
 
-          {/* Right Action Controls: Model Selector & Send Button */}
+          {/* Right Action Controls */}
           <div className="flex items-center gap-2.5">
-            {availableModels && availableModels.length > 0 ? (
+            {filteredModels && filteredModels.length > 0 ? (
               <div className="relative" ref={dropdownRef}>
-                {/* Trigger Pill */}
+                {/* Trigger Pill Button */}
                 <button
                   type="button"
                   onClick={() => setIsDropdownOpen((prev) => !prev)}

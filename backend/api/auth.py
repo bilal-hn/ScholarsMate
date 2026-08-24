@@ -27,28 +27,38 @@ class GoogleAuthRequest(BaseModel):
 
 
 async def get_or_create_guest_user(guest_id: Optional[str], db: AsyncSession) -> User:
-    """Retrieves an existing guest user or provisions a new one."""
-    if guest_id:
-        result = await db.execute(select(User).where(User.id == guest_id, User.is_guest == True))
-        user = result.scalar_one_or_none()
-        if user:
-            return user
+    """Retrieves an existing guest user or provisions a new one using the persistent guest ID."""
+    resolved_id = guest_id.strip() if (guest_id and guest_id.strip()) else f"guest_{uuid.uuid4()}"
 
-    # Create new guest user
+    result = await db.execute(select(User).where(User.id == resolved_id))
+    user = result.scalar_one_or_none()
+    if user:
+        return user
+
+    # Create new guest user preserving the client's persistent guest ID
     new_guest = User(
-        id=str(uuid.uuid4()),
+        id=resolved_id,
         name="Guest Researcher",
+        email=None,
+        avatar_url=None,
         is_guest=True
     )
     db.add(new_guest)
-    await db.commit()
-    await db.refresh(new_guest)
+    try:
+        await db.commit()
+        await db.refresh(new_guest)
+    except Exception:
+        await db.rollback()
+        # Handle race condition if created concurrently
+        res = await db.execute(select(User).where(User.id == resolved_id))
+        new_guest = res.scalar_one_or_none()
+
     return new_guest
 
 
 async def get_current_user(
     authorization: Optional[str] = Header(None),
-    x_guest_id: Optional[str] = Header(None),
+    x_guest_id: Optional[str] = Header(None, alias="X-Guest-ID"),
     db: AsyncSession = Depends(get_db)
 ) -> User:
     """
@@ -59,7 +69,6 @@ async def get_current_user(
     if authorization and authorization.startswith("Bearer "):
         token = authorization.split(" ")[1]
         try:
-            # Verify with Google (allows any client ID if env is not explicitly set for local dev)
             id_info = id_token.verify_oauth2_token(
                 token, 
                 google_requests.Request(), 
@@ -87,15 +96,18 @@ async def get_current_user(
                 db.add(user)
                 await db.commit()
                 await db.refresh(user)
+            else:
+                user.name = name
+                user.email = email
+                user.avatar_url = avatar_url
+                await db.commit()
+                await db.refresh(user)
 
             return user
 
         except Exception as e:
-            print(f"[Auth Error] Google token verification failed: {e}")
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid Google Authentication token."
-            )
+            print(f"[Auth Notice] Google token validation failed ({e}). Falling back to guest identity.")
+            # If expired/invalid, seamlessly fall through to guest resolution rather than breaking the workspace request
 
     # 2. Fall back to Anonymous Guest Identity
     return await get_or_create_guest_user(x_guest_id, db)

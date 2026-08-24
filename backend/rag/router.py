@@ -2,15 +2,34 @@ import sys
 import os
 import json
 import re
-from groq import Groq
+from litellm import completion
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
 from backend.embeddings.vector_store import get_indexed_document_catalog, list_indexed_documents
-from backend.rag.prompt_templates import ROUTER_CLASSIFICATION_PROMPT
 
-api_key = os.getenv("GROQ_API_KEY")
-groq_client = Groq(api_key=api_key) if api_key else None
+
+def _resolve_router_api_key(provider: str, custom_keys: dict) -> str | None:
+    """Finds the provider's custom key or falls back to server environment variables."""
+    prov = provider.lower()
+    if custom_keys:
+        if custom_keys.get(prov):
+            return custom_keys[prov]
+        for k, v in custom_keys.items():
+            if v and v.strip():
+                return v.strip()
+
+    env_map = {
+        "groq": "GROQ_API_KEY",
+        "gemini": "GEMINI_API_KEY",
+        "google": "GEMINI_API_KEY",
+        "openai": "OPENAI_API_KEY",
+        "anthropic": "ANTHROPIC_API_KEY",
+        "deepseek": "DEEPSEEK_API_KEY",
+        "openrouter": "OPENROUTER_API_KEY",
+    }
+    env_var = env_map.get(prov, f"{prov.upper()}_API_KEY")
+    return os.getenv(env_var)
 
 
 def evaluate_query_scope_fallback(query: str) -> int:
@@ -32,12 +51,19 @@ def evaluate_query_scope_fallback(query: str) -> int:
     return 6
 
 
-def classify_query_intent(query: str, available_docs: list[str], chat_history: list[dict] | None = None) -> dict:
+def classify_query_intent(
+    query: str, 
+    available_docs: list[str], 
+    chat_history: list[dict] | None = None,
+    model_name: str = "gemini/gemini-2.5-flash",
+    custom_keys: dict | None = None
+) -> dict:
     """
-    Uses Groq (Llama 3.1 8B) to output a structured JSON execution plan.
+    Dynamically routes query execution plans using the user's active BYOK model & key.
     Strictly scopes document catalog to available_docs (the active workspace).
     """
-    fallback_k = evaluate_query_scope_fallback(query)
+    clean_query = query.strip()
+    fallback_k = evaluate_query_scope_fallback(clean_query)
     
     default_plan = {
         "intent": "NEW_QUERY",
@@ -50,10 +76,43 @@ def classify_query_intent(query: str, available_docs: list[str], chat_history: l
         "recommended_top_k": fallback_k
     }
 
-    if not groq_client:
-        return default_plan
+    # 1. Fast-Path for Conversational Greetings & Metadata Questions
+    lowered = clean_query.lower()
+    if lowered in ["hi", "hello", "hey", "help", "who are you", "what can you do", "thanks", "thank you"]:
+        return {
+            "intent": "CONVERSATIONAL",
+            "scope": "none",
+            "target_docs": [],
+            "retrieval_mode": "none",
+            "generation_mode": "single_pass",
+            "is_meta_query": False,
+            "query_depth": "focused",
+            "recommended_top_k": 0
+        }
 
-    # Scope catalog strictly to active workspace documents
+    meta_patterns = [
+        r"\b(how many|list|what)\s+(papers|documents|files)\b",
+        r"\bshow\s+(my\s+)?(papers|documents|files|workspace)\b",
+        r"\bwhat\s+(is\s+in\s+this|are\s+the)\s+(workspace|documents)\b"
+    ]
+    if any(re.search(p, lowered) for p in meta_patterns):
+        return {
+            "intent": "NEW_QUERY",
+            "scope": "full_corpus",
+            "target_docs": available_docs,
+            "retrieval_mode": "metadata_only",
+            "generation_mode": "no_llm",
+            "is_meta_query": True,
+            "query_depth": "focused",
+            "recommended_top_k": 0
+        }
+
+    # 2. Resolve Active Provider & Key
+    keys = custom_keys or {}
+    provider = model_name.split("/")[0] if "/" in model_name else "gemini"
+    active_key = _resolve_router_api_key(provider, keys)
+
+    # 3. Scope catalog strictly to active workspace documents
     full_catalog = get_indexed_document_catalog()
     catalog = [item for item in full_catalog if item["filename"] in available_docs] if available_docs else full_catalog
 
@@ -75,40 +134,38 @@ Indexed Documents in Active Workspace (Filenames & Paper Titles):
 Recent Chat History:
 {formatted_history.strip() or "No previous conversation context."}
 
-User Query: "{query}"
+User Query: "{clean_query}"
 
-JSON Requirements:
-1. "intent": 
-   - "CONVERSATIONAL": Casual greetings, pleasantries, thank yous, or meta-questions about the AI (e.g., "hi", "thanks", "who are you").
-   - "FOLLOW_UP": Query relies on previous chat context or pronouns (e.g., "summarise it", "go on", "why?", "explain that table").
-   - "NEW_QUERY": Standalone academic question targeting research documents.
-2. "scope": "single" | "named_subset" | "full_corpus"
-3. "target_docs": List of matching filenames from the Indexed Documents above that are referenced by title, topic, or filename. If broad or unclear, set to null.
-4. "retrieval_mode": 
-   - "full_text": User wants a summary/overview/TL;DR of specific document(s).
-   - "vector_search": Targeted Q&A or specific factual lookup across documents.
-   - "per_document_search": Comparison across multiple papers requiring balanced retrieval.
-   - "metadata_only": Questions about workspace stats (e.g., "how many papers", "list my files").
-5. "generation_mode":
-   - "single_pass": Standard synthesis pass.
-   - "map_reduce": Literature review / multi-paper synthesis across 3+ papers.
-   - "structured_comparison": Side-by-side comparative analysis of 2+ papers.
-   - "no_llm": Direct data response (for metadata questions).
-6. "is_meta_query": true if the question can be answered purely by document count/names without reading text.
-7. "query_depth": "broad_synthesis" if query asks for summaries, all code blocks, full tables, or paper comparisons. "focused" if query asks a specific targeted question.
-8. "recommended_top_k": Integer (18-20 for broad_synthesis, 5-6 for focused).
+JSON Schema:
+{{
+  "intent": "CONVERSATIONAL" | "FOLLOW_UP" | "NEW_QUERY",
+  "scope": "single" | "named_subset" | "full_corpus",
+  "target_docs": ["filename1.pdf", ...],
+  "retrieval_mode": "full_text" | "vector_search" | "per_document_search" | "metadata_only",
+  "generation_mode": "single_pass" | "map_reduce" | "structured_comparison" | "no_llm",
+  "is_meta_query": boolean,
+  "query_depth": "broad_synthesis" | "focused",
+  "recommended_top_k": integer
+}}
 
 Return ONLY valid JSON matching this schema.
 """.strip()
 
     try:
-        response = groq_client.chat.completions.create(
+        response = completion(
+            model=model_name,
             messages=[{"role": "user", "content": prompt}],
-            model="llama-3.3-70b-versatile",
+            api_key=active_key,
             temperature=0.0,
-            response_format={"type": "json_object"}
         )
-        plan = json.loads(response.choices[0].message.content)
+        raw_content = response.choices[0].message.content.strip()
+        
+        # Clean potential markdown wrapping
+        if raw_content.startswith("```"):
+            raw_content = re.sub(r"^```(?:json)?\n?", "", raw_content)
+            raw_content = re.sub(r"\n?```$", "", raw_content)
+            
+        plan = json.loads(raw_content.strip())
         
         if not plan.get("intent"):
             plan["intent"] = "NEW_QUERY"
@@ -121,5 +178,5 @@ Return ONLY valid JSON matching this schema.
             
         return plan
     except Exception as e:
-        print(f"[Router Warning] Fallback triggered due to classification error: {e}")
+        print(f"[Router Notice] Intent routing defaulted: {e}")
         return default_plan

@@ -107,9 +107,16 @@ def health_check():
 # BYOK LIVE MODEL DISCOVERY ENDPOINT
 # =============================================================================
 
+SUPPORTED_GEMINI_MODELS = [
+    {"id": "gemini/gemini-2.0-flash", "name": "Gemini 2.0 Flash", "provider": "gemini"},
+    {"id": "gemini/gemini-1.5-flash", "name": "Gemini 1.5 Flash", "provider": "gemini"},
+    {"id": "gemini/gemini-1.5-flash-8b", "name": "Gemini 1.5 Flash-8B", "provider": "gemini"},
+    {"id": "gemini/gemini-1.5-pro", "name": "Gemini 1.5 Pro", "provider": "gemini"},
+]
+
 @app.post("/api/byok/fetch-models", response_model=List[ModelItem])
 async def fetch_available_models(req: FetchModelsRequest):
-    """Probes the provider API using the supplied key and returns available text models."""
+    """Probes the provider API using the supplied key and returns verified generation models."""
     provider = req.provider if req.provider != "auto" else detect_provider(req.api_key)
     key = req.api_key.strip()
     models = []
@@ -125,10 +132,12 @@ async def fetch_available_models(req: FetchModelsRequest):
                     data = res.json()
                     models = [
                         ModelItem(id=f"groq/{m['id']}", name=m["id"], provider="groq")
-                        for m in data.get("data", []) if not m["id"].startswith("whisper")
+                        for m in data.get("data", [])
+                        if not any(x in m["id"] for x in ["whisper", "tts", "guard", "vision"])
                     ]
 
             elif provider == "gemini":
+                # Validate key by querying Google's Gemini models endpoint
                 res = await client.get(
                     "https://generativelanguage.googleapis.com/v1beta/models",
                     headers={
@@ -138,20 +147,26 @@ async def fetch_available_models(req: FetchModelsRequest):
                 )
                 if res.status_code == 200:
                     data = res.json()
-                    models = [
-                        ModelItem(
-                            id=f"gemini/{m['name'].replace('models/', '')}",
-                            name=m.get("displayName", m["name"].replace("models/", "")),
-                            provider="gemini"
-                        )
+                    available_raw_names = [
+                        m.get("name", "").replace("models/", "") 
                         for m in data.get("models", [])
-                        if "generateContent" in m.get("supportedGenerationMethods", [])
-                        and not any(x in m["name"] for x in ["embedding", "aqa", "imagen"])
+                    ]
+
+                    # Filter and match only active, reliable generation models
+                    matched_models = []
+                    for model_def in SUPPORTED_GEMINI_MODELS:
+                        base_name = model_def["id"].split("/")[1]
+                        if base_name in available_raw_names:
+                            matched_models.append(ModelItem(**model_def))
+
+                    # Fallback to predefined models if catalog naming differs
+                    models = matched_models if matched_models else [
+                        ModelItem(**m) for m in SUPPORTED_GEMINI_MODELS
                     ]
                 else:
                     raise HTTPException(
                         status_code=400, 
-                        detail=f"Gemini API error ({res.status_code}): {res.text}"
+                        detail=f"Gemini API authentication failed ({res.status_code}): {res.text}"
                     )
 
             elif provider == "openai":
@@ -161,10 +176,12 @@ async def fetch_available_models(req: FetchModelsRequest):
                 )
                 if res.status_code == 200:
                     data = res.json()
-                    valid_prefixes = ("gpt-4", "gpt-3.5", "o1", "o3", "chatgpt")
+                    valid_prefixes = ("gpt-4o", "gpt-4", "gpt-3.5-turbo", "o1", "o3")
                     models = [
                         ModelItem(id=f"openai/{m['id']}", name=m["id"], provider="openai")
-                        for m in data.get("data", []) if m["id"].startswith(valid_prefixes)
+                        for m in data.get("data", []) 
+                        if m["id"].startswith(valid_prefixes)
+                        and not any(x in m["id"] for x in ["audio", "realtime", "tts", "transcription"])
                     ]
 
             elif provider == "openrouter":
@@ -182,21 +199,23 @@ async def fetch_available_models(req: FetchModelsRequest):
             elif provider == "anthropic":
                 models = [
                     ModelItem(id="anthropic/claude-3-5-sonnet-20241022", name="Claude 3.5 Sonnet", provider="anthropic"),
-                    ModelItem(id="anthropic/claude-3-opus-20240229", name="Claude 3 Opus", provider="anthropic"),
                     ModelItem(id="anthropic/claude-3-5-haiku-20241022", name="Claude 3.5 Haiku", provider="anthropic"),
+                    ModelItem(id="anthropic/claude-3-opus-20240229", name="Claude 3 Opus", provider="anthropic"),
                 ]
 
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Failed to query {provider} models: {str(e)}")
 
     if not models:
-        raise HTTPException(status_code=400, detail="Invalid API key or no models returned by provider.")
+        raise HTTPException(status_code=400, detail="Invalid API key or no supported text models returned by provider.")
 
     return models
 
 
 # =============================================================================
-# AUTHENTICATION & IDENTITY ENDPOINTS (FR-07)
+# AUTHENTICATION & IDENTITY ENDPOINTS
 # =============================================================================
 
 @app.get("/api/auth/me", response_model=AuthResponse)
@@ -325,7 +344,7 @@ async def query_rag(
             top_k=getattr(request, "top_k", 10), 
             explicit_docs=target_documents,
             chat_history=history_list,
-            model_name=request.model_name or "groq/llama-3.3-70b-versatile",
+            model_name=request.model_name,
             custom_keys=request.custom_keys or {},
         )
 
@@ -407,13 +426,11 @@ async def create_workspace(
             with file_path.open("wb") as buffer:
                 shutil.copyfileobj(file.file, buffer)
 
-            # process_path returns [] if already indexed via SHA-256 deduplication
             chunks = process_path(str(file_path))
             if chunks:
                 store_chunks(chunks)
                 total_chunks += len(chunks)
 
-            # Always track filename whether newly embedded or deduplicated
             processed_files.append(filename)
         except Exception as e:
             print(f"Failed to process file {filename}: {str(e)}")
@@ -469,7 +486,7 @@ async def create_workspace(
 
 @app.post("/api/workspace/literature-review")
 def create_literature_review(request: ReviewRequest):
-    """Generates a structured, publication-level academic literature review across workspace documents."""
+    """Generates a structured academic literature review across workspace documents."""
     try:
         result = generate_literature_review(doc_names=request.doc_names)
         if "error" in result:

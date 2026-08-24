@@ -1,6 +1,7 @@
 import sys
 import os
 import re
+from litellm import completion
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
@@ -9,26 +10,54 @@ from backend.embeddings.vector_store import (
     get_all_chunks_for_doc,
     list_indexed_documents
 )
-from backend.rag.router import classify_query_intent, groq_client
-from backend.rag.prompt_templates import QUERY_REWRITE_PROMPT
+from backend.rag.router import classify_query_intent
 
 
-def rewrite_query_with_history(query: str, chat_history: list[dict] = None) -> str:
-    """FR-05.2: Rewrites ambiguous follow-up queries into standalone search queries using sliding context.
-    
-    Filters out conversational greetings and sanitizes quotes to prevent hallucinated search queries.
-    """
+def _resolve_retriever_key(provider: str, custom_keys: dict | None = None) -> str | None:
+    """Resolves provider key from custom_keys or environment variables."""
+    prov = provider.lower()
+    keys = custom_keys or {}
+    if keys:
+        if keys.get(prov):
+            return keys[prov]
+        for k, v in keys.items():
+            if v and v.strip():
+                return v.strip()
+
+    env_map = {
+        "groq": "GROQ_API_KEY",
+        "gemini": "GEMINI_API_KEY",
+        "google": "GEMINI_API_KEY",
+        "openai": "OPENAI_API_KEY",
+        "anthropic": "ANTHROPIC_API_KEY",
+        "deepseek": "DEEPSEEK_API_KEY",
+        "openrouter": "OPENROUTER_API_KEY",
+    }
+    return os.getenv(env_map.get(prov, f"{prov.upper()}_API_KEY"))
+
+
+def rewrite_query_with_history(
+    query: str, 
+    chat_history: list[dict] | None = None,
+    model_name: str = "gemini/gemini-2.5-flash",
+    custom_keys: dict | None = None
+) -> str:
+    """FR-05.2: Rewrites ambiguous follow-up queries into standalone search queries."""
     clean_query = query.strip()
-    if not chat_history or len(chat_history) == 0 or not groq_client:
+    if not chat_history or len(chat_history) == 0:
         return clean_query
 
-    # Filter out casual bot pleasantries from context to avoid rewriting greetings into research queries
+    # Skip conversational greetings
+    lowered = clean_query.lower()
+    if lowered in ["hi", "hello", "hey", "help", "who are you", "what can you do", "thanks", "thank you"]:
+        return clean_query
+
+    # Filter out casual bot pleasantries from context
     filtered_history = []
     for msg in chat_history[-6:]:
         sender = msg.get("sender") if isinstance(msg, dict) else getattr(msg, "sender", "user")
         text = msg.get("text") if isinstance(msg, dict) else getattr(msg, "text", "")
         
-        # Skip pure conversational greetings
         if any(greet in text.lower() for greet in ["how may i assist", "hello! i'm scholarsmate", "good day"]):
             continue
         
@@ -40,13 +69,12 @@ def rewrite_query_with_history(query: str, chat_history: list[dict] = None) -> s
 
     formatted_history = "\n".join(filtered_history)
 
-    try:
-        prompt = f"""
+    prompt = f"""
 You are an academic search query optimizer for a research document RAG system.
 Given the conversation context and a user query, determine if the query is a follow-up referring to previous topics/papers.
 
 Rules:
-1. If the user query is a standalone question or general summary request (e.g., "summarise the paper", "give summary of the full paper"), DO NOT inject conversational greetings, pleasantries, or random names from chat history.
+1. If the user query is a standalone question or general summary request, DO NOT inject conversational greetings or random names.
 2. If the user refers to pronouns or previous context (e.g., "explain its results", "why did they use it?"), resolve the pronoun using the conversation context.
 3. Return ONLY the search query string. Do NOT add explanations, quotes, or markdown formatting.
 
@@ -58,31 +86,38 @@ User Query: {clean_query}
 Standalone Search Query:
 """.strip()
 
-        response = groq_client.chat.completions.create(
+    try:
+        provider = model_name.split("/")[0] if "/" in model_name else "gemini"
+        active_key = _resolve_retriever_key(provider, custom_keys)
+
+        res = completion(
+            model=model_name,
             messages=[{"role": "user", "content": prompt}],
-            model="llama-3.1-8b-instant",
+            api_key=active_key,
             temperature=0.0,
             max_tokens=80
         )
-        rewritten = response.choices[0].message.content.strip()
-
-        # Clean outer single/double quotes, newlines, and trailing punctuation
+        rewritten = res.choices[0].message.content.strip()
         rewritten = re.sub(r'^["\']|["\']$', '', rewritten).strip()
 
-        # Fallback to original query if rewriter produced empty or excessively short text
         if not rewritten or len(rewritten) < 3:
             return clean_query
 
         print(f"\n[F-05 Query Rewriter] Raw: '{clean_query}' -> Standalone: '{rewritten}'")
         return rewritten
     except Exception as e:
-        print(f"[F-05 Query Rewriter Error]: {str(e)}")
+        print(f"[F-05 Query Rewriter Notice] Using raw query: {str(e)}")
         return clean_query
 
 
-def expand_query(original_query: str) -> list[str]:
+def expand_query(
+    original_query: str,
+    model_name: str = "gemini/gemini-2.5-flash",
+    custom_keys: dict | None = None
+) -> list[str]:
     """Generates search variations to maximize vector database recall."""
-    if not groq_client:
+    lowered = original_query.lower().strip()
+    if lowered in ["hi", "hello", "hey", "help", "who are you"]:
         return [original_query]
 
     prompt = f"""
@@ -91,12 +126,17 @@ Return ONLY the queries, one per line. No numbering, no comments.
 """.strip()
 
     try:
-        response = groq_client.chat.completions.create(
+        provider = model_name.split("/")[0] if "/" in model_name else "gemini"
+        active_key = _resolve_retriever_key(provider, custom_keys)
+
+        res = completion(
+            model=model_name,
             messages=[{"role": "user", "content": prompt}],
-            model="llama-3.1-8b-instant",
+            api_key=active_key,
             temperature=0.2,
+            max_tokens=60
         )
-        variations = [line.strip() for line in response.choices[0].message.content.split("\n") if line.strip()]
+        variations = [line.strip() for line in res.choices[0].message.content.split("\n") if line.strip()]
         return [original_query] + variations[:2]
     except Exception:
         return [original_query]
@@ -107,33 +147,49 @@ def retrieve_context(
     top_k: int = 10, 
     collection_name: str = "scholarsmate_docs",
     explicit_docs: list[str] | None = None,
-    chat_history: list[dict] | None = None
+    chat_history: list[dict] | None = None,
+    model_name: str = "gemini/gemini-2.5-flash",
+    custom_keys: dict | None = None
 ) -> tuple[list[dict], dict]:
     """Dynamically retrieves context based on execution plan or explicit UI document parameters."""
     
-    # Step 0: Rewrite follow-up query to be standalone before routing & searching
-    search_query = rewrite_query_with_history(query, chat_history)
+    # Step 0: Rewrite follow-up query to be standalone
+    search_query = rewrite_query_with_history(
+        query=query, 
+        chat_history=chat_history, 
+        model_name=model_name, 
+        custom_keys=custom_keys
+    )
 
     available_docs = list_indexed_documents(collection_name)
     
-    # Strictly respect explicit_docs if supplied by the active frontend workspace filter
+    # Strictly respect explicit_docs if supplied by active workspace
     if explicit_docs is not None:
         target_docs = [d for d in explicit_docs if d]
     else:
         target_docs = available_docs
 
-    # Return empty list immediately if active workspace has no documents
     if not target_docs:
         print("\n[Execution Plan] Workspace is empty. Returning empty context.")
         return [], {"intent": "NEW_QUERY", "target_docs": []}
 
-    # 1. Get Execution Plan from Router using standalone query AND chat_history
-    plan = classify_query_intent(search_query, target_docs, chat_history)
+    # 1. Get Execution Plan from Router
+    plan = classify_query_intent(
+        query=search_query, 
+        available_docs=target_docs, 
+        chat_history=chat_history,
+        model_name=model_name,
+        custom_keys=custom_keys
+    )
 
     retrieval_mode = plan.get("retrieval_mode", "vector_search")
     effective_top_k = plan.get("recommended_top_k", top_k)
 
     print(f"\n[Execution Plan] Intent: {plan.get('intent')} | Retrieval Mode: {retrieval_mode} | Generation Mode: {plan.get('generation_mode')} | Targets: {target_docs} | Effective top_k: {effective_top_k}")
+
+    # Exit early for conversational or meta-queries
+    if plan.get("intent") == "CONVERSATIONAL" or plan.get("is_meta_query"):
+        return [], plan
 
     all_chunks = {}
 
@@ -141,13 +197,10 @@ def retrieve_context(
     if retrieval_mode == "full_text" and target_docs:
         for doc in target_docs:
             doc_chunks = get_all_chunks_for_doc(doc_name=doc, collection_name=collection_name)
-            
-            # Prioritize early chunks (Abstract, Intro, Table of Contents) for full summaries
             for c in doc_chunks:
                 all_chunks[c["chunk_id"]] = c
                 
         chunks_list = list(all_chunks.values())
-        # Cap to 30 chunks max to prevent blowing LLM context windows
         return chunks_list[:30], plan
 
     # Strategy B: Per-Document Balanced Search (Multi-Paper Comparison)
@@ -167,7 +220,7 @@ def retrieve_context(
         return list(all_chunks.values()), plan
 
     # Strategy C: Standard Vector Search with Query Expansion
-    search_queries = expand_query(search_query)
+    search_queries = expand_query(search_query, model_name=model_name, custom_keys=custom_keys)
     for q in search_queries:
         results = search_similar_chunks(query=q, top_k=effective_top_k, collection_name=collection_name, doc_names=target_docs)
         if results and results.get("documents") and results["documents"][0]:
