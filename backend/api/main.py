@@ -3,7 +3,7 @@ import os
 import shutil
 import httpx
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, UploadFile, File, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
@@ -58,6 +58,10 @@ app = FastAPI(
 
 class ReviewRequest(BaseModel):
     doc_names: List[str] = []
+    research_focus: Optional[str] = ""
+    depth: Optional[str] = "detailed"
+    model_name: Optional[str] = None
+    custom_keys: Optional[Dict[str, Any]] = None
 
 
 class CreateSessionRequest(BaseModel):
@@ -332,7 +336,7 @@ async def query_rag(
             new_session = await crud.create_chat_session(
                 db, 
                 title=request.query[:40] + "...", 
-                doc_names=target_documents,
+                doc_names=target_documents, 
                 user_id=current_user.id
             )
             session_id = new_session.id
@@ -490,15 +494,29 @@ async def create_workspace(
     }
 
 
+# =============================================================================
+# LITERATURE REVIEW STUDIO ENDPOINT
+# =============================================================================
+
 @app.post("/api/workspace/literature-review")
 def create_literature_review(request: ReviewRequest):
     """Generates structured academic literature review across workspace documents."""
     try:
-        result = generate_literature_review(doc_names=request.doc_names)
-        if "error" in result:
-            raise HTTPException(status_code=500, detail=result["error"])
+        result = generate_literature_review(
+            doc_names=request.doc_names,
+            research_focus=request.research_focus or "",
+            depth=request.depth or "detailed",
+            model_name=request.model_name or "gemini/gemini-3.7-flash",
+            custom_keys=request.custom_keys or {}
+        )
+        if "error" in result and not result.get("content"):
+            raise HTTPException(status_code=400, detail=result["error"])
         return result
+    except HTTPException:
+        raise
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Literature review generation failed: {str(e)}")
 
 

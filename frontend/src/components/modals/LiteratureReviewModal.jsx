@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   BookOpen, 
   X, 
@@ -11,9 +11,7 @@ import {
   Copy, 
   Check, 
   Loader2,
-  ListTree,
-  Table,
-  ArrowRight
+  ListTree
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
@@ -27,7 +25,18 @@ export default function LiteratureReviewModal({
   customKeys,
   onGenerateReview 
 }) {
-  const [activePapers, setActivePapers] = useState(selectedDocs.length > 0 ? selectedDocs : documents);
+  // Normalize documents to extract plain string names
+  const normalizedDocList = useMemo(() => {
+    return (documents || []).map((d) => (typeof d === 'string' ? d : d?.doc_name || '')).filter(Boolean);
+  }, [documents]);
+
+  const normalizedSelected = useMemo(() => {
+    return (selectedDocs || []).map((d) => (typeof d === 'string' ? d : d?.doc_name || '')).filter(Boolean);
+  }, [selectedDocs]);
+
+  const [activePapers, setActivePapers] = useState(() => 
+    normalizedSelected.length > 0 ? normalizedSelected : normalizedDocList
+  );
   const [researchFocus, setResearchFocus] = useState('');
   const [reviewDepth, setReviewDepth] = useState('detailed'); // 'executive' | 'detailed'
   const [isGenerating, setIsGenerating] = useState(false);
@@ -48,10 +57,9 @@ export default function LiteratureReviewModal({
   const handleStartSynthesis = async () => {
     if (activePapers.length === 0 || isGenerating) return;
     setIsGenerating(true);
-    setCurrentStage('Analyzing abstracts and constructing thematic taxonomy...');
+    setCurrentStage('Analyzing document structure and synthesizing multi-stage taxonomy...');
 
     try {
-      // Calls the parent or API literature review service
       const payload = {
         doc_names: activePapers,
         research_focus: researchFocus.trim(),
@@ -60,7 +68,7 @@ export default function LiteratureReviewModal({
         custom_keys: customKeys
       };
 
-      const data = await onGenerateReview(payload, (stageMsg) => setCurrentStage(stageMsg));
+      const data = await onGenerateReview(payload);
       setReviewResult(data);
     } catch (err) {
       alert(`Synthesis Failed: ${err.message || 'Error generating review.'}`);
@@ -113,43 +121,43 @@ export default function LiteratureReviewModal({
           </div>
           <button
             onClick={onClose}
-            className="h-8 w-8 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60 flex items-center justify-center transition-colors"
+            className="h-8 w-8 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60 flex items-center justify-center transition-colors cursor-pointer"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        {/* Modal Body: Split or Single View */}
+        {/* Modal Body */}
         <div className="flex-1 flex overflow-hidden">
           
-          {/* Left Column: Scope & Parameter Configuration */}
+          {/* Left Column: Configuration */}
           <div className="w-80 border-r border-zinc-800/70 p-5 flex flex-col justify-between bg-zinc-900/20 overflow-y-auto shrink-0">
             <div className="space-y-5">
               
               {/* Workspace Paper Scope */}
               <div>
                 <label className="text-xs font-semibold text-zinc-300 uppercase tracking-wider block mb-2">
-                  1. Included Papers ({activePapers.length}/{documents.length})
+                  1. Included Papers ({activePapers.length}/{normalizedDocList.length})
                 </label>
                 <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
-                  {documents.length === 0 ? (
+                  {normalizedDocList.length === 0 ? (
                     <p className="text-xs text-zinc-500 italic">No papers uploaded in workspace.</p>
                   ) : (
-                    documents.map((doc, idx) => {
-                      const selected = activePapers.includes(doc);
+                    normalizedDocList.map((docName, idx) => {
+                      const selected = activePapers.includes(docName);
                       return (
                         <button
                           key={idx}
                           type="button"
-                          onClick={() => togglePaper(doc)}
-                          className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-left transition-colors ${
+                          onClick={() => togglePaper(docName)}
+                          className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-left transition-colors cursor-pointer ${
                             selected 
                               ? 'bg-amber-400/10 border border-amber-400/30 text-amber-200' 
                               : 'bg-zinc-900/60 border border-zinc-800 text-zinc-400 hover:text-zinc-300'
                           }`}
                         >
                           {selected ? <CheckSquare className="h-3.5 w-3.5 text-amber-400 shrink-0" /> : <Square className="h-3.5 w-3.5 text-zinc-500 shrink-0" />}
-                          <span className="truncate">{doc}</span>
+                          <span className="truncate">{docName}</span>
                         </button>
                       );
                     })
@@ -179,7 +187,7 @@ export default function LiteratureReviewModal({
                   <button
                     type="button"
                     onClick={() => setReviewDepth('detailed')}
-                    className={`px-3 py-2 rounded-xl text-xs font-medium border text-left flex flex-col gap-1 transition-all ${
+                    className={`px-3 py-2 rounded-xl text-xs font-medium border text-left flex flex-col gap-1 transition-all cursor-pointer ${
                       reviewDepth === 'detailed'
                         ? 'bg-amber-400/15 border-amber-400/40 text-amber-300'
                         : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-zinc-200'
@@ -194,7 +202,7 @@ export default function LiteratureReviewModal({
                   <button
                     type="button"
                     onClick={() => setReviewDepth('executive')}
-                    className={`px-3 py-2 rounded-xl text-xs font-medium border text-left flex flex-col gap-1 transition-all ${
+                    className={`px-3 py-2 rounded-xl text-xs font-medium border text-left flex flex-col gap-1 transition-all cursor-pointer ${
                       reviewDepth === 'executive'
                         ? 'bg-amber-400/15 border-amber-400/40 text-amber-300'
                         : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-zinc-200'
@@ -208,10 +216,10 @@ export default function LiteratureReviewModal({
                 </div>
               </div>
 
-              {/* Planned Sections Checklist */}
+              {/* Planned Checklist */}
               <div className="p-3 bg-zinc-950/60 border border-zinc-800/80 rounded-xl space-y-1.5 text-[11px] text-zinc-400">
                 <div className="text-zinc-300 font-medium mb-1 flex items-center gap-1">
-                  <ListTree className="h-3 w-3 text-amber-400" /> Structure Generated:
+                  <ListTree className="h-3 w-3 text-amber-400" /> Planned Sections:
                 </div>
                 <div>• Executive Abstract & Taxonomy</div>
                 <div>• Comparative Matrix Table</div>
@@ -235,7 +243,7 @@ export default function LiteratureReviewModal({
               {isGenerating ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin text-zinc-950" />
-                  <span>Synthesizing Literature...</span>
+                  <span>Synthesizing Review...</span>
                 </>
               ) : (
                 <>
@@ -246,10 +254,9 @@ export default function LiteratureReviewModal({
             </button>
           </div>
 
-          {/* Right Column: Viewer / Real-time Progress Studio */}
+          {/* Right Column: Viewer */}
           <div className="flex-1 flex flex-col bg-zinc-950 overflow-hidden">
             
-            {/* Viewer Top Action Bar */}
             {reviewResult && (
               <div className="px-6 py-2.5 border-b border-zinc-800 flex items-center justify-between bg-zinc-900/30">
                 <span className="text-xs text-zinc-400 font-mono">
@@ -258,14 +265,14 @@ export default function LiteratureReviewModal({
                 <div className="flex items-center gap-2">
                   <button
                     onClick={handleCopy}
-                    className="flex items-center gap-1.5 px-3 py-1 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 text-xs rounded-lg transition-colors"
+                    className="flex items-center gap-1.5 px-3 py-1 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 text-xs rounded-lg transition-colors cursor-pointer"
                   >
                     {copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
                     <span>{copied ? 'Copied' : 'Copy'}</span>
                   </button>
                   <button
                     onClick={handleDownload}
-                    className="flex items-center gap-1.5 px-3 py-1 bg-amber-400 hover:bg-amber-300 text-zinc-950 font-medium text-xs rounded-lg transition-colors"
+                    className="flex items-center gap-1.5 px-3 py-1 bg-amber-400 hover:bg-amber-300 text-zinc-950 font-medium text-xs rounded-lg transition-colors cursor-pointer"
                   >
                     <Download className="h-3.5 w-3.5" />
                     <span>Export (.md)</span>
@@ -274,7 +281,6 @@ export default function LiteratureReviewModal({
               </div>
             )}
 
-            {/* Content Area */}
             <div className="flex-1 overflow-y-auto p-8">
               {isGenerating ? (
                 <div className="h-full flex flex-col items-center justify-center text-center max-w-md mx-auto space-y-4">
@@ -292,7 +298,7 @@ export default function LiteratureReviewModal({
               ) : reviewResult ? (
                 <div className="prose prose-invert max-w-none text-zinc-200 text-sm leading-relaxed">
                   <ReactMarkdown rehypePlugins={[rehypeRaw]}>
-                    {reviewResult.content || reviewResult.answer || reviewResult}
+                    {reviewResult.content || reviewResult.answer || ''}
                   </ReactMarkdown>
                 </div>
               ) : (
