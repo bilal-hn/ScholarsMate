@@ -48,7 +48,7 @@ def _resolve_key(provider: str, custom_keys: dict | None = None) -> str | None:
 
 
 def _clean_markdown_section_output(text: str) -> str:
-    """Strips leading duplicated H1 (#) or H2 (##) headings produced by the LLM."""
+    """Strips leading duplicated H1 (#) or H2 (##) headings produced by LLMs."""
     if not text:
         return ""
     lines = text.strip().split("\n")
@@ -65,7 +65,6 @@ def _execute_review_call(
     max_tokens: int = 4096,
     temperature: float = 0.2
 ) -> str:
-    """Executes a single step in the review pipeline with fallback support."""
     normalized_model = normalize_litellm_model_id(model_name)
     provider = provider_from_model(normalized_model)
     active_key = _resolve_key(provider, custom_keys)
@@ -91,10 +90,11 @@ def _execute_review_call(
     except Exception as e:
         print(f"[Review Stage Warning] Call failed on '{normalized_model}': {e}")
         fallback_candidates = [
+            "openai/gpt-4o-mini",
+            "openai/gpt-4o",
             "gemini/gemini-3.7-flash",
             "gemini/gemini-3.6-flash",
-            "groq/compound-mini",
-            "openai/gpt-4o-mini"
+            "groq/llama-3.3-70b-versatile"
         ]
         chain = build_fallback_chain(normalized_model, fallback_candidates, custom_keys)
         for fb_model in chain[1:]:
@@ -120,7 +120,6 @@ def _generate_editorial_outline(
     model_name: str,
     custom_keys: dict | None = None
 ) -> Dict[str, Any]:
-    """Inspects overview chunks across papers and creates a structured 5-section roadmap."""
     doc_profiles = []
     for doc in target_docs:
         chunks = get_all_chunks_for_doc(doc_name=doc)
@@ -130,8 +129,8 @@ def _generate_editorial_outline(
     combined_overview = "\n\n".join(doc_profiles)
 
     planner_prompt = f"""
-You are the Lead Academic Editor structuring a multi-paper Literature Review Monograph for ScholarsMate.
-Analyze the provided document overviews and produce a structured JSON roadmap containing exactly 5 sections.
+You are the Lead Academic Editor structuring a formal Literature Review Monograph for ScholarsMate.
+Analyze the provided document overviews and produce a structured JSON roadmap for a comprehensive 5-section review.
 
 Included Papers in Workspace:
 {', '.join(target_docs)}
@@ -142,18 +141,12 @@ User Specific Research Focus:
 Document Overviews:
 {combined_overview}
 
-Instructions:
-1. Define 5 sequential sections:
-   - Section 1: Executive Abstract & Theoretical Foundations
-   - Section 2: Methodological Taxonomy & Architectural Frameworks
-   - Section 3: Thematic Synthesis & Comparative Analysis
-   - Section 4: Empirical Benchmarks, Datasets & Quantitative Evaluation
-   - Section 5: Critical Limitations, Research Gaps & Open Trajectories
-2. For each section, provide:
-   - 'section_number': integer (1-5)
-   - 'title': Academic title
-   - 'focus_directive': Precise analytical instructions for what to compare
-   - 'search_keywords': 3 specific semantic retrieval queries to execute against the vector database
+Sections Required:
+1. Executive Abstract & Theoretical Foundations
+2. Methodological Taxonomy & Architectural Frameworks
+3. Thematic Synthesis & Cross-Domain Comparative Analysis
+4. Empirical Benchmarks, Datasets & Quantitative Evaluation
+5. Critical Limitations, Research Gaps & Open Trajectories
 
 Output ONLY a valid JSON object matching this schema:
 {{
@@ -182,7 +175,7 @@ Output ONLY a valid JSON object matching this schema:
         return parse_json_object(raw_json)
     except Exception:
         return {
-            "monograph_title": f"Literature Review: Synthesis Across {len(target_docs)} Papers",
+            "monograph_title": f"Retrieval-Augmented Generation & Adaptation: A Literature Review Across {len(target_docs)} Papers",
             "sections": [
                 {
                     "section_number": 1,
@@ -198,7 +191,7 @@ Output ONLY a valid JSON object matching this schema:
                 },
                 {
                     "section_number": 3,
-                    "title": "Thematic Synthesis & Comparative Analysis",
+                    "title": "Thematic Synthesis & Cross-Domain Comparative Analysis",
                     "focus_directive": "Contrast architectural paradigms, qualitative tradeoffs, and core capabilities.",
                     "search_keywords": ["comparative analysis trade-offs techniques mechanisms"]
                 },
@@ -219,7 +212,7 @@ Output ONLY a valid JSON object matching this schema:
 
 
 # =============================================================================
-# STAGE 2 & 3: STATEFUL SECTION DRAFTING & RETRIEVAL
+# STAGE 2 & 3: SECTION DRAFTING & MATRIX GENERATION
 # =============================================================================
 
 def _draft_section(
@@ -230,7 +223,6 @@ def _draft_section(
     model_name: str,
     custom_keys: dict | None = None
 ) -> Tuple[str, List[Dict[str, Any]]]:
-    """Performs targeted vector search and drafts a complete section using rolling context."""
     search_queries = section_meta.get("search_keywords", [section_meta.get("title", "")])
     retrieved_chunks_map = {}
 
@@ -254,27 +246,26 @@ def _draft_section(
     draft_prompt = f"""
 {SOURCE_LOCKED_SYSTEM_PROMPT}
 
-You are writing Section {section_meta.get('section_number', 1)}: "{section_meta.get('title', '')}" of a formal publication-grade Literature Review Monograph.
+You are writing Section {section_meta.get('section_number', 1)}: "{section_meta.get('title', '')}" of a publication-grade Academic Literature Review Monograph.
 
 CORE RESEARCH FOCUS:
 {research_focus or 'Comparative analysis of methodologies, architectures, benchmarks, and critical gaps.'}
 
-PREVIOUS SECTIONS SUMMARY (MEMORY BUFFER):
+PREVIOUS SECTIONS SUMMARY:
 {rolling_memory or 'This is Section 1. No prior sections drafted.'}
 
-RETRIEVED SOURCE EVIDENCE FROM PAPERS:
+EVIDENCE FROM PAPERS:
 {context_block}
 
 SECTION DIRECTIVE:
 {section_meta.get('focus_directive', 'Synthesize and contrast the evidence across papers.')}
 
-CRITICAL FORMATTING & COMPLETION RULES:
-1. Write a dense, rigorous academic section (~600-800 words).
-2. Ensure every paragraph is fully completed. DO NOT stop mid-sentence.
-3. Explicitly cite documents and pages using standard inline tags: `[DocumentName, p.X]`.
-4. Highlight agreements, divergences, and technical trade-offs across the papers.
-5. Do NOT include the main section header (e.g., do NOT start with '# Section X' or '## Section X').
-6. Use Level-3 Markdown headers (###) to organize internal sub-topics.
+STRICT ACADEMIC STYLING RULES:
+1. Write 600-900 words of formal, academic prose with full paragraphs (no incomplete endings).
+2. Use clear subheadings (### Subtitle) to categorize different themes.
+3. Cite sources inline using formal bracket notation: `[PaperName, p.X]`.
+4. Use bold text for key terms, metrics, and taxonomy names.
+5. Do NOT output a top-level '# Section' or '## Section' title. Start directly with the narrative or first subsection.
 """.strip()
 
     section_text = _execute_review_call(
@@ -288,16 +279,11 @@ CRITICAL FORMATTING & COMPLETION RULES:
     return section_text, packed_chunks
 
 
-# =============================================================================
-# STAGE 4: METHODOLOGICAL COMPARISON MATRIX EXTRACTOR
-# =============================================================================
-
 def _generate_comparison_matrix(
     target_docs: List[str],
     model_name: str,
     custom_keys: dict | None = None
 ) -> str:
-    """Extracts a structured markdown table comparing all included workspace documents."""
     doc_contexts = []
     for doc in target_docs:
         results = search_similar_chunks(query="methodology dataset baseline results limitations architecture", top_k=5, doc_names=[doc])
@@ -307,24 +293,23 @@ def _generate_comparison_matrix(
     combined = "\n\n".join(doc_contexts)
 
     table_prompt = f"""
-Analyze the retrieved excerpts from the following papers and output a complete Markdown Comparative Matrix Table covering EVERY paper listed below.
+Generate a complete, publication-grade Comparative Matrix Table in Markdown format for ALL {len(target_docs)} papers below.
 
-PAPERS TO INCLUDE ({len(target_docs)} Total):
+PAPERS:
 {', '.join(target_docs)}
 
 PAPER EXCERPTS:
 {combined}
 
-REQUIRED FORMAT:
+TABLE FORMAT:
 | Paper / Citation | Core Methodology & Architecture | Primary Datasets / Benchmarks | Key Strengths | Critical Limitations |
 | :--- | :--- | :--- | :--- | :--- |
 
-CRITICAL RULES:
-1. You MUST include exactly one complete row for EACH of the {len(target_docs)} papers.
-2. Ensure all rows and table cells are fully closed. Do NOT cut off mid-row.
-3. Be concise, technical, and precise.
-4. Include exact inline citations (e.g., `[DocumentName, p.X]`).
-5. Output ONLY the markdown table.
+RULES:
+1. Provide exactly one complete row per paper.
+2. Ensure every row is closed properly.
+3. Include inline page citations (e.g. `[PaperName, p.4]`).
+4. Output ONLY the markdown table.
 """.strip()
 
     return _execute_review_call(
@@ -336,87 +321,74 @@ CRITICAL RULES:
     )
 
 
+def _generate_conclusion(
+    target_docs: List[str],
+    rolling_memory: str,
+    research_focus: str,
+    model_name: str,
+    custom_keys: dict | None = None
+) -> str:
+    conclusion_prompt = f"""
+You are the Lead Academic Editor writing the final "Section 6: Integrative Conclusion & Strategic Roadmap" for a literature review covering {len(target_docs)} papers.
+
+PAPERS REVIEWED:
+{', '.join(target_docs)}
+
+SUMMARY OF REVIEW FINDINGS:
+{rolling_memory}
+
+RESEARCH FOCUS:
+{research_focus or 'General comparative synthesis'}
+
+Write a 400-500 word synthesis summarizing the state of the field, the core trade-offs discovered across these papers, and 3 high-impact recommendations for future empirical research.
+Use formal academic tone with bold highlights for key takeaways.
+""".strip()
+
+    raw_text = _execute_review_call(
+        prompt=conclusion_prompt,
+        model_name=model_name,
+        custom_keys=custom_keys,
+        max_tokens=2000,
+        temperature=0.2
+    )
+    return _clean_markdown_section_output(raw_text)
+
+
 # =============================================================================
-# STAGE 5: MAIN ORCHESTRATION PIPELINE
+# STAGE 5: MAIN MONOGRAPH ORCHESTRATION PIPELINE
 # =============================================================================
 
 def generate_literature_review(
     doc_names: List[str] | None = None,
     research_focus: str = "",
     depth: str = "detailed",
-    model_name: str = "gemini/gemini-3.7-flash",
+    model_name: str = "openai/gpt-4o-mini",
     custom_keys: dict | None = None
 ) -> Dict[str, Any]:
-    """
-    Main entry point for generating formal Literature Reviews.
-    Supports 'executive' (fast single-pass) and 'detailed' (5-stage iterative monograph).
-    """
     available_docs = list_indexed_documents()
     target_docs = [d for d in (doc_names or available_docs) if d in available_docs]
 
     if not target_docs:
         return {
-            "error": "No indexed research papers found in workspace to synthesize.",
-            "content": "Please upload PDF documents to your workspace before generating a literature review."
+            "error": "No indexed research papers found in workspace.",
+            "content": "Please upload PDF documents before generating a literature review."
         }
 
     keys = custom_keys or {}
     target_model = normalize_litellm_model_id(model_name)
 
-    print(f"\n[Literature Review Studio] Starting {depth.upper()} synthesis across {len(target_docs)} papers using {target_model}...")
+    print(f"\n[Literature Review Studio] Synthesizing Monograph across {len(target_docs)} papers using {target_model}...")
 
-    # --- FAST EXECUTIVE MODE ---
-    if depth == "executive" or len(target_docs) == 1:
-        matrix_table = _generate_comparison_matrix(target_docs, target_model, keys)
-        
-        chunks = []
-        for doc in target_docs:
-            doc_chunks = get_all_chunks_for_doc(doc_name=doc)
-            chunks.extend(doc_chunks[:5])
-
-        context_block = build_context_block(pack_chunks(chunks, max_tokens=4000))
-        exec_prompt = f"""
-{SOURCE_LOCKED_SYSTEM_PROMPT}
-
-Provide an Executive Academic Literature Review across these papers:
-{', '.join(target_docs)}
-
-RESEARCH FOCUS:
-{research_focus or 'High-level synthesis of findings and methodological contrasts.'}
-
-DOCUMENT EVIDENCE:
-{context_block}
-
-OUTPUT STRUCTURE:
-1. Executive Abstract & Summary of Contributions
-2. Synthesis of Core Themes
-3. Key Limitations
-
-Do NOT include the table; it will be appended automatically.
-""".strip()
-
-        raw_content = _execute_review_call(exec_prompt, target_model, keys, max_tokens=3000)
-        clean_content = _clean_markdown_section_output(raw_content)
-        
-        final_exec_text = f"# Executive Literature Review: {len(target_docs)} Paper(s)\n\n{clean_content}\n\n### Methodological Comparison Matrix\n\n{matrix_table}"
-
-        return {
-            "title": f"Executive Literature Review: {len(target_docs)} Paper(s)",
-            "content": final_exec_text,
-            "depth": "executive",
-            "doc_names": target_docs,
-            "sources_used": [{"doc_name": d, "page_number": 1} for d in target_docs]
-        }
-
-    # --- IN-DEPTH 5-STAGE MONOGRAPH MODE ---
+    # 1. Outline & Structure
     outline = _generate_editorial_outline(target_docs, research_focus, target_model, keys)
-    monograph_title = outline.get("monograph_title", f"Literature Review: Synthesis Across {len(target_docs)} Papers")
+    monograph_title = outline.get("monograph_title", f"Systematic Literature Review: Analysis of {len(target_docs)} Papers")
     sections_plan = outline.get("sections", [])
 
     compiled_sections = []
     all_used_chunks = []
     rolling_memory = ""
 
+    # 2. Sequential Drafting
     for idx, sec in enumerate(sections_plan):
         sec_title = sec.get("title", f"Section {idx + 1}")
         print(f"[Review Pipeline] Drafting Section {idx + 1}/5: '{sec_title}'...")
@@ -431,40 +403,41 @@ Do NOT include the table; it will be appended automatically.
         )
         
         clean_sec_body = _clean_markdown_section_output(raw_sec_text)
-        compiled_sections.append(f"## Section {idx + 1}: {sec_title}\n\n{clean_sec_body}")
+        compiled_sections.append({
+            "section_number": idx + 1,
+            "title": sec_title,
+            "content": clean_sec_body
+        })
         all_used_chunks.extend(used_chunks)
 
-        # Update rolling memory buffer for subsequent section awareness
         summary_snippet = clean_sec_body[:350] + "..." if len(clean_sec_body) > 350 else clean_sec_body
         rolling_memory += f"\n- Section {idx + 1} ({sec_title}): {summary_snippet}"
 
-        # Insert Methodological Matrix immediately after Section 2 (Taxonomy)
-        if idx == 1:
-            print("[Review Pipeline] Extracting Complete Methodological Matrix Table...")
-            matrix_table = _generate_comparison_matrix(target_docs, target_model, keys)
-            clean_matrix = _clean_markdown_section_output(matrix_table)
-            compiled_sections.append(f"### Comprehensive Methodological Comparison Matrix\n\n{clean_matrix}")
+    # 3. Comparative Matrix
+    print("[Review Pipeline] Extracting Comparative Matrix Table...")
+    matrix_table = _generate_comparison_matrix(target_docs, target_model, keys)
 
-    # Monograph Assembly
-    full_monograph_text = f"# {monograph_title}\n\n"
-    if research_focus:
-        full_monograph_text += f"> **Primary Research Directive:** {research_focus}\n\n---\n\n"
+    # 4. Integrative Conclusion
+    print("[Review Pipeline] Generating Integrative Conclusion...")
+    conclusion_text = _generate_conclusion(target_docs, rolling_memory, research_focus, target_model, keys)
 
-    full_monograph_text += "\n\n---\n\n".join(compiled_sections)
-
-    # Extract Unique Cited Sources
+    # 5. Extract Unique Document Catalog for Bibliography
     unique_sources = []
     seen = set()
     for c in all_used_chunks:
-        key = (c.get("doc_name", ""), c.get("page_number", 1))
-        if key not in seen and key[0]:
-            seen.add(key)
-            unique_sources.append({"doc_name": key[0], "page_number": key[1]})
+        doc = c.get("doc_name", "")
+        page = c.get("page_number", 1)
+        if (doc, page) not in seen and doc:
+            seen.add((doc, page))
+            unique_sources.append({"doc_name": doc, "page_number": page})
 
     return {
         "title": monograph_title,
-        "content": full_monograph_text,
-        "depth": "detailed",
+        "research_focus": research_focus,
         "doc_names": target_docs,
-        "sources_used": unique_sources
+        "sections": compiled_sections,
+        "matrix_table": matrix_table,
+        "conclusion": conclusion_text,
+        "sources_used": unique_sources,
+        "generated_at": "2026-08-25"
     }
