@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { GraduationCap, Loader2 } from 'lucide-react';
+import { GraduationCap, Loader2, BookOpen } from 'lucide-react';
 import DocumentSelector from '../document/DocumentSelector';
 import ChatMessage from './ChatMessage';
 import ChatInput from './ChatInput';
-import { sendQuery } from '../../services/api';
+import LiteratureReviewModal from '../modals/LiteratureReviewModal';
+import { sendQuery, generateLiteratureReviewAPI } from '../../services/api';
 import { APP_CONFIG } from '../../theme/constants';
 
 export default function ChatInterface({ 
@@ -15,7 +16,8 @@ export default function ChatInterface({
   sessionId,
   availableModels = [],
   currentModel,
-  onModelChange
+  onModelChange,
+  customKeys
 }) {
   const [messages, setMessages] = useState([
     {
@@ -28,6 +30,7 @@ export default function ChatInterface({
   const [activeSessionId, setActiveSessionId] = useState(sessionId || null);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isLitReviewOpen, setIsLitReviewOpen] = useState(false);
   const messagesEndRef = useRef(null);
 
   // Sync activeSessionId with prop when workspace changes
@@ -101,15 +104,29 @@ export default function ChatInterface({
     }
   };
 
+  const handleGenerateLiteratureReview = async (config) => {
+    return await generateLiteratureReviewAPI(config);
+  };
+
   return (
     <main className="flex-1 flex flex-col bg-zinc-950 h-full relative overflow-hidden">
-      {/* Top Header Bar with Document Selector */}
+      {/* Top Header Bar with Document Selector & Review Studio Trigger */}
       <div className="px-6 py-2.5 bg-zinc-950 border-b border-zinc-800/60 flex items-center justify-between shrink-0 z-20">
         <DocumentSelector
           documents={documents}
           selectedDocs={selectedDocs}
           setSelectedDocs={setSelectedDocs}
         />
+
+        {/* Literature Review Studio Popup Trigger */}
+        <button
+          type="button"
+          onClick={() => setIsLitReviewOpen(true)}
+          className="flex items-center gap-2 px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800/80 border border-zinc-800 hover:border-amber-500/40 text-amber-300 hover:text-amber-200 text-xs font-medium rounded-xl transition-all shadow-sm cursor-pointer"
+        >
+          <BookOpen className="h-3.5 w-3.5 text-amber-400" />
+          <span>Literature Review Studio</span>
+        </button>
       </div>
 
       {/* Messages Thread */}
@@ -145,6 +162,17 @@ export default function ChatInterface({
         availableModels={availableModels}
         currentModel={currentModel}
         onModelChange={onModelChange}
+      />
+
+      {/* Literature Review Studio Modal */}
+      <LiteratureReviewModal
+        isOpen={isLitReviewOpen}
+        onClose={() => setIsLitReviewOpen(false)}
+        documents={documents}
+        selectedDocs={selectedDocs}
+        currentModel={currentModel}
+        customKeys={customKeys}
+        onGenerateReview={handleGenerateLiteratureReview}
       />
     </main>
   );

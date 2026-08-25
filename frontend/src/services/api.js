@@ -221,17 +221,56 @@ export const createWorkspace = async (files) => {
 };
 
 /**
- * Generates a structured multi-paper literature review using active keys.
+ * Generates a structured multi-paper literature review using active keys and user filters.
  * @param {Array<string>} [docNames=[]] - Selected document filters.
  */
 export const generateLiteratureReview = async (docNames = []) => {
   try {
+    const { keys, activeModel } = getSavedBYOKConfig();
     const response = await apiClient.post('/workspace/literature-review', {
       doc_names: docNames && docNames.length > 0 ? docNames : [],
+      model_name: activeModel || null,
+      custom_keys: keys || {},
     });
     return response.data;
   } catch (error) {
     console.error('Literature review failed:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+/**
+ * Extended literature review generation endpoint for the Literature Review Studio Modal.
+ * Supports configurable research focus, review depth, model override, and active BYOK keys.
+ * @param {Object} config
+ * @param {Array<string>} config.doc_names - Selected document filters.
+ * @param {string} [config.research_focus=''] - Research focus/question prompt.
+ * @param {string} [config.depth='detailed'] - 'detailed' (in-depth monograph) or 'executive'.
+ * @param {string|null} [config.model_name=null] - Model override ID.
+ * @param {Object|null} [config.custom_keys=null] - Optional BYOK custom keys map.
+ */
+export const generateLiteratureReviewAPI = async ({
+  doc_names = [],
+  research_focus = '',
+  depth = 'detailed',
+  model_name = null,
+  custom_keys = null,
+}) => {
+  const { keys, activeModel } = getSavedBYOKConfig();
+  const selectedModel = model_name || activeModel;
+  const activeKeys = custom_keys && Object.keys(custom_keys).length > 0 ? custom_keys : keys;
+
+  try {
+    const response = await apiClient.post('/workspace/literature-review', {
+      doc_names: doc_names && doc_names.length > 0 ? doc_names : [],
+      research_focus: research_focus ? research_focus.trim() : '',
+      depth: depth || 'detailed',
+      model_name: selectedModel || null,
+      custom_keys: activeKeys || {},
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Literature review synthesis failed:', error.response?.data || error.message);
     throw error;
   }
 };
