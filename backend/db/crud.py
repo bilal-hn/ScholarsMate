@@ -163,14 +163,16 @@ async def add_message(
     session_id: str, 
     sender: str, 
     text: str, 
+    thinking_process: Optional[str] = None,
     sources: Optional[list] = None
 ) -> ChatMessage:
-    """Adds a new message to a chat session and updates the session timestamp."""
+    """Adds a new message to a chat session, stores reasoning trace, and touches session timestamp."""
     message = ChatMessage(
         id=str(uuid.uuid4()),
         session_id=session_id,
         sender=sender,
         text=text,
+        thinking_process=thinking_process,
         sources_used=sources or [],
         timestamp=datetime.utcnow()
     )

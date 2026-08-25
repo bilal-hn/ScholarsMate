@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import List, Optional, Dict
 from pydantic import BaseModel, Field
 
 
@@ -10,10 +11,10 @@ class MessageItem(BaseModel):
 class QueryRequest(BaseModel):
     query: str = Field(..., json_schema_extra={"example": "Compare the methodology in Arslan et al. with other papers."})
     top_k: int = Field(default=10, ge=1, le=30, json_schema_extra={"example": 10})
-    doc_names: list[str] | None = Field(default=None, json_schema_extra={"example": ["sample.pdf"]})
-    selected_docs: list[str] | None = Field(default=None, json_schema_extra={"example": ["sample.pdf"]})
-    session_id: str | None = Field(default=None, json_schema_extra={"example": "123e4567-e89b-12d3-a456-426614174000"})
-    chat_history: list[MessageItem] | None = Field(
+    doc_names: Optional[List[str]] = Field(default=None, json_schema_extra={"example": ["sample.pdf"]})
+    selected_docs: Optional[List[str]] = Field(default=None, json_schema_extra={"example": ["sample.pdf"]})
+    session_id: Optional[str] = Field(default=None, json_schema_extra={"example": "123e4567-e89b-12d3-a456-426614174000"})
+    chat_history: Optional[List[MessageItem]] = Field(
         default_factory=list, 
         json_schema_extra={
             "example": [
@@ -22,8 +23,14 @@ class QueryRequest(BaseModel):
             ]
         }
     )
-    model_name: str | None = Field(default="groq/llama-3.3-70b-versatile", json_schema_extra={"example": "groq/llama-3.3-70b-versatile"})
-    custom_keys: dict[str, str] | None = Field(default_factory=dict, json_schema_extra={"example": {"groq": "gsk_...", "gemini": "AIzaSy..."}})
+    model_name: Optional[str] = Field(
+        default="gemini/gemini-3.7-flash", 
+        json_schema_extra={"example": "gemini/gemini-3.7-flash"}
+    )
+    custom_keys: Optional[Dict[str, str]] = Field(
+        default_factory=dict, 
+        json_schema_extra={"example": {"gemini": "AIzaSy...", "groq": "gsk_..."}}
+    )
 
 
 class SourceItem(BaseModel):
@@ -35,8 +42,9 @@ class SourceItem(BaseModel):
 class QueryResponse(BaseModel):
     query: str
     answer: str
-    sources_used: list[SourceItem]
-    session_id: str | None = None
+    thinking_process: Optional[str] = None
+    sources_used: List[SourceItem] = Field(default_factory=list)
+    session_id: Optional[str] = None
 
 
 # =============================================================================
@@ -44,14 +52,14 @@ class QueryResponse(BaseModel):
 # =============================================================================
 
 class FetchModelsRequest(BaseModel):
-    api_key: str = Field(..., json_schema_extra={"example": "gsk_..."})
-    provider: str | None = Field(default="auto", json_schema_extra={"example": "groq"})
+    api_key: str = Field(..., json_schema_extra={"example": "AIzaSy..."})
+    provider: Optional[str] = Field(default="auto", json_schema_extra={"example": "gemini"})
 
 
 class ModelItem(BaseModel):
-    id: str = Field(..., json_schema_extra={"example": "groq/llama-3.3-70b-versatile"})
-    name: str = Field(..., json_schema_extra={"example": "llama-3.3-70b-versatile"})
-    provider: str = Field(..., json_schema_extra={"example": "groq"})
+    id: str = Field(..., json_schema_extra={"example": "gemini/gemini-3.7-flash"})
+    name: str = Field(..., json_schema_extra={"example": "Gemini 3.7 Flash"})
+    provider: str = Field(..., json_schema_extra={"example": "gemini"})
 
 
 # =============================================================================
@@ -63,14 +71,15 @@ class ChatMessageResponse(BaseModel):
     session_id: str
     sender: str
     text: str
-    sources_used: list[SourceItem] | None = None
+    thinking_process: Optional[str] = None
+    sources_used: Optional[List[SourceItem]] = None
     timestamp: datetime
 
 
 class ChatSessionResponse(BaseModel):
     id: str
     title: str
-    doc_names: list[str] | None = None
+    doc_names: Optional[List[str]] = None
     created_at: datetime
     updated_at: datetime
 
@@ -79,7 +88,7 @@ class ChatSessionDetailResponse(BaseModel):
     id: str
     title: str
     created_at: datetime
-    messages: list[ChatMessageResponse]
+    messages: List[ChatMessageResponse]
 
 
 # =============================================================================
@@ -98,5 +107,5 @@ class DocumentListItem(BaseModel):
 
 
 class DocumentListResponse(BaseModel):
-    documents: list[DocumentListItem]
+    documents: List[DocumentListItem]
     total_documents: int

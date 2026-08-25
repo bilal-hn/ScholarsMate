@@ -21,6 +21,7 @@ export default function ChatInterface({
     {
       sender: 'bot',
       text: APP_CONFIG.welcomeMessage || "Hello! I'm ScholarsMate. Ask me questions about your uploaded research papers.",
+      thinking_process: null,
       sources: [],
     },
   ]);
@@ -58,13 +59,11 @@ export default function ChatInterface({
     const userMessage = input.trim();
     setInput('');
     
-    // Construct updated local history array
     const newMessages = [...messages, { sender: 'user', text: userMessage }];
     setMessages(newMessages);
     setLoading(true);
 
     try {
-      // Pass user query, selected docs, full message history, active session ID, topK, and currentModel
       const result = await sendQuery(
         userMessage, 
         selectedDocs, 
@@ -74,7 +73,6 @@ export default function ChatInterface({
         currentModel
       );
 
-      // Track activeSessionId created or returned by the backend
       if (result.session_id && result.session_id !== activeSessionId) {
         setActiveSessionId(result.session_id);
       }
@@ -84,6 +82,7 @@ export default function ChatInterface({
         {
           sender: 'bot',
           text: result.answer,
+          thinking_process: result.thinking_process || null,
           sources: result.sources_used || [],
         },
       ]);
@@ -93,6 +92,7 @@ export default function ChatInterface({
         {
           sender: 'bot',
           text: `⚠️ Generation failed: ${err.response?.data?.detail || err.message || 'Please check backend connection.'}`,
+          thinking_process: null,
           sources: [],
         },
       ]);

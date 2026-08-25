@@ -10,18 +10,22 @@ from backend.rag.retriever import retrieve_context, build_context_block
 from backend.rag.prompt_templates import construct_prompt, SOURCE_LOCKED_SYSTEM_PROMPT
 from backend.embeddings.vector_store import list_indexed_documents
 from backend.rag.router import classify_query_intent
+from backend.rag.runtime import (
+    extract_reasoning_and_content,
+    normalize_litellm_model_id,
+    provider_from_model,
+    build_fallback_chain,
+    CONV_MAX_TOKENS,
+    RAG_MAX_TOKENS,
+)
 
 
 def _resolve_api_key(provider: str, custom_keys: dict) -> str | None:
-    """
-    Finds the provider's custom key, falls back to any available custom key,
-    or checks server environment variables.
-    """
+    """Finds the provider's custom key, falls back to first available, or reads environment."""
     prov = provider.lower()
     if custom_keys:
         if custom_keys.get(prov):
             return custom_keys[prov]
-        # Fallback to first available custom key if specific provider key isn't mapped
         for k, v in custom_keys.items():
             if v and v.strip():
                 return v.strip()
@@ -44,63 +48,66 @@ def _execute_completion_with_fallback(
     messages: list, 
     custom_keys: dict,
     temperature: float = 0.0,
-    max_tokens: int | None = None
+    max_tokens: int = RAG_MAX_TOKENS,
 ):
     """
-    Attempts execution with primary model. If 404 (deprecated), 429 (quota),
-    or 503 (high demand) occurs, gracefully steps through active high-availability fallbacks.
+    Attempts execution with primary model and falls back through compatible, active IDs.
     """
-    provider = model_name.split("/")[0] if "/" in model_name else "gemini"
+    model_name = normalize_litellm_model_id(model_name)
+    primary_provider = provider_from_model(model_name)
 
-    # Define high-quota, current fallback chains based on primary provider
-    if provider in ("gemini", "google"):
-        fallback_chain = [
+    # Active provider fallback chains (no deprecated or decommissioned IDs)
+    provider_fallbacks = {
+        "gemini": [
             model_name,
-            "gemini/gemini-2.5-flash",
-            "gemini/gemini-2.5-flash-lite",
+            "gemini/gemini-3.7-flash",
+            "gemini/gemini-3.6-flash",
             "gemini/gemini-3.5-flash",
-            "gemini/gemini-3.1-flash-lite",
-        ]
-    elif provider == "groq":
-        fallback_chain = [
+            "gemini/gemini-3.5-flash-lite",
+        ],
+        "groq": [
             model_name,
-            "groq/llama-3.3-70b-versatile",
-            "groq/llama-3.1-8b-instant",
-        ]
-    elif provider == "openai":
-        fallback_chain = [
+            "groq/compound-mini",
+            "groq/qwen/qwen3.6-27b",
+            "groq/openai/gpt-oss-120b",
+        ],
+        "openai": [
             model_name,
             "openai/gpt-4o-mini",
             "openai/gpt-4o",
-        ]
-    else:
-        fallback_chain = [model_name]
+        ],
+    }
 
-    # Deduplicate while keeping order
-    models_to_try = list(dict.fromkeys(fallback_chain))
+    candidates = provider_fallbacks.get(primary_provider, [model_name])
+    fallback_chain = build_fallback_chain(
+        primary=model_name,
+        available_models=candidates,
+        custom_keys=custom_keys,
+    )
 
     last_error = None
-    for model in models_to_try:
-        current_provider = model.split("/")[0] if "/" in model else "gemini"
+    for model in fallback_chain:
+        normalized_target = normalize_litellm_model_id(model)
+        current_provider = provider_from_model(normalized_target)
         active_key = _resolve_api_key(current_provider, custom_keys)
 
         call_kwargs = {
-            "model": model,
+            "model": normalized_target,
             "messages": messages,
             "api_key": active_key,
-            "temperature": temperature
+            "max_tokens": max_tokens,
+            "drop_params": True,
         }
-        if max_tokens:
-            call_kwargs["max_tokens"] = max_tokens
+        if "o1" not in normalized_target and "o3" not in normalized_target:
+            call_kwargs["temperature"] = temperature
 
         try:
             return completion(**call_kwargs)
         except Exception as e:
             err_str = str(e)
-            print(f"[LLM Warning] Model '{model}' execution failed: {err_str}")
+            print(f"[LLM Warning] Model '{normalized_target}' execution failed: {err_str}")
             last_error = e
 
-            # Only retry if error is transient, rate-limited, high-demand, or deprecated model
             is_recoverable = any(
                 code in err_str for code in [
                     "404", "429", "503", 
@@ -109,10 +116,9 @@ def _execute_completion_with_fallback(
                 ]
             )
             if is_recoverable:
-                print(f"[LLM Fallback] Attempting next available model in chain...")
+                print(f"[LLM Fallback] Attempting next model in chain...")
                 continue
             
-            # Non-recoverable error (e.g. invalid API key format)
             raise e
 
     raise RuntimeError(f"All model fallbacks failed. Last encountered error: {str(last_error)}")
@@ -123,10 +129,10 @@ def execute_map_reduce_synthesis(
     chunks: list[dict], 
     model_name: str,
     custom_keys: dict | None = None
-) -> str:
+) -> tuple[str, str]:
     """Executes a 2-stage map-reduce pass over large contexts using LiteLLM."""
     if not chunks:
-        return "No relevant document chunks retrieved to perform literature review synthesis."
+        return "No relevant document chunks retrieved to perform literature review synthesis.", ""
 
     keys = custom_keys or {}
 
@@ -138,7 +144,7 @@ def execute_map_reduce_synthesis(
             docs_map.setdefault(doc_name, []).append(text_content)
 
     if not docs_map:
-        return "Failed to extract valid text content from retrieved paper chunks."
+        return "Failed to extract valid text content from retrieved paper chunks.", ""
 
     paper_summaries = []
     for doc_name, text_list in docs_map.items():
@@ -154,9 +160,11 @@ You are a research analyst. Provide a detailed, structured technical summary of 
                 model_name=model_name,
                 messages=[{"role": "user", "content": map_prompt}],
                 custom_keys=keys,
-                temperature=0.2
+                temperature=0.2,
+                max_tokens=2048,
             )
-            paper_summaries.append(f"### Paper Analysis: {doc_name}\n{res.choices[0].message.content}")
+            extracted = extract_reasoning_and_content(res)
+            paper_summaries.append(f"### Paper Analysis: {doc_name}\n{extracted.answer}")
         except Exception as e:
             print(f"[Map Stage Error] {doc_name}: {str(e)}")
             paper_summaries.append(f"### Paper Analysis: {doc_name}\nExtraction unavailable due to model error.")
@@ -185,9 +193,11 @@ Provide a publication-grade Literature Review featuring:
             model_name=model_name,
             messages=[{"role": "user", "content": reduce_prompt}],
             custom_keys=keys,
-            temperature=0.1
+            temperature=0.1,
+            max_tokens=RAG_MAX_TOKENS,
         )
-        return final_res.choices[0].message.content
+        extracted = extract_reasoning_and_content(final_res)
+        return extracted.answer, extracted.thinking
     except Exception as e:
         print(f"[Reduce Stage Error]: {str(e)}")
         raise RuntimeError(f"Literature Review Synthesis failed: {str(e)}")
@@ -205,11 +215,11 @@ def generate_answer(
     clean_query = query.strip()
     keys = custom_keys or {}
 
-    # 1. Resolve Target Model Dynamically
-    target_model = model_name
+    # 1. Resolve Target Model
+    target_model = normalize_litellm_model_id(model_name)
     if not target_model or "llama" in target_model:
-        if "gemini" in keys:
-            target_model = "gemini/gemini-2.5-flash"
+        if "gemini" in keys or "google" in keys:
+            target_model = "gemini/gemini-3.7-flash"
         elif "openai" in keys:
             target_model = "openai/gpt-4o-mini"
         elif "anthropic" in keys:
@@ -217,31 +227,21 @@ def generate_answer(
         elif "openrouter" in keys:
             target_model = "openrouter/auto"
         elif "groq" in keys:
-            target_model = "groq/llama-3.3-70b-versatile"
+            target_model = "groq/compound-mini"
         else:
-            target_model = "gemini/gemini-2.5-flash"
+            target_model = "gemini/gemini-3.7-flash"
 
-    # -------------------------------------------------------------------------
-    # 0. Single-Pass LLM Intent & Execution Router (Scoped to Active Workspace)
-    # -------------------------------------------------------------------------
+    # 2. Scope to Active Workspace
     active_workspace_docs = explicit_docs if (explicit_docs is not None and len(explicit_docs) > 0) else list_indexed_documents()
 
-    try:
-        plan = classify_query_intent(
-            query=clean_query, 
-            available_docs=active_workspace_docs, 
-            chat_history=chat_history,
-            model_name=target_model,
-            custom_keys=keys
-        )
-    except Exception as router_err:
-        print(f"[Router Notice] Defaulting intent routing: {router_err}")
-        # Safe fallback if router encounters an issue
-        lowered = clean_query.lower()
-        if lowered in ["hi", "hello", "hey", "help", "who are you", "what can you do"]:
-            plan = {"intent": "CONVERSATIONAL"}
-        else:
-            plan = {"intent": "NEW_QUERY", "retrieval_mode": "vector_search", "generation_mode": "single_pass"}
+    # 3. Classify Intent (Single Pass)
+    plan = classify_query_intent(
+        query=clean_query, 
+        available_docs=active_workspace_docs, 
+        chat_history=chat_history,
+        model_name=target_model,
+        custom_keys=keys
+    )
 
     intent = plan.get("intent", "NEW_QUERY")
     print(f"\n[LLM Router] Intent: {intent} | Retrieval Mode: {plan.get('retrieval_mode')} | Targets: {plan.get('target_docs')} | Model: {target_model}")
@@ -254,11 +254,13 @@ def generate_answer(
             messages=[{"role": "user", "content": conv_prompt}],
             custom_keys=keys,
             temperature=0.5,
-            max_tokens=150
+            max_tokens=CONV_MAX_TOKENS,
         )
+        extracted = extract_reasoning_and_content(res)
         return {
             "query": query,
-            "answer": res.choices[0].message.content,
+            "answer": extracted.answer,
+            "thinking_process": extracted.thinking or None,
             "sources_used": []
         }
 
@@ -271,6 +273,7 @@ def generate_answer(
         return {
             "query": query,
             "answer": answer_text,
+            "thinking_process": None,
             "sources_used": []
         }
 
@@ -279,11 +282,12 @@ def generate_answer(
         return {
             "query": query,
             "answer": "There are no documents uploaded in this workspace. Please upload research papers to begin.",
+            "thinking_process": None,
             "sources_used": []
         }
 
     # -------------------------------------------------------------------------
-    # 1. Retrieve Context (reuse the single-turn plan; rewrite only on FOLLOW_UP)
+    # 4. Retrieve Context
     # -------------------------------------------------------------------------
     retrieved_chunks, plan = retrieve_context(
         query=clean_query,
@@ -297,14 +301,14 @@ def generate_answer(
 
     # Branch C: Map-Reduce Synthesis
     if plan.get("generation_mode") == "map_reduce" and len(retrieved_chunks) >= 8:
-        answer_text = execute_map_reduce_synthesis(
+        answer_text, thinking_text = execute_map_reduce_synthesis(
             clean_query, 
             retrieved_chunks,
             model_name=target_model,
             custom_keys=keys
         )
     else:
-        # Branch D: Standard Synthesis using Dynamic Model
+        # Branch D: Standard Synthesis
         context_block = build_context_block(retrieved_chunks)
         full_prompt = construct_prompt(query=clean_query, context_block=context_block)
 
@@ -312,12 +316,15 @@ def generate_answer(
             model_name=target_model,
             messages=[{"role": "user", "content": full_prompt}],
             custom_keys=keys,
-            temperature=0.0
+            temperature=0.0,
+            max_tokens=RAG_MAX_TOKENS,
         )
-        answer_text = chat_completion.choices[0].message.content
+        extracted = extract_reasoning_and_content(chat_completion)
+        answer_text = extracted.answer
+        thinking_text = extracted.thinking
 
     # -------------------------------------------------------------------------
-    # 2. Source Deduplication
+    # 5. Source Deduplication
     # -------------------------------------------------------------------------
     raw_sources = [
         {
@@ -339,5 +346,6 @@ def generate_answer(
     return {
         "query": query,
         "answer": answer_text,
+        "thinking_process": thinking_text or None,
         "sources_used": unique_sources
     }

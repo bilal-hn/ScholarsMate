@@ -74,6 +74,7 @@ class ChatMessage(Base):
     session_id: Mapped[str] = mapped_column(String, ForeignKey("chat_sessions.id"), index=True)
     sender: Mapped[str] = mapped_column(String)  # "user" or "bot"
     text: Mapped[str] = mapped_column(Text)
+    thinking_process: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # Collapsible reasoning trace
     sources_used: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)
     timestamp: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 

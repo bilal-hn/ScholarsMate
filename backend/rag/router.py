@@ -6,7 +6,14 @@ from litellm import completion
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
-from backend.embeddings.vector_store import get_indexed_document_catalog, list_indexed_documents
+from backend.embeddings.vector_store import get_indexed_document_catalog
+from backend.rag.runtime import (
+    extract_reasoning_and_content,
+    heuristic_intent,
+    normalize_litellm_model_id,
+    parse_json_object,
+    provider_from_model,
+)
 
 
 def _resolve_router_api_key(provider: str, custom_keys: dict) -> str | None:
@@ -35,7 +42,7 @@ def _resolve_router_api_key(provider: str, custom_keys: dict) -> str | None:
 def evaluate_query_scope_fallback(query: str) -> int:
     """Fallback regex check to determine top_k depth if LLM router fails."""
     query_lower = query.lower().strip()
-    
+
     global_synthesis_patterns = [
         r"\b(all|every|entire|whole|complete|full)\b",
         r"\b(summary|summarize|overview|synthesis)\b.*(paper|book|document|workspace)",
@@ -43,20 +50,72 @@ def evaluate_query_scope_fallback(query: str) -> int:
         r"\blist all\b",
         r"\bextract all\b",
         r"\bacross\b.*(papers|documents|workspace)",
-        r"\b(code|algorithm|pseudocode|equation)s?\b"
+        r"\b(code|algorithm|pseudocode|equation)s?\b",
     ]
-    
+
     if any(re.search(pattern, query_lower) for pattern in global_synthesis_patterns):
         return 18
     return 6
 
 
+def _truncate_history(chat_history: list | None, per_message: int = 400) -> str:
+    if not chat_history:
+        return ""
+    lines = []
+    for msg in chat_history[-6:]:
+        sender = msg.get("sender") if isinstance(msg, dict) else getattr(msg, "sender", "user")
+        text = msg.get("text") if isinstance(msg, dict) else getattr(msg, "text", "")
+        role = "User" if sender == "user" else "Assistant"
+        clipped = (text or "")[:per_message]
+        if text and len(text) > per_message:
+            clipped += "…"
+        lines.append(f"{role}: {clipped}")
+    return "\n".join(lines)
+
+
+def sanitize_plan(plan: dict, query: str, available_docs: list[str]) -> dict:
+    """Normalize router JSON so intent, retrieval mode, and docs stay consistent."""
+    fallback_k = evaluate_query_scope_fallback(query)
+    intent = (plan.get("intent") or "NEW_QUERY").upper()
+    if intent not in {"CONVERSATIONAL", "FOLLOW_UP", "NEW_QUERY"}:
+        intent = "NEW_QUERY"
+
+    if intent == "CONVERSATIONAL":
+        plan["intent"] = intent
+        plan["scope"] = "none"
+        plan["target_docs"] = []
+        plan["retrieval_mode"] = "none"
+        plan["is_meta_query"] = False
+        plan["recommended_top_k"] = 0
+        return plan
+
+    plan["intent"] = intent
+    if not plan.get("target_docs"):
+        plan["target_docs"] = available_docs
+
+    retrieval_mode = plan.get("retrieval_mode") or "vector_search"
+    target_docs = plan.get("target_docs") or available_docs or []
+
+    # Multi-doc "read everything" blows small TPM windows; balanced search is the scalable default.
+    if retrieval_mode == "full_text" and len(target_docs) > 1:
+        retrieval_mode = "per_document_search"
+    plan["retrieval_mode"] = retrieval_mode
+
+    if "recommended_top_k" not in plan:
+        plan["recommended_top_k"] = 18 if plan.get("query_depth") == "broad_synthesis" else fallback_k
+
+    if retrieval_mode == "per_document_search":
+        plan["recommended_top_k"] = max(int(plan.get("recommended_top_k") or 6), max(6, 3 * max(len(target_docs), 1)))
+
+    return plan
+
+
 def classify_query_intent(
-    query: str, 
-    available_docs: list[str], 
+    query: str,
+    available_docs: list[str],
     chat_history: list[dict] | None = None,
     model_name: str = "gemini/gemini-2.5-flash",
-    custom_keys: dict | None = None
+    custom_keys: dict | None = None,
 ) -> dict:
     """
     Dynamically routes query execution plans using the user's active BYOK model & key.
@@ -64,36 +123,28 @@ def classify_query_intent(
     """
     clean_query = query.strip()
     fallback_k = evaluate_query_scope_fallback(clean_query)
-    
-    default_plan = {
-        "intent": "NEW_QUERY",
-        "scope": "full_corpus",
-        "target_docs": available_docs,
-        "retrieval_mode": "vector_search",
-        "generation_mode": "single_pass",
-        "is_meta_query": False,
-        "query_depth": "broad_synthesis" if fallback_k >= 18 else "focused",
-        "recommended_top_k": fallback_k
-    }
+    heuristic = heuristic_intent(clean_query)
 
-    # 1. Fast-Path for Conversational Greetings & Metadata Questions
-    lowered = clean_query.lower()
-    if lowered in ["hi", "hello", "hey", "help", "who are you", "what can you do", "thanks", "thank you"]:
-        return {
-            "intent": "CONVERSATIONAL",
-            "scope": "none",
-            "target_docs": [],
-            "retrieval_mode": "none",
+    default_plan = sanitize_plan(
+        {
+            "intent": heuristic,
+            "scope": "full_corpus" if heuristic != "CONVERSATIONAL" else "none",
+            "target_docs": available_docs if heuristic != "CONVERSATIONAL" else [],
+            "retrieval_mode": "vector_search" if heuristic != "CONVERSATIONAL" else "none",
             "generation_mode": "single_pass",
             "is_meta_query": False,
-            "query_depth": "focused",
-            "recommended_top_k": 0
-        }
+            "query_depth": "broad_synthesis" if fallback_k >= 18 else "focused",
+            "recommended_top_k": fallback_k if heuristic != "CONVERSATIONAL" else 0,
+        },
+        clean_query,
+        available_docs,
+    )
 
+    lowered = clean_query.lower()
     meta_patterns = [
-        r"\b(how many|list|what)\s+(papers|documents|files)\b",
+        r"\b(how many|list)\s+(papers|documents|files)\b",
         r"\bshow\s+(my\s+)?(papers|documents|files|workspace)\b",
-        r"\bwhat\s+(is\s+in\s+this|are\s+the)\s+(workspace|documents)\b"
+        r"\bwhat\s+(is\s+in\s+this|are\s+the)\s+(workspace|documents)\b",
     ]
     if any(re.search(p, lowered) for p in meta_patterns):
         return {
@@ -104,79 +155,80 @@ def classify_query_intent(
             "generation_mode": "no_llm",
             "is_meta_query": True,
             "query_depth": "focused",
-            "recommended_top_k": 0
+            "recommended_top_k": 0,
         }
 
-    # 2. Resolve Active Provider & Key
     keys = custom_keys or {}
-    provider = model_name.split("/")[0] if "/" in model_name else "gemini"
+    model_name = normalize_litellm_model_id(model_name)
+    provider = provider_from_model(model_name)
     active_key = _resolve_router_api_key(provider, keys)
 
-    # 3. Scope catalog strictly to active workspace documents
     full_catalog = get_indexed_document_catalog()
     catalog = [item for item in full_catalog if item["filename"] in available_docs] if available_docs else full_catalog
-
-    formatted_history = ""
-    if chat_history:
-        for msg in chat_history[-6:]:
-            sender = msg.get("sender") if isinstance(msg, dict) else getattr(msg, "sender", "user")
-            text = msg.get("text") if isinstance(msg, dict) else getattr(msg, "text", "")
-            role = "User" if sender == "user" else "Assistant"
-            formatted_history += f"{role}: {text}\n"
+    formatted_history = _truncate_history(chat_history)
 
     prompt = f"""
-You are an academic query execution planner for a multi-document RAG system named ScholarsMate.
-Analyze the user query, available document catalog, and recent chat history to output a structured JSON execution plan.
+You are an academic query execution planner for ScholarsMate, a multi-document RAG system.
+Return ONLY a JSON object. No prose, no markdown, no chain-of-thought.
 
-Indexed Documents in Active Workspace (Filenames & Paper Titles):
+Intent labels:
+- CONVERSATIONAL: greetings, thanks, or questions about you the assistant (who are you, what do you do). No PDF retrieval.
+- FOLLOW_UP: depends on prior turns (summarise it, why, go on, that method).
+- NEW_QUERY: a self-contained question about the papers/workspace.
+
+Retrieval:
+- vector_search: default focused question.
+- per_document_search: compare / overview / "what are these papers about" across multiple files.
+- full_text: only when a SINGLE named document must be read end-to-end.
+- metadata_only: listing files in the workspace, not their content.
+
+Indexed Documents:
 {json.dumps(catalog)}
 
 Recent Chat History:
-{formatted_history.strip() or "No previous conversation context."}
+{formatted_history or "No previous conversation context."}
 
 User Query: "{clean_query}"
 
-JSON Schema:
+JSON schema:
 {{
   "intent": "CONVERSATIONAL" | "FOLLOW_UP" | "NEW_QUERY",
   "scope": "single" | "named_subset" | "full_corpus",
-  "target_docs": ["filename1.pdf", ...],
+  "target_docs": ["filename1.pdf"],
   "retrieval_mode": "full_text" | "vector_search" | "per_document_search" | "metadata_only",
   "generation_mode": "single_pass" | "map_reduce" | "structured_comparison" | "no_llm",
-  "is_meta_query": boolean,
+  "is_meta_query": false,
   "query_depth": "broad_synthesis" | "focused",
-  "recommended_top_k": integer
+  "recommended_top_k": 6
 }}
-
-Return ONLY valid JSON matching this schema.
 """.strip()
 
-    try:
-        response = completion(
-            model=model_name,
-            messages=[{"role": "user", "content": prompt}],
-            api_key=active_key,
-            temperature=0.0,
-        )
-        raw_content = response.choices[0].message.content.strip()
-        
-        # Clean potential markdown wrapping
-        if raw_content.startswith("```"):
-            raw_content = re.sub(r"^```(?:json)?\n?", "", raw_content)
-            raw_content = re.sub(r"\n?```$", "", raw_content)
-            
-        plan = json.loads(raw_content.strip())
-        
-        if not plan.get("intent"):
-            plan["intent"] = "NEW_QUERY"
+    messages = [
+        {
+            "role": "system",
+            "content": "You output only valid JSON execution plans for an academic RAG router. Never include reasoning text.",
+        },
+        {"role": "user", "content": prompt},
+    ]
 
-        if not plan.get("target_docs"):
-            plan["target_docs"] = available_docs
-            
-        if "recommended_top_k" not in plan:
-            plan["recommended_top_k"] = 18 if plan.get("query_depth") == "broad_synthesis" else 6
-            
-        return plan
+    try:
+        call_kwargs = {
+            "model": model_name,
+            "messages": messages,
+            "api_key": active_key,
+            "temperature": 0.0,
+            "max_tokens": 400,
+            "drop_params": True,
+            "reasoning_effort": "none",
+        }
+        try:
+            response = completion(**call_kwargs, response_format={"type": "json_object"})
+        except Exception:
+            response = completion(**call_kwargs)
+
+        extracted = extract_reasoning_and_content(response)
+        plan = parse_json_object(extracted.answer or "")
+        return sanitize_plan(plan, clean_query, available_docs)
     except Exception as e:
         print(f"[Router Notice] Intent routing defaulted: {e}")
         return default_plan

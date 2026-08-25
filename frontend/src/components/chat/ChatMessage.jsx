@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
-import { GraduationCap, User, FileText, Code2 } from 'lucide-react';
+import { GraduationCap, User, FileText, Code2, Brain, ChevronDown, ChevronRight } from 'lucide-react';
 
 export default function ChatMessage({ message, onSelectCitation }) {
+  const [showThinking, setShowThinking] = useState(false);
   const isBot = message.sender === 'bot';
 
   // Converts Markdown table syntax into clean HTML tables
@@ -78,6 +79,34 @@ export default function ChatMessage({ message, onSelectCitation }) {
       <div className={`w-full max-w-3xl ${isBot ? 'pr-4' : ''}`}>
         {isBot ? (
           <div className="space-y-4">
+            {/* Collapsible Reasoning Accordion for Thinking Models */}
+            {message.thinking_process && (
+              <div className="border border-zinc-800/80 rounded-xl overflow-hidden bg-zinc-950/70 shadow-md">
+                <button
+                  type="button"
+                  onClick={() => setShowThinking((prev) => !prev)}
+                  className="w-full flex items-center justify-between px-3.5 py-2 text-xs font-medium text-zinc-400 hover:text-zinc-200 transition-colors bg-zinc-900/40"
+                >
+                  <div className="flex items-center gap-2">
+                    <Brain className="h-3.5 w-3.5 text-amber-400 animate-pulse" />
+                    <span className="font-sans">Thinking Process</span>
+                  </div>
+                  {showThinking ? (
+                    <ChevronDown className="h-3.5 w-3.5 text-zinc-400" />
+                  ) : (
+                    <ChevronRight className="h-3.5 w-3.5 text-zinc-500" />
+                  )}
+                </button>
+
+                {showThinking && (
+                  <div className="px-4 pb-3.5 pt-2 text-xs text-zinc-400 font-mono whitespace-pre-wrap border-t border-zinc-800/60 bg-zinc-950/90 max-h-60 overflow-y-auto leading-relaxed">
+                    {message.thinking_process}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Synthesized Response Body */}
             <div className="prose prose-invert max-w-none text-zinc-200 text-sm sm:text-[15px] leading-relaxed tracking-wide overflow-hidden">
               <ReactMarkdown
                 rehypePlugins={[rehypeRaw]}
@@ -180,10 +209,10 @@ export default function ChatMessage({ message, onSelectCitation }) {
         ) : (
           /* User Prompt Bubble */
           <div className="flex justify-end items-start gap-3">
-            <div className="bg-amber-400 text-zinc-950 font-medium px-5 py-3 rounded-2xl shadow-md text-sm max-w-xl">
+            <div className="bg-amber-400 text-zinc-950 font-medium px-5 py-3 rounded-2xl shadow-md text-sm max-w-xl whitespace-pre-wrap">
               {message.text}
             </div>
-            <div className="h-8 w-8 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center text-zinc-300 shrink-0">
+            <div className="h-8 w-8 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center text-zinc-300 shrink-0 mt-0.5">
               <User className="h-4 w-4" />
             </div>
           </div>

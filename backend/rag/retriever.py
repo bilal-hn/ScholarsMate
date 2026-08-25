@@ -11,6 +11,12 @@ from backend.embeddings.vector_store import (
     list_indexed_documents
 )
 from backend.rag.router import classify_query_intent
+from backend.rag.runtime import (
+    extract_reasoning_and_content,
+    normalize_litellm_model_id,
+    pack_chunks,
+    REWRITE_MAX_TOKENS,
+)
 
 
 def _resolve_retriever_key(provider: str, custom_keys: dict | None = None) -> str | None:
@@ -91,13 +97,21 @@ Standalone Search Query:
         active_key = _resolve_retriever_key(provider, custom_keys)
 
         res = completion(
-            model=model_name,
-            messages=[{"role": "user", "content": prompt}],
+            model=normalize_litellm_model_id(model_name),
+            messages=[
+                {
+                    "role": "system",
+                    "content": "Rewrite follow-up questions into standalone search queries. Return only the query string.",
+                },
+                {"role": "user", "content": prompt},
+            ],
             api_key=active_key,
             temperature=0.0,
-            max_tokens=80
+            max_tokens=REWRITE_MAX_TOKENS,
+            drop_params=True,
+            reasoning_effort="none",
         )
-        rewritten = res.choices[0].message.content.strip()
+        rewritten = extract_reasoning_and_content(res).answer
         rewritten = re.sub(r'^["\']|["\']$', '', rewritten).strip()
 
         if not rewritten or len(rewritten) < 3:
@@ -130,13 +144,22 @@ Return ONLY the queries, one per line. No numbering, no comments.
         active_key = _resolve_retriever_key(provider, custom_keys)
 
         res = completion(
-            model=model_name,
-            messages=[{"role": "user", "content": prompt}],
+            model=normalize_litellm_model_id(model_name),
+            messages=[
+                {
+                    "role": "system",
+                    "content": "Return only alternative search queries, one per line, with no commentary.",
+                },
+                {"role": "user", "content": prompt},
+            ],
             api_key=active_key,
             temperature=0.2,
-            max_tokens=60
+            max_tokens=REWRITE_MAX_TOKENS,
+            drop_params=True,
+            reasoning_effort="none",
         )
-        variations = [line.strip() for line in res.choices[0].message.content.split("\n") if line.strip()]
+        body = extract_reasoning_and_content(res).answer
+        variations = [line.strip(" -•\t") for line in body.split("\n") if line.strip()]
         return [original_query] + variations[:2]
     except Exception:
         return [original_query]
@@ -188,6 +211,9 @@ def retrieve_context(
         )
 
     retrieval_mode = plan.get("retrieval_mode", "vector_search")
+    target_docs = [d for d in (plan.get("target_docs") or target_docs) if d] or target_docs
+    if retrieval_mode == "full_text" and len(target_docs) > 1:
+        retrieval_mode = "per_document_search"
     effective_top_k = plan.get("recommended_top_k", top_k)
 
     print(
@@ -210,8 +236,7 @@ def retrieve_context(
             for c in doc_chunks:
                 all_chunks[c["chunk_id"]] = c
                 
-        chunks_list = list(all_chunks.values())
-        return chunks_list[:30], plan
+        return pack_chunks(list(all_chunks.values())), plan
 
     # Strategy B: Per-Document Balanced Search (Multi-Paper Comparison)
     if retrieval_mode == "per_document_search" and target_docs:
@@ -227,7 +252,7 @@ def retrieve_context(
                         "page_number": meta.get("page_number", 1),
                         "content": text
                     }
-        return list(all_chunks.values()), plan
+        return pack_chunks(list(all_chunks.values())), plan
 
     # Strategy C: Standard Vector Search with Query Expansion
     search_queries = expand_query(search_query, model_name=model_name, custom_keys=custom_keys)
@@ -244,7 +269,7 @@ def retrieve_context(
                         "content": text
                     }
 
-    return list(all_chunks.values())[:effective_top_k], plan
+    return pack_chunks(list(all_chunks.values())[: max(effective_top_k * 3, effective_top_k)]), plan
 
 
 def build_context_block(chunks: list[dict]) -> str:

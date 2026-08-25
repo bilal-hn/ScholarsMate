@@ -32,6 +32,7 @@ from backend.ingestion.pipeline import process_path
 from backend.embeddings.vector_store import store_chunks, get_or_create_collection
 from backend.rag.generator import generate_answer
 from backend.rag.literature_review import generate_literature_review
+from backend.rag.runtime import normalize_litellm_model_id
 
 # Import PDF streaming router
 from backend.api.documents import router as documents_router
@@ -107,23 +108,44 @@ def health_check():
 # BYOK LIVE MODEL DISCOVERY ENDPOINT
 # =============================================================================
 
-SUPPORTED_GEMINI_MODELS = [
-    {"id": "gemini/gemini-2.0-flash", "name": "Gemini 2.0 Flash", "provider": "gemini"},
-    {"id": "gemini/gemini-1.5-flash", "name": "Gemini 1.5 Flash", "provider": "gemini"},
-    {"id": "gemini/gemini-1.5-flash-8b", "name": "Gemini 1.5 Flash-8B", "provider": "gemini"},
-    {"id": "gemini/gemini-1.5-pro", "name": "Gemini 1.5 Pro", "provider": "gemini"},
+ACTIVE_PRODUCTION_GEMINI = [
+    {"id": "gemini/gemini-3.7-flash", "name": "Gemini 3.7 Flash", "provider": "gemini"},
+    {"id": "gemini/gemini-3.6-flash", "name": "Gemini 3.6 Flash", "provider": "gemini"},
+    {"id": "gemini/gemini-3.5-flash", "name": "Gemini 3.5 Flash", "provider": "gemini"},
+    {"id": "gemini/gemini-3.5-flash-lite", "name": "Gemini 3.5 Flash Lite", "provider": "gemini"},
 ]
+
 
 @app.post("/api/byok/fetch-models", response_model=List[ModelItem])
 async def fetch_available_models(req: FetchModelsRequest):
-    """Probes the provider API using the supplied key and returns verified generation models."""
+    """Probes provider API using key and returns normalized, production-ready generation models."""
     provider = req.provider if req.provider != "auto" else detect_provider(req.api_key)
     key = req.api_key.strip()
     models = []
 
     async with httpx.AsyncClient(timeout=10.0) as client:
         try:
-            if provider == "groq":
+            if provider == "gemini":
+                res = await client.get(
+                    "https://generativelanguage.googleapis.com/v1beta/models",
+                    headers={"x-goog-api-key": key, "Content-Type": "application/json"}
+                )
+                if res.status_code == 200:
+                    models = [
+                        ModelItem(
+                            id=normalize_litellm_model_id(m["id"], provider="gemini"),
+                            name=m["name"],
+                            provider="gemini"
+                        )
+                        for m in ACTIVE_PRODUCTION_GEMINI
+                    ]
+                else:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Gemini API authentication failed ({res.status_code}): {res.text}"
+                    )
+
+            elif provider == "groq":
                 res = await client.get(
                     "https://api.groq.com/openai/v1/models",
                     headers={"Authorization": f"Bearer {key}"}
@@ -131,43 +153,14 @@ async def fetch_available_models(req: FetchModelsRequest):
                 if res.status_code == 200:
                     data = res.json()
                     models = [
-                        ModelItem(id=f"groq/{m['id']}", name=m["id"], provider="groq")
+                        ModelItem(
+                            id=normalize_litellm_model_id(m["id"], provider="groq"),
+                            name=m["id"],
+                            provider="groq"
+                        )
                         for m in data.get("data", [])
-                        if not any(x in m["id"] for x in ["whisper", "tts", "guard", "vision"])
+                        if not any(x in m["id"].lower() for x in ["whisper", "guard", "vision", "tts", "embedding"])
                     ]
-
-            elif provider == "gemini":
-                # Validate key by querying Google's Gemini models endpoint
-                res = await client.get(
-                    "https://generativelanguage.googleapis.com/v1beta/models",
-                    headers={
-                        "x-goog-api-key": key,
-                        "Content-Type": "application/json"
-                    }
-                )
-                if res.status_code == 200:
-                    data = res.json()
-                    available_raw_names = [
-                        m.get("name", "").replace("models/", "") 
-                        for m in data.get("models", [])
-                    ]
-
-                    # Filter and match only active, reliable generation models
-                    matched_models = []
-                    for model_def in SUPPORTED_GEMINI_MODELS:
-                        base_name = model_def["id"].split("/")[1]
-                        if base_name in available_raw_names:
-                            matched_models.append(ModelItem(**model_def))
-
-                    # Fallback to predefined models if catalog naming differs
-                    models = matched_models if matched_models else [
-                        ModelItem(**m) for m in SUPPORTED_GEMINI_MODELS
-                    ]
-                else:
-                    raise HTTPException(
-                        status_code=400, 
-                        detail=f"Gemini API authentication failed ({res.status_code}): {res.text}"
-                    )
 
             elif provider == "openai":
                 res = await client.get(
@@ -176,12 +169,16 @@ async def fetch_available_models(req: FetchModelsRequest):
                 )
                 if res.status_code == 200:
                     data = res.json()
-                    valid_prefixes = ("gpt-4o", "gpt-4", "gpt-3.5-turbo", "o1", "o3")
+                    valid_prefixes = ("gpt-4o", "gpt-4", "o1", "o3", "chatgpt")
                     models = [
-                        ModelItem(id=f"openai/{m['id']}", name=m["id"], provider="openai")
-                        for m in data.get("data", []) 
+                        ModelItem(
+                            id=normalize_litellm_model_id(m["id"], provider="openai"),
+                            name=m["id"],
+                            provider="openai"
+                        )
+                        for m in data.get("data", [])
                         if m["id"].startswith(valid_prefixes)
-                        and not any(x in m["id"] for x in ["audio", "realtime", "tts", "transcription"])
+                        and not any(x in m["id"].lower() for x in ["audio", "realtime", "tts", "transcription", "embedding"])
                     ]
 
             elif provider == "openrouter":
@@ -192,21 +189,33 @@ async def fetch_available_models(req: FetchModelsRequest):
                 if res.status_code == 200:
                     data = res.json()
                     models = [
-                        ModelItem(id=f"openrouter/{m['id']}", name=m.get("name", m["id"]), provider="openrouter")
+                        ModelItem(
+                            id=normalize_litellm_model_id(m["id"], provider="openrouter"),
+                            name=m.get("name", m["id"]),
+                            provider="openrouter"
+                        )
                         for m in data.get("data", [])[:30]
                     ]
 
             elif provider == "anthropic":
+                claude_models = [
+                    {"id": "anthropic/claude-3-5-sonnet-20241022", "name": "Claude 3.5 Sonnet", "provider": "anthropic"},
+                    {"id": "anthropic/claude-3-5-haiku-20241022", "name": "Claude 3.5 Haiku", "provider": "anthropic"},
+                    {"id": "anthropic/claude-3-opus-20240229", "name": "Claude 3 Opus", "provider": "anthropic"},
+                ]
                 models = [
-                    ModelItem(id="anthropic/claude-3-5-sonnet-20241022", name="Claude 3.5 Sonnet", provider="anthropic"),
-                    ModelItem(id="anthropic/claude-3-5-haiku-20241022", name="Claude 3.5 Haiku", provider="anthropic"),
-                    ModelItem(id="anthropic/claude-3-opus-20240229", name="Claude 3 Opus", provider="anthropic"),
+                    ModelItem(
+                        id=normalize_litellm_model_id(m["id"], provider="anthropic"),
+                        name=m["name"],
+                        provider="anthropic"
+                    )
+                    for m in claude_models
                 ]
 
         except HTTPException:
             raise
         except Exception as e:
-            raise HTTPException(status_code=400, detail=f"Failed to query {provider} models: {str(e)}")
+            raise HTTPException(status_code=400, detail=f"Failed to fetch {provider} models: {str(e)}")
 
     if not models:
         raise HTTPException(status_code=400, detail="Invalid API key or no supported text models returned by provider.")
@@ -240,7 +249,7 @@ async def create_session(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Creates a new persistent chat session thread scoped to the current user."""
+    """Creates a new persistent chat session thread scoped to current user."""
     session = await crud.create_chat_session(
         db, 
         title=req.title, 
@@ -255,7 +264,7 @@ async def list_sessions(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Lists historical chat sessions belonging exclusively to the current user."""
+    """Lists historical chat sessions belonging exclusively to current user."""
     return await crud.get_all_sessions(db, user_id=current_user.id)
 
 
@@ -265,7 +274,7 @@ async def get_session_details(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Retrieves full chat message history for a specific session ID owned by the user."""
+    """Retrieves full chat message history for a specific session ID owned by user."""
     sessions = await crud.get_all_sessions(db, user_id=current_user.id)
     session_meta = next((s for s in sessions if s.id == session_id), None)
     
@@ -288,7 +297,7 @@ async def delete_session_endpoint(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Deletes a chat session belonging to the current user."""
+    """Deletes a chat session belonging to current user."""
     deleted = await crud.delete_session(db, session_id, user_id=current_user.id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Chat session not found or unauthorized.")
@@ -305,12 +314,12 @@ async def query_rag(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Accepts a query, routes execution plan, saves chat turn to user's DB session, and returns answer."""
+    """Accepts query, routes plan, persists chat turn to DB, and returns response with thinking trace."""
     try:
         # 1. Resolve active workspace document list
         target_documents = getattr(request, "doc_names", None) or getattr(request, "selected_docs", None) or []
 
-        # 2. Check session existence for this specific user
+        # 2. Check session existence for user
         session_id = request.session_id
         session_exists = False
         
@@ -318,7 +327,7 @@ async def query_rag(
             user_sessions = await crud.get_all_sessions(db, user_id=current_user.id)
             session_exists = any(s.id == session_id for s in user_sessions)
 
-        # Fallback: create a fresh session linked to the current user
+        # Fallback: create fresh session linked to user
         if not session_id or not session_exists:
             new_session = await crud.create_chat_session(
                 db, 
@@ -328,7 +337,7 @@ async def query_rag(
             )
             session_id = new_session.id
 
-        # 3. Fetch history from DB or fallback to payload chat_history
+        # 3. Fetch history from DB or fallback to payload
         db_messages = await crud.get_session_messages(db, session_id)
         if db_messages:
             history_list = [{"sender": m.sender, "text": m.text} for m in db_messages[-6:]]
@@ -338,7 +347,7 @@ async def query_rag(
                 for msg in (request.chat_history or [])
             ]
 
-        # 4. Generate answer via RAG Pipeline with dynamic model & BYOK custom keys
+        # 4. Generate answer via RAG Pipeline
         result = generate_answer(
             query=request.query, 
             top_k=getattr(request, "top_k", 10), 
@@ -348,19 +357,21 @@ async def query_rag(
             custom_keys=request.custom_keys or {},
         )
 
-        # 5. Save User prompt & Bot answer to Database
+        # 5. Save User prompt & Bot answer (including thinking trace) to Database
         await crud.add_message(db, session_id=session_id, sender="user", text=request.query)
         await crud.add_message(
             db, 
             session_id=session_id, 
             sender="bot", 
             text=result["answer"], 
+            thinking_process=result.get("thinking_process"),
             sources=result["sources_used"],
         )
 
         return QueryResponse(
             query=result["query"],
             answer=result["answer"],
+            thinking_process=result.get("thinking_process"),
             sources_used=result["sources_used"],
             session_id=session_id,
         )
@@ -376,7 +387,7 @@ async def query_rag(
 
 @app.post("/api/upload", response_model=UploadResponse)
 async def upload_pdf(file: UploadFile = File(...)):
-    """Uploads a single PDF file, processes it, and stores embeddings in ChromaDB."""
+    """Uploads single PDF file, processes it, and stores embeddings in ChromaDB."""
     if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF documents are supported.")
 
@@ -410,8 +421,7 @@ async def create_workspace(
 ):
     """
     Uploads a batch of PDF papers, applies SHA-256 deduplication,
-    enforces a maximum of 3 identical duplicate workspaces per user, indexes new chunks,
-    and returns the registered session metadata.
+    enforces duplicate workspace limit per user, and returns session metadata.
     """
     total_chunks = 0
     processed_files = []
@@ -441,9 +451,7 @@ async def create_workspace(
             detail="No valid readable PDF files were processed.",
         )
 
-    # -------------------------------------------------------------------------
-    # Enforce Maximum 3 Duplicate Workspaces Per User
-    # -------------------------------------------------------------------------
+    # Enforce maximum 3 duplicate workspaces per user
     target_docs_sorted = sorted(list(set(processed_files)))
     user_sessions = await crud.get_all_sessions(db, user_id=current_user.id)
     
@@ -454,8 +462,6 @@ async def create_workspace(
             if sorted(session_docs) == target_docs_sorted:
                 matching_workspaces_count += 1
 
-    print(f"\n[Workspace Limit Check] User '{current_user.id}' has {matching_workspaces_count} sessions with documents: {target_docs_sorted}")
-
     if matching_workspaces_count >= 3:
         raise HTTPException(
             status_code=400,
@@ -465,7 +471,7 @@ async def create_workspace(
             )
         )
 
-    # Register initial session scoped to the current user
+    # Register session scoped to user
     default_title = f"{Path(processed_files[0]).stem} Workspace" if len(processed_files) == 1 else f"{len(processed_files)} Papers Workspace"
     new_session = await crud.create_chat_session(
         db, 
@@ -486,7 +492,7 @@ async def create_workspace(
 
 @app.post("/api/workspace/literature-review")
 def create_literature_review(request: ReviewRequest):
-    """Generates a structured academic literature review across workspace documents."""
+    """Generates structured academic literature review across workspace documents."""
     try:
         result = generate_literature_review(doc_names=request.doc_names)
         if "error" in result:
