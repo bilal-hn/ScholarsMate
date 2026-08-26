@@ -76,6 +76,8 @@ def generate_and_cache_summary_sync(doc_name: str, model_name: str = "gemini/gem
 
     context_block = build_context_block(sampled_chunks)
 
+    # backend/ingestion/summary_worker.py
+
     prompt = f"""
 {SOURCE_LOCKED_SYSTEM_PROMPT}
 
@@ -88,17 +90,24 @@ STRUCTURE YOUR SUMMARY USING THIS EXACT 7-POINT SCHEMA:
 1. Executive Abstract & Core Motivation
 2. Research Problem & Theoretical Foundations
 3. Methodology & System Architecture
-4. Datasets, Benchmarks & Quantitative Findings (Include key numeric figures/metrics if present)
+4. Datasets, Benchmarks & Quantitative Findings
 5. Practical Applications & Implications
 6. Critical Limitations & Identified Vulnerabilities
 7. Main Conclusion & Future Directions
 
-STRICT CITATION & FORMATTING RULES:
+STRICT FORMATTING AND MATHEMATICAL RULES:
 - Ground every claim with exact inline page brackets: `[{doc_name}, p.X]`.
-- Use bold text for key algorithms, dataset names, and numeric benchmarks.
-- Output clean Markdown with well-formed paragraphs.
-""".strip()
+- For standalone mathematical equations, place them on their own line enclosed in `$$`:
+  $$D = f_N \\circ \\dots \\circ f_2 \\circ f_1(Q)$$
+- For inline variables, use single dollar signs: `$Q$`, `$\\Psi(\\cdot)$`, `$\\tau$`.
+- DO NOT wrap equations in backtick code blocks (```).
+- When creating Markdown tables for benchmarks or variables, always put a blank newline before the table, and place EVERY row on a new line:
 
+| Symbol | Type | Description |
+| :--- | :--- | :--- |
+| $\\Psi(\\cdot)$ | Function | Reasoning function generating intermediate results [{doc_name}, p.36] |
+| $\\Gamma(\\cdot)$ | Function | Decision function producing final output [{doc_name}, p.36] |
+""".strip()
     try:
         norm_model = normalize_litellm_model_id(model_name)
         active_key = _resolve_worker_api_key(norm_model)

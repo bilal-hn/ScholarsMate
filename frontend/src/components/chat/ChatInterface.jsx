@@ -8,8 +8,8 @@ import { sendQuery, generateLiteratureReviewAPI } from '../../services/api';
 import { APP_CONFIG } from '../../theme/constants';
 
 export default function ChatInterface({ 
-  documents, 
-  selectedDocs, 
+  documents = [], 
+  selectedDocs = [], 
   setSelectedDocs, 
   onSelectCitation,
   incomingMessage,
@@ -17,6 +17,7 @@ export default function ChatInterface({
   availableModels = [],
   currentModel,
   onModelChange,
+  onOpenSettings,
   customKeys
 }) {
   const [messages, setMessages] = useState([
@@ -32,6 +33,11 @@ export default function ChatInterface({
   const [loading, setLoading] = useState(false);
   const [isLitReviewOpen, setIsLitReviewOpen] = useState(false);
   const messagesEndRef = useRef(null);
+
+  // Extract raw string document names for @ mention autocomplete
+  const availableDocNames = (documents || [])
+    .map((d) => (typeof d === 'string' ? d : d?.doc_name || d?.name || d?.filename || ''))
+    .filter(Boolean);
 
   // Sync activeSessionId with prop when workspace changes
   useEffect(() => {
@@ -153,7 +159,7 @@ export default function ChatInterface({
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Floating Chat Input with Integrated Model Switcher */}
+      {/* Floating Chat Input with Integrated Model Switcher & Document Autocomplete */}
       <ChatInput
         input={input}
         setInput={setInput}
@@ -162,6 +168,8 @@ export default function ChatInterface({
         availableModels={availableModels}
         currentModel={currentModel}
         onModelChange={onModelChange}
+        onOpenSettings={onOpenSettings}
+        availableDocuments={availableDocNames}
       />
 
       {/* Literature Review Studio Modal */}

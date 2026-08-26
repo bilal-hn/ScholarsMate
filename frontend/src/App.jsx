@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import 'katex/dist/katex.min.css';
 import Header from './components/layout/Header';
 import DocumentSidebar from './components/document/DocumentSidebar';
 import ChatInterface from './components/chat/ChatInterface';

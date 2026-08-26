@@ -1,41 +1,62 @@
 # backend/db/document_service.py
 
+import os
 import sqlite3
 import uuid
 from datetime import datetime
 from typing import Optional
 
-DB_PATH = "scholarsmate.db"
+# Anchor DB path to project root
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
+DB_PATH = os.path.join(BASE_DIR, "scholarsmate.db")
+
+
+def _get_connection():
+    """Returns a SQLite connection and guarantees the table and columns exist."""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    
+    # 1. Create table if it doesn't exist
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS user_documents (
+            id TEXT PRIMARY KEY,
+            user_id TEXT,
+            doc_name TEXT UNIQUE,
+            file_hash TEXT,
+            summary_cache TEXT,
+            summary_generated_at DATETIME,
+            created_at DATETIME
+        )
+    """)
+    
+    # 2. Check and add summary_cache column if table existed previously without it
+    cursor.execute("PRAGMA table_info(user_documents)")
+    columns = [row[1] for row in cursor.fetchall()]
+    
+    if "summary_cache" not in columns:
+        cursor.execute("ALTER TABLE user_documents ADD COLUMN summary_cache TEXT;")
+    if "summary_generated_at" not in columns:
+        cursor.execute("ALTER TABLE user_documents ADD COLUMN summary_generated_at DATETIME;")
+        
+    conn.commit()
+    return conn
 
 
 def update_schema_for_summary_cache(db_path: str = DB_PATH):
-    """Safely adds summary cache columns to user_documents if they don't exist."""
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
+    """Explicit migration hook called during server startup."""
     try:
-        cursor.execute("PRAGMA table_info(user_documents)")
-        columns = [row[1] for row in cursor.fetchall()]
-        
-        if "summary_cache" not in columns:
-            cursor.execute("ALTER TABLE user_documents ADD COLUMN summary_cache TEXT;")
-            print("[DB Migration] Added 'summary_cache' column to user_documents.")
-            
-        if "summary_generated_at" not in columns:
-            cursor.execute("ALTER TABLE user_documents ADD COLUMN summary_generated_at DATETIME;")
-            print("[DB Migration] Added 'summary_generated_at' column to user_documents.")
-            
-        conn.commit()
-    except Exception as e:
-        print(f"[DB Migration Error] {e}")
-    finally:
+        conn = _get_connection()
         conn.close()
+        print(f"[DB Service] Initialized and verified 'user_documents' table at {DB_PATH}")
+    except Exception as e:
+        print(f"[DB Service Migration Error] {e}")
 
 
 def get_cached_document_summary(doc_name: str) -> Optional[str]:
-    """Fetches pre-computed summary from SQLite cache if available."""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    """Fetches pre-computed summary from SQLite cache."""
     try:
+        conn = _get_connection()
+        cursor = conn.cursor()
         cursor.execute(
             """
             SELECT summary_cache 
@@ -47,25 +68,20 @@ def get_cached_document_summary(doc_name: str) -> Optional[str]:
             (doc_name,)
         )
         row = cursor.fetchone()
+        conn.close()
         return row[0] if row and row[0] else None
     except Exception as e:
         print(f"[Document Service Error] Failed to read summary cache for '{doc_name}': {e}")
         return None
-    finally:
-        conn.close()
 
 
 def save_cached_document_summary(doc_name: str, summary_content: str):
-    """
-    Persists pre-computed summary to the database record.
-    Performs an update or fallback insert if the document row doesn't exist yet.
-    """
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    """Persists pre-computed summary into user_documents table safely."""
     try:
+        conn = _get_connection()
+        cursor = conn.cursor()
         now = datetime.utcnow().isoformat()
         
-        # Check if record exists
         cursor.execute("SELECT id FROM user_documents WHERE doc_name = ?", (doc_name,))
         row = cursor.fetchone()
         
@@ -79,7 +95,6 @@ def save_cached_document_summary(doc_name: str, summary_content: str):
                 (summary_content, now, doc_name)
             )
         else:
-            # Fallback insert so summary isn't discarded if worker finishes first
             cursor.execute(
                 """
                 INSERT INTO user_documents (id, user_id, doc_name, file_hash, summary_cache, summary_generated_at, created_at)
@@ -89,7 +104,7 @@ def save_cached_document_summary(doc_name: str, summary_content: str):
             )
         
         conn.commit()
+        conn.close()
+        print(f"[Document Service] Cached summary saved for '{doc_name}'.")
     except Exception as e:
         print(f"[Document Service Error] Failed to save summary cache for '{doc_name}': {e}")
-    finally:
-        conn.close()

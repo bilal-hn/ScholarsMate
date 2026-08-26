@@ -1,6 +1,7 @@
 import sys
 import os
 import shutil
+import hashlib
 import httpx
 from pathlib import Path
 from typing import List, Optional, Dict, Any
@@ -13,9 +14,10 @@ from pydantic import BaseModel
 # Ensure project root is added to sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
-from backend.db.session import init_db, get_db
+from backend.db.session import init_db, get_db, engine, Base
 from backend.db import crud
-from backend.db.models import User
+from backend.db.models import User, UserDocument
+from backend.db.document_service import update_schema_for_summary_cache
 from backend.api.auth import get_current_user, AuthResponse
 from backend.api.schemas import (
     QueryRequest,
@@ -29,6 +31,7 @@ from backend.api.schemas import (
     ModelItem,
 )
 from backend.ingestion.pipeline import process_path
+from backend.ingestion.summary_worker import trigger_async_summary_generation
 from backend.embeddings.vector_store import store_chunks, get_or_create_collection
 from backend.rag.generator import generate_answer
 from backend.rag.literature_review import generate_literature_review
@@ -41,10 +44,20 @@ UPLOADS_DIR = Path(__file__).parent.parent.parent / "data" / "uploads"
 UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 
 
+def calculate_sha256(file_path: Path) -> str:
+    """Calculates SHA-256 hash for document deduplication and tracking."""
+    sha256_hash = hashlib.sha256()
+    with open(file_path, "rb") as f:
+        for byte_block in iter(lambda: f.read(65536), b""):
+            sha256_hash.update(byte_block)
+    return sha256_hash.hexdigest()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Lifespan context manager to handle DB initialization on startup."""
+    """Lifespan context manager to handle DB initialization & schema migrations on startup."""
     await init_db()
+    update_schema_for_summary_cache()
     yield
 
 
@@ -257,7 +270,7 @@ async def create_session(
     session = await crud.create_chat_session(
         db, 
         title=req.title, 
-        doc_names=req.doc_names,
+        doc_names=req.doc_names, 
         user_id=current_user.id
     )
     return session
@@ -351,7 +364,7 @@ async def query_rag(
                 for msg in (request.chat_history or [])
             ]
 
-        # 4. Generate answer via RAG Pipeline
+        # 4. Generate answer via RAG Pipeline (with FR-11 instant summary cache hit)
         result = generate_answer(
             query=request.query, 
             top_k=getattr(request, "top_k", 10), 
@@ -390,8 +403,12 @@ async def query_rag(
 # =============================================================================
 
 @app.post("/api/upload", response_model=UploadResponse)
-async def upload_pdf(file: UploadFile = File(...)):
-    """Uploads single PDF file, processes it, and stores embeddings in ChromaDB."""
+async def upload_pdf(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Uploads single PDF file, processes it, registers ownership, and triggers summary caching."""
     if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF documents are supported.")
 
@@ -407,6 +424,19 @@ async def upload_pdf(file: UploadFile = File(...)):
         chunks = process_path(str(file_path))
         if chunks:
             store_chunks(chunks)
+
+        # Register document in database
+        file_hash = calculate_sha256(file_path)
+        doc_entry = UserDocument(
+            user_id=current_user.id,
+            doc_name=file.filename,
+            file_hash=file_hash,
+        )
+        db.add(doc_entry)
+        await db.commit()
+
+        # Trigger background summary worker for instant caching
+        await trigger_async_summary_generation(doc_name=file.filename)
 
         return UploadResponse(
             message="Document successfully processed and indexed.",
@@ -424,8 +454,8 @@ async def create_workspace(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Uploads a batch of PDF papers, applies SHA-256 deduplication,
-    enforces duplicate workspace limit per user, and returns session metadata.
+    Uploads a batch of PDF papers, applies deduplication, registers documents in DB,
+    and triggers parallel background summary caching.
     """
     total_chunks = 0
     processed_files = []
@@ -445,6 +475,18 @@ async def create_workspace(
                 store_chunks(chunks)
                 total_chunks += len(chunks)
 
+            # Register document in DB
+            file_hash = calculate_sha256(file_path)
+            doc_entry = UserDocument(
+                user_id=current_user.id,
+                doc_name=filename,
+                file_hash=file_hash,
+            )
+            db.add(doc_entry)
+
+            # Dispatch non-blocking background summary worker for this paper
+            await trigger_async_summary_generation(doc_name=filename)
+
             processed_files.append(filename)
         except Exception as e:
             print(f"Failed to process file {filename}: {str(e)}")
@@ -454,6 +496,8 @@ async def create_workspace(
             status_code=400, 
             detail="No valid readable PDF files were processed.",
         )
+
+    await db.commit()
 
     # Enforce maximum 3 duplicate workspaces per user
     target_docs_sorted = sorted(list(set(processed_files)))

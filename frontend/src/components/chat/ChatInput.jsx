@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { ArrowUp, ChevronDown, ChevronRight, Plus, Key, Check, Sparkles } from 'lucide-react';
+import { ArrowUp, ChevronDown, ChevronRight, Plus, Key, Check, Sparkles, FileText } from 'lucide-react';
 
 export default function ChatInput({
   input,
@@ -9,15 +9,99 @@ export default function ChatInput({
   availableModels = [],
   currentModel,
   onModelChange,
-  onOpenSettings
+  onOpenSettings,
+  availableDocuments = [] // List of document filenames in the active workspace
 }) {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [expandedProvider, setExpandedProvider] = useState(null);
   const dropdownRef = useRef(null);
+  const textareaRef = useRef(null);
+
+  // @ Mention State
+  const [showMentionMenu, setShowMentionMenu] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState('');
+  const [mentionIndex, setMentionIndex] = useState(0);
+  const mentionMenuRef = useRef(null);
+
+  // Filter documents matching whatever is typed after '@'
+  const matchingDocuments = useMemo(() => {
+    if (!showMentionMenu) return [];
+    const query = mentionQuery.toLowerCase().trim();
+    if (!query) return availableDocuments;
+    return availableDocuments.filter((doc) => doc.toLowerCase().includes(query));
+  }, [showMentionMenu, mentionQuery, availableDocuments]);
+
+  // Track '@' trigger in textarea
+  const handleInputChange = (e) => {
+    const value = e.target.value;
+    const cursorPos = e.target.selectionStart;
+    setInput(value);
+
+    // Look at the text before the current cursor
+    const textBeforeCursor = value.slice(0, cursorPos);
+    const lastWordMatch = textBeforeCursor.match(/@([^\s]*)$/);
+
+    if (lastWordMatch && availableDocuments.length > 0) {
+      setShowMentionMenu(true);
+      setMentionQuery(lastWordMatch[1]);
+      setMentionIndex(0);
+    } else {
+      setShowMentionMenu(false);
+    }
+  };
+
+  // Insert the selected document tag into the textarea
+  const selectDocumentTag = (docName) => {
+    if (!textareaRef.current) return;
+    const cursorPos = textareaRef.current.selectionStart;
+    const textBeforeCursor = input.slice(0, cursorPos);
+    const textAfterCursor = input.slice(cursorPos);
+
+    // Replace the trailing '@query' with '@docName '
+    const updatedBefore = textBeforeCursor.replace(/@([^\s]*)$/, `@${docName} `);
+    const fullNewText = updatedBefore + textAfterCursor;
+
+    setInput(fullNewText);
+    setShowMentionMenu(false);
+
+    // Refocus textarea and place cursor right after inserted tag
+    setTimeout(() => {
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+        textareaRef.current.setSelectionRange(updatedBefore.length, updatedBefore.length);
+      }
+    }, 0);
+  };
 
   const handleKeyDown = (e) => {
+    // Navigate @ document mention popup
+    if (showMentionMenu && matchingDocuments.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setMentionIndex((prev) => (prev + 1) % matchingDocuments.length);
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setMentionIndex((prev) => (prev - 1 + matchingDocuments.length) % matchingDocuments.length);
+        return;
+      }
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault();
+        selectDocumentTag(matchingDocuments[mentionIndex]);
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setShowMentionMenu(false);
+        return;
+      }
+    }
+
+    // Normal message submit on Enter
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
+      setShowMentionMenu(false);
       onSubmit(e);
     }
   };
@@ -44,7 +128,6 @@ export default function ChatInput({
     const lower = (rawId + ' ' + rawName).toLowerCase();
     let subtitle = 'General intelligence';
 
-    // Evaluated from most specific to general to ensure distinct badges
     if (lower.includes('deep-research') || lower.includes('deep research') || lower.includes('research')) {
       subtitle = 'Autonomous research agent';
     } else if (lower.includes('custom tools') || lower.includes('agent') || lower.includes('antigravity')) {
@@ -113,11 +196,14 @@ export default function ChatInput({
     }
   }, [isDropdownOpen, currentModel, filteredModels]);
 
-  // 5. Close dropdown when clicking outside
+  // 5. Close popups when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setIsDropdownOpen(false);
+      }
+      if (mentionMenuRef.current && !mentionMenuRef.current.contains(event.target)) {
+        setShowMentionMenu(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -128,16 +214,51 @@ export default function ChatInput({
   const currentFormatted = formatModelInfo(selectedModelObj);
 
   return (
-    <div className="p-4 bg-zinc-950/80 backdrop-blur-md shrink-0">
+    <div className="p-4 bg-zinc-950/80 backdrop-blur-md shrink-0 relative">
       <form
         onSubmit={onSubmit}
         className="max-w-4xl mx-auto bg-zinc-900/90 hover:bg-zinc-900 border border-zinc-800/70 hover:border-zinc-700/70 focus-within:border-zinc-700 rounded-3xl p-3.5 flex flex-col gap-2 transition-all shadow-xl relative"
       >
+        {/* @ Mention Document Autocomplete Menu */}
+        {showMentionMenu && matchingDocuments.length > 0 && (
+          <div
+            ref={mentionMenuRef}
+            className="absolute bottom-full left-4 mb-3 w-80 max-h-56 overflow-y-auto bg-zinc-950/95 border border-zinc-800/90 rounded-2xl p-1.5 shadow-2xl backdrop-blur-xl z-50 animate-in fade-in zoom-in-95 duration-100"
+          >
+            <div className="text-[10px] font-semibold text-zinc-500 uppercase px-2.5 py-1 tracking-wider border-b border-zinc-900 mb-1 flex items-center justify-between">
+              <span>Target Research Paper</span>
+              <span className="text-[9px] text-zinc-600 font-normal">Tab or ↵ to select</span>
+            </div>
+            <div className="space-y-0.5">
+              {matchingDocuments.map((doc, idx) => {
+                const isFocused = idx === mentionIndex;
+                return (
+                  <button
+                    key={doc}
+                    type="button"
+                    onClick={() => selectDocumentTag(doc)}
+                    onMouseEnter={() => setMentionIndex(idx)}
+                    className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-left text-xs transition-colors cursor-pointer ${
+                      isFocused
+                        ? 'bg-zinc-800 text-amber-300 font-medium'
+                        : 'text-zinc-300 hover:bg-zinc-900/80'
+                    }`}
+                  >
+                    <FileText className={`h-3.5 w-3.5 shrink-0 ${isFocused ? 'text-amber-400' : 'text-zinc-500'}`} />
+                    <span className="truncate">{doc}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         <textarea
+          ref={textareaRef}
           rows={2}
-          placeholder="Ask anything about your research papers..."
+          placeholder="Ask anything about your research papers or type @ to tag a file..."
           value={input}
-          onChange={(e) => setInput(e.target.value)}
+          onChange={handleInputChange}
           onKeyDown={handleKeyDown}
           className="w-full bg-transparent text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none resize-none px-2 pt-1 font-sans"
         />
