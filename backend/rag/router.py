@@ -2,6 +2,8 @@ import sys
 import os
 import json
 import re
+import difflib
+from typing import List
 from litellm import completion
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
@@ -38,6 +40,47 @@ def _resolve_router_api_key(provider: str, custom_keys: dict) -> str | None:
     }
     env_var = env_map.get(prov, f"{prov.upper()}_API_KEY")
     return os.getenv(env_var)
+
+
+def resolve_target_documents(query: str, available_docs: List[str], cutoff: float = 0.6) -> List[str]:
+    """
+    Deterministic & Fuzzy Entity Resolution:
+    Matches target filenames against typos, trailing backticks, quotes, punctuation,
+    and partial sub-tokens (e.g., '00945', 's12599', '2504.15909').
+    """
+    if not available_docs:
+        return []
+
+    # Strip markdown backticks, quotes, and symbols
+    clean_query = re.sub(r"[`'\"\\/,;:()<>{}[\]]", " ", query.lower()).strip()
+    words = clean_query.split()
+
+    matched = set()
+
+    for doc in available_docs:
+        doc_lower = doc.lower()
+        doc_base = doc_lower.replace(".pdf", "")
+
+        # 1. Exact or substring match in cleaned query
+        if doc_lower in clean_query or doc_base in clean_query:
+            matched.add(doc)
+            continue
+
+        # 2. Match significant numeric/text identifiers (e.g., '00945', '2504.15909')
+        doc_subtokens = [t for t in re.split(r"[-_.\s]", doc_base) if len(t) >= 4]
+        if any(subtok in clean_query for subtok in doc_subtokens):
+            matched.add(doc)
+            continue
+
+        # 3. Fuzzy matching on words against document stems to handle typos
+        for word in words:
+            if len(word) >= 5:
+                fuzzy_hits = difflib.get_close_matches(word, [doc_lower, doc_base] + doc_subtokens, n=1, cutoff=cutoff)
+                if fuzzy_hits:
+                    matched.add(doc)
+                    break
+
+    return list(matched)
 
 
 def evaluate_query_scope_fallback(query: str) -> int:
@@ -91,13 +134,18 @@ def sanitize_plan(plan: dict, query: str, available_docs: list[str]) -> dict:
         return plan
 
     plan["intent"] = intent
-    if not plan.get("target_docs"):
+    
+    # If LLM failed to identify targets or hallucinated filenames, resolve deterministically
+    resolved = resolve_target_documents(query, available_docs)
+    if resolved:
+        plan["target_docs"] = resolved
+    elif not plan.get("target_docs"):
         plan["target_docs"] = available_docs
 
     retrieval_mode = plan.get("retrieval_mode") or "vector_search"
     target_docs = plan.get("target_docs") or available_docs or []
 
-    # FR-11: Single-doc summary requests check for cached ingestion summary
+    # Single-document summary cache check
     if len(target_docs) == 1:
         target_doc = target_docs[0]
         summary_keywords = [r"\b(summarise|summarize|summary|overview|breakdown|brief)\b"]
@@ -106,14 +154,13 @@ def sanitize_plan(plan: dict, query: str, available_docs: list[str]) -> dict:
         if is_summary_query or retrieval_mode == "full_text":
             cached_summary = get_cached_document_summary(target_doc)
             if cached_summary:
-                print(f"[Router Interceptor] Found pre-computed summary for '{target_doc}'. Routing to instant cache.")
+                print(f"[Router Interceptor] Instant cache hit for '{target_doc}'.")
                 plan["retrieval_mode"] = "cached_summary"
                 plan["generation_mode"] = "no_llm"
                 plan["cached_content"] = cached_summary
                 plan["recommended_top_k"] = 0
                 return plan
 
-    # Multi-doc "read everything" blows small TPM windows; balanced search is the scalable default.
     if retrieval_mode == "full_text" and len(target_docs) > 1:
         retrieval_mode = "per_document_search"
     plan["retrieval_mode"] = retrieval_mode
@@ -131,20 +178,19 @@ def classify_query_intent(
     query: str,
     available_docs: list[str],
     chat_history: list[dict] | None = None,
-    model_name: str = "gemini/gemini-2.5-flash",
+    model_name: str = "gemini/gemini-3.6-flash",
     custom_keys: dict | None = None,
 ) -> dict:
     """
-    Dynamically routes query execution plans using the user's active BYOK model & key.
-    Strictly scopes document catalog to available_docs (the active workspace).
-    Supports FR-11 instant cached summary returns.
+    Dynamically routes query execution plans using fuzzy entity resolution,
+    cached summaries, and BYOK settings.
     """
     clean_query = query.strip()
     fallback_k = evaluate_query_scope_fallback(clean_query)
     heuristic = heuristic_intent(clean_query)
-
-    # Fast-path metadata queries
     lowered = clean_query.lower()
+
+    # Fast-Path 1: Metadata queries
     meta_patterns = [
         r"\b(how many|list)\s+(papers|documents|files)\b",
         r"\bshow\s+(my\s+)?(papers|documents|files|workspace)\b",
@@ -162,30 +208,33 @@ def classify_query_intent(
             "recommended_top_k": 0,
         }
 
-    # FR-11 Fast-Path Heuristic Check: Check single-doc cached summary without LLM router overhead
-    if len(available_docs) == 1:
-        single_doc = available_docs[0]
-        if any(re.search(r"\b(summarise|summarize|summary|overview)\b", lowered) for _ in [1]):
-            cached_summary = get_cached_document_summary(single_doc)
-            if cached_summary:
-                print(f"[Router Fast-Path] Instant hit on pre-computed summary cache for '{single_doc}'.")
-                return {
-                    "intent": "NEW_QUERY",
-                    "scope": "single",
-                    "target_docs": [single_doc],
-                    "retrieval_mode": "cached_summary",
-                    "generation_mode": "no_llm",
-                    "cached_content": cached_summary,
-                    "is_meta_query": False,
-                    "query_depth": "focused",
-                    "recommended_top_k": 0,
-                }
+    # Fast-Path 2: Deterministic Target + Summary Cache Check (Bypasses LLM Router entirely)
+    resolved_targets = resolve_target_documents(clean_query, available_docs)
+    summary_keywords = [r"\b(summarise|summarize|summary|overview|breakdown|brief)\b"]
+    is_summary = any(re.search(kw, lowered) for kw in summary_keywords)
+
+    if len(resolved_targets) == 1 and is_summary:
+        target_doc = resolved_targets[0]
+        cached_summary = get_cached_document_summary(target_doc)
+        if cached_summary:
+            print(f"[Router Fast-Path] Instant hit on pre-computed cache for '{target_doc}'.")
+            return {
+                "intent": "NEW_QUERY",
+                "scope": "single",
+                "target_docs": [target_doc],
+                "retrieval_mode": "cached_summary",
+                "generation_mode": "no_llm",
+                "cached_content": cached_summary,
+                "is_meta_query": False,
+                "query_depth": "focused",
+                "recommended_top_k": 0,
+            }
 
     default_plan = sanitize_plan(
         {
             "intent": heuristic,
-            "scope": "full_corpus" if heuristic != "CONVERSATIONAL" else "none",
-            "target_docs": available_docs if heuristic != "CONVERSATIONAL" else [],
+            "scope": "single" if len(resolved_targets) == 1 else ("full_corpus" if heuristic != "CONVERSATIONAL" else "none"),
+            "target_docs": resolved_targets or (available_docs if heuristic != "CONVERSATIONAL" else []),
             "retrieval_mode": "vector_search" if heuristic != "CONVERSATIONAL" else "none",
             "generation_mode": "single_pass",
             "is_meta_query": False,
@@ -210,7 +259,7 @@ You are an academic query execution planner for ScholarsMate, a multi-document R
 Return ONLY a JSON object. No prose, no markdown, no chain-of-thought.
 
 Intent labels:
-- CONVERSATIONAL: greetings, thanks, or questions about you the assistant (who are you, what do you do). No PDF retrieval.
+- CONVERSATIONAL: greetings, thanks, or questions about you the assistant. No PDF retrieval.
 - FOLLOW_UP: depends on prior turns (summarise it, why, go on, that method).
 - NEW_QUERY: a self-contained question about the papers/workspace.
 
@@ -254,7 +303,6 @@ JSON schema:
             "model": model_name,
             "messages": messages,
             "api_key": active_key,
-            "temperature": 0.0,
             "max_tokens": 400,
             "drop_params": True,
             "reasoning_effort": "none",

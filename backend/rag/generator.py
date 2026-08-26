@@ -56,14 +56,13 @@ def _execute_completion_with_fallback(
     model_name = normalize_litellm_model_id(model_name)
     primary_provider = provider_from_model(model_name)
 
-    # Active provider fallback chains (no deprecated or decommissioned IDs)
+    # Active provider fallback chains
     provider_fallbacks = {
         "gemini": [
             model_name,
             "gemini/gemini-3.7-flash",
             "gemini/gemini-3.6-flash",
-            "gemini/gemini-3.5-flash",
-            "gemini/gemini-3.5-flash-lite",
+            "gemini/gemini-2.5-flash",
         ],
         "groq": [
             model_name,
@@ -98,7 +97,9 @@ def _execute_completion_with_fallback(
             "max_tokens": max_tokens,
             "drop_params": True,
         }
-        if "o1" not in normalized_target and "o3" not in normalized_target:
+
+        # Avoid setting sampling parameters on models that deprecate them (like Gemini 3+)
+        if "gemini-3" not in normalized_target and "o1" not in normalized_target and "o3" not in normalized_target:
             call_kwargs["temperature"] = temperature
 
         try:
@@ -219,7 +220,7 @@ def generate_answer(
     target_model = normalize_litellm_model_id(model_name)
     if not target_model or "llama" in target_model:
         if "gemini" in keys or "google" in keys:
-            target_model = "gemini/gemini-3.7-flash"
+            target_model = "gemini/gemini-3.6-flash"
         elif "openai" in keys:
             target_model = "openai/gpt-4o-mini"
         elif "anthropic" in keys:
@@ -229,7 +230,7 @@ def generate_answer(
         elif "groq" in keys:
             target_model = "groq/compound-mini"
         else:
-            target_model = "gemini/gemini-3.7-flash"
+            target_model = "gemini/gemini-3.6-flash"
 
     # 2. Scope to Active Workspace
     active_workspace_docs = explicit_docs if (explicit_docs is not None and len(explicit_docs) > 0) else list_indexed_documents()
@@ -244,9 +245,27 @@ def generate_answer(
     )
 
     intent = plan.get("intent", "NEW_QUERY")
-    print(f"\n[LLM Router] Intent: {intent} | Retrieval Mode: {plan.get('retrieval_mode')} | Targets: {plan.get('target_docs')} | Model: {target_model}")
+    retrieval_mode = plan.get("retrieval_mode")
+    print(f"\n[LLM Router] Intent: {intent} | Retrieval Mode: {retrieval_mode} | Targets: {plan.get('target_docs')} | Model: {target_model}")
 
-    # Branch A: CONVERSATIONAL Intent
+    # Branch A: Instant Cached Summary Return (FR-11)
+    if retrieval_mode == "cached_summary" and plan.get("cached_content"):
+        target_doc = (plan.get("target_docs") or ["Document"])[0]
+        print(f"[Generator] Serving pre-computed summary cache for '{target_doc}' (< 50ms).")
+        return {
+            "query": query,
+            "answer": plan.get("cached_content"),
+            "thinking_process": None,
+            "sources_used": [
+                {
+                    "chunk_id": "cached_summary_0",
+                    "doc_name": target_doc,
+                    "page_number": 1
+                }
+            ]
+        }
+
+    # Branch B: CONVERSATIONAL Intent
     if intent == "CONVERSATIONAL":
         conv_prompt = f"You are ScholarsMate, a helpful academic research AI. Reply politely and concisely to: '{clean_query}'"
         res = _execute_completion_with_fallback(
@@ -264,7 +283,7 @@ def generate_answer(
             "sources_used": []
         }
 
-    # Branch B: Workspace Meta-Query
+    # Branch C: Workspace Meta-Query
     if plan.get("is_meta_query"):
         if not active_workspace_docs:
             answer_text = "Your active workspace currently has no documents indexed."
@@ -299,7 +318,7 @@ def generate_answer(
         plan=plan,
     )
 
-    # Branch C: Map-Reduce Synthesis
+    # Branch D: Map-Reduce Synthesis
     if plan.get("generation_mode") == "map_reduce" and len(retrieved_chunks) >= 8:
         answer_text, thinking_text = execute_map_reduce_synthesis(
             clean_query, 
@@ -308,7 +327,7 @@ def generate_answer(
             custom_keys=keys
         )
     else:
-        # Branch D: Standard Synthesis
+        # Branch E: Standard Synthesis
         context_block = build_context_block(retrieved_chunks)
         full_prompt = construct_prompt(query=clean_query, context_block=context_block)
 
