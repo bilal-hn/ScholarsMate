@@ -7,6 +7,7 @@ from litellm import completion
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
 from backend.embeddings.vector_store import get_indexed_document_catalog
+from backend.db.document_service import get_cached_document_summary
 from backend.rag.runtime import (
     extract_reasoning_and_content,
     heuristic_intent,
@@ -96,6 +97,22 @@ def sanitize_plan(plan: dict, query: str, available_docs: list[str]) -> dict:
     retrieval_mode = plan.get("retrieval_mode") or "vector_search"
     target_docs = plan.get("target_docs") or available_docs or []
 
+    # FR-11: Single-doc summary requests check for cached ingestion summary
+    if len(target_docs) == 1:
+        target_doc = target_docs[0]
+        summary_keywords = [r"\b(summarise|summarize|summary|overview|breakdown|brief)\b"]
+        is_summary_query = any(re.search(kw, query.lower()) for kw in summary_keywords)
+        
+        if is_summary_query or retrieval_mode == "full_text":
+            cached_summary = get_cached_document_summary(target_doc)
+            if cached_summary:
+                print(f"[Router Interceptor] Found pre-computed summary for '{target_doc}'. Routing to instant cache.")
+                plan["retrieval_mode"] = "cached_summary"
+                plan["generation_mode"] = "no_llm"
+                plan["cached_content"] = cached_summary
+                plan["recommended_top_k"] = 0
+                return plan
+
     # Multi-doc "read everything" blows small TPM windows; balanced search is the scalable default.
     if retrieval_mode == "full_text" and len(target_docs) > 1:
         retrieval_mode = "per_document_search"
@@ -120,26 +137,13 @@ def classify_query_intent(
     """
     Dynamically routes query execution plans using the user's active BYOK model & key.
     Strictly scopes document catalog to available_docs (the active workspace).
+    Supports FR-11 instant cached summary returns.
     """
     clean_query = query.strip()
     fallback_k = evaluate_query_scope_fallback(clean_query)
     heuristic = heuristic_intent(clean_query)
 
-    default_plan = sanitize_plan(
-        {
-            "intent": heuristic,
-            "scope": "full_corpus" if heuristic != "CONVERSATIONAL" else "none",
-            "target_docs": available_docs if heuristic != "CONVERSATIONAL" else [],
-            "retrieval_mode": "vector_search" if heuristic != "CONVERSATIONAL" else "none",
-            "generation_mode": "single_pass",
-            "is_meta_query": False,
-            "query_depth": "broad_synthesis" if fallback_k >= 18 else "focused",
-            "recommended_top_k": fallback_k if heuristic != "CONVERSATIONAL" else 0,
-        },
-        clean_query,
-        available_docs,
-    )
-
+    # Fast-path metadata queries
     lowered = clean_query.lower()
     meta_patterns = [
         r"\b(how many|list)\s+(papers|documents|files)\b",
@@ -157,6 +161,40 @@ def classify_query_intent(
             "query_depth": "focused",
             "recommended_top_k": 0,
         }
+
+    # FR-11 Fast-Path Heuristic Check: Check single-doc cached summary without LLM router overhead
+    if len(available_docs) == 1:
+        single_doc = available_docs[0]
+        if any(re.search(r"\b(summarise|summarize|summary|overview)\b", lowered) for _ in [1]):
+            cached_summary = get_cached_document_summary(single_doc)
+            if cached_summary:
+                print(f"[Router Fast-Path] Instant hit on pre-computed summary cache for '{single_doc}'.")
+                return {
+                    "intent": "NEW_QUERY",
+                    "scope": "single",
+                    "target_docs": [single_doc],
+                    "retrieval_mode": "cached_summary",
+                    "generation_mode": "no_llm",
+                    "cached_content": cached_summary,
+                    "is_meta_query": False,
+                    "query_depth": "focused",
+                    "recommended_top_k": 0,
+                }
+
+    default_plan = sanitize_plan(
+        {
+            "intent": heuristic,
+            "scope": "full_corpus" if heuristic != "CONVERSATIONAL" else "none",
+            "target_docs": available_docs if heuristic != "CONVERSATIONAL" else [],
+            "retrieval_mode": "vector_search" if heuristic != "CONVERSATIONAL" else "none",
+            "generation_mode": "single_pass",
+            "is_meta_query": False,
+            "query_depth": "broad_synthesis" if fallback_k >= 18 else "focused",
+            "recommended_top_k": fallback_k if heuristic != "CONVERSATIONAL" else 0,
+        },
+        clean_query,
+        available_docs,
+    )
 
     keys = custom_keys or {}
     model_name = normalize_litellm_model_id(model_name)

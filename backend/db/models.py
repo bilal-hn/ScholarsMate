@@ -35,13 +35,15 @@ class User(Base):
 
 
 class UserDocument(Base):
-    """Tracks document ownership and workspace attachment per user."""
+    """Tracks document ownership, workspace attachment, and pre-computed summary caches."""
     __tablename__ = "user_documents"
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=generate_uuid)
     user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"), index=True)
     doc_name: Mapped[str] = mapped_column(String)
     file_hash: Mapped[str] = mapped_column(String, index=True)  # Links to global SHA-256
+    summary_cache: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # FR-11 Pre-computed summary cache
+    summary_generated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     user: Mapped["User"] = relationship("User", back_populates="documents")
