@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
@@ -64,6 +64,9 @@ function InlineCitationBadge({ docName, pageNumber, sources = [], onSelectCitati
 
   return (
     <span
+      data-citation-badge="true"
+      data-doc={resolvedDoc}
+      data-page={pageNumber || 1}
       className="relative inline-block align-baseline mx-1 select-none not-prose"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
@@ -106,14 +109,18 @@ function InlineCitationBadge({ docName, pageNumber, sources = [], onSelectCitati
 
 /**
  * Transforms raw citation patterns in text into internal hash citation anchors (#cite:doc:page).
+ * Accurately ignores academic author-year literature citations like [Su et al., 2022].
  */
 const transformCitations = (rawText) => {
   if (!rawText) return '';
 
   let formatted = rawText;
 
-  // Pattern 1: Raw citation:filename:page or citation:filename (legacy or edge cases)
-  const rawCitationPrefixRegex = /citation:([a-zA-Z0-9_\-\.\s]+?\.(?:pdf|docx|txt|epub|md|PDF|DOCX))(?::(\d+))?/gi;
+  // Step 0: Strip any accidental backticks around citation brackets e.g. `[sample.pdf, p.3]` -> [sample.pdf, p.3]
+  formatted = formatted.replace(/`(\s*(?:\[|\(|<).*?(?:\]|\)|>)\s*)`/g, '$1');
+
+  // Step 1: Raw citation:filename:page or citation:filename (legacy or edge cases)
+  const rawCitationPrefixRegex = /citation:\s*([a-zA-Z0-9_\-\.\s]+?\.(?:pdf|docx|txt|epub|md|PDF|DOCX))(?::(\d+))?/gi;
   formatted = formatted.replace(rawCitationPrefixRegex, (match, docName, pageNum) => {
     const cleanDoc = docName.trim();
     const cleanPage = pageNum ? pageNum.trim() : '1';
@@ -121,9 +128,9 @@ const transformCitations = (rawText) => {
     return `[cite](#cite:${encodedDoc}:${cleanPage})`;
   });
 
-  // Pattern 2: Target bracket/parenthesis page format <doc, pX>, [doc, p.X], (doc, p.X), <doc, page X>, [doc pX]
-  const withPageRegex = /(?:<|\[|\()([a-zA-Z0-9_\-\.\s]+?)(?:,\s*|\s+)(?:p\.?|page|pp\.?)?\s*(\d+)(?:>|\]|\))/gi;
-  formatted = formatted.replace(withPageRegex, (match, docName, pageNum) => {
+  // Step 2: Bracket citation with explicit page prefix: <doc, p.X>, [doc, p.X], (doc, p.X), [doc, page X], [doc pX]
+  const explicitPageRegex = /(?:<|\[|\()\s*([a-zA-Z0-9_\-\.\s]+?)(?:,\s*|\s+)(?:p\.?|page|pp\.)\s*(\d+)\s*(?:>|\]|\))/gi;
+  formatted = formatted.replace(explicitPageRegex, (match, docName, pageNum) => {
     const cleanDoc = docName.trim();
     const cleanPage = pageNum.trim();
     if (cleanDoc.startsWith('http://') || cleanDoc.startsWith('https://') || cleanDoc.startsWith('#') || cleanDoc.startsWith('cite')) {
@@ -133,8 +140,20 @@ const transformCitations = (rawText) => {
     return `[cite](#cite:${encodedDoc}:${cleanPage})`;
   });
 
-  // Pattern 3: Standalone file citations in brackets: <file.pdf>, [file.pdf]
-  const withoutPageRegex = /(?:<|\[|\()([a-zA-Z0-9_\-\.\s]+?\.(?:pdf|docx|txt|epub|md|PDF|DOCX))(?:>|\]|\))/gi;
+  // Step 3: Bracket citation with explicit file extension and number: [file.pdf, 3] or [file.pdf:3]
+  const docFileWithNumberRegex = /(?:<|\[|\()\s*([a-zA-Z0-9_\-\.\s]+?\.(?:pdf|docx|txt|epub|md|PDF|DOCX))(?::|,\s*|\s+)(\d+)\s*(?:>|\]|\))/gi;
+  formatted = formatted.replace(docFileWithNumberRegex, (match, docName, pageNum) => {
+    const cleanDoc = docName.trim();
+    const cleanPage = pageNum.trim();
+    if (cleanDoc.startsWith('http://') || cleanDoc.startsWith('https://') || cleanDoc.startsWith('#') || cleanDoc.startsWith('cite')) {
+      return match;
+    }
+    const encodedDoc = encodeURIComponent(cleanDoc);
+    return `[cite](#cite:${encodedDoc}:${cleanPage})`;
+  });
+
+  // Step 4: Standalone file citations in brackets: [sample.pdf], <sample.pdf>
+  const withoutPageRegex = /(?:<|\[|\()\s*([a-zA-Z0-9_\-\.\s]+?\.(?:pdf|docx|txt|epub|md|PDF|DOCX))\s*(?:>|\]|\))/gi;
   formatted = formatted.replace(withoutPageRegex, (match, docName) => {
     const cleanDoc = docName.trim();
     if (cleanDoc.startsWith('http://') || cleanDoc.startsWith('https://') || cleanDoc.startsWith('#') || cleanDoc.startsWith('cite')) {
@@ -151,6 +170,7 @@ export default function ChatMessage({ message, onSelectCitation }) {
   const [showThinking, setShowThinking] = useState(false);
   const [showSources, setShowSources] = useState(false);
   const [copied, setCopied] = useState(false);
+  const messageBodyRef = useRef(null);
 
   const isBot = message.sender === 'bot';
 
@@ -197,9 +217,84 @@ export default function ChatMessage({ message, onSelectCitation }) {
 
   const speed = calculateSpeed();
 
-  const handleCopy = (text) => {
-    if (!text) return;
-    navigator.clipboard.writeText(text);
+  /**
+   * Enterprise-Grade Multi-MIME Clipboard Copy
+   * Writes both rich HTML (for Microsoft Word, Google Docs, Apple Notes) and Markdown (for code editors).
+   */
+  const handleCopy = async () => {
+    if (!message.text) return;
+
+    try {
+      if (messageBodyRef.current && typeof ClipboardItem !== 'undefined') {
+        const clone = messageBodyRef.current.cloneNode(true);
+
+        // Replace citation buttons with clean citation text for Word export
+        const citationBadges = clone.querySelectorAll('[data-citation-badge="true"]');
+        citationBadges.forEach((badge) => {
+          const doc = badge.getAttribute('data-doc') || '';
+          const page = badge.getAttribute('data-page') || '';
+          const citeSpan = document.createElement('span');
+          citeSpan.textContent = ` [${doc}${page ? `, p.${page}` : ''}] `;
+          badge.parentNode.replaceChild(citeSpan, badge);
+        });
+
+        // Apply clean inline styles to tables for Word / Google Docs
+        const tables = clone.querySelectorAll('table');
+        tables.forEach((tbl) => {
+          tbl.setAttribute('style', 'border-collapse: collapse; width: 100%; margin: 12px 0; font-family: sans-serif; font-size: 13px;');
+          const ths = tbl.querySelectorAll('th');
+          ths.forEach((th) => {
+            th.setAttribute('style', 'border: 1px solid #cbd5e1; background-color: #f1f5f9; color: #0f172a; padding: 8px 12px; text-align: left; font-weight: 600;');
+          });
+          const tds = tbl.querySelectorAll('td');
+          tds.forEach((td) => {
+            td.setAttribute('style', 'border: 1px solid #cbd5e1; padding: 8px 12px; text-align: left; vertical-align: top; color: #1e293b;');
+          });
+        });
+
+        // Style headings, paragraphs, lists
+        const headings = clone.querySelectorAll('h1, h2, h3, h4');
+        headings.forEach((h) => {
+          h.setAttribute('style', 'margin-top: 14px; margin-bottom: 6px; font-weight: bold; color: #0f172a;');
+        });
+        const paragraphs = clone.querySelectorAll('p');
+        paragraphs.forEach((p) => {
+          p.setAttribute('style', 'margin-top: 6px; margin-bottom: 6px; line-height: 1.6; color: #1e293b;');
+        });
+        const lists = clone.querySelectorAll('ul, ol');
+        lists.forEach((l) => {
+          l.setAttribute('style', 'margin-top: 6px; margin-bottom: 6px; padding-left: 20px;');
+        });
+
+        const htmlContent = `
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <meta charset="utf-8">
+            </head>
+            <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #1e293b;">
+              ${clone.innerHTML}
+            </body>
+          </html>
+        `;
+
+        const htmlBlob = new Blob([htmlContent], { type: 'text/html' });
+        const textBlob = new Blob([message.text], { type: 'text/plain' });
+
+        const item = new ClipboardItem({
+          'text/html': htmlBlob,
+          'text/plain': textBlob,
+        });
+
+        await navigator.clipboard.write([item]);
+      } else {
+        await navigator.clipboard.writeText(message.text);
+      }
+    } catch (err) {
+      console.warn('Rich copy fallback to plain text:', err);
+      await navigator.clipboard.writeText(message.text);
+    }
+
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -310,7 +405,7 @@ export default function ChatMessage({ message, onSelectCitation }) {
             )}
 
             {/* Synthesized Response Body */}
-            <div className="prose prose-invert max-w-none text-zinc-200 text-[13.5px] leading-relaxed tracking-normal font-sans pt-1">
+            <div ref={messageBodyRef} className="prose prose-invert max-w-none text-zinc-200 text-[13.5px] leading-relaxed tracking-normal font-sans pt-1 select-text">
               <ReactMarkdown
                 remarkPlugins={[remarkGfm, remarkMath]}
                 rehypePlugins={[rehypeKatex]}
@@ -451,6 +546,21 @@ export default function ChatMessage({ message, onSelectCitation }) {
 
                   /* --- Code & Pre Blocks --- */
                   code: ({ inline, className, children, ...props }) => {
+                    if (inline && typeof children === 'string' && children.includes('#cite:')) {
+                      const citeMatch = children.match(/#cite:([^:]+)(?::(\d+))?/);
+                      if (citeMatch) {
+                        const docName = decodeURIComponent(citeMatch[1]);
+                        const pageNum = parseInt(citeMatch[2] || '1', 10);
+                        return (
+                          <InlineCitationBadge
+                            docName={docName}
+                            pageNumber={pageNum}
+                            sources={message.sources}
+                            onSelectCitation={onSelectCitation}
+                          />
+                        );
+                      }
+                    }
                     return inline ? (
                       <code className="bg-zinc-800/80 text-amber-300 font-mono text-[11.5px] px-1 py-0.5 rounded border border-zinc-700/60" {...props}>
                         {children}
@@ -506,9 +616,9 @@ export default function ChatMessage({ message, onSelectCitation }) {
               <div className="flex items-center gap-1">
                 <button
                   type="button"
-                  onClick={() => handleCopy(message.text)}
+                  onClick={handleCopy}
                   className="flex items-center gap-1 px-2 py-0.5 rounded-md hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer"
-                  title="Copy response to clipboard"
+                  title="Copy formatted response to clipboard"
                 >
                   {copied ? (
                     <>
@@ -544,7 +654,7 @@ export default function ChatMessage({ message, onSelectCitation }) {
             </div>
 
             {/* Bubble Content */}
-            <div className="bg-zinc-900 hover:bg-zinc-900/95 text-zinc-100 border border-zinc-800 font-normal px-4 py-3 rounded-2xl shadow-md text-[13.5px] whitespace-pre-wrap leading-relaxed">
+            <div className="bg-zinc-900 hover:bg-zinc-900/95 text-zinc-100 border border-zinc-800 font-normal px-4 py-3 rounded-2xl shadow-md text-[13.5px] whitespace-pre-wrap leading-relaxed select-text">
               {message.text}
             </div>
           </div>

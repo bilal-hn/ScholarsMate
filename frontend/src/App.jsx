@@ -217,7 +217,7 @@ export default function App() {
   return (
     <div 
       data-theme={currentTheme}
-      className="flex h-screen w-full bg-zinc-950 text-zinc-200 overflow-hidden font-sans select-none transition-colors"
+      className="flex h-screen w-full bg-zinc-950 text-zinc-200 overflow-hidden font-sans transition-colors"
     >
       {/* 1. Left Sidebar with Theme Switcher */}
       <DocumentSidebar
