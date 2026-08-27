@@ -1,54 +1,128 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
+  Undo2,
+  Redo2,
   Bold,
   Italic,
   Underline,
   Strikethrough,
-  Heading1,
-  Heading2,
-  Heading3,
+  Subscript,
+  Superscript,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
+  AlignJustify,
   List,
   ListOrdered,
-  Quote,
-  Code,
-  Sparkles,
-  BookmarkPlus,
-  Undo,
-  Redo,
-  Save,
-  Download,
+  Indent,
+  Outdent,
+  RemoveFormatting,
+  Palette,
+  Highlighter,
   Copy,
   Check,
+  Download,
+  Maximize2,
+  Minimize2,
+  ChevronDown,
+  ChevronUp,
+  ChevronLeft,
+  ChevronRight,
   FileText,
   Clock,
-  Eye,
-  Trash2,
   ExternalLink,
-  ChevronDown
+  X
 } from 'lucide-react';
 import FloatingBubbleMenu from './FloatingBubbleMenu';
 import CitationDrawer from './CitationDrawer';
 import InlineAskAIDrawer from './InlineAskAIDrawer';
 import { getDraftAPI, saveDraftAPI, findCitationsAPI, editorAskAIAPI } from '../../services/api';
 
-/**
- * Assisted Academic Document Writer & Citation Engine (FR-13).
- * A Word-like rich document editor with real-time semantic citation verification,
- * inline Ask AI assistance, and dynamic automated bibliography sync.
- */
+const FONT_FAMILIES = [
+  { label: 'Source Serif', value: "'Source Serif 4', 'Source Serif Pro', Georgia, serif" },
+  { label: 'Times New Roman', value: "'Times New Roman', Times, serif" },
+  { label: 'Georgia', value: "Georgia, serif" },
+  { label: 'EB Garamond', value: "'EB Garamond', Garamond, serif" },
+  { label: 'Merriweather', value: "Merriweather, Georgia, serif" },
+  { label: 'Calibri', value: "Calibri, Candara, Segoe, sans-serif" },
+  { label: 'Arial', value: "Arial, Helvetica, sans-serif" },
+  { label: 'Inter', value: "Inter, system-ui, sans-serif" },
+  { label: 'Roboto', value: "Roboto, sans-serif" },
+  { label: 'JetBrains Mono', value: "'JetBrains Mono', monospace" },
+  { label: 'Courier New', value: "'Courier New', Courier, monospace" },
+];
+
+const FONT_SIZES = [
+  { label: '8', pt: 8 },
+  { label: '9', pt: 9 },
+  { label: '10', pt: 10 },
+  { label: '11', pt: 11 },
+  { label: '12', pt: 12 },
+  { label: '14', pt: 14 },
+  { label: '16', pt: 16 },
+  { label: '18', pt: 18 },
+  { label: '20', pt: 20 },
+  { label: '24', pt: 24 },
+  { label: '28', pt: 28 },
+  { label: '32', pt: 32 },
+  { label: '36', pt: 36 },
+];
+
+const HEADING_STYLES = [
+  { label: 'Normal text', value: 'p' },
+  { label: 'Title', value: 'h1' },
+  { label: 'Heading 1', value: 'h1' },
+  { label: 'Heading 2', value: 'h2' },
+  { label: 'Heading 3', value: 'h3' },
+  { label: 'Subtitle', value: 'h4' },
+];
+
+const TEXT_COLORS = [
+  { label: 'Black', color: '#18181b' },
+  { label: 'Dark Gray', color: '#52525b' },
+  { label: 'Academic Blue', color: '#1d4ed8' },
+  { label: 'Crimson Red', color: '#b91c1c' },
+  { label: 'Forest Green', color: '#15803d' },
+  { label: 'Purple', color: '#7e22ce' },
+  { label: 'Amber', color: '#b45309' },
+];
+
+const HIGHLIGHT_COLORS = [
+  { label: 'None', color: 'transparent' },
+  { label: 'Yellow', color: '#fef08a' },
+  { label: 'Light Green', color: '#bbf7d0' },
+  { label: 'Light Cyan', color: '#a5f3fc' },
+  { label: 'Light Pink', color: '#fbcfe8' },
+  { label: 'Light Amber', color: '#fed7aa' },
+];
+
 export default function DocumentWriter({
   sessionId,
   documents = [],
   availableModels = [],
   currentModel = '',
   onOpenPdfViewer,
+  isFullscreen = false,
+  onToggleFullscreen,
+  onClose,
 }) {
   const editorRef = useRef(null);
-  const [title, setTitle] = useState('Untitled Academic Draft');
+  const [title, setTitle] = useState('Fyp');
   const [citations, setCitations] = useState([]);
   const [saveStatus, setSaveStatus] = useState('saved'); // 'saved' | 'saving' | 'unsaved'
-  const [wordCount, setWordCount] = useState(0);
+  const [wordCount, setWordCount] = useState(82);
   const [copied, setCopied] = useState(false);
+
+  // Top Toolbar Collapse State
+  const [isToolbarCollapsed, setIsToolbarCollapsed] = useState(false);
+
+  // Word Typography State
+  const [currentFont, setCurrentFont] = useState("'Source Serif 4', 'Source Serif Pro', Georgia, serif");
+  const [currentFontSize, setCurrentFontSize] = useState(12);
+  const [currentHeading, setCurrentHeading] = useState('p');
+  const [activeAlign, setActiveAlign] = useState('justifyLeft');
+  const [isColorMenuOpen, setIsColorMenuOpen] = useState(false);
+  const [isHighlightMenuOpen, setIsHighlightMenuOpen] = useState(false);
 
   // Selection & Bubble Menu State
   const [bubblePosition, setBubblePosition] = useState(null);
@@ -76,10 +150,20 @@ export default function DocumentWriter({
       try {
         const draft = await getDraftAPI(sessionId);
         if (draft && isMounted) {
-          setTitle(draft.title || 'Untitled Academic Draft');
+          setTitle(draft.title || 'Fyp');
           setCitations(Array.isArray(draft.citations_data) ? draft.citations_data : []);
           if (editorRef.current) {
-            editorRef.current.innerHTML = draft.content_html || '<h2>Executive Abstract</h2><p>Start writing your literature review or academic synthesis here...</p>';
+            editorRef.current.innerHTML = draft.content_html || `
+              <p class="section-tag" style="font-family: Inter, sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; color: #71717a; text-transform: uppercase; margin-top: 1.5rem; margin-bottom: 0.75rem;">RELATED WORK</p>
+              <ul>
+                <li><strong>Structure Extraction Complexities:</strong> Preserving complex document elements—such as embedded multi-column tables, mathematical formulas, and structural headers—during vector chunking remains technically non-trivial <span class="doc-badge" style="font-family: monospace; font-size: 11px; color: #4b5563; background: #f3f4f6; border: 1px solid #d1d5db; padding: 2px 6px; border-radius: 4px; display: inline-flex; align-items: center; gap: 3px;">📄 AAAAAAAA <strong>p.5</strong></span>.</li>
+                <li><strong>Context Scope Dependency:</strong> Retrieval performance is fundamentally bounded by the granularity of chunking algorithms and vector embedding quality <span class="doc-badge" style="font-family: monospace; font-size: 11px; color: #4b5563; background: #f3f4f6; border: 1px solid #d1d5db; padding: 2px 6px; border-radius: 4px; display: inline-flex; align-items: center; gap: 3px;">📄 AAAAAAAA <strong>p.5</strong></span> <span class="doc-badge" style="font-family: monospace; font-size: 11px; color: #4b5563; background: #f3f4f6; border: 1px solid #d1d5db; padding: 2px 6px; border-radius: 4px; display: inline-flex; align-items: center; gap: 3px;">📄 AAAAAAAA <strong>p.8</strong></span>.</li>
+              </ul>
+              <h2 style="font-family: 'Source Serif 4', Georgia, serif; font-size: 18px; font-weight: 700; margin-top: 2rem; margin-bottom: 0.75rem; color: #111827;">7. Main Conclusion & Future Directions</h2>
+              <p>The proposed ScholarsMate assistant offers a tailored framework for academic research synthesis by integrating structural parsing with modular Retrieval-Augmented Generation <span class="doc-badge" style="font-family: monospace; font-size: 11px; color: #4b5563; background: #f3f4f6; border: 1px solid #d1d5db; padding: 2px 6px; border-radius: 4px; display: inline-flex; align-items: center; gap: 3px;">📄 AAAAAAAA <strong>p.5</strong></span> <span class="doc-badge" style="font-family: monospace; font-size: 11px; color: #4b5563; background: #f3f4f6; border: 1px solid #d1d5db; padding: 2px 6px; border-radius: 4px; display: inline-flex; align-items: center; gap: 3px;">📄 AAAAAAAA <strong>p.8</strong></span>. Selecting a claim anywhere in this document surfaces a quiet inline prompt to cite it or ask the assistant <span data-citation-id="1" class="inline-citation-marker" style="font-family: monospace; font-size: 11px; font-weight: 600; color: #0d9488; background: #f0fdfa; border: 1px solid #5eead4; padding: 2px 6px; border-radius: 4px; cursor: pointer;">[1]</span> — no separate panel required.</p>
+              <p class="section-tag" style="font-family: Inter, sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; color: #71717a; text-transform: uppercase; margin-top: 2rem; margin-bottom: 0.75rem;">PLANNED IMPLEMENTATION TIMELINE</p>
+              <p></p>
+            `;
             updateWordCount();
           }
           setSaveStatus('saved');
@@ -117,7 +201,7 @@ export default function DocumentWriter({
           session_id: sessionId,
           title: titleToSave,
           content_html: htmlToSave,
-          content_markdown: htmlToSave, // HTML is fully valid in modern markdown engines
+          content_markdown: htmlToSave,
           citations_data: citationsToSave,
         });
         setSaveStatus('saved');
@@ -146,7 +230,6 @@ export default function DocumentWriter({
       return;
     }
 
-    // Ensure selection is inside editor container
     if (!editorRef.current.contains(selection.anchorNode)) {
       setBubblePosition(null);
       return;
@@ -177,7 +260,7 @@ export default function DocumentWriter({
   };
 
   // --------------------------------------------------------------------------
-  // 3. WORD-STYLE FORMATTING ACTIONS (execCommand)
+  // 3. WORD-STYLE FORMATTING ACTIONS
   // --------------------------------------------------------------------------
   const formatDoc = (command, value = null) => {
     if (!editorRef.current) return;
@@ -186,19 +269,76 @@ export default function DocumentWriter({
 
     if (command === 'h1') {
       document.execCommand('formatBlock', false, '<h1>');
+      setCurrentHeading('h1');
     } else if (command === 'h2') {
       document.execCommand('formatBlock', false, '<h2>');
+      setCurrentHeading('h2');
     } else if (command === 'h3') {
       document.execCommand('formatBlock', false, '<h3>');
+      setCurrentHeading('h3');
+    } else if (command === 'h4') {
+      document.execCommand('formatBlock', false, '<h4>');
+      setCurrentHeading('h4');
     } else if (command === 'p') {
       document.execCommand('formatBlock', false, '<p>');
+      setCurrentHeading('p');
     } else if (command === 'quote') {
       document.execCommand('formatBlock', false, '<blockquote>');
     } else {
       document.execCommand(command, false, value);
+      if (['justifyLeft', 'justifyCenter', 'justifyRight', 'justifyFull'].includes(command)) {
+        setActiveAlign(command);
+      }
     }
 
     updateWordCount();
+    triggerAutoSave();
+  };
+
+  const handleApplyFont = (fontValue) => {
+    setCurrentFont(fontValue);
+    if (!editorRef.current) return;
+    editorRef.current.focus();
+    restoreSelection();
+    document.execCommand('fontName', false, fontValue);
+    triggerAutoSave();
+  };
+
+  const handleApplyFontSize = (sizePt) => {
+    setCurrentFontSize(sizePt);
+    if (!editorRef.current) return;
+    editorRef.current.focus();
+    restoreSelection();
+
+    const selection = window.getSelection();
+    if (!selection.isCollapsed && selection.rangeCount > 0) {
+      const range = selection.getRangeAt(0);
+      const span = document.createElement('span');
+      span.style.fontSize = `${sizePt}pt`;
+      try {
+        range.surroundContents(span);
+      } catch {
+        document.execCommand('fontSize', false, '3');
+      }
+    }
+    triggerAutoSave();
+  };
+
+  const handleApplyTextColor = (color) => {
+    setIsColorMenuOpen(false);
+    if (!editorRef.current) return;
+    editorRef.current.focus();
+    restoreSelection();
+    document.execCommand('foreColor', false, color);
+    triggerAutoSave();
+  };
+
+  const handleApplyHighlightColor = (color) => {
+    setIsHighlightMenuOpen(false);
+    if (!editorRef.current) return;
+    editorRef.current.focus();
+    restoreSelection();
+    document.execCommand('hiliteColor', false, color);
     triggerAutoSave();
   };
 
@@ -243,8 +383,8 @@ export default function DocumentWriter({
     const updatedCitations = [...citations, newCitationEntry];
     setCitations(updatedCitations);
 
-    // Insert inline citation pill [N] at cursor
-    const citationHtml = `&nbsp;<span data-citation-id="${nextIndex}" class="inline-citation-marker font-mono font-semibold text-amber-600 bg-amber-100 hover:bg-amber-200 border border-amber-300 rounded px-1.5 py-0.5 text-xs select-none cursor-pointer transition-colors" title="${candidate.doc_name} (Page ${candidate.page_number})">[${nextIndex}]</span>&nbsp;`;
+    // Insert inline citation pill [N] in teal style
+    const citationHtml = `&nbsp;<span data-citation-id="${nextIndex}" class="inline-citation-marker" style="font-family: monospace; font-size: 11px; font-weight: 600; color: #0d9488; background: #f0fdfa; border: 1px solid #5eead4; padding: 2px 6px; border-radius: 4px; cursor: pointer; select: none;" title="${candidate.doc_name} (Page ${candidate.page_number})">[${nextIndex}]</span>&nbsp;`;
     document.execCommand('insertHTML', false, citationHtml);
 
     setIsCitationDrawerOpen(false);
@@ -313,7 +453,6 @@ export default function DocumentWriter({
     if (!editorRef.current) return;
     const plainText = editorRef.current.innerText || '';
     
-    // Append bibliography list to plain text export
     let fullExport = `# ${title}\n\n${plainText}\n\n---\n\n## References\n\n`;
     citations.forEach((c) => {
       fullExport += `[${c.id}] ${c.doc_name}, Page ${c.page_number} — "${c.excerpt}"\n`;
@@ -342,179 +481,398 @@ export default function DocumentWriter({
   };
 
   return (
-    <div className="flex flex-col h-full bg-zinc-950 text-zinc-100 font-sans select-text relative overflow-hidden">
+    <div className={`flex flex-col h-full bg-[#121316] text-zinc-100 font-sans select-text relative overflow-hidden ${
+      isFullscreen ? 'w-full h-full' : 'w-full h-full'
+    }`}>
       {/* -------------------------------------------------------------------- */}
-      {/* WORD-STYLE TOP STICKY RIBBON TOOLBAR                                 */}
+      {/* 1. COLLAPSIBLE TOP RIBBON TOOLBAR (Scrollable single line)            */}
       {/* -------------------------------------------------------------------- */}
-      <div className="bg-zinc-900 border-b border-zinc-800 p-2 flex items-center justify-between gap-2 shrink-0 select-none shadow-md z-20 flex-wrap">
-        {/* Left Formatting Group */}
-        <div className="flex items-center gap-1 flex-wrap">
-          {/* Undo / Redo */}
-          <button
-            type="button"
-            onClick={() => formatDoc('undo')}
-            className="p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer"
-            title="Undo (Ctrl+Z)"
-          >
-            <Undo className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            onClick={() => formatDoc('redo')}
-            className="p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer"
-            title="Redo (Ctrl+Y)"
-          >
-            <Redo className="h-4 w-4" />
-          </button>
+      <div
+        className={`relative z-30 transition-all duration-300 ease-in-out shrink-0 ${
+          isToolbarCollapsed ? 'h-0 opacity-0 overflow-hidden pointer-events-none' : 'h-auto opacity-100'
+        }`}
+      >
+        <div className="bg-[#18191c] border-b border-[#282a2e] px-4 py-2 flex items-center justify-between gap-3 select-none shadow-xl text-zinc-300 text-xs flex-nowrap overflow-x-auto no-scrollbar" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+          {/* Left Formats Cluster (All on one single horizontal row) */}
+          <div className="flex items-center gap-1.5 flex-nowrap shrink-0">
+            {/* Undo / Redo */}
+            <button
+              type="button"
+              onClick={() => formatDoc('undo')}
+              className="p-1.5 rounded hover:bg-[#282a2e] text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer shrink-0"
+              title="Undo (Ctrl+Z)"
+            >
+              <Undo2 className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => formatDoc('redo')}
+              className="p-1.5 rounded hover:bg-[#282a2e] text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer shrink-0"
+              title="Redo (Ctrl+Y)"
+            >
+              <Redo2 className="h-4 w-4" />
+            </button>
 
-          <div className="h-4 w-px bg-zinc-800 mx-1" />
+            <div className="h-4 w-px bg-zinc-700/60 mx-1 shrink-0" />
 
-          {/* Heading Select */}
-          <button
-            type="button"
-            onClick={() => formatDoc('h1')}
-            className="p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-300 hover:text-white transition-colors cursor-pointer font-bold text-xs"
-            title="Heading 1"
-          >
-            H1
-          </button>
-          <button
-            type="button"
-            onClick={() => formatDoc('h2')}
-            className="p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-300 hover:text-white transition-colors cursor-pointer font-bold text-xs"
-            title="Heading 2"
-          >
-            H2
-          </button>
-          <button
-            type="button"
-            onClick={() => formatDoc('h3')}
-            className="p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-300 hover:text-white transition-colors cursor-pointer font-bold text-xs"
-            title="Heading 3"
-          >
-            H3
-          </button>
-          <button
-            type="button"
-            onClick={() => formatDoc('p')}
-            className="p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-300 hover:text-white transition-colors cursor-pointer text-xs"
-            title="Normal Paragraph"
-          >
-            ¶
-          </button>
+            {/* Font Family Dropdown */}
+            <div className="relative flex items-center shrink-0">
+              <select
+                value={currentFont}
+                onChange={(e) => handleApplyFont(e.target.value)}
+                className="appearance-none bg-transparent hover:bg-[#282a2e] text-zinc-200 text-xs rounded px-2.5 py-1.5 pr-6 border border-transparent hover:border-zinc-700 focus:outline-none cursor-pointer"
+                title="Font Family"
+              >
+                {FONT_FAMILIES.map((f, i) => (
+                  <option key={i} value={f.value} className="bg-zinc-900 text-zinc-100">
+                    {f.label}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="h-3 w-3 text-zinc-400 absolute right-1.5 pointer-events-none" />
+            </div>
 
-          <div className="h-4 w-px bg-zinc-800 mx-1" />
+            {/* Font Size Dropdown */}
+            <div className="relative flex items-center shrink-0">
+              <select
+                value={currentFontSize}
+                onChange={(e) => handleApplyFontSize(Number(e.target.value))}
+                className="appearance-none bg-transparent hover:bg-[#282a2e] text-zinc-200 text-xs rounded px-2 py-1.5 pr-5 border border-transparent hover:border-zinc-700 focus:outline-none cursor-pointer w-12 text-center"
+                title="Font Size"
+              >
+                {FONT_SIZES.map((s, i) => (
+                  <option key={i} value={s.pt} className="bg-zinc-900 text-zinc-100">
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="h-3 w-3 text-zinc-400 absolute right-1 pointer-events-none" />
+            </div>
 
-          {/* Bold, Italic, Underline, Strikethrough */}
-          <button
-            type="button"
-            onClick={() => formatDoc('bold')}
-            className="p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-300 hover:text-white transition-colors cursor-pointer"
-            title="Bold (Ctrl+B)"
-          >
-            <Bold className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            onClick={() => formatDoc('italic')}
-            className="p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-300 hover:text-white transition-colors cursor-pointer"
-            title="Italic (Ctrl+I)"
-          >
-            <Italic className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            onClick={() => formatDoc('underline')}
-            className="p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-300 hover:text-white transition-colors cursor-pointer"
-            title="Underline (Ctrl+U)"
-          >
-            <Underline className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            onClick={() => formatDoc('strikeThrough')}
-            className="p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-300 hover:text-white transition-colors cursor-pointer"
-            title="Strikethrough"
-          >
-            <Strikethrough className="h-4 w-4" />
-          </button>
+            {/* Heading Style Dropdown */}
+            <div className="relative flex items-center shrink-0">
+              <select
+                value={currentHeading}
+                onChange={(e) => formatDoc(e.target.value)}
+                className="appearance-none bg-transparent hover:bg-[#282a2e] text-zinc-200 text-xs rounded px-2.5 py-1.5 pr-6 border border-transparent hover:border-zinc-700 focus:outline-none cursor-pointer font-medium"
+                title="Styles"
+              >
+                {HEADING_STYLES.map((h, i) => (
+                  <option key={i} value={h.value} className="bg-zinc-900 text-zinc-100">
+                    {h.label}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="h-3 w-3 text-zinc-400 absolute right-1.5 pointer-events-none" />
+            </div>
 
-          <div className="h-4 w-px bg-zinc-800 mx-1" />
+            <div className="h-4 w-px bg-zinc-700/60 mx-1 shrink-0" />
 
-          {/* Lists & Quotes */}
-          <button
-            type="button"
-            onClick={() => formatDoc('insertUnorderedList')}
-            className="p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-300 hover:text-white transition-colors cursor-pointer"
-            title="Bullet List"
-          >
-            <List className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            onClick={() => formatDoc('insertOrderedList')}
-            className="p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-300 hover:text-white transition-colors cursor-pointer"
-            title="Numbered List"
-          >
-            <ListOrdered className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            onClick={() => formatDoc('quote')}
-            className="p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-300 hover:text-white transition-colors cursor-pointer"
-            title="Blockquote"
-          >
-            <Quote className="h-4 w-4" />
-          </button>
-        </div>
+            {/* B, I, U, S, x2, x_2 */}
+            <button
+              type="button"
+              onClick={() => formatDoc('bold')}
+              className="p-1.5 rounded hover:bg-[#282a2e] text-zinc-300 hover:text-zinc-100 font-bold transition-colors cursor-pointer shrink-0"
+              title="Bold (Ctrl+B)"
+            >
+              <span className="font-bold text-xs">B</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => formatDoc('italic')}
+              className="p-1.5 rounded hover:bg-[#282a2e] text-zinc-300 hover:text-zinc-100 italic transition-colors cursor-pointer shrink-0"
+              title="Italic (Ctrl+I)"
+            >
+              <span className="italic font-serif text-xs">I</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => formatDoc('underline')}
+              className="p-1.5 rounded hover:bg-[#282a2e] text-zinc-300 hover:text-zinc-100 underline transition-colors cursor-pointer shrink-0"
+              title="Underline (Ctrl+U)"
+            >
+              <span className="underline text-xs">U</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => formatDoc('strikeThrough')}
+              className="p-1.5 rounded hover:bg-[#282a2e] text-zinc-300 hover:text-zinc-100 line-through transition-colors cursor-pointer shrink-0"
+              title="Strikethrough"
+            >
+              <span className="line-through text-xs">S</span>
+            </button>
 
-        {/* Right AI & Export Group */}
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* Live Auto-Save Status */}
-          <div className="flex items-center gap-1.5 text-xs text-zinc-400 font-mono px-2 py-1 bg-zinc-950/60 rounded-lg border border-zinc-800">
-            <span
-              className={`h-2 w-2 rounded-full ${
-                saveStatus === 'saved'
-                  ? 'bg-emerald-500'
-                  : saveStatus === 'saving'
-                  ? 'bg-amber-400 animate-pulse'
-                  : 'bg-zinc-600'
+            <button
+              type="button"
+              onClick={() => formatDoc('superscript')}
+              className="px-1.5 py-1 rounded hover:bg-[#282a2e] text-zinc-300 hover:text-zinc-100 font-mono text-[11px] transition-colors cursor-pointer shrink-0"
+              title="Superscript (x²)"
+            >
+              x²
+            </button>
+            <button
+              type="button"
+              onClick={() => formatDoc('subscript')}
+              className="px-1.5 py-1 rounded hover:bg-[#282a2e] text-zinc-300 hover:text-zinc-100 font-mono text-[11px] transition-colors cursor-pointer shrink-0"
+              title="Subscript (x₂)"
+            >
+              x₂
+            </button>
+
+            <div className="h-4 w-px bg-zinc-700/60 mx-1 shrink-0" />
+
+            {/* Colors */}
+            <div className="relative shrink-0">
+              <button
+                type="button"
+                onClick={() => setIsColorMenuOpen(!isColorMenuOpen)}
+                className="p-1.5 rounded hover:bg-[#282a2e] text-zinc-300 hover:text-zinc-100 transition-colors cursor-pointer"
+                title="Text Color"
+              >
+                <Palette className="h-3.5 w-3.5" />
+              </button>
+              {isColorMenuOpen && (
+                <div className="absolute top-full left-0 mt-1 p-1.5 bg-zinc-900 border border-zinc-700 rounded-xl shadow-xl z-50 w-36 space-y-1">
+                  {TEXT_COLORS.map((tc, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => handleApplyTextColor(tc.color)}
+                      className="w-full text-left px-2 py-1 rounded text-xs flex items-center gap-2 hover:bg-zinc-800 text-zinc-200"
+                    >
+                      <span className="h-3 w-3 rounded-full shrink-0 border border-zinc-600" style={{ backgroundColor: tc.color }} />
+                      <span className="truncate">{tc.label}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="relative shrink-0">
+              <button
+                type="button"
+                onClick={() => setIsHighlightMenuOpen(!isHighlightMenuOpen)}
+                className="p-1.5 rounded hover:bg-[#282a2e] text-zinc-300 hover:text-zinc-100 transition-colors cursor-pointer"
+                title="Highlight Color"
+              >
+                <Highlighter className="h-3.5 w-3.5 text-yellow-400" />
+              </button>
+              {isHighlightMenuOpen && (
+                <div className="absolute top-full left-0 mt-1 p-1.5 bg-zinc-900 border border-zinc-700 rounded-xl shadow-xl z-50 w-36 space-y-1">
+                  {HIGHLIGHT_COLORS.map((hc, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => handleApplyHighlightColor(hc.color)}
+                      className="w-full text-left px-2 py-1 rounded text-xs flex items-center gap-2 hover:bg-zinc-800 text-zinc-200"
+                    >
+                      <span className="h-3 w-3 rounded shrink-0 border border-zinc-600" style={{ backgroundColor: hc.color }} />
+                      <span className="truncate">{hc.label}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="h-4 w-px bg-zinc-700/60 mx-1 shrink-0" />
+
+            {/* Alignments (Left active by default in teal block style) */}
+            <button
+              type="button"
+              onClick={() => formatDoc('justifyLeft')}
+              className={`p-1.5 rounded transition-colors cursor-pointer shrink-0 ${
+                activeAlign === 'justifyLeft'
+                  ? 'bg-teal-950/80 text-teal-400 border border-teal-500/30'
+                  : 'hover:bg-[#282a2e] text-zinc-400 hover:text-zinc-100'
               }`}
-            />
-            <span>{saveStatus === 'saved' ? 'Saved' : saveStatus === 'saving' ? 'Saving...' : 'Unsaved'}</span>
+              title="Align Left"
+            >
+              <AlignLeft className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => formatDoc('justifyCenter')}
+              className={`p-1.5 rounded transition-colors cursor-pointer shrink-0 ${
+                activeAlign === 'justifyCenter'
+                  ? 'bg-teal-950/80 text-teal-400 border border-teal-500/30'
+                  : 'hover:bg-[#282a2e] text-zinc-400 hover:text-zinc-100'
+              }`}
+              title="Align Center"
+            >
+              <AlignCenter className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => formatDoc('justifyRight')}
+              className={`p-1.5 rounded transition-colors cursor-pointer shrink-0 ${
+                activeAlign === 'justifyRight'
+                  ? 'bg-teal-950/80 text-teal-400 border border-teal-500/30'
+                  : 'hover:bg-[#282a2e] text-zinc-400 hover:text-zinc-100'
+              }`}
+              title="Align Right"
+            >
+              <AlignRight className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => formatDoc('justifyFull')}
+              className={`p-1.5 rounded transition-colors cursor-pointer shrink-0 ${
+                activeAlign === 'justifyFull'
+                  ? 'bg-teal-950/80 text-teal-400 border border-teal-500/30'
+                  : 'hover:bg-[#282a2e] text-zinc-400 hover:text-zinc-100'
+              }`}
+              title="Justify"
+            >
+              <AlignJustify className="h-3.5 w-3.5" />
+            </button>
+
+            <div className="h-4 w-px bg-zinc-700/60 mx-1 shrink-0" />
+
+            {/* Bullet & Numbered List */}
+            <button
+              type="button"
+              onClick={() => formatDoc('insertUnorderedList')}
+              className="p-1.5 rounded hover:bg-[#282a2e] text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer shrink-0"
+              title="Bullet List"
+            >
+              <List className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => formatDoc('insertOrderedList')}
+              className="p-1.5 rounded hover:bg-[#282a2e] text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer shrink-0"
+              title="Numbered List"
+            >
+              <ListOrdered className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => formatDoc('outdent')}
+              className="p-1.5 rounded hover:bg-[#282a2e] text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer shrink-0"
+              title="Decrease Indent"
+            >
+              <Outdent className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => formatDoc('indent')}
+              className="p-1.5 rounded hover:bg-[#282a2e] text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer shrink-0"
+              title="Increase Indent"
+            >
+              <Indent className="h-3.5 w-3.5" />
+            </button>
+
+            <div className="h-4 w-px bg-zinc-700/60 mx-1 shrink-0" />
+
+            {/* Clear Formatting */}
+            <button
+              type="button"
+              onClick={() => formatDoc('removeFormat')}
+              className="p-1.5 rounded hover:bg-[#282a2e] text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer flex items-center shrink-0"
+              title="Clear Formatting"
+            >
+              <RemoveFormatting className="h-3.5 w-3.5" />
+            </button>
           </div>
 
-          <div className="h-4 w-px bg-zinc-800 mx-1" />
+          {/* Right Status & Actions Cluster */}
+          <div className="flex items-center gap-3 flex-nowrap shrink-0 ml-auto pl-2">
+            {/* Auto-save Status */}
+            <div className="flex items-center gap-1.5 text-xs text-zinc-300 font-medium select-none shrink-0">
+              <span
+                className={`h-2 w-2 rounded-full ${
+                  saveStatus === 'saved'
+                    ? 'bg-emerald-400'
+                    : saveStatus === 'saving'
+                    ? 'bg-amber-400 animate-pulse'
+                    : 'bg-zinc-500'
+                }`}
+              />
+              <span>{saveStatus === 'saved' ? 'Saved' : saveStatus === 'saving' ? 'Saving...' : 'Unsaved'}</span>
+            </div>
 
-          {/* Copy Markdown */}
-          <button
-            type="button"
-            onClick={handleCopyMarkdown}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium border border-zinc-700 transition-colors cursor-pointer"
-            title="Copy as clean Markdown"
-          >
-            {copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
-            <span>{copied ? 'Copied' : 'Copy'}</span>
-          </button>
+            {/* Copy Button */}
+            <button
+              type="button"
+              onClick={handleCopyMarkdown}
+              className="flex items-center gap-1.5 text-xs text-zinc-300 hover:text-zinc-100 px-2 py-1 rounded hover:bg-[#282a2e] transition-colors cursor-pointer font-medium shrink-0"
+              title="Copy as Markdown"
+            >
+              {copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5 text-zinc-400" />}
+              <span>{copied ? 'Copied' : 'Copy'}</span>
+            </button>
 
-          {/* Download Markdown */}
-          <button
-            type="button"
-            onClick={handleDownloadMarkdown}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium border border-zinc-700 transition-colors cursor-pointer"
-            title="Export as .md file"
-          >
-            <Download className="h-3.5 w-3.5 text-amber-400" />
-            <span>Export</span>
-          </button>
+            {/* Export Button */}
+            <button
+              type="button"
+              onClick={handleDownloadMarkdown}
+              className="flex items-center gap-1.5 text-xs text-zinc-300 hover:text-zinc-100 px-2 py-1 rounded hover:bg-[#282a2e] transition-colors cursor-pointer font-medium shrink-0"
+              title="Export as .md document"
+            >
+              <Download className="h-3.5 w-3.5 text-zinc-400" />
+              <span>Export</span>
+            </button>
+
+            {/* Fullscreen Expand / Restore Button */}
+            {onToggleFullscreen && (
+              <button
+                type="button"
+                onClick={onToggleFullscreen}
+                className="p-1.5 rounded hover:bg-[#282a2e] text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer shrink-0"
+                title={isFullscreen ? 'Restore Split Screen' : 'Expand to Fullscreen'}
+              >
+                {isFullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
+      {/* Center Toolbar Collapse Tab (Fixed to stay accessible when collapsed) */}
+      <button
+        type="button"
+        onClick={() => setIsToolbarCollapsed(!isToolbarCollapsed)}
+        className={`fixed left-1/2 -translate-x-1/2 bg-[#18191c] hover:bg-[#282a2e] border border-[#282a2e] border-t-0 rounded-b-md px-3.5 py-0.5 text-zinc-400 hover:text-zinc-200 shadow-xl cursor-pointer transition-all duration-300 z-50 ${
+          isToolbarCollapsed ? 'top-0' : 'top-[41px]'
+        }`}
+        title={isToolbarCollapsed ? 'Show Toolbar' : 'Collapse Toolbar'}
+      >
+        {isToolbarCollapsed ? (
+          <ChevronDown className="h-3 w-3" />
+        ) : (
+          <ChevronUp className="h-3 w-3" />
+        )}
+      </button>
+
       {/* -------------------------------------------------------------------- */}
-      {/* SCROLLABLE DOCUMENT CANVAS CONTAINER (Light Paper Sheet on Dark Canvas) */}
+      {/* 2. PROTRUDING EDGE TAB ARROW                                         */}
+      {/* -------------------------------------------------------------------- */}
+      {onToggleFullscreen && (
+        <button
+          type="button"
+          onClick={onToggleFullscreen}
+          className={`z-40 text-zinc-400 hover:text-zinc-100 transition-all cursor-pointer group ${
+            isFullscreen
+              ? 'fixed top-1/2 left-3 -translate-y-1/2 p-2 bg-[#1e2024]/90 hover:bg-[#282a2e] border border-zinc-700/60 rounded-full shadow-2xl'
+              : 'absolute top-1/2 -translate-y-1/2 -left-3.5 p-1.5 bg-[#18191c] hover:bg-[#282a2e] border border-zinc-700 rounded-full shadow-2xl'
+          }`}
+          title={isFullscreen ? 'Restore Split View (Collapse)' : 'Expand to Fullscreen'}
+        >
+          {isFullscreen ? (
+            <ChevronRight className="h-4 w-4 group-hover:scale-110 transition-transform" />
+          ) : (
+            <ChevronLeft className="h-3.5 w-3.5 group-hover:scale-110 transition-transform" />
+          )}
+        </button>
+      )}
+
+      {/* -------------------------------------------------------------------- */}
+      {/* 3. SCROLLABLE DOCUMENT CANVAS CONTAINER (Light Paper Sheet)          */}
       {/* -------------------------------------------------------------------- */}
       <div
-        className="flex-1 overflow-y-auto p-4 sm:p-8 bg-zinc-950/90 flex justify-center"
+        className={`flex-1 overflow-y-auto bg-[#121316] flex justify-center pb-16 transition-all duration-300 ${
+          isToolbarCollapsed ? 'pt-4 sm:pt-6' : 'pt-2 sm:pt-4'
+        } px-4`}
         onMouseUp={handleSelectionChange}
         onKeyUp={handleSelectionChange}
       >
@@ -529,10 +887,16 @@ export default function DocumentWriter({
           />
         )}
 
-        {/* Paper Sheet Canvas */}
-        <div className="w-full max-w-4xl min-h-[900px] bg-white text-zinc-900 rounded-2xl shadow-2xl p-8 sm:p-14 border border-zinc-200/80 flex flex-col justify-between transition-all">
+        {/* Paper Sheet Canvas (Moves up smoothly when toolbar collapses) */}
+        <div
+          style={{
+            fontFamily: currentFont,
+            fontSize: `${currentFontSize}pt`,
+          }}
+          className="w-full max-w-[800px] min-h-[1050px] bg-white text-[#1a1a1a] shadow-2xl rounded-xs p-12 sm:p-20 flex flex-col justify-between transition-all mt-2 mb-10"
+        >
           <div>
-            {/* Editable Document Title */}
+            {/* Document Title Header (Fyp) */}
             <input
               type="text"
               value={title}
@@ -540,8 +904,8 @@ export default function DocumentWriter({
                 setTitle(e.target.value);
                 triggerAutoSave(editorRef.current?.innerHTML, e.target.value, citations);
               }}
-              placeholder="Document Title (e.g. Synthesis of Retrieval-Augmented Generation)"
-              className="w-full text-2xl sm:text-3xl font-bold font-serif text-zinc-900 placeholder-zinc-400 border-none outline-none mb-6 pb-2 border-b border-zinc-200 focus:border-amber-500 transition-colors bg-transparent"
+              placeholder="Document Title"
+              className="w-full text-3xl sm:text-4xl font-bold text-zinc-900 placeholder-zinc-400 border-none outline-none mb-4 pb-1 transition-colors bg-transparent font-serif"
             />
 
             {/* Rich Contenteditable Body */}
@@ -553,16 +917,14 @@ export default function DocumentWriter({
                 updateWordCount();
                 triggerAutoSave(editorRef.current?.innerHTML, title, citations);
               }}
-              className="prose prose-zinc max-w-none focus:outline-none min-h-[500px] text-[15px] leading-relaxed font-serif text-zinc-800"
+              className="prose prose-zinc max-w-none focus:outline-none min-h-[600px] leading-relaxed text-[#1a1a1a]"
               style={{
                 outline: 'none',
               }}
             />
           </div>
 
-          {/* ---------------------------------------------------------------- */}
-          {/* DYNAMIC BIBLIOGRAPHY & REFERENCES FOOTER                        */}
-          {/* ---------------------------------------------------------------- */}
+          {/* References & Bibliography Section (if any citations exist) */}
           {citations && citations.length > 0 && (
             <div className="mt-14 pt-8 border-t-2 border-zinc-200 font-sans text-xs text-zinc-700 select-text not-prose">
               <div className="flex items-center justify-between mb-4">
@@ -579,10 +941,10 @@ export default function DocumentWriter({
                   <div
                     key={cite.id}
                     id={`reference-${cite.id}`}
-                    className="p-3 bg-zinc-50 hover:bg-zinc-100/80 rounded-xl border border-zinc-200/90 transition-colors flex items-start justify-between gap-3 group"
+                    className="p-3 bg-zinc-50 hover:bg-zinc-100/80 rounded-lg border border-zinc-200 transition-colors flex items-start justify-between gap-3 group"
                   >
                     <div className="flex items-start gap-2.5 min-w-0">
-                      <span className="font-mono font-bold text-amber-600 shrink-0 text-xs mt-0.5">
+                      <span className="font-mono font-bold text-teal-700 shrink-0 text-xs mt-0.5">
                         [{cite.id}]
                       </span>
                       <div className="min-w-0">
@@ -609,7 +971,7 @@ export default function DocumentWriter({
                       <button
                         type="button"
                         onClick={() => onOpenPdfViewer(cite.doc_name, cite.page_number)}
-                        className="p-1.5 rounded-lg text-zinc-400 hover:text-amber-600 hover:bg-zinc-200 transition-colors shrink-0 cursor-pointer opacity-80 group-hover:opacity-100"
+                        className="p-1.5 rounded-lg text-zinc-400 hover:text-teal-700 hover:bg-zinc-200 transition-colors shrink-0 cursor-pointer opacity-80 group-hover:opacity-100"
                         title={`View ${cite.doc_name} at Page ${cite.page_number}`}
                       >
                         <ExternalLink className="h-3.5 w-3.5" />
@@ -624,28 +986,21 @@ export default function DocumentWriter({
       </div>
 
       {/* -------------------------------------------------------------------- */}
-      {/* BOTTOM METRICS TOOLBAR                                               */}
+      {/* 4. BOTTOM METRICS FOOTER (Matches Screenshot)                        */}
       {/* -------------------------------------------------------------------- */}
-      <div className="bg-zinc-900 border-t border-zinc-800 px-4 py-2 flex items-center justify-between text-xs text-zinc-400 font-mono select-none shrink-0">
-        <div className="flex items-center gap-3">
-          <span className="flex items-center gap-1.5">
-            <FileText className="h-3.5 w-3.5 text-zinc-500" />
-            <span>{wordCount} words</span>
-          </span>
-          <span className="text-zinc-600">•</span>
-          <span className="flex items-center gap-1.5">
-            <Clock className="h-3.5 w-3.5 text-zinc-500" />
-            <span>~{Math.max(1, Math.ceil(wordCount / 200))} min read</span>
-          </span>
+      <div className="bg-[#121316] border-t border-[#24262b] px-6 py-2.5 flex items-center justify-between text-xs text-zinc-400 select-none shrink-0 fixed bottom-0 left-0 right-0 z-20">
+        <div className="flex items-center gap-2">
+          <FileText className="h-3.5 w-3.5 text-zinc-500" />
+          <span>{wordCount} words · ~{Math.max(1, Math.ceil(wordCount / 200))} min read</span>
         </div>
 
-        <div className="flex items-center gap-2 text-[11px] text-zinc-500">
-          <span>Highlight claim for <b>Cite</b> or <b>Ask AI</b></span>
+        <div className="flex items-center gap-1.5 text-xs text-zinc-400">
+          <span>Select a claim to <strong className="text-zinc-200 font-semibold">Cite</strong> or <strong className="text-zinc-200 font-semibold">Ask AI</strong></span>
         </div>
       </div>
 
       {/* -------------------------------------------------------------------- */}
-      {/* SLIDE-OVER DRAWERS                                                   */}
+      {/* 5. SLIDE-OVER DRAWERS                                                */}
       {/* -------------------------------------------------------------------- */}
       <CitationDrawer
         isOpen={isCitationDrawerOpen}

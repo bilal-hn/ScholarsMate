@@ -18,7 +18,7 @@ import {
   saveBYOKConfig
 } from './services/api';
 import { getSavedTheme, saveTheme } from './theme/constants';
-import { AlertCircle, RefreshCw, MessageSquare, Columns2, PenTool } from 'lucide-react';
+import { AlertCircle, RefreshCw } from 'lucide-react';
 
 export default function App() {
   const [documents, setDocuments] = useState([]);
@@ -49,8 +49,9 @@ export default function App() {
   const [workspaces, setWorkspaces] = useState([]);
   const [activeWorkspaceId, setActiveWorkspaceId] = useState(null);
 
-  // View Mode: 'chat' | 'split' | 'writer' (Odysseus-style assisted authoring canvas)
-  const [viewMode, setViewMode] = useState('chat');
+  // Assisted Academic Document Writer State (FR-13)
+  const [isWriterOpen, setIsWriterOpen] = useState(false);
+  const [isWriterFullscreen, setIsWriterFullscreen] = useState(false);
 
   // Apply theme on mount and when theme changes
   useEffect(() => {
@@ -60,6 +61,17 @@ export default function App() {
   const handleThemeChange = (newTheme) => {
     setCurrentTheme(newTheme);
     saveTheme(newTheme);
+  };
+
+  const handleToggleWriter = () => {
+    if (!isWriterOpen) {
+      setIsWriterOpen(true);
+      setIsWriterFullscreen(false);
+      setActivePdf(null);
+    } else {
+      setIsWriterOpen(false);
+      setIsWriterFullscreen(false);
+    }
   };
 
   // --------------------------------------------------------------------------
@@ -218,6 +230,52 @@ export default function App() {
     return await generateLiteratureReviewAPI(config);
   };
 
+  // --------------------------------------------------------------------------
+  // FULLSCREEN DOCUMENT WRITER VIEW (Zero sidebar, 100vw x 100vh)
+  // --------------------------------------------------------------------------
+  if (isWriterOpen && isWriterFullscreen) {
+    return (
+      <div 
+        data-theme={currentTheme}
+        className="fixed inset-0 z-50 h-screen w-screen bg-[#121316] text-zinc-100 overflow-hidden font-sans select-text"
+      >
+        <DocumentWriter
+          sessionId={activeWorkspaceId}
+          documents={scopedDocuments}
+          availableModels={discoveredModels}
+          currentModel={currentModel}
+          onOpenPdfViewer={handleSelectCitation}
+          isFullscreen={true}
+          onToggleFullscreen={() => setIsWriterFullscreen(false)}
+          onClose={() => {
+            setIsWriterOpen(false);
+            setIsWriterFullscreen(false);
+          }}
+        />
+
+        {/* Modals */}
+        <CreateWorkspaceModal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          onWorkspaceCreated={handleWorkspaceCreated}
+        />
+        <SettingsModal
+          isOpen={isSettingsOpen}
+          onClose={() => setIsSettingsOpen(false)}
+          onConfigUpdated={handleConfigUpdated}
+        />
+        <LiteratureReviewModal
+          isOpen={isLitReviewOpen}
+          onClose={() => setIsLitReviewOpen(false)}
+          documents={scopedDocuments}
+          selectedDocs={selectedDocs}
+          currentModel={currentModel}
+          onGenerateReview={handleGenerateLiteratureReview}
+        />
+      </div>
+    );
+  }
+
   return (
     <div 
       data-theme={currentTheme}
@@ -231,7 +289,8 @@ export default function App() {
         onDeleteWorkspace={handleDeleteWorkspace}
         onOpenCreateModal={() => setIsModalOpen(true)}
         onOpenLitReview={() => setIsLitReviewOpen(true)}
-        onToggleWriter={() => setViewMode(viewMode === 'chat' ? 'split' : viewMode === 'split' ? 'writer' : 'chat')}
+        onToggleWriter={handleToggleWriter}
+        isWriterActive={isWriterOpen}
         onAuthChange={handleAuthChange}
         onOpenSettings={() => setIsSettingsOpen(true)}
         currentTheme={currentTheme}
@@ -239,10 +298,10 @@ export default function App() {
       />
 
       {/* 2. Main Question / Research Interface Canvas */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden">
+      <div className="flex-1 flex flex-col h-full overflow-hidden relative">
         {/* Subtle offline alert bar if backend is disconnected */}
         {backendStatus === 'offline' && (
-          <div className="bg-amber-500/10 border-b border-amber-500/20 px-4 py-1.5 flex items-center justify-between text-xs text-amber-400">
+          <div className="bg-amber-500/10 border-b border-amber-500/20 px-4 py-1.5 flex items-center justify-between text-xs text-amber-400 shrink-0">
             <div className="flex items-center gap-2">
               <AlertCircle className="h-3.5 w-3.5 shrink-0" />
               <span>Backend server is offline (FastAPI port 8000). Start backend with <code className="bg-zinc-900 px-1.5 py-0.5 rounded text-[11px] font-mono text-zinc-200">uvicorn backend.api.main:app --port 8000</code></span>
@@ -257,97 +316,27 @@ export default function App() {
           </div>
         )}
 
-        {/* Top Header Bar with Workspace Status & 3-Mode View Switcher */}
-        <div className="h-10 border-b border-zinc-800/80 bg-zinc-950 px-4 flex items-center justify-between shrink-0 select-none">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-zinc-200 truncate max-w-xs">
-              {activeWorkspace ? activeWorkspace.name : 'Workspace'}
-            </span>
-            {scopedDocuments.length > 0 && (
-              <span className="text-[10px] font-mono text-zinc-400 bg-zinc-900 px-1.5 py-0.5 rounded border border-zinc-800">
-                {scopedDocuments.length} doc{scopedDocuments.length > 1 ? 's' : ''}
-              </span>
-            )}
-          </div>
-
-          {/* 3 View Mode Toggle Pills */}
-          <div className="flex items-center bg-zinc-900/90 p-0.5 rounded-xl border border-zinc-800 text-xs">
-            <button
-              type="button"
-              onClick={() => {
-                setViewMode('chat');
-                setActivePdf(null);
-              }}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg transition-all cursor-pointer font-medium ${
-                viewMode === 'chat' && !activePdf
-                  ? 'bg-zinc-800 text-zinc-100 shadow-xs'
-                  : 'text-zinc-400 hover:text-zinc-200'
-              }`}
-              title="Full Chat View"
-            >
-              <MessageSquare className="h-3.5 w-3.5" />
-              <span>Chat</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setViewMode('split');
-                setActivePdf(null);
-              }}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg transition-all cursor-pointer font-medium ${
-                viewMode === 'split' && !activePdf
-                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30 shadow-xs'
-                  : 'text-zinc-400 hover:text-zinc-200'
-              }`}
-              title="Split View: Research Chat + Document Writer"
-            >
-              <Columns2 className="h-3.5 w-3.5" />
-              <span>Split View</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setViewMode('writer');
-                setActivePdf(null);
-              }}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg transition-all cursor-pointer font-medium ${
-                viewMode === 'writer' && !activePdf
-                  ? 'bg-zinc-800 text-zinc-100 shadow-xs'
-                  : 'text-zinc-400 hover:text-zinc-200'
-              }`}
-              title="Full Academic Writer View"
-            >
-              <PenTool className="h-3.5 w-3.5" />
-              <span>Writer</span>
-            </button>
-          </div>
-        </div>
-
         {/* Dynamic Workspace Work Canvas */}
-        <div className="flex-1 flex h-full overflow-hidden">
-          {/* Left Canvas: Chat Interface (in Chat or Split View) */}
-          {viewMode !== 'writer' && (
-            <div className={`h-full transition-all duration-300 ${
-              activePdf || viewMode === 'split' ? 'w-1/2 border-r border-zinc-800' : 'w-full'
-            }`}>
-              <ChatInterface
-                documents={scopedDocuments}
-                selectedDocs={selectedDocs}
-                setSelectedDocs={setSelectedDocs}
-                onSelectCitation={handleSelectCitation}
-                incomingMessage={reviewTriggerMessage}
-                sessionId={activeWorkspaceId}
-                availableModels={discoveredModels}
-                currentModel={currentModel}
-                onModelChange={handleModelChange}
-                onOpenSettings={() => setIsSettingsOpen(true)}
-              />
-            </div>
-          )}
+        <div className="flex-1 flex h-full overflow-hidden relative">
+          {/* Left Canvas: Chat Interface */}
+          <div className={`h-full transition-all duration-300 ${
+            activePdf || isWriterOpen ? 'w-1/2 border-r border-zinc-800' : 'w-full'
+          }`}>
+            <ChatInterface
+              documents={scopedDocuments}
+              selectedDocs={selectedDocs}
+              setSelectedDocs={setSelectedDocs}
+              onSelectCitation={handleSelectCitation}
+              incomingMessage={reviewTriggerMessage}
+              sessionId={activeWorkspaceId}
+              availableModels={discoveredModels}
+              currentModel={currentModel}
+              onModelChange={handleModelChange}
+              onOpenSettings={() => setIsSettingsOpen(true)}
+            />
+          </div>
 
-          {/* Right Canvas: PDF Viewer OR Document Writer */}
+          {/* Right Canvas: PDF Viewer OR Split Document Writer */}
           {activePdf ? (
             <div className="w-1/2 h-full bg-zinc-900">
               <PdfViewer
@@ -357,14 +346,20 @@ export default function App() {
               />
             </div>
           ) : (
-            (viewMode === 'split' || viewMode === 'writer') && (
-              <div className={`${viewMode === 'writer' ? 'w-full' : 'w-1/2'} h-full transition-all duration-300`}>
+            isWriterOpen && (
+              <div className="w-1/2 h-full transition-all duration-300 relative">
                 <DocumentWriter
                   sessionId={activeWorkspaceId}
                   documents={scopedDocuments}
                   availableModels={discoveredModels}
                   currentModel={currentModel}
                   onOpenPdfViewer={handleSelectCitation}
+                  isFullscreen={false}
+                  onToggleFullscreen={() => setIsWriterFullscreen(true)}
+                  onClose={() => {
+                    setIsWriterOpen(false);
+                    setIsWriterFullscreen(false);
+                  }}
                 />
               </div>
             )

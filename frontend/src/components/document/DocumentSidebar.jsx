@@ -22,6 +22,7 @@ export default function DocumentSidebar({
   onOpenCreateModal,
   onOpenLitReview,
   onToggleWriter,
+  isWriterActive = false,
   onAuthChange,
   onOpenSettings,
   currentTheme = 'odysseus',
@@ -130,9 +131,13 @@ export default function DocumentSidebar({
           <button
             type="button"
             onClick={onToggleWriter}
-            className="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-xs text-zinc-400 hover:text-amber-400 hover:bg-zinc-800/30 transition-colors cursor-pointer group text-left"
+            className={`w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-xs transition-colors cursor-pointer group text-left ${
+              isWriterActive
+                ? 'bg-amber-500/15 text-amber-300 font-medium border border-amber-500/30'
+                : 'text-zinc-400 hover:text-amber-400 hover:bg-zinc-800/30'
+            }`}
           >
-            <PenTool className="h-3.5 w-3.5 text-zinc-500 group-hover:text-amber-400 transition-colors" />
+            <PenTool className={`h-3.5 w-3.5 ${isWriterActive ? 'text-amber-400' : 'text-zinc-500 group-hover:text-amber-400'} transition-colors`} />
             <span>Academic Writer</span>
           </button>
         )}
