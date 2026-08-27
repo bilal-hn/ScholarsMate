@@ -1,37 +1,35 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
+  X,
   Undo2,
   Redo2,
   Bold,
   Italic,
   Underline,
   Strikethrough,
-  Subscript,
-  Superscript,
   AlignLeft,
   AlignCenter,
   AlignRight,
   AlignJustify,
   List,
   ListOrdered,
-  Indent,
-  Outdent,
+  Quote,
+  Table as TableIcon,
+  Minus,
   RemoveFormatting,
-  Palette,
-  Highlighter,
   Copy,
   Check,
   Download,
+  FileText,
+  FileCode,
+  FilePlus,
   Maximize2,
   Minimize2,
   ChevronDown,
   ChevronUp,
   ChevronLeft,
   ChevronRight,
-  FileText,
-  Clock,
-  ExternalLink,
-  X
+  ExternalLink
 } from 'lucide-react';
 import FloatingBubbleMenu from './FloatingBubbleMenu';
 import CitationDrawer from './CitationDrawer';
@@ -69,31 +67,11 @@ const FONT_SIZES = [
 ];
 
 const HEADING_STYLES = [
-  { label: 'Normal text', value: 'p' },
-  { label: 'Title', value: 'h1' },
-  { label: 'Heading 1', value: 'h1' },
-  { label: 'Heading 2', value: 'h2' },
-  { label: 'Heading 3', value: 'h3' },
-  { label: 'Subtitle', value: 'h4' },
-];
-
-const TEXT_COLORS = [
-  { label: 'Black', color: '#18181b' },
-  { label: 'Dark Gray', color: '#52525b' },
-  { label: 'Academic Blue', color: '#1d4ed8' },
-  { label: 'Crimson Red', color: '#b91c1c' },
-  { label: 'Forest Green', color: '#15803d' },
-  { label: 'Purple', color: '#7e22ce' },
-  { label: 'Amber', color: '#b45309' },
-];
-
-const HIGHLIGHT_COLORS = [
-  { label: 'None', color: 'transparent' },
-  { label: 'Yellow', color: '#fef08a' },
-  { label: 'Light Green', color: '#bbf7d0' },
-  { label: 'Light Cyan', color: '#a5f3fc' },
-  { label: 'Light Pink', color: '#fbcfe8' },
-  { label: 'Light Amber', color: '#fed7aa' },
+  { label: 'Normal text', tag: 'p' },
+  { label: 'Heading 1', tag: 'h1' },
+  { label: 'Heading 2', tag: 'h2' },
+  { label: 'Heading 3', tag: 'h3' },
+  { label: 'Subtitle', tag: 'h4' },
 ];
 
 export default function DocumentWriter({
@@ -111,18 +89,26 @@ export default function DocumentWriter({
   const [citations, setCitations] = useState([]);
   const [saveStatus, setSaveStatus] = useState('saved'); // 'saved' | 'saving' | 'unsaved'
   const [wordCount, setWordCount] = useState(82);
+  const [pageCount, setPageCount] = useState(1);
   const [copied, setCopied] = useState(false);
 
   // Top Toolbar Collapse State
   const [isToolbarCollapsed, setIsToolbarCollapsed] = useState(false);
 
-  // Word Typography State
+  // Popover Menus State
+  const [isFontMenuOpen, setIsFontMenuOpen] = useState(false);
+  const [isSizeMenuOpen, setIsSizeMenuOpen] = useState(false);
+  const [isHeadingMenuOpen, setIsHeadingMenuOpen] = useState(false);
+  const [isTableMenuOpen, setIsTableMenuOpen] = useState(false);
+  const [tableGridHover, setTableGridHover] = useState({ rows: 3, cols: 3 });
+  const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
+
+  // Typography State
   const [currentFont, setCurrentFont] = useState("'Source Serif 4', 'Source Serif Pro', Georgia, serif");
+  const [currentFontLabel, setCurrentFontLabel] = useState('Source Serif');
   const [currentFontSize, setCurrentFontSize] = useState(12);
-  const [currentHeading, setCurrentHeading] = useState('p');
+  const [currentHeadingLabel, setCurrentHeadingLabel] = useState('Normal text');
   const [activeAlign, setActiveAlign] = useState('justifyLeft');
-  const [isColorMenuOpen, setIsColorMenuOpen] = useState(false);
-  const [isHighlightMenuOpen, setIsHighlightMenuOpen] = useState(false);
 
   // Selection & Bubble Menu State
   const [bubblePosition, setBubblePosition] = useState(null);
@@ -139,6 +125,19 @@ export default function DocumentWriter({
   const [aiResult, setAiResult] = useState('');
   const [thinkingProcess, setThinkingProcess] = useState('');
 
+  // Close all popover menus on outside click
+  useEffect(() => {
+    const handleOutsideClick = () => {
+      setIsFontMenuOpen(false);
+      setIsSizeMenuOpen(false);
+      setIsHeadingMenuOpen(false);
+      setIsTableMenuOpen(false);
+      setIsExportMenuOpen(false);
+    };
+    document.addEventListener('click', handleOutsideClick);
+    return () => document.removeEventListener('click', handleOutsideClick);
+  }, []);
+
   // --------------------------------------------------------------------------
   // 1. DRAFT INITIALIZATION & SESSION PERSISTENCE
   // --------------------------------------------------------------------------
@@ -153,16 +152,21 @@ export default function DocumentWriter({
           setTitle(draft.title || 'Fyp');
           setCitations(Array.isArray(draft.citations_data) ? draft.citations_data : []);
           if (editorRef.current) {
-            editorRef.current.innerHTML = draft.content_html || `
+            let initialHtml = draft.content_html || '';
+            // Sanitize and purge any old legacy references blocks that were accidentally persisted into content_html
+            initialHtml = initialHtml
+              .replace(/<div[^>]*class="[^"]*references[^"]*"[^>]*>[\s\S]*?<\/div>/gi, '')
+              .replace(/<div[^>]*id="reference-[^"]*"[^>]*>[\s\S]*?<\/div>/gi, '')
+              .replace(/<h[1-6][^>]*>References\s*&\s*Bibliography<\/h[1-6]>/gi, '');
+
+            editorRef.current.innerHTML = initialHtml || `
               <p class="section-tag" style="font-family: Inter, sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; color: #71717a; text-transform: uppercase; margin-top: 1.5rem; margin-bottom: 0.75rem;">RELATED WORK</p>
               <ul>
                 <li><strong>Structure Extraction Complexities:</strong> Preserving complex document elements—such as embedded multi-column tables, mathematical formulas, and structural headers—during vector chunking remains technically non-trivial <span class="doc-badge" style="font-family: monospace; font-size: 11px; color: #4b5563; background: #f3f4f6; border: 1px solid #d1d5db; padding: 2px 6px; border-radius: 4px; display: inline-flex; align-items: center; gap: 3px;">📄 AAAAAAAA <strong>p.5</strong></span>.</li>
                 <li><strong>Context Scope Dependency:</strong> Retrieval performance is fundamentally bounded by the granularity of chunking algorithms and vector embedding quality <span class="doc-badge" style="font-family: monospace; font-size: 11px; color: #4b5563; background: #f3f4f6; border: 1px solid #d1d5db; padding: 2px 6px; border-radius: 4px; display: inline-flex; align-items: center; gap: 3px;">📄 AAAAAAAA <strong>p.5</strong></span> <span class="doc-badge" style="font-family: monospace; font-size: 11px; color: #4b5563; background: #f3f4f6; border: 1px solid #d1d5db; padding: 2px 6px; border-radius: 4px; display: inline-flex; align-items: center; gap: 3px;">📄 AAAAAAAA <strong>p.8</strong></span>.</li>
               </ul>
               <h2 style="font-family: 'Source Serif 4', Georgia, serif; font-size: 18px; font-weight: 700; margin-top: 2rem; margin-bottom: 0.75rem; color: #111827;">7. Main Conclusion & Future Directions</h2>
-              <p>The proposed ScholarsMate assistant offers a tailored framework for academic research synthesis by integrating structural parsing with modular Retrieval-Augmented Generation <span class="doc-badge" style="font-family: monospace; font-size: 11px; color: #4b5563; background: #f3f4f6; border: 1px solid #d1d5db; padding: 2px 6px; border-radius: 4px; display: inline-flex; align-items: center; gap: 3px;">📄 AAAAAAAA <strong>p.5</strong></span> <span class="doc-badge" style="font-family: monospace; font-size: 11px; color: #4b5563; background: #f3f4f6; border: 1px solid #d1d5db; padding: 2px 6px; border-radius: 4px; display: inline-flex; align-items: center; gap: 3px;">📄 AAAAAAAA <strong>p.8</strong></span>. Selecting a claim anywhere in this document surfaces a quiet inline prompt to cite it or ask the assistant <span data-citation-id="1" class="inline-citation-marker" style="font-family: monospace; font-size: 11px; font-weight: 600; color: #0d9488; background: #f0fdfa; border: 1px solid #5eead4; padding: 2px 6px; border-radius: 4px; cursor: pointer;">[1]</span> — no separate panel required.</p>
-              <p class="section-tag" style="font-family: Inter, sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; color: #71717a; text-transform: uppercase; margin-top: 2rem; margin-bottom: 0.75rem;">PLANNED IMPLEMENTATION TIMELINE</p>
-              <p></p>
+              <p>The proposed ScholarsMate assistant offers a tailored framework for academic research synthesis by integrating structural parsing with modular Retrieval-Augmented Generation <span class="doc-badge" style="font-family: monospace; font-size: 11px; color: #4b5563; background: #f3f4f6; border: 1px solid #d1d5db; padding: 2px 6px; border-radius: 4px; display: inline-flex; align-items: center; gap: 3px;">📄 AAAAAAAA <strong>p.5</strong></span> <span class="doc-badge" style="font-family: monospace; font-size: 11px; color: #4b5563; background: #f3f4f6; border: 1px solid #d1d5db; padding: 2px 6px; border-radius: 4px; display: inline-flex; align-items: center; gap: 3px;">📄 AAAAAAAA <strong>p.8</strong></span>. Selecting a claim anywhere in this document surfaces a quiet inline prompt to cite it or ask the assistant — no separate panel required.</p>
             `;
             updateWordCount();
           }
@@ -213,13 +217,18 @@ export default function DocumentWriter({
   }, [sessionId, title, citations]);
 
   // --------------------------------------------------------------------------
-  // 2. SELECTION DETECTION & FLOATING BUBBLE MENU
+  // 2. SELECTION DETECTION & WORD COUNT
   // --------------------------------------------------------------------------
   const updateWordCount = () => {
     if (!editorRef.current) return;
     const text = editorRef.current.innerText || '';
     const words = text.trim().split(/\s+/).filter(Boolean).length;
     setWordCount(words);
+
+    // Calculate dynamic page count (~950px of content per A4 Word page)
+    const height = editorRef.current.scrollHeight || 0;
+    const pages = Math.max(1, Math.ceil(height / 950));
+    setPageCount(pages);
   };
 
   const handleSelectionChange = () => {
@@ -251,39 +260,24 @@ export default function DocumentWriter({
     }
   };
 
-  const restoreSelection = () => {
-    if (savedSelectionRange.current) {
-      const selection = window.getSelection();
-      selection.removeAllRanges();
-      selection.addRange(savedSelectionRange.current);
-    }
-  };
-
   // --------------------------------------------------------------------------
-  // 3. WORD-STYLE FORMATTING ACTIONS
+  // 3. BULLETPROOF FORMATTING ACTIONS
   // --------------------------------------------------------------------------
   const formatDoc = (command, value = null) => {
-    if (!editorRef.current) return;
-    editorRef.current.focus();
-    restoreSelection();
+    if (editorRef.current) {
+      editorRef.current.focus();
+    }
 
-    if (command === 'h1') {
-      document.execCommand('formatBlock', false, '<h1>');
-      setCurrentHeading('h1');
-    } else if (command === 'h2') {
-      document.execCommand('formatBlock', false, '<h2>');
-      setCurrentHeading('h2');
-    } else if (command === 'h3') {
-      document.execCommand('formatBlock', false, '<h3>');
-      setCurrentHeading('h3');
-    } else if (command === 'h4') {
-      document.execCommand('formatBlock', false, '<h4>');
-      setCurrentHeading('h4');
-    } else if (command === 'p') {
-      document.execCommand('formatBlock', false, '<p>');
-      setCurrentHeading('p');
+    if (command === 'insertUnorderedList') {
+      document.execCommand('insertUnorderedList', false, null);
+    } else if (command === 'insertOrderedList') {
+      document.execCommand('insertOrderedList', false, null);
+    } else if (command === 'h1' || command === 'h2' || command === 'h3' || command === 'h4' || command === 'p') {
+      document.execCommand('formatBlock', false, `<${command.toUpperCase()}>`);
     } else if (command === 'quote') {
       document.execCommand('formatBlock', false, '<blockquote>');
+    } else if (command === 'insertHorizontalRule') {
+      document.execCommand('insertHorizontalRule', false, null);
     } else {
       document.execCommand(command, false, value);
       if (['justifyLeft', 'justifyCenter', 'justifyRight', 'justifyFull'].includes(command)) {
@@ -295,23 +289,37 @@ export default function DocumentWriter({
     triggerAutoSave();
   };
 
-  const handleApplyFont = (fontValue) => {
-    setCurrentFont(fontValue);
-    if (!editorRef.current) return;
-    editorRef.current.focus();
-    restoreSelection();
-    document.execCommand('fontName', false, fontValue);
+  const handleApplyHeading = (styleObj) => {
+    setCurrentHeadingLabel(styleObj.label);
+    setIsHeadingMenuOpen(false);
+    if (editorRef.current) {
+      editorRef.current.focus();
+    }
+    document.execCommand('formatBlock', false, `<${styleObj.tag.toUpperCase()}>`);
+    updateWordCount();
+    triggerAutoSave();
+  };
+
+  const handleApplyFont = (fontObj) => {
+    setCurrentFont(fontObj.value);
+    setCurrentFontLabel(fontObj.label);
+    setIsFontMenuOpen(false);
+    if (editorRef.current) {
+      editorRef.current.focus();
+    }
+    document.execCommand('fontName', false, fontObj.value);
     triggerAutoSave();
   };
 
   const handleApplyFontSize = (sizePt) => {
     setCurrentFontSize(sizePt);
-    if (!editorRef.current) return;
-    editorRef.current.focus();
-    restoreSelection();
+    setIsSizeMenuOpen(false);
+    if (editorRef.current) {
+      editorRef.current.focus();
+    }
 
     const selection = window.getSelection();
-    if (!selection.isCollapsed && selection.rangeCount > 0) {
+    if (selection && !selection.isCollapsed && selection.rangeCount > 0) {
       const range = selection.getRangeAt(0);
       const span = document.createElement('span');
       span.style.fontSize = `${sizePt}pt`;
@@ -324,21 +332,43 @@ export default function DocumentWriter({
     triggerAutoSave();
   };
 
-  const handleApplyTextColor = (color) => {
-    setIsColorMenuOpen(false);
-    if (!editorRef.current) return;
-    editorRef.current.focus();
-    restoreSelection();
-    document.execCommand('foreColor', false, color);
-    triggerAutoSave();
-  };
+  // Microsoft Word / Google Docs-style custom grid table insertion
+  const handleInsertCustomTable = (rows, cols) => {
+    setIsTableMenuOpen(false);
+    if (editorRef.current) {
+      editorRef.current.focus();
+    }
 
-  const handleApplyHighlightColor = (color) => {
-    setIsHighlightMenuOpen(false);
-    if (!editorRef.current) return;
-    editorRef.current.focus();
-    restoreSelection();
-    document.execCommand('hiliteColor', false, color);
+    let headersHtml = '';
+    for (let c = 1; c <= cols; c++) {
+      headersHtml += `<th style="border: 1px solid #cbd5e1; padding: 8px 10px; text-align: left; font-weight: 600; background: #f8fafc; color: #1e293b; word-break: break-word; font-size: 12px;">Header ${c}</th>`;
+    }
+
+    let bodyHtml = '';
+    for (let r = 1; r <= rows - 1; r++) {
+      let rowCells = '';
+      for (let c = 1; c <= cols; c++) {
+        rowCells += `<td style="border: 1px solid #e2e8f0; padding: 8px 10px; color: #334155; word-break: break-word; font-size: 12px;">Cell ${r},${c}</td>`;
+      }
+      bodyHtml += `<tr>${rowCells}</tr>`;
+    }
+
+    const tableHtml = `
+      <table style="width: 100%; max-width: 100%; table-layout: fixed; border-collapse: collapse; margin: 1.5rem 0; font-family: inherit; box-sizing: border-box;">
+        <thead>
+          <tr style="border-bottom: 2px solid #cbd5e1;">
+            ${headersHtml}
+          </tr>
+        </thead>
+        <tbody>
+          ${bodyHtml}
+        </tbody>
+      </table>
+      <p><br/></p>
+    `;
+
+    document.execCommand('insertHTML', false, tableHtml);
+    updateWordCount();
     triggerAutoSave();
   };
 
@@ -348,6 +378,12 @@ export default function DocumentWriter({
   const handleOpenCitationSearch = async () => {
     const claim = selectedText;
     if (!claim) return;
+
+    // Snapshot exact text range before opening drawer
+    const selection = window.getSelection();
+    if (selection && selection.rangeCount > 0) {
+      savedSelectionRange.current = selection.getRangeAt(0).cloneRange();
+    }
 
     setBubblePosition(null);
     setIsCitationDrawerOpen(true);
@@ -366,30 +402,71 @@ export default function DocumentWriter({
   };
 
   const handleInsertCitation = (candidate) => {
-    restoreSelection();
-    editorRef.current.focus();
+    if (!editorRef.current) return;
 
-    const nextIndex = citations.length + 1;
-    const newCitationEntry = {
-      id: nextIndex,
-      chunk_id: candidate.chunk_id,
-      doc_name: candidate.doc_name,
-      page_number: candidate.page_number,
-      excerpt: candidate.excerpt,
-      similarity_score: candidate.similarity_score,
-      timestamp: new Date().toISOString(),
-    };
+    let targetRange = null;
+    if (savedSelectionRange.current) {
+      targetRange = savedSelectionRange.current.cloneRange();
+    } else {
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount > 0) {
+        targetRange = sel.getRangeAt(0).cloneRange();
+      }
+    }
 
-    const updatedCitations = [...citations, newCitationEntry];
-    setCitations(updatedCitations);
+    if (targetRange) {
+      targetRange.collapse(false); // Move precisely to the end of the highlighted sentence
 
-    // Insert inline citation pill [N] in teal style
-    const citationHtml = `&nbsp;<span data-citation-id="${nextIndex}" class="inline-citation-marker" style="font-family: monospace; font-size: 11px; font-weight: 600; color: #0d9488; background: #f0fdfa; border: 1px solid #5eead4; padding: 2px 6px; border-radius: 4px; cursor: pointer; select: none;" title="${candidate.doc_name} (Page ${candidate.page_number})">[${nextIndex}]</span>&nbsp;`;
-    document.execCommand('insertHTML', false, citationHtml);
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(targetRange);
+      editorRef.current.focus();
 
-    setIsCitationDrawerOpen(false);
+      const nextIndex = citations.length + 1;
+      const newCitationEntry = {
+        id: nextIndex,
+        chunk_id: candidate.chunk_id,
+        doc_name: candidate.doc_name,
+        page_number: candidate.page_number,
+        excerpt: candidate.excerpt,
+        similarity_score: candidate.similarity_score,
+        timestamp: new Date().toISOString(),
+      };
+
+      const updatedCitations = [...citations, newCitationEntry];
+      setCitations(updatedCitations);
+
+      // Clean Word-style academic superscript bracket: [1]
+      const sup = document.createElement('sup');
+      sup.innerHTML = `<span data-citation-id="${nextIndex}" class="citation-ref" style="font-family: inherit; font-size: 0.85em; font-weight: 700; color: #1e3a8a; cursor: pointer; user-select: none; padding: 0 2px;" title="${candidate.doc_name} (Page ${candidate.page_number})">[${nextIndex}]</span>&nbsp;`;
+
+      targetRange.insertNode(sup);
+
+      // Advance cursor immediately after the inserted citation node
+      targetRange.setStartAfter(sup);
+      targetRange.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(targetRange);
+
+      setIsCitationDrawerOpen(false);
+      updateWordCount();
+      triggerAutoSave(editorRef.current.innerHTML, title, updatedCitations);
+    }
+  };
+
+  const handleInsertPageBreak = () => {
+    if (editorRef.current) {
+      editorRef.current.focus();
+    }
+    const pageBreakHtml = `
+      <div class="page-break" style="margin: 2.5rem -3.5rem; border-top: 1px dashed #cbd5e1; padding-top: 1rem; text-align: center; color: #94a3b8; font-size: 11px; font-family: monospace; user-select: none;">
+        <span>— PAGE BREAK —</span>
+      </div>
+      <p><br/></p>
+    `;
+    document.execCommand('insertHTML', false, pageBreakHtml);
     updateWordCount();
-    triggerAutoSave(editorRef.current.innerHTML, title, updatedCitations);
+    triggerAutoSave();
   };
 
   // --------------------------------------------------------------------------
@@ -428,8 +505,9 @@ export default function DocumentWriter({
   };
 
   const handleReplaceSelection = (replacementText) => {
-    restoreSelection();
-    editorRef.current.focus();
+    if (editorRef.current) {
+      editorRef.current.focus();
+    }
     document.execCommand('insertText', false, replacementText);
     setIsAskAIDrawerOpen(false);
     updateWordCount();
@@ -437,8 +515,9 @@ export default function DocumentWriter({
   };
 
   const handleInsertBelow = (insertionText) => {
-    restoreSelection();
-    editorRef.current.focus();
+    if (editorRef.current) {
+      editorRef.current.focus();
+    }
     const formattedHtml = `<p>${insertionText}</p>`;
     document.execCommand('insertHTML', false, formattedHtml);
     setIsAskAIDrawerOpen(false);
@@ -447,7 +526,7 @@ export default function DocumentWriter({
   };
 
   // --------------------------------------------------------------------------
-  // 6. EXPORT & COPY UTILITIES
+  // 6. MULTI-FORMAT EXPORT ENGINE (Word .docx, PDF, Markdown, Copy)
   // --------------------------------------------------------------------------
   const handleCopyMarkdown = () => {
     if (!editorRef.current) return;
@@ -460,6 +539,7 @@ export default function DocumentWriter({
 
     navigator.clipboard.writeText(fullExport);
     setCopied(true);
+    setIsExportMenuOpen(false);
     setTimeout(() => setCopied(false), 2000);
   };
 
@@ -478,26 +558,114 @@ export default function DocumentWriter({
     link.download = `${title.toLowerCase().replace(/[^a-z0-9]+/g, '_') || 'academic_draft'}.md`;
     link.click();
     URL.revokeObjectURL(url);
+    setIsExportMenuOpen(false);
+  };
+
+  const handleExportDocx = () => {
+    if (!editorRef.current) return;
+    const htmlContent = editorRef.current.innerHTML;
+    let biblioHtml = '';
+    if (citations.length > 0) {
+      biblioHtml = `<div style="margin-top: 30pt; border-top: 1pt solid #ccc; padding-top: 15pt;"><h2 style="font-size: 14pt; font-weight: bold;">References & Bibliography</h2><ol>${citations.map(c => `<li><strong>${c.doc_name}</strong> (Page ${c.page_number}) — "${c.excerpt}"</li>`).join('')}</ol></div>`;
+    }
+
+    const wordHtml = `
+      <!DOCTYPE html>
+      <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+      <head>
+        <meta charset='utf-8'>
+        <title>${title}</title>
+        <style>
+          body { font-family: 'Times New Roman', 'Source Serif 4', Georgia, serif; font-size: 12pt; line-height: 1.5; color: #111; margin: 1in; }
+          h1 { font-size: 24pt; font-weight: bold; margin-bottom: 12pt; }
+          h2 { font-size: 16pt; font-weight: bold; margin-top: 16pt; margin-bottom: 6pt; }
+          h3 { font-size: 13pt; font-weight: bold; margin-top: 12pt; margin-bottom: 4pt; }
+          p { margin-bottom: 8pt; }
+          table { border-collapse: collapse; width: 100%; margin: 12pt 0; }
+          td, th { border: 1px solid #cbd5e1; padding: 6pt 10pt; text-align: left; }
+          th { background-color: #f1f5f9; font-weight: bold; }
+          blockquote { border-left: 3pt solid #94a3b8; padding-left: 10pt; margin-left: 0; color: #475569; font-style: italic; }
+        </style>
+      </head>
+      <body>
+        <h1>${title}</h1>
+        ${htmlContent}
+        ${biblioHtml}
+      </body>
+      </html>
+    `;
+
+    const blob = new Blob(['\ufeff', wordHtml], { type: 'application/msword' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${title.toLowerCase().replace(/[^a-z0-9]+/g, '_') || 'document'}.docx`;
+    link.click();
+    URL.revokeObjectURL(url);
+    setIsExportMenuOpen(false);
+  };
+
+  const handleExportPdf = () => {
+    if (!editorRef.current) return;
+    setIsExportMenuOpen(false);
+
+    import('html2pdf.js').then((html2pdfModule) => {
+      const html2pdf = html2pdfModule.default || html2pdfModule;
+      const element = document.createElement('div');
+      element.style.padding = '40px';
+      element.style.fontFamily = currentFont;
+      element.style.color = '#111827';
+      element.style.backgroundColor = '#ffffff';
+      element.innerHTML = `<h1 style="font-size: 26px; font-weight: bold; margin-bottom: 20px; font-family: serif;">${title}</h1>${editorRef.current.innerHTML}`;
+      
+      if (citations.length > 0) {
+        element.innerHTML += `<div style="margin-top: 40px; border-top: 2px solid #e5e7eb; padding-top: 20px;"><h2 style="font-size: 16px; font-weight: bold;">References & Bibliography</h2><ol>${citations.map(c => `<li><strong>${c.doc_name}</strong> (Page ${c.page_number}) — "${c.excerpt}"</li>`).join('')}</ol></div>`;
+      }
+      
+      const opt = {
+        margin: 15,
+        filename: `${title.toLowerCase().replace(/[^a-z0-9]+/g, '_') || 'document'}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      };
+      
+      html2pdf().set(opt).from(element).save();
+    }).catch(() => {
+      window.print();
+    });
   };
 
   return (
-    <div className={`flex flex-col h-full bg-[#121316] text-zinc-100 font-sans select-text relative overflow-hidden ${
-      isFullscreen ? 'w-full h-full' : 'w-full h-full'
-    }`}>
+    <div className="flex flex-col w-full h-full bg-[#121316] text-zinc-100 font-sans select-text relative overflow-hidden">
       {/* -------------------------------------------------------------------- */}
-      {/* 1. COLLAPSIBLE TOP RIBBON TOOLBAR (Scrollable single line)            */}
+      {/* 1. COLLAPSIBLE TOP RIBBON TOOLBAR (Overflow visible so popovers float) */}
       {/* -------------------------------------------------------------------- */}
       <div
         className={`relative z-30 transition-all duration-300 ease-in-out shrink-0 ${
-          isToolbarCollapsed ? 'h-0 opacity-0 overflow-hidden pointer-events-none' : 'h-auto opacity-100'
+          isToolbarCollapsed ? 'h-0 opacity-0 overflow-hidden pointer-events-none' : 'h-auto opacity-100 overflow-visible'
         }`}
       >
-        <div className="bg-[#18191c] border-b border-[#282a2e] px-4 py-2 flex items-center justify-between gap-3 select-none shadow-xl text-zinc-300 text-xs flex-nowrap overflow-x-auto no-scrollbar" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-          {/* Left Formats Cluster (All on one single horizontal row) */}
-          <div className="flex items-center gap-1.5 flex-nowrap shrink-0">
+        <div className="bg-[#18191c] border-b border-[#282a2e] px-3.5 py-2 flex items-center justify-between gap-2 select-none shadow-xl text-zinc-300 text-xs overflow-visible">
+          {/* Left Controls Cluster */}
+          <div className="flex items-center gap-1 flex-wrap sm:flex-nowrap shrink-0 overflow-visible">
+            {/* Close Writer Button (Cross / X) */}
+            {onClose && (
+              <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={onClose}
+                className="p-1.5 rounded hover:bg-red-500/20 text-zinc-400 hover:text-red-400 transition-colors cursor-pointer shrink-0 mr-1"
+                title="Close Document Writer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+
             {/* Undo / Redo */}
             <button
               type="button"
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => formatDoc('undo')}
               className="p-1.5 rounded hover:bg-[#282a2e] text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer shrink-0"
               title="Undo (Ctrl+Z)"
@@ -506,6 +674,7 @@ export default function DocumentWriter({
             </button>
             <button
               type="button"
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => formatDoc('redo')}
               className="p-1.5 rounded hover:bg-[#282a2e] text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer shrink-0"
               title="Redo (Ctrl+Y)"
@@ -515,62 +684,121 @@ export default function DocumentWriter({
 
             <div className="h-4 w-px bg-zinc-700/60 mx-1 shrink-0" />
 
-            {/* Font Family Dropdown */}
-            <div className="relative flex items-center shrink-0">
-              <select
-                value={currentFont}
-                onChange={(e) => handleApplyFont(e.target.value)}
-                className="appearance-none bg-transparent hover:bg-[#282a2e] text-zinc-200 text-xs rounded px-2.5 py-1.5 pr-6 border border-transparent hover:border-zinc-700 focus:outline-none cursor-pointer"
+            {/* Custom Font Family Popover */}
+            <div className="relative shrink-0" onClick={(e) => e.stopPropagation()}>
+              <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  setIsFontMenuOpen(!isFontMenuOpen);
+                  setIsSizeMenuOpen(false);
+                  setIsHeadingMenuOpen(false);
+                  setIsTableMenuOpen(false);
+                  setIsExportMenuOpen(false);
+                }}
+                className="flex items-center gap-1 px-2 py-1 rounded hover:bg-[#282a2e] text-zinc-200 text-xs font-medium border border-transparent hover:border-zinc-700 transition-colors cursor-pointer"
                 title="Font Family"
               >
-                {FONT_FAMILIES.map((f, i) => (
-                  <option key={i} value={f.value} className="bg-zinc-900 text-zinc-100">
-                    {f.label}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="h-3 w-3 text-zinc-400 absolute right-1.5 pointer-events-none" />
+                <span>{currentFontLabel}</span>
+                <ChevronDown className="h-3 w-3 text-zinc-400" />
+              </button>
+
+              {isFontMenuOpen && (
+                <div className="absolute top-full left-0 mt-1.5 p-1 bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl z-50 w-44 max-h-64 overflow-y-auto space-y-0.5">
+                  {FONT_FAMILIES.map((f, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => handleApplyFont(f)}
+                      className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs text-zinc-200 hover:bg-zinc-800 hover:text-amber-300 transition-colors cursor-pointer"
+                      style={{ fontFamily: f.value }}
+                    >
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
-            {/* Font Size Dropdown */}
-            <div className="relative flex items-center shrink-0">
-              <select
-                value={currentFontSize}
-                onChange={(e) => handleApplyFontSize(Number(e.target.value))}
-                className="appearance-none bg-transparent hover:bg-[#282a2e] text-zinc-200 text-xs rounded px-2 py-1.5 pr-5 border border-transparent hover:border-zinc-700 focus:outline-none cursor-pointer w-12 text-center"
+            {/* Custom Font Size Popover */}
+            <div className="relative shrink-0" onClick={(e) => e.stopPropagation()}>
+              <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  setIsSizeMenuOpen(!isSizeMenuOpen);
+                  setIsFontMenuOpen(false);
+                  setIsHeadingMenuOpen(false);
+                  setIsTableMenuOpen(false);
+                  setIsExportMenuOpen(false);
+                }}
+                className="flex items-center gap-1 px-2 py-1 rounded hover:bg-[#282a2e] text-zinc-200 text-xs font-medium border border-transparent hover:border-zinc-700 transition-colors cursor-pointer"
                 title="Font Size"
               >
-                {FONT_SIZES.map((s, i) => (
-                  <option key={i} value={s.pt} className="bg-zinc-900 text-zinc-100">
-                    {s.label}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="h-3 w-3 text-zinc-400 absolute right-1 pointer-events-none" />
+                <span>{currentFontSize}</span>
+                <ChevronDown className="h-3 w-3 text-zinc-400" />
+              </button>
+
+              {isSizeMenuOpen && (
+                <div className="absolute top-full left-0 mt-1.5 p-1 bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl z-50 w-24 max-h-56 overflow-y-auto space-y-0.5">
+                  {FONT_SIZES.map((s, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => handleApplyFontSize(s.pt)}
+                      className="w-full text-center px-2 py-1 rounded-lg text-xs text-zinc-200 hover:bg-zinc-800 hover:text-amber-300 transition-colors cursor-pointer"
+                    >
+                      {s.label} pt
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
-            {/* Heading Style Dropdown */}
-            <div className="relative flex items-center shrink-0">
-              <select
-                value={currentHeading}
-                onChange={(e) => formatDoc(e.target.value)}
-                className="appearance-none bg-transparent hover:bg-[#282a2e] text-zinc-200 text-xs rounded px-2.5 py-1.5 pr-6 border border-transparent hover:border-zinc-700 focus:outline-none cursor-pointer font-medium"
+            {/* Custom Heading / Style Popover */}
+            <div className="relative shrink-0" onClick={(e) => e.stopPropagation()}>
+              <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  setIsHeadingMenuOpen(!isHeadingMenuOpen);
+                  setIsFontMenuOpen(false);
+                  setIsSizeMenuOpen(false);
+                  setIsTableMenuOpen(false);
+                  setIsExportMenuOpen(false);
+                }}
+                className="flex items-center gap-1 px-2 py-1 rounded hover:bg-[#282a2e] text-zinc-200 text-xs font-medium border border-transparent hover:border-zinc-700 transition-colors cursor-pointer"
                 title="Styles"
               >
-                {HEADING_STYLES.map((h, i) => (
-                  <option key={i} value={h.value} className="bg-zinc-900 text-zinc-100">
-                    {h.label}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="h-3 w-3 text-zinc-400 absolute right-1.5 pointer-events-none" />
+                <span>{currentHeadingLabel}</span>
+                <ChevronDown className="h-3 w-3 text-zinc-400" />
+              </button>
+
+              {isHeadingMenuOpen && (
+                <div className="absolute top-full left-0 mt-1.5 p-1 bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl z-50 w-36 space-y-0.5">
+                  {HEADING_STYLES.map((h, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => handleApplyHeading(h)}
+                      className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs text-zinc-200 hover:bg-zinc-800 hover:text-amber-300 transition-colors cursor-pointer font-medium"
+                    >
+                      {h.label}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="h-4 w-px bg-zinc-700/60 mx-1 shrink-0" />
 
-            {/* B, I, U, S, x2, x_2 */}
+            {/* B, I, U, S */}
             <button
               type="button"
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => formatDoc('bold')}
               className="p-1.5 rounded hover:bg-[#282a2e] text-zinc-300 hover:text-zinc-100 font-bold transition-colors cursor-pointer shrink-0"
               title="Bold (Ctrl+B)"
@@ -579,6 +807,7 @@ export default function DocumentWriter({
             </button>
             <button
               type="button"
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => formatDoc('italic')}
               className="p-1.5 rounded hover:bg-[#282a2e] text-zinc-300 hover:text-zinc-100 italic transition-colors cursor-pointer shrink-0"
               title="Italic (Ctrl+I)"
@@ -587,6 +816,7 @@ export default function DocumentWriter({
             </button>
             <button
               type="button"
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => formatDoc('underline')}
               className="p-1.5 rounded hover:bg-[#282a2e] text-zinc-300 hover:text-zinc-100 underline transition-colors cursor-pointer shrink-0"
               title="Underline (Ctrl+U)"
@@ -595,6 +825,7 @@ export default function DocumentWriter({
             </button>
             <button
               type="button"
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => formatDoc('strikeThrough')}
               className="p-1.5 rounded hover:bg-[#282a2e] text-zinc-300 hover:text-zinc-100 line-through transition-colors cursor-pointer shrink-0"
               title="Strikethrough"
@@ -602,83 +833,12 @@ export default function DocumentWriter({
               <span className="line-through text-xs">S</span>
             </button>
 
-            <button
-              type="button"
-              onClick={() => formatDoc('superscript')}
-              className="px-1.5 py-1 rounded hover:bg-[#282a2e] text-zinc-300 hover:text-zinc-100 font-mono text-[11px] transition-colors cursor-pointer shrink-0"
-              title="Superscript (x²)"
-            >
-              x²
-            </button>
-            <button
-              type="button"
-              onClick={() => formatDoc('subscript')}
-              className="px-1.5 py-1 rounded hover:bg-[#282a2e] text-zinc-300 hover:text-zinc-100 font-mono text-[11px] transition-colors cursor-pointer shrink-0"
-              title="Subscript (x₂)"
-            >
-              x₂
-            </button>
-
-            <div className="h-4 w-px bg-zinc-700/60 mx-1 shrink-0" />
-
-            {/* Colors */}
-            <div className="relative shrink-0">
-              <button
-                type="button"
-                onClick={() => setIsColorMenuOpen(!isColorMenuOpen)}
-                className="p-1.5 rounded hover:bg-[#282a2e] text-zinc-300 hover:text-zinc-100 transition-colors cursor-pointer"
-                title="Text Color"
-              >
-                <Palette className="h-3.5 w-3.5" />
-              </button>
-              {isColorMenuOpen && (
-                <div className="absolute top-full left-0 mt-1 p-1.5 bg-zinc-900 border border-zinc-700 rounded-xl shadow-xl z-50 w-36 space-y-1">
-                  {TEXT_COLORS.map((tc, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => handleApplyTextColor(tc.color)}
-                      className="w-full text-left px-2 py-1 rounded text-xs flex items-center gap-2 hover:bg-zinc-800 text-zinc-200"
-                    >
-                      <span className="h-3 w-3 rounded-full shrink-0 border border-zinc-600" style={{ backgroundColor: tc.color }} />
-                      <span className="truncate">{tc.label}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="relative shrink-0">
-              <button
-                type="button"
-                onClick={() => setIsHighlightMenuOpen(!isHighlightMenuOpen)}
-                className="p-1.5 rounded hover:bg-[#282a2e] text-zinc-300 hover:text-zinc-100 transition-colors cursor-pointer"
-                title="Highlight Color"
-              >
-                <Highlighter className="h-3.5 w-3.5 text-yellow-400" />
-              </button>
-              {isHighlightMenuOpen && (
-                <div className="absolute top-full left-0 mt-1 p-1.5 bg-zinc-900 border border-zinc-700 rounded-xl shadow-xl z-50 w-36 space-y-1">
-                  {HIGHLIGHT_COLORS.map((hc, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => handleApplyHighlightColor(hc.color)}
-                      className="w-full text-left px-2 py-1 rounded text-xs flex items-center gap-2 hover:bg-zinc-800 text-zinc-200"
-                    >
-                      <span className="h-3 w-3 rounded shrink-0 border border-zinc-600" style={{ backgroundColor: hc.color }} />
-                      <span className="truncate">{hc.label}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
             <div className="h-4 w-px bg-zinc-700/60 mx-1 shrink-0" />
 
             {/* Alignments (Left active by default in teal block style) */}
             <button
               type="button"
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => formatDoc('justifyLeft')}
               className={`p-1.5 rounded transition-colors cursor-pointer shrink-0 ${
                 activeAlign === 'justifyLeft'
@@ -691,6 +851,7 @@ export default function DocumentWriter({
             </button>
             <button
               type="button"
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => formatDoc('justifyCenter')}
               className={`p-1.5 rounded transition-colors cursor-pointer shrink-0 ${
                 activeAlign === 'justifyCenter'
@@ -703,6 +864,7 @@ export default function DocumentWriter({
             </button>
             <button
               type="button"
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => formatDoc('justifyRight')}
               className={`p-1.5 rounded transition-colors cursor-pointer shrink-0 ${
                 activeAlign === 'justifyRight'
@@ -715,6 +877,7 @@ export default function DocumentWriter({
             </button>
             <button
               type="button"
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => formatDoc('justifyFull')}
               className={`p-1.5 rounded transition-colors cursor-pointer shrink-0 ${
                 activeAlign === 'justifyFull'
@@ -728,17 +891,19 @@ export default function DocumentWriter({
 
             <div className="h-4 w-px bg-zinc-700/60 mx-1 shrink-0" />
 
-            {/* Bullet & Numbered List */}
+            {/* Lists & Academic Elements */}
             <button
               type="button"
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => formatDoc('insertUnorderedList')}
               className="p-1.5 rounded hover:bg-[#282a2e] text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer shrink-0"
-              title="Bullet List"
+              title="Bullet Points List"
             >
               <List className="h-3.5 w-3.5" />
             </button>
             <button
               type="button"
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => formatDoc('insertOrderedList')}
               className="p-1.5 rounded hover:bg-[#282a2e] text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer shrink-0"
               title="Numbered List"
@@ -747,19 +912,90 @@ export default function DocumentWriter({
             </button>
             <button
               type="button"
-              onClick={() => formatDoc('outdent')}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => formatDoc('quote')}
               className="p-1.5 rounded hover:bg-[#282a2e] text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer shrink-0"
-              title="Decrease Indent"
+              title="Blockquote (Literature citation)"
             >
-              <Outdent className="h-3.5 w-3.5" />
+              <Quote className="h-3.5 w-3.5" />
             </button>
+
+            {/* Word-style Interactive Table Grid Selector */}
+            <div className="relative shrink-0" onClick={(e) => e.stopPropagation()}>
+              <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  setIsTableMenuOpen(!isTableMenuOpen);
+                  setIsFontMenuOpen(false);
+                  setIsSizeMenuOpen(false);
+                  setIsHeadingMenuOpen(false);
+                  setIsExportMenuOpen(false);
+                }}
+                className="p-1.5 rounded hover:bg-[#282a2e] text-zinc-400 hover:text-amber-400 transition-colors cursor-pointer shrink-0"
+                title="Insert Table (Grid Selector)"
+              >
+                <TableIcon className="h-3.5 w-3.5" />
+              </button>
+
+              {isTableMenuOpen && (
+                <div className="absolute top-full left-0 mt-1.5 p-3 bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl z-50 w-52 select-none">
+                  <div className="text-[11px] font-semibold text-zinc-300 mb-2 flex items-center justify-between">
+                    <span>Insert Table</span>
+                    <span className="font-mono text-amber-400 text-[10px]">
+                      {tableGridHover.rows} × {tableGridHover.cols}
+                    </span>
+                  </div>
+
+                  {/* 6x6 Grid of cells */}
+                  <div className="grid grid-cols-6 gap-1 bg-zinc-950 p-2 rounded-lg border border-zinc-800">
+                    {[1, 2, 3, 4, 5, 6].map((r) =>
+                      [1, 2, 3, 4, 5, 6].map((c) => {
+                        const isHovered = r <= tableGridHover.rows && c <= tableGridHover.cols;
+                        return (
+                          <div
+                            key={`${r}-${c}`}
+                            onMouseEnter={() => setTableGridHover({ rows: r, cols: c })}
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => handleInsertCustomTable(r, c)}
+                            className={`w-5 h-5 rounded-xs border cursor-pointer transition-all ${
+                              isHovered
+                                ? 'bg-amber-400/80 border-amber-300 shadow-xs'
+                                : 'bg-zinc-900 border-zinc-700/60 hover:border-zinc-500'
+                            }`}
+                          />
+                        );
+                      })
+                    )}
+                  </div>
+
+                  <div className="mt-2 text-center text-[10px] text-zinc-400">
+                    Click to insert {tableGridHover.rows} × {tableGridHover.cols} Table
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Section Divider Rule */}
             <button
               type="button"
-              onClick={() => formatDoc('indent')}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => formatDoc('insertHorizontalRule')}
               className="p-1.5 rounded hover:bg-[#282a2e] text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer shrink-0"
-              title="Increase Indent"
+              title="Divider / Section Rule"
             >
-              <Indent className="h-3.5 w-3.5" />
+              <Minus className="h-3.5 w-3.5" />
+            </button>
+
+            {/* Insert Page Break */}
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={handleInsertPageBreak}
+              className="p-1.5 rounded hover:bg-[#282a2e] text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer shrink-0"
+              title="Insert Page Break"
+            >
+              <FilePlus className="h-3.5 w-3.5" />
             </button>
 
             <div className="h-4 w-px bg-zinc-700/60 mx-1 shrink-0" />
@@ -767,8 +1003,9 @@ export default function DocumentWriter({
             {/* Clear Formatting */}
             <button
               type="button"
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => formatDoc('removeFormat')}
-              className="p-1.5 rounded hover:bg-[#282a2e] text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer flex items-center shrink-0"
+              className="p-1.5 rounded hover:bg-[#282a2e] text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer shrink-0"
               title="Clear Formatting"
             >
               <RemoveFormatting className="h-3.5 w-3.5" />
@@ -776,7 +1013,7 @@ export default function DocumentWriter({
           </div>
 
           {/* Right Status & Actions Cluster */}
-          <div className="flex items-center gap-3 flex-nowrap shrink-0 ml-auto pl-2">
+          <div className="flex items-center gap-2.5 flex-nowrap shrink-0 ml-auto pl-2">
             {/* Auto-save Status */}
             <div className="flex items-center gap-1.5 text-xs text-zinc-300 font-medium select-none shrink-0">
               <span
@@ -795,23 +1032,76 @@ export default function DocumentWriter({
             <button
               type="button"
               onClick={handleCopyMarkdown}
-              className="flex items-center gap-1.5 text-xs text-zinc-300 hover:text-zinc-100 px-2 py-1 rounded hover:bg-[#282a2e] transition-colors cursor-pointer font-medium shrink-0"
+              className="flex items-center gap-1 text-xs text-zinc-300 hover:text-zinc-100 px-2 py-1 rounded hover:bg-[#282a2e] transition-colors cursor-pointer font-medium shrink-0"
               title="Copy as Markdown"
             >
               {copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5 text-zinc-400" />}
               <span>{copied ? 'Copied' : 'Copy'}</span>
             </button>
 
-            {/* Export Button */}
-            <button
-              type="button"
-              onClick={handleDownloadMarkdown}
-              className="flex items-center gap-1.5 text-xs text-zinc-300 hover:text-zinc-100 px-2 py-1 rounded hover:bg-[#282a2e] transition-colors cursor-pointer font-medium shrink-0"
-              title="Export as .md document"
-            >
-              <Download className="h-3.5 w-3.5 text-zinc-400" />
-              <span>Export</span>
-            </button>
+            {/* Export Multi-Format Dropdown */}
+            <div className="relative shrink-0" onClick={(e) => e.stopPropagation()}>
+              <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  setIsExportMenuOpen(!isExportMenuOpen);
+                  setIsFontMenuOpen(false);
+                  setIsSizeMenuOpen(false);
+                  setIsHeadingMenuOpen(false);
+                  setIsTableMenuOpen(false);
+                }}
+                className="flex items-center gap-1.5 text-xs text-zinc-300 hover:text-zinc-100 px-2.5 py-1 rounded hover:bg-[#282a2e] transition-colors cursor-pointer font-medium shrink-0 bg-zinc-900 border border-zinc-700/60"
+                title="Export Document"
+              >
+                <Download className="h-3.5 w-3.5 text-amber-400" />
+                <span>Export</span>
+                <ChevronDown className="h-3 w-3 text-zinc-400" />
+              </button>
+
+              {isExportMenuOpen && (
+                <div className="absolute top-full right-0 mt-1.5 p-1.5 bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl z-50 w-52 space-y-1">
+                  <button
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={handleExportDocx}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-zinc-200 hover:bg-zinc-800 hover:text-blue-400 transition-colors cursor-pointer text-left"
+                  >
+                    <FileText className="h-4 w-4 text-blue-400 shrink-0" />
+                    <div>
+                      <div className="font-semibold">Microsoft Word (.docx)</div>
+                      <div className="text-[10px] text-zinc-400">Formatted Word document</div>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={handleExportPdf}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-zinc-200 hover:bg-zinc-800 hover:text-red-400 transition-colors cursor-pointer text-left"
+                  >
+                    <Download className="h-4 w-4 text-red-400 shrink-0" />
+                    <div>
+                      <div className="font-semibold">PDF Document (.pdf)</div>
+                      <div className="text-[10px] text-zinc-400">Printable publication layout</div>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={handleDownloadMarkdown}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-zinc-200 hover:bg-zinc-800 hover:text-amber-400 transition-colors cursor-pointer text-left"
+                  >
+                    <FileCode className="h-4 w-4 text-amber-400 shrink-0" />
+                    <div>
+                      <div className="font-semibold">Markdown (.md)</div>
+                      <div className="text-[10px] text-zinc-400">Clean text synthesis</div>
+                    </div>
+                  </button>
+                </div>
+              )}
+            </div>
 
             {/* Fullscreen Expand / Restore Button */}
             {onToggleFullscreen && (
@@ -828,7 +1118,7 @@ export default function DocumentWriter({
         </div>
       </div>
 
-      {/* Center Toolbar Collapse Tab (Fixed to stay accessible when collapsed) */}
+      {/* Center Toolbar Collapse Tab */}
       <button
         type="button"
         onClick={() => setIsToolbarCollapsed(!isToolbarCollapsed)}
@@ -845,24 +1135,16 @@ export default function DocumentWriter({
       </button>
 
       {/* -------------------------------------------------------------------- */}
-      {/* 2. PROTRUDING EDGE TAB ARROW                                         */}
+      {/* 2. FULLSCREEN RESTORE ARROW (Only shown in Fullscreen mode)           */}
       {/* -------------------------------------------------------------------- */}
-      {onToggleFullscreen && (
+      {isFullscreen && onToggleFullscreen && (
         <button
           type="button"
           onClick={onToggleFullscreen}
-          className={`z-40 text-zinc-400 hover:text-zinc-100 transition-all cursor-pointer group ${
-            isFullscreen
-              ? 'fixed top-1/2 left-3 -translate-y-1/2 p-2 bg-[#1e2024]/90 hover:bg-[#282a2e] border border-zinc-700/60 rounded-full shadow-2xl'
-              : 'absolute top-1/2 -translate-y-1/2 -left-3.5 p-1.5 bg-[#18191c] hover:bg-[#282a2e] border border-zinc-700 rounded-full shadow-2xl'
-          }`}
-          title={isFullscreen ? 'Restore Split View (Collapse)' : 'Expand to Fullscreen'}
+          className="fixed top-1/2 left-3 -translate-y-1/2 z-50 p-2 bg-[#1e2024]/90 hover:bg-[#282a2e] border border-zinc-700/60 rounded-full shadow-2xl text-zinc-400 hover:text-zinc-100 transition-all cursor-pointer group"
+          title="Restore Split View (Collapse)"
         >
-          {isFullscreen ? (
-            <ChevronRight className="h-4 w-4 group-hover:scale-110 transition-transform" />
-          ) : (
-            <ChevronLeft className="h-3.5 w-3.5 group-hover:scale-110 transition-transform" />
-          )}
+          <ChevronRight className="h-4 w-4 group-hover:scale-110 transition-transform" />
         </button>
       )}
 
@@ -870,7 +1152,7 @@ export default function DocumentWriter({
       {/* 3. SCROLLABLE DOCUMENT CANVAS CONTAINER (Light Paper Sheet)          */}
       {/* -------------------------------------------------------------------- */}
       <div
-        className={`flex-1 overflow-y-auto bg-[#121316] flex justify-center pb-16 transition-all duration-300 ${
+        className={`flex-1 overflow-y-auto bg-[#121316] flex justify-center items-start pb-36 transition-all duration-300 ${
           isToolbarCollapsed ? 'pt-4 sm:pt-6' : 'pt-2 sm:pt-4'
         } px-4`}
         onMouseUp={handleSelectionChange}
@@ -887,16 +1169,16 @@ export default function DocumentWriter({
           />
         )}
 
-        {/* Paper Sheet Canvas (Moves up smoothly when toolbar collapses) */}
-        <div
-          style={{
-            fontFamily: currentFont,
-            fontSize: `${currentFontSize}pt`,
-          }}
-          className="w-full max-w-[800px] min-h-[1050px] bg-white text-[#1a1a1a] shadow-2xl rounded-xs p-12 sm:p-20 flex flex-col justify-between transition-all mt-2 mb-10"
-        >
-          <div>
-            {/* Document Title Header (Fyp) */}
+        {/* Word-Style Paginated Canvas (A4 Sheet Dimensions) */}
+        <div className="word-canvas-wrapper my-6 pb-28">
+          <div
+            style={{
+              fontFamily: currentFont,
+              fontSize: `${currentFontSize}pt`,
+            }}
+            className="word-document-canvas"
+          >
+            {/* 1. Document Title Header */}
             <input
               type="text"
               value={title}
@@ -905,10 +1187,10 @@ export default function DocumentWriter({
                 triggerAutoSave(editorRef.current?.innerHTML, e.target.value, citations);
               }}
               placeholder="Document Title"
-              className="w-full text-3xl sm:text-4xl font-bold text-zinc-900 placeholder-zinc-400 border-none outline-none mb-4 pb-1 transition-colors bg-transparent font-serif"
+              className="w-full text-3xl sm:text-4xl font-bold text-zinc-900 placeholder-zinc-400 border-none outline-none mb-6 pb-2 transition-colors bg-transparent font-serif"
             />
 
-            {/* Rich Contenteditable Body */}
+            {/* 2. Rich Contenteditable Manuscript Body */}
             <div
               ref={editorRef}
               contentEditable
@@ -917,71 +1199,87 @@ export default function DocumentWriter({
                 updateWordCount();
                 triggerAutoSave(editorRef.current?.innerHTML, title, citations);
               }}
-              className="prose prose-zinc max-w-none focus:outline-none min-h-[600px] leading-relaxed text-[#1a1a1a]"
-              style={{
-                outline: 'none',
-              }}
+              className="academic-editor prose prose-zinc max-w-none focus:outline-none min-h-[600px] leading-relaxed text-[#1a1a1a]"
             />
-          </div>
 
-          {/* References & Bibliography Section (if any citations exist) */}
-          {citations && citations.length > 0 && (
-            <div className="mt-14 pt-8 border-t-2 border-zinc-200 font-sans text-xs text-zinc-700 select-text not-prose">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-bold text-zinc-900 uppercase tracking-wider font-sans">
-                  References & Bibliography
-                </h3>
-                <span className="text-[11px] font-mono text-zinc-500 bg-zinc-100 px-2 py-0.5 rounded border border-zinc-200">
-                  {citations.length} Cited Sources
-                </span>
-              </div>
-
-              <div className="space-y-3">
-                {citations.map((cite) => (
-                  <div
-                    key={cite.id}
-                    id={`reference-${cite.id}`}
-                    className="p-3 bg-zinc-50 hover:bg-zinc-100/80 rounded-lg border border-zinc-200 transition-colors flex items-start justify-between gap-3 group"
-                  >
-                    <div className="flex items-start gap-2.5 min-w-0">
-                      <span className="font-mono font-bold text-teal-700 shrink-0 text-xs mt-0.5">
-                        [{cite.id}]
-                      </span>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="font-semibold text-zinc-900 text-xs truncate">
-                            {cite.doc_name}
-                          </span>
-                          <span className="text-[10px] font-mono text-zinc-600 bg-zinc-200 px-1.5 py-0.2 rounded">
-                            Page {cite.page_number}
-                          </span>
-                          {cite.similarity_score && (
-                            <span className="text-[10px] font-mono text-emerald-700 bg-emerald-100 px-1.5 py-0.2 rounded">
-                              {Math.round(cite.similarity_score * 100)}% match
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-[11.5px] text-zinc-600 italic mt-1 line-clamp-2 leading-relaxed">
-                          "{cite.excerpt}"
-                        </p>
-                      </div>
-                    </div>
-
-                    {onOpenPdfViewer && (
-                      <button
-                        type="button"
-                        onClick={() => onOpenPdfViewer(cite.doc_name, cite.page_number)}
-                        className="p-1.5 rounded-lg text-zinc-400 hover:text-teal-700 hover:bg-zinc-200 transition-colors shrink-0 cursor-pointer opacity-80 group-hover:opacity-100"
-                        title={`View ${cite.doc_name} at Page ${cite.page_number}`}
-                      >
-                        <ExternalLink className="h-3.5 w-3.5" />
-                      </button>
-                    )}
+            {/* 3. References & Bibliography Section (Pinned at the bottom of the manuscript) */}
+            {citations && citations.length > 0 && (
+              <div
+                contentEditable={false}
+                suppressContentEditableWarning
+                className="mt-20 pt-10 border-t-2 border-zinc-200 font-sans text-xs text-zinc-700 select-text not-prose pointer-events-auto"
+              >
+                <div className="flex items-center justify-between mb-8 border-b-2 border-zinc-200 pb-4">
+                  <div>
+                    <h2 className="text-2xl font-bold text-zinc-900 font-serif tracking-tight">
+                      References & Bibliography
+                    </h2>
+                    <p className="text-xs text-zinc-500 mt-0.5">
+                      Grounded workspace citations and verified source passages
+                    </p>
                   </div>
-                ))}
+                  <span className="text-xs font-mono text-zinc-600 bg-zinc-100 border border-zinc-200 px-2.5 py-1 rounded">
+                    {citations.length} Sources Cited
+                  </span>
+                </div>
+
+                <div className="space-y-4">
+                  {citations.map((cite) => (
+                    <div
+                      key={cite.id}
+                      id={`reference-${cite.id}`}
+                      className="p-4 bg-zinc-50/90 hover:bg-zinc-100/90 rounded-lg border border-zinc-200 transition-colors flex items-start justify-between gap-4 group shadow-xs"
+                    >
+                      <div className="flex items-start gap-3 min-w-0">
+                        <span className="font-bold text-zinc-900 font-serif shrink-0 text-base">
+                          [{cite.id}]
+                        </span>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-semibold text-zinc-900 text-sm">
+                              {cite.doc_name}
+                            </span>
+                            <span className="text-xs text-zinc-500 font-mono bg-zinc-200/70 px-1.5 py-0.5 rounded">
+                              Page {cite.page_number}
+                            </span>
+                            {cite.similarity_score && (
+                              <span className="text-xs font-mono text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
+                                {Math.round(cite.similarity_score * 100)}% match
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-zinc-700 italic mt-2 leading-relaxed bg-white/80 p-2.5 rounded border border-zinc-200/60 font-serif">
+                            "{cite.excerpt}"
+                          </p>
+                        </div>
+                      </div>
+
+                      {onOpenPdfViewer && (
+                        <button
+                          type="button"
+                          onClick={() => onOpenPdfViewer(cite.doc_name, cite.page_number)}
+                          className="p-2 rounded text-zinc-400 hover:text-zinc-900 hover:bg-zinc-200 transition-colors shrink-0 cursor-pointer"
+                          title={`Open ${cite.doc_name} at Page ${cite.page_number}`}
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
+            )}
+
+            {/* 4. Bottom Document Page Footer */}
+            <div
+              contentEditable={false}
+              suppressContentEditableWarning
+              className="mt-16 pt-4 border-t border-zinc-200 flex items-center justify-between text-[11px] text-zinc-400 font-mono select-none"
+            >
+              <span>{title || 'Academic Draft'}</span>
+              <span>{pageCount > 1 ? `Page 1 of ${pageCount}` : 'Page 1 of 1'}</span>
             </div>
-          )}
+          </div>
         </div>
       </div>
 
@@ -991,7 +1289,7 @@ export default function DocumentWriter({
       <div className="bg-[#121316] border-t border-[#24262b] px-6 py-2.5 flex items-center justify-between text-xs text-zinc-400 select-none shrink-0 fixed bottom-0 left-0 right-0 z-20">
         <div className="flex items-center gap-2">
           <FileText className="h-3.5 w-3.5 text-zinc-500" />
-          <span>{wordCount} words · ~{Math.max(1, Math.ceil(wordCount / 200))} min read</span>
+          <span>{wordCount} words · ~{Math.max(1, Math.ceil(wordCount / 200))} min read · Page {pageCount > 1 ? `1 of ${pageCount}` : '1 of 1'}</span>
         </div>
 
         <div className="flex items-center gap-1.5 text-xs text-zinc-400">

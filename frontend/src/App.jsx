@@ -18,7 +18,7 @@ import {
   saveBYOKConfig
 } from './services/api';
 import { getSavedTheme, saveTheme } from './theme/constants';
-import { AlertCircle, RefreshCw } from 'lucide-react';
+import { AlertCircle, RefreshCw, ChevronLeft } from 'lucide-react';
 
 export default function App() {
   const [documents, setDocuments] = useState([]);
@@ -347,7 +347,17 @@ export default function App() {
             </div>
           ) : (
             isWriterOpen && (
-              <div className="w-1/2 h-full transition-all duration-300 relative">
+              <div className="w-1/2 h-full transition-all duration-300 relative overflow-visible">
+                {/* Floating Expand Arrow positioned cleanly over the chat window boundary without getting cut off */}
+                <button
+                  type="button"
+                  onClick={() => setIsWriterFullscreen(true)}
+                  className="absolute top-1/2 -translate-y-1/2 -left-4 z-50 p-2 bg-[#18191c] hover:bg-[#282a2e] border border-zinc-700/90 rounded-full shadow-2xl text-zinc-300 hover:text-amber-300 transition-all cursor-pointer flex items-center justify-center hover:scale-110"
+                  title="Expand to Fullscreen"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+
                 <DocumentWriter
                   sessionId={activeWorkspaceId}
                   documents={scopedDocuments}
