@@ -17,7 +17,129 @@ import {
   Layers,
   Sparkles,
   Zap,
+  ExternalLink,
 } from 'lucide-react';
+
+/**
+ * Interactive inline citation badge matching ChatGPT style with hover card popover and click-to-open split PDF viewer.
+ */
+function InlineCitationBadge({ docName, pageNumber, sources = [], onSelectCitation }) {
+  const [isHovered, setIsHovered] = useState(false);
+
+  // Resolve matching source document name from message sources if available
+  const resolvedDoc = (() => {
+    if (!docName) return 'sample.pdf';
+    let target = docName.trim();
+
+    if (sources && sources.length > 0) {
+      const cleanLower = target.toLowerCase().replace(/\.pdf$/i, '');
+      const found = sources.find((s) => {
+        const sName = s.doc_name.toLowerCase();
+        const sStem = sName.replace(/\.pdf$/i, '');
+        return (
+          sName === target.toLowerCase() ||
+          sStem === cleanLower ||
+          sName.includes(cleanLower) ||
+          cleanLower.includes(sStem)
+        );
+      });
+      if (found) return found.doc_name;
+    }
+
+    if (!target.includes('.')) {
+      return `${target}.pdf`;
+    }
+    return target;
+  })();
+
+  const displayName = resolvedDoc.replace(/\.pdf$/i, '');
+
+  const handleClick = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (onSelectCitation) {
+      onSelectCitation(resolvedDoc, pageNumber || 1);
+    }
+  };
+
+  return (
+    <span
+      className="relative inline-block align-baseline mx-1 select-none not-prose"
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
+      {/* Inline Pill matching ChatGPT reference */}
+      <button
+        type="button"
+        onClick={handleClick}
+        className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-zinc-800/90 hover:bg-zinc-700/90 text-zinc-300 hover:text-zinc-100 border border-zinc-700/60 hover:border-zinc-500/60 text-xs font-sans font-medium leading-normal transition-all cursor-pointer shadow-xs hover:scale-105 active:scale-95 group"
+        title={`View ${resolvedDoc} (Page ${pageNumber || 1})`}
+      >
+        <FileText className="h-3 w-3 text-zinc-400 group-hover:text-amber-400 transition-colors shrink-0" />
+        <span className="truncate max-w-[120px]">{displayName}</span>
+      </button>
+
+      {/* Floating Hover Card (matching ChatGPT reference) */}
+      {isHovered && (
+        <div
+          onClick={handleClick}
+          className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 p-3 bg-zinc-900/98 border border-zinc-700/90 rounded-2xl shadow-2xl backdrop-blur-xl z-50 text-left min-w-[210px] max-w-xs animate-in fade-in zoom-in-95 duration-150 flex flex-col gap-1.5 cursor-pointer hover:border-amber-500/50 transition-colors"
+        >
+          <div className="flex items-start gap-2">
+            <div className="h-7 w-7 rounded-lg bg-zinc-800 border border-zinc-700 flex items-center justify-center text-zinc-300 shrink-0 mt-0.5">
+              <FileText className="h-3.5 w-3.5 text-amber-400" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="font-semibold text-zinc-100 text-xs leading-snug truncate" title={resolvedDoc}>
+                {resolvedDoc}
+              </div>
+              <div className="text-[10.5px] font-mono text-amber-400 mt-0.5">
+                Page {pageNumber || 1}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between text-[10.5px] text-zinc-400 hover:text-zinc-200 border-t border-zinc-800/80 pt-1.5 mt-0.5">
+            <span>Click to view in split viewer</span>
+            <ExternalLink className="h-3 w-3 text-amber-400" />
+          </div>
+        </div>
+      )}
+    </span>
+  );
+}
+
+/**
+ * Transforms raw citation patterns in text (<doc, p1>, [doc, p.1], etc.) into citation links.
+ */
+const transformCitations = (rawText) => {
+  if (!rawText) return '';
+
+  // Pattern 1: With page numbers: <doc, p.X>, [doc, p.X], (doc, p.X), <doc, pX>
+  const withPageRegex = /(?:<|\[|\()([a-zA-Z0-9_\-\.\s]+?)(?:,\s*|\s+)(?:p\.?|page|pp\.?)?\s*(\d+)(?:>|\]|\))/gi;
+  let formatted = rawText.replace(withPageRegex, (match, docName, pageNum) => {
+    const cleanDoc = docName.trim();
+    const cleanPage = pageNum.trim();
+    if (cleanDoc.startsWith('http://') || cleanDoc.startsWith('https://') || cleanDoc.startsWith('#')) {
+      return match;
+    }
+    const encodedDoc = encodeURIComponent(cleanDoc);
+    return ` [citation:${cleanDoc}:${cleanPage}](citation://${encodedDoc}?page=${cleanPage}) `;
+  });
+
+  // Pattern 2: Without page numbers: <file.pdf>, [file.pdf] (must end in recognized file extension)
+  const withoutPageRegex = /(?:<|\[|\()([a-zA-Z0-9_\-\.\s]+?\.(?:pdf|docx|txt|epub|md|PDF|DOCX))(?:>|\]|\))/gi;
+  formatted = formatted.replace(withoutPageRegex, (match, docName) => {
+    const cleanDoc = docName.trim();
+    if (cleanDoc.startsWith('http://') || cleanDoc.startsWith('https://') || cleanDoc.startsWith('citation:')) {
+      return match;
+    }
+    const encodedDoc = encodeURIComponent(cleanDoc);
+    return ` [citation:${cleanDoc}:1](citation://${encodedDoc}?page=1) `;
+  });
+
+  return formatted;
+};
 
 export default function ChatMessage({ message, onSelectCitation }) {
   const [showThinking, setShowThinking] = useState(false);
@@ -75,6 +197,9 @@ export default function ChatMessage({ message, onSelectCitation }) {
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
+  // Pre-process text to replace inline citations with interactive citation links
+  const processedMessageText = isBot ? transformCitations(message.text) : message.text;
 
   return (
     <div className="w-full flex flex-col items-center justify-center my-3 animate-in fade-in duration-200">
@@ -184,6 +309,38 @@ export default function ChatMessage({ message, onSelectCitation }) {
                 remarkPlugins={[remarkGfm, remarkMath]}
                 rehypePlugins={[rehypeKatex]}
                 components={{
+                  a: ({ href, children, ...props }) => {
+                    if (href && href.startsWith('citation://')) {
+                      try {
+                        const rawDoc = href.replace(/^citation:\/\//, '').split('?')[0];
+                        const docName = decodeURIComponent(rawDoc);
+                        const queryPart = href.split('?')[1] || '';
+                        const searchParams = new URLSearchParams(queryPart);
+                        const pageNum = parseInt(searchParams.get('page') || '1', 10);
+                        return (
+                          <InlineCitationBadge
+                            docName={docName}
+                            pageNumber={pageNum}
+                            sources={message.sources}
+                            onSelectCitation={onSelectCitation}
+                          />
+                        );
+                      } catch {
+                        // Fallback
+                      }
+                    }
+                    return (
+                      <a
+                        href={href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-amber-400 hover:text-amber-300 underline underline-offset-2 transition-colors"
+                        {...props}
+                      >
+                        {children}
+                      </a>
+                    );
+                  },
                   h1: ({ children }) => (
                     <h1 className="text-base font-bold text-zinc-100 mt-4 mb-2 tracking-tight border-b border-zinc-800 pb-1.5">
                       {children}
@@ -283,7 +440,7 @@ export default function ChatMessage({ message, onSelectCitation }) {
                   )
                 }}
               >
-                {message.text}
+                {processedMessageText}
               </ReactMarkdown>
             </div>
 

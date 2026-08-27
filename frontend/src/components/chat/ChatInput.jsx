@@ -307,24 +307,6 @@ export default function ChatInput({
             >
               <Plus className="h-3.5 w-3.5" />
             </button>
-
-            {/* Telemetry Display (Odysseus Telemetry: Tokens, Latency, Docs) */}
-            {telemetry && (
-              <div className="hidden sm:flex items-center gap-2 ml-1 px-2 py-0.5 rounded-md bg-zinc-900/90 border border-zinc-800/80 text-[10.5px] text-zinc-400 font-mono select-none">
-                {telemetry.responseTime && (
-                  <span className="flex items-center gap-1 text-zinc-300">
-                    <Clock className="h-2.5 w-2.5 text-amber-400" />
-                    <span>{telemetry.responseTime}</span>
-                  </span>
-                )}
-                {telemetry.tokenUsage !== undefined && (
-                  <span className="flex items-center gap-1 border-l border-zinc-800 pl-2 text-zinc-400">
-                    <Cpu className="h-2.5 w-2.5 text-zinc-500" />
-                    <span>{telemetry.tokenUsage} tokens</span>
-                  </span>
-                )}
-              </div>
-            )}
           </div>
 
           {/* Right Controls: Model Pill, Mode Switch, and Submit */}
