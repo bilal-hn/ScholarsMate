@@ -3,46 +3,175 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
-import { Compass, User, FileText, Brain, ChevronDown, ChevronRight, Clock, Cpu } from 'lucide-react';
+import {
+  Compass,
+  User,
+  FileText,
+  Brain,
+  ChevronDown,
+  ChevronRight,
+  Clock,
+  Cpu,
+  Copy,
+  Check,
+  Layers,
+  Sparkles,
+  Zap,
+} from 'lucide-react';
 
 export default function ChatMessage({ message, onSelectCitation }) {
   const [showThinking, setShowThinking] = useState(false);
+  const [showSources, setShowSources] = useState(false);
+  const [copied, setCopied] = useState(false);
+
   const isBot = message.sender === 'bot';
 
-  return (
-    <div className={`flex gap-3.5 ${isBot ? 'justify-start' : 'justify-end'} w-full`}>
-      {/* Bot Avatar */}
-      {isBot && (
-        <div className="h-7 w-7 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500 shrink-0 mt-1 shadow-xs">
-          <Compass className="h-4 w-4 stroke-[2]" />
-        </div>
-      )}
+  // Format timestamp (e.g. "09:04 PM")
+  const formatTime = (ts) => {
+    if (!ts) return '';
+    try {
+      const date = new Date(ts);
+      if (isNaN(date.getTime())) return '';
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } catch {
+      return '';
+    }
+  };
 
-      {/* Message Content Container */}
-      <div className={`w-full max-w-2xl ${isBot ? 'pr-2' : ''}`}>
-        {isBot ? (
-          <div className="space-y-3.5">
-            {/* Thinking Accordion */}
-            {message.thinking_process && (
-              <div className="border border-zinc-800/80 rounded-xl overflow-hidden bg-zinc-900 shadow-sm">
+  const timeString = formatTime(message.timestamp);
+
+  // Clean model ID display (e.g. "gemini-3.7-flash", "gpt-4o-mini", etc.)
+  const modelIdentifier =
+    message.model_name ||
+    message.meta?.model ||
+    (isBot ? 'scholarsmate' : null);
+
+  const cleanModelTag = modelIdentifier
+    ? modelIdentifier
+        .replace(/^models\//i, '')
+        .replace(/^openai\//i, '')
+        .replace(/^anthropic\//i, '')
+        .replace(/^groq\//i, '')
+        .replace(/^gemini\//i, '')
+    : 'scholarsmate';
+
+  // Extract telemetry metrics
+  const responseTime = message.meta?.responseTime || null;
+  const tokenCount = message.meta?.tokens !== undefined ? message.meta.tokens : null;
+
+  // Calculate approximate token generation speed
+  const calculateSpeed = () => {
+    if (!tokenCount || !responseTime) return null;
+    const sec = parseFloat(responseTime.replace('s', ''));
+    if (isNaN(sec) || sec <= 0) return null;
+    return Math.round(tokenCount / sec);
+  };
+
+  const speed = calculateSpeed();
+
+  const handleCopy = (text) => {
+    if (!text) return;
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="w-full flex flex-col items-center justify-center my-3 animate-in fade-in duration-200">
+      {isBot ? (
+        /* ===================================================================
+           BOT RESPONSE CARD (Centralized, Odysseus / OpenWebUI Inspired)
+           =================================================================== */
+        <div className="w-full max-w-2xl bg-zinc-900/90 hover:bg-zinc-900 border border-zinc-800/80 hover:border-zinc-800 rounded-2xl p-4 sm:p-5 shadow-xl transition-all relative overflow-hidden backdrop-blur-sm">
+          {/* Header: Model Badge + Timestamp */}
+          <div className="flex items-center justify-between pb-3 mb-3 border-b border-zinc-800/60 select-none">
+            <div className="flex items-center gap-2">
+              {/* Sleek Model Tag with @ prefix */}
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-zinc-950/70 border border-zinc-800/80 text-zinc-300 font-mono text-[11.5px] font-medium shadow-2xs">
+                <span className="text-amber-400 font-semibold text-xs">@</span>
+                <span className="text-zinc-200 tracking-tight">{cleanModelTag}</span>
+              </div>
+            </div>
+
+            {timeString && (
+              <span className="text-[11px] font-mono text-zinc-500 font-normal">
+                {timeString}
+              </span>
+            )}
+          </div>
+
+          <div className="space-y-3">
+            {/* Status Pill 1: Sources / Referenced Papers Accordion */}
+            {message.sources && message.sources.length > 0 && (
+              <div className="border border-zinc-800/80 rounded-xl overflow-hidden bg-zinc-950/40 shadow-xs">
                 <button
                   type="button"
-                  onClick={() => setShowThinking((prev) => !prev)}
-                  className="w-full flex items-center justify-between px-3 py-1.5 text-xs font-medium text-zinc-400 hover:text-zinc-200 transition-colors bg-zinc-900/90 cursor-pointer"
+                  onClick={() => setShowSources((prev) => !prev)}
+                  className="w-full flex items-center justify-between px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 bg-zinc-950/60 hover:bg-zinc-950/90 transition-colors cursor-pointer"
                 >
-                  <div className="flex items-center gap-1.5">
-                    <Brain className="h-3.5 w-3.5 text-amber-400 animate-pulse" />
-                    <span className="font-sans text-[11.5px]">Reasoning Process</span>
+                  <div className="flex items-center gap-2">
+                    <Layers className="h-3.5 w-3.5 text-amber-400" />
+                    <span className="font-mono text-[11.5px] text-zinc-300">
+                      {message.sources.length} Referenced {message.sources.length === 1 ? 'Source' : 'Sources'}
+                    </span>
                   </div>
-                  {showThinking ? (
+                  {showSources ? (
                     <ChevronDown className="h-3 w-3 text-zinc-400" />
                   ) : (
                     <ChevronRight className="h-3 w-3 text-zinc-500" />
                   )}
                 </button>
 
+                {showSources && (
+                  <div className="p-2.5 border-t border-zinc-800/60 bg-zinc-950/80 flex flex-wrap gap-1.5 animate-in fade-in duration-150">
+                    {message.sources.map((src, sIdx) => (
+                      <button
+                        key={sIdx}
+                        type="button"
+                        onClick={() => onSelectCitation && onSelectCitation(src.doc_name, src.page_number)}
+                        className="inline-flex items-center gap-1.5 text-[11px] font-mono bg-zinc-900 border border-zinc-800 hover:border-amber-500/40 text-amber-300 hover:text-amber-200 px-2 py-1 rounded-lg transition-colors cursor-pointer group"
+                        title={`Jump to page ${src.page_number} of ${src.doc_name}`}
+                      >
+                        <FileText className="h-3 w-3 text-amber-400 shrink-0 group-hover:scale-105 transition-transform" />
+                        <span className="truncate max-w-[180px]">{src.doc_name}</span>
+                        <span className="text-zinc-500 text-[10px]">p.{src.page_number}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Status Pill 2: Thinking / Reasoning Trace Accordion */}
+            {message.thinking_process && (
+              <div className="border border-zinc-800/80 rounded-xl overflow-hidden bg-zinc-950/40 shadow-xs">
+                <button
+                  type="button"
+                  onClick={() => setShowThinking((prev) => !prev)}
+                  className="w-full flex items-center justify-between px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 bg-zinc-950/60 hover:bg-zinc-950/90 transition-colors cursor-pointer"
+                >
+                  <div className="flex items-center gap-2">
+                    <Brain className="h-3.5 w-3.5 text-amber-400 animate-pulse" />
+                    <span className="font-sans text-[11.5px] font-medium text-zinc-300">
+                      View thinking process
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {responseTime && (
+                      <span className="text-[10px] font-mono text-zinc-500 bg-zinc-900 px-1.5 py-0.2 rounded border border-zinc-800">
+                        {responseTime}
+                      </span>
+                    )}
+                    {showThinking ? (
+                      <ChevronDown className="h-3 w-3 text-zinc-400" />
+                    ) : (
+                      <ChevronRight className="h-3 w-3 text-zinc-500" />
+                    )}
+                  </div>
+                </button>
+
                 {showThinking && (
-                  <div className="px-3.5 pb-3 pt-2 text-xs text-zinc-400 font-mono whitespace-pre-wrap border-t border-zinc-800/60 bg-zinc-950/60 max-h-56 overflow-y-auto leading-relaxed">
+                  <div className="px-3.5 pb-3 pt-2 text-xs text-zinc-400 font-mono whitespace-pre-wrap border-t border-zinc-800/60 bg-zinc-950/90 max-h-56 overflow-y-auto leading-relaxed">
                     {message.thinking_process}
                   </div>
                 )}
@@ -50,7 +179,7 @@ export default function ChatMessage({ message, onSelectCitation }) {
             )}
 
             {/* Synthesized Response Body */}
-            <div className="prose prose-invert max-w-none text-zinc-200 text-[13.5px] leading-relaxed tracking-normal font-sans">
+            <div className="prose prose-invert max-w-none text-zinc-200 text-[13.5px] leading-relaxed tracking-normal font-sans pt-1">
               <ReactMarkdown
                 remarkPlugins={[remarkGfm, remarkMath]}
                 rehypePlugins={[rehypeKatex]}
@@ -158,57 +287,84 @@ export default function ChatMessage({ message, onSelectCitation }) {
               </ReactMarkdown>
             </div>
 
-            {/* Clickable Citations */}
-            {message.sources && message.sources.length > 0 && (
-              <div className="pt-2 mt-4 border-t border-zinc-800/60 flex flex-wrap items-center gap-1.5">
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 w-full mb-0.5">
-                  Referenced Sources:
-                </span>
-                {message.sources.map((src, sIdx) => (
-                  <button
-                    key={sIdx}
-                    type="button"
-                    onClick={() => onSelectCitation && onSelectCitation(src.doc_name, src.page_number)}
-                    className="inline-flex items-center gap-1.5 text-[11px] font-mono bg-zinc-900/90 border border-zinc-800 hover:border-amber-500/40 text-amber-300 hover:text-amber-200 px-2 py-0.5 rounded-lg transition-colors cursor-pointer group"
-                  >
-                    <FileText className="h-3 w-3 text-amber-400 shrink-0 group-hover:scale-105 transition-transform" />
-                    <span className="truncate max-w-[200px]">{src.doc_name}</span>
-                    <span className="text-zinc-500 text-[10px]">p.{src.page_number}</span>
-                  </button>
-                ))}
+            {/* Bottom Telemetry & Actions Footer Toolbar */}
+            <div className="flex items-center justify-between pt-3 mt-3 border-t border-zinc-800/60 text-[11px] text-zinc-500 font-mono select-none">
+              {/* Left: Telemetry Data (Tokens, Latency, Speed) */}
+              <div className="flex items-center gap-2 flex-wrap">
+                {tokenCount !== null && tokenCount > 0 && (
+                  <span className="flex items-center gap-1 text-zinc-400">
+                    <Cpu className="h-3 w-3 text-zinc-500" />
+                    <span>{tokenCount} tok</span>
+                  </span>
+                )}
+                {responseTime && (
+                  <>
+                    <span className="text-zinc-700">|</span>
+                    <span className="flex items-center gap-1 text-zinc-400">
+                      <Clock className="h-3 w-3 text-zinc-500" />
+                      <span>{responseTime}</span>
+                    </span>
+                  </>
+                )}
+                {speed && (
+                  <>
+                    <span className="text-zinc-700">|</span>
+                    <span className="text-zinc-500 flex items-center gap-0.5">
+                      <Zap className="h-2.5 w-2.5 text-amber-400/80" />
+                      <span>{speed} tok/s</span>
+                    </span>
+                  </>
+                )}
               </div>
-            )}
 
-            {/* Message Telemetry Badge */}
-            {message.meta && (
-              <div className="flex items-center gap-2 pt-1 text-[10px] text-zinc-500 font-mono">
-                {message.meta.responseTime && (
-                  <span className="flex items-center gap-1">
-                    <Clock className="h-2.5 w-2.5 text-zinc-500" />
-                    <span>{message.meta.responseTime}</span>
-                  </span>
-                )}
-                {message.meta.tokens && (
-                  <span className="flex items-center gap-1">
-                    <Cpu className="h-2.5 w-2.5 text-zinc-500" />
-                    <span>{message.meta.tokens} tokens</span>
-                  </span>
-                )}
+              {/* Right: Action Buttons */}
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => handleCopy(message.text)}
+                  className="flex items-center gap-1 px-2 py-0.5 rounded-md hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer"
+                  title="Copy response to clipboard"
+                >
+                  {copied ? (
+                    <>
+                      <Check className="h-3 w-3 text-emerald-400" />
+                      <span className="text-emerald-400 text-[10px]">Copied</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="h-3 w-3" />
+                      <span className="text-[10px]">Copy</span>
+                    </>
+                  )}
+                </button>
               </div>
-            )}
+            </div>
           </div>
-        ) : (
-          /* User Prompt Bubble */
-          <div className="flex justify-end items-start gap-2.5">
-            <div className="bg-zinc-800 text-zinc-100 border border-zinc-700/60 font-normal px-4 py-2.5 rounded-2xl shadow-sm text-[13.5px] max-w-lg whitespace-pre-wrap leading-relaxed">
+        </div>
+      ) : (
+        /* ===================================================================
+           USER PROMPT BUBBLE (Right-Aligned, Odysseus Style with Header)
+           =================================================================== */
+        <div className="w-full max-w-2xl flex flex-col items-end">
+          <div className="w-full max-w-lg">
+            {/* User Message Header */}
+            <div className="flex items-center justify-between px-2 pb-1.5 text-[11px] font-mono text-zinc-500 select-none">
+              <div className="flex items-center gap-1 text-zinc-400 font-medium">
+                <span className="text-amber-400">•</span>
+                <span>You</span>
+              </div>
+              {timeString && (
+                <span>{timeString}</span>
+              )}
+            </div>
+
+            {/* Bubble Content */}
+            <div className="bg-zinc-900 hover:bg-zinc-900/95 text-zinc-100 border border-zinc-800 font-normal px-4 py-3 rounded-2xl shadow-md text-[13.5px] whitespace-pre-wrap leading-relaxed">
               {message.text}
             </div>
-            <div className="h-7 w-7 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center text-zinc-400 shrink-0 mt-0.5">
-              <User className="h-3.5 w-3.5" />
-            </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

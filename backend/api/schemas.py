@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any
 from pydantic import BaseModel, Field
 
 
@@ -45,6 +45,8 @@ class QueryResponse(BaseModel):
     thinking_process: Optional[str] = None
     sources_used: List[SourceItem] = Field(default_factory=list)
     session_id: Optional[str] = None
+    model_name: Optional[str] = None
+    meta: Optional[Dict[str, Any]] = None
 
 
 # =============================================================================
@@ -73,6 +75,8 @@ class ChatMessageResponse(BaseModel):
     text: str
     thinking_process: Optional[str] = None
     sources_used: Optional[List[SourceItem]] = None
+    model_name: Optional[str] = None
+    meta: Optional[Dict[str, Any]] = None
     timestamp: datetime
 
 

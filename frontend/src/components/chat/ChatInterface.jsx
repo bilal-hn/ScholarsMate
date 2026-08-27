@@ -41,12 +41,26 @@ export default function ChatInterface({
         .then((data) => {
           if (data && data.messages && data.messages.length > 0) {
             const mapped = data.messages.map((m) => ({
+              id: m.id,
               sender: m.sender,
               text: m.text,
               thinking_process: m.thinking_process || null,
-              sources: m.sources || [],
+              sources: m.sources_used || m.sources || [],
+              model_name: m.model_name || null,
+              meta: m.meta || null,
+              timestamp: m.timestamp || null,
             }));
             setMessages(mapped);
+
+            // Sync last message telemetry to input bar if available
+            const lastBotMsg = [...mapped].reverse().find((m) => m.sender === 'bot' && m.meta);
+            if (lastBotMsg && lastBotMsg.meta) {
+              setTelemetry({
+                responseTime: lastBotMsg.meta.responseTime,
+                tokenUsage: lastBotMsg.meta.tokens,
+                docCount: selectedDocs.length,
+              });
+            }
           } else {
             setMessages([]);
           }
@@ -62,7 +76,12 @@ export default function ChatInterface({
   // Appends incoming generated messages (e.g. Literature Reviews)
   useEffect(() => {
     if (incomingMessage) {
-      setMessages((prev) => [...prev, incomingMessage]);
+      const enriched = {
+        ...incomingMessage,
+        model_name: incomingMessage.model_name || currentModel,
+        timestamp: incomingMessage.timestamp || new Date().toISOString(),
+      };
+      setMessages((prev) => [...prev, enriched]);
     }
   }, [incomingMessage]);
 
@@ -90,7 +109,13 @@ export default function ChatInterface({
     const userMessage = input.trim();
     setInput('');
     
-    const newMessages = [...messages, { sender: 'user', text: userMessage }];
+    const nowIso = new Date().toISOString();
+    const userMsgObj = { 
+      sender: 'user', 
+      text: userMessage, 
+      timestamp: nowIso 
+    };
+    const newMessages = [...messages, userMsgObj];
     setMessages(newMessages);
     setLoading(true);
 
@@ -112,9 +137,15 @@ export default function ChatInterface({
       const completionTokens = estimateTokens(result.answer) + estimateTokens(result.thinking_process || '');
       const totalTokens = promptTokens + completionTokens;
 
-      setTelemetry({
+      const responseMeta = result.meta || {
         responseTime: `${durationSec}s`,
-        tokenUsage: totalTokens,
+        tokens: totalTokens,
+        model: currentModel,
+      };
+
+      setTelemetry({
+        responseTime: responseMeta.responseTime || `${durationSec}s`,
+        tokenUsage: responseMeta.tokens !== undefined ? responseMeta.tokens : totalTokens,
         docCount: selectedDocs.length,
       });
 
@@ -129,10 +160,9 @@ export default function ChatInterface({
           text: result.answer,
           thinking_process: result.thinking_process || null,
           sources: result.sources_used || [],
-          meta: {
-            responseTime: `${durationSec}s`,
-            tokens: totalTokens,
-          }
+          model_name: result.model_name || currentModel,
+          meta: responseMeta,
+          timestamp: new Date().toISOString(),
         },
       ]);
     } catch (err) {
@@ -151,6 +181,8 @@ export default function ChatInterface({
           text: `⚠️ Generation failed: ${err.response?.data?.detail || err.message || 'Please check backend connection.'}`,
           thinking_process: null,
           sources: [],
+          model_name: currentModel,
+          timestamp: new Date().toISOString(),
         },
       ]);
     } finally {

@@ -1,5 +1,6 @@
 import sys
 import os
+import time
 import shutil
 import hashlib
 import httpx
@@ -365,6 +366,7 @@ async def query_rag(
             ]
 
         # 4. Generate answer via RAG Pipeline (with FR-11 instant summary cache hit)
+        start_time = time.perf_counter()
         result = generate_answer(
             query=request.query, 
             top_k=getattr(request, "top_k", 10), 
@@ -373,8 +375,18 @@ async def query_rag(
             model_name=request.model_name,
             custom_keys=request.custom_keys or {},
         )
+        duration_sec = round(time.perf_counter() - start_time, 2)
+        prompt_words = len(request.query.split()) + (len(target_documents) * 120)
+        completion_words = len(result["answer"].split()) + len((result.get("thinking_process") or "").split())
+        total_tokens = max(1, int((prompt_words + completion_words) * 1.33))
+        
+        telemetry_meta = {
+            "responseTime": f"{duration_sec}s",
+            "tokens": total_tokens,
+            "model": request.model_name
+        }
 
-        # 5. Save User prompt & Bot answer (including thinking trace) to Database
+        # 5. Save User prompt & Bot answer (including thinking trace & telemetry) to Database
         await crud.add_message(db, session_id=session_id, sender="user", text=request.query)
         await crud.add_message(
             db, 
@@ -383,6 +395,8 @@ async def query_rag(
             text=result["answer"], 
             thinking_process=result.get("thinking_process"),
             sources=result["sources_used"],
+            model_name=request.model_name,
+            meta=telemetry_meta,
         )
 
         return QueryResponse(
@@ -391,6 +405,8 @@ async def query_rag(
             thinking_process=result.get("thinking_process"),
             sources_used=result["sources_used"],
             session_id=session_id,
+            model_name=request.model_name,
+            meta=telemetry_meta,
         )
     except Exception as e:
         import traceback
