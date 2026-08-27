@@ -79,29 +79,24 @@ function InlineCitationBadge({ docName, pageNumber, sources = [], onSelectCitati
         <span className="truncate max-w-[120px]">{displayName}</span>
       </button>
 
-      {/* Floating Hover Card (matching ChatGPT reference) */}
+      {/* Floating Hover Card (matching ChatGPT reference: clean name + page) */}
       {isHovered && (
         <div
           onClick={handleClick}
-          className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 p-3 bg-zinc-900/98 border border-zinc-700/90 rounded-2xl shadow-2xl backdrop-blur-xl z-50 text-left min-w-[210px] max-w-xs animate-in fade-in zoom-in-95 duration-150 flex flex-col gap-1.5 cursor-pointer hover:border-amber-500/50 transition-colors"
+          className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 p-2.5 bg-zinc-900/98 border border-zinc-700/90 rounded-xl shadow-2xl backdrop-blur-xl z-50 text-left min-w-[180px] max-w-xs animate-in fade-in zoom-in-95 duration-150 cursor-pointer hover:border-amber-500/50 transition-colors"
         >
-          <div className="flex items-start gap-2">
-            <div className="h-7 w-7 rounded-lg bg-zinc-800 border border-zinc-700 flex items-center justify-center text-zinc-300 shrink-0 mt-0.5">
+          <div className="flex items-center gap-2.5">
+            <div className="h-7 w-7 rounded-lg bg-zinc-800 border border-zinc-700 flex items-center justify-center text-zinc-300 shrink-0">
               <FileText className="h-3.5 w-3.5 text-amber-400" />
             </div>
             <div className="min-w-0 flex-1">
               <div className="font-semibold text-zinc-100 text-xs leading-snug truncate" title={resolvedDoc}>
                 {resolvedDoc}
               </div>
-              <div className="text-[10.5px] font-mono text-amber-400 mt-0.5">
+              <div className="text-[11px] font-mono text-amber-400 mt-0.5">
                 Page {pageNumber || 1}
               </div>
             </div>
-          </div>
-
-          <div className="flex items-center justify-between text-[10.5px] text-zinc-400 hover:text-zinc-200 border-t border-zinc-800/80 pt-1.5 mt-0.5">
-            <span>Click to view in split viewer</span>
-            <ExternalLink className="h-3 w-3 text-amber-400" />
           </div>
         </div>
       )}
@@ -110,32 +105,43 @@ function InlineCitationBadge({ docName, pageNumber, sources = [], onSelectCitati
 }
 
 /**
- * Transforms raw citation patterns in text (<doc, p1>, [doc, p.1], etc.) into citation links.
+ * Transforms raw citation patterns in text into internal hash citation anchors (#cite:doc:page).
  */
 const transformCitations = (rawText) => {
   if (!rawText) return '';
 
-  // Pattern 1: With page numbers: <doc, p.X>, [doc, p.X], (doc, p.X), <doc, pX>
+  let formatted = rawText;
+
+  // Pattern 1: Raw citation:filename:page or citation:filename (legacy or edge cases)
+  const rawCitationPrefixRegex = /citation:([a-zA-Z0-9_\-\.\s]+?\.(?:pdf|docx|txt|epub|md|PDF|DOCX))(?::(\d+))?/gi;
+  formatted = formatted.replace(rawCitationPrefixRegex, (match, docName, pageNum) => {
+    const cleanDoc = docName.trim();
+    const cleanPage = pageNum ? pageNum.trim() : '1';
+    const encodedDoc = encodeURIComponent(cleanDoc);
+    return `[cite](#cite:${encodedDoc}:${cleanPage})`;
+  });
+
+  // Pattern 2: Target bracket/parenthesis page format <doc, pX>, [doc, p.X], (doc, p.X), <doc, page X>, [doc pX]
   const withPageRegex = /(?:<|\[|\()([a-zA-Z0-9_\-\.\s]+?)(?:,\s*|\s+)(?:p\.?|page|pp\.?)?\s*(\d+)(?:>|\]|\))/gi;
-  let formatted = rawText.replace(withPageRegex, (match, docName, pageNum) => {
+  formatted = formatted.replace(withPageRegex, (match, docName, pageNum) => {
     const cleanDoc = docName.trim();
     const cleanPage = pageNum.trim();
-    if (cleanDoc.startsWith('http://') || cleanDoc.startsWith('https://') || cleanDoc.startsWith('#')) {
+    if (cleanDoc.startsWith('http://') || cleanDoc.startsWith('https://') || cleanDoc.startsWith('#') || cleanDoc.startsWith('cite')) {
       return match;
     }
     const encodedDoc = encodeURIComponent(cleanDoc);
-    return ` [citation:${cleanDoc}:${cleanPage}](citation://${encodedDoc}?page=${cleanPage}) `;
+    return `[cite](#cite:${encodedDoc}:${cleanPage})`;
   });
 
-  // Pattern 2: Without page numbers: <file.pdf>, [file.pdf] (must end in recognized file extension)
+  // Pattern 3: Standalone file citations in brackets: <file.pdf>, [file.pdf]
   const withoutPageRegex = /(?:<|\[|\()([a-zA-Z0-9_\-\.\s]+?\.(?:pdf|docx|txt|epub|md|PDF|DOCX))(?:>|\]|\))/gi;
   formatted = formatted.replace(withoutPageRegex, (match, docName) => {
     const cleanDoc = docName.trim();
-    if (cleanDoc.startsWith('http://') || cleanDoc.startsWith('https://') || cleanDoc.startsWith('citation:')) {
+    if (cleanDoc.startsWith('http://') || cleanDoc.startsWith('https://') || cleanDoc.startsWith('#') || cleanDoc.startsWith('cite')) {
       return match;
     }
     const encodedDoc = encodeURIComponent(cleanDoc);
-    return ` [citation:${cleanDoc}:1](citation://${encodedDoc}?page=1) `;
+    return `[cite](#cite:${encodedDoc}:1)`;
   });
 
   return formatted;
@@ -207,7 +213,7 @@ export default function ChatMessage({ message, onSelectCitation }) {
         /* ===================================================================
            BOT RESPONSE CARD (Centralized, Odysseus / OpenWebUI Inspired)
            =================================================================== */
-        <div className="w-full max-w-2xl bg-zinc-900/90 hover:bg-zinc-900 border border-zinc-800/80 hover:border-zinc-800 rounded-2xl p-4 sm:p-5 shadow-xl transition-all relative overflow-hidden backdrop-blur-sm">
+        <div className="w-full max-w-2xl bg-zinc-900/90 hover:bg-zinc-900 border border-zinc-800/80 hover:border-zinc-800 rounded-2xl p-4 sm:p-5 shadow-xl transition-all relative backdrop-blur-sm">
           {/* Header: Model Badge + Timestamp */}
           <div className="flex items-center justify-between pb-3 mb-3 border-b border-zinc-800/60 select-none">
             <div className="flex items-center gap-2">
@@ -310,25 +316,47 @@ export default function ChatMessage({ message, onSelectCitation }) {
                 rehypePlugins={[rehypeKatex]}
                 components={{
                   a: ({ href, children, ...props }) => {
-                    if (href && href.startsWith('citation://')) {
-                      try {
-                        const rawDoc = href.replace(/^citation:\/\//, '').split('?')[0];
-                        const docName = decodeURIComponent(rawDoc);
-                        const queryPart = href.split('?')[1] || '';
-                        const searchParams = new URLSearchParams(queryPart);
-                        const pageNum = parseInt(searchParams.get('page') || '1', 10);
-                        return (
-                          <InlineCitationBadge
-                            docName={docName}
-                            pageNumber={pageNum}
-                            sources={message.sources}
-                            onSelectCitation={onSelectCitation}
-                          />
-                        );
-                      } catch {
-                        // Fallback
+                    if (href && href.startsWith('#cite:')) {
+                      const raw = href.slice(6);
+                      const colonIdx = raw.lastIndexOf(':');
+                      let docName = raw;
+                      let pageNum = 1;
+                      if (colonIdx !== -1) {
+                        docName = decodeURIComponent(raw.slice(0, colonIdx));
+                        pageNum = parseInt(raw.slice(colonIdx + 1), 10) || 1;
+                      } else {
+                        docName = decodeURIComponent(raw);
                       }
+
+                      return (
+                        <InlineCitationBadge
+                          docName={docName}
+                          pageNumber={pageNum}
+                          sources={message.sources}
+                          onSelectCitation={onSelectCitation}
+                        />
+                      );
                     }
+
+                    if (href && href.startsWith('citation://')) {
+                      const queryIndex = href.indexOf('?');
+                      const rawDoc = queryIndex !== -1 ? href.slice(11, queryIndex) : href.slice(11);
+                      const docName = decodeURIComponent(rawDoc);
+                      let pageNum = 1;
+                      if (queryIndex !== -1) {
+                        const searchParams = new URLSearchParams(href.slice(queryIndex));
+                        pageNum = parseInt(searchParams.get('page') || '1', 10);
+                      }
+                      return (
+                        <InlineCitationBadge
+                          docName={docName}
+                          pageNumber={pageNum}
+                          sources={message.sources}
+                          onSelectCitation={onSelectCitation}
+                        />
+                      );
+                    }
+
                     return (
                       <a
                         href={href}
