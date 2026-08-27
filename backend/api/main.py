@@ -30,13 +30,21 @@ from backend.api.schemas import (
     ChatSessionDetailResponse,
     FetchModelsRequest,
     ModelItem,
+    DraftSaveRequest,
+    DraftResponse,
+    FindCitationsRequest,
+    CitationCandidate,
+    FindCitationsResponse,
+    EditorAskAIRequest,
+    EditorAskAIResponse,
 )
 from backend.ingestion.pipeline import process_path
 from backend.ingestion.summary_worker import trigger_async_summary_generation
-from backend.embeddings.vector_store import store_chunks, get_or_create_collection
-from backend.rag.generator import generate_answer
+from backend.embeddings.vector_store import store_chunks, get_or_create_collection, search_similar_chunks
+from backend.rag.retriever import build_context_block
+from backend.rag.generator import generate_answer, _execute_completion_with_fallback
 from backend.rag.literature_review import generate_literature_review
-from backend.rag.runtime import normalize_litellm_model_id
+from backend.rag.runtime import normalize_litellm_model_id, extract_reasoning_and_content
 
 # Import PDF streaming router
 from backend.api.documents import router as documents_router
@@ -605,6 +613,225 @@ def list_documents():
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to retrieve documents: {str(e)}")
+
+
+# =============================================================================
+# FR-13: ASSISTED ACADEMIC DOCUMENT WRITER ENDPOINTS
+# =============================================================================
+
+@app.get("/api/editor/draft/{session_id}", response_model=DraftResponse)
+async def get_draft(
+    session_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Retrieves the active academic manuscript draft for a workspace session."""
+    try:
+        draft = await crud.get_workspace_draft(db, session_id)
+        if not draft:
+            # Create and return a blank initialized draft
+            draft = await crud.save_workspace_draft(
+                db, 
+                session_id=session_id, 
+                title="Untitled Academic Draft",
+                content_html="<h2>Abstract</h2><p>Begin drafting your academic synthesis or literature review here...</p>",
+                content_markdown="## Abstract\n\nBegin drafting your academic synthesis or literature review here...",
+                citations_data=[]
+            )
+        return DraftResponse(
+            id=draft.id,
+            session_id=draft.session_id,
+            title=draft.title or "Untitled Academic Draft",
+            content_html=draft.content_html or "",
+            content_markdown=draft.content_markdown or "",
+            citations_data=draft.citations_data or [],
+            updated_at=draft.updated_at
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch draft: {str(e)}")
+
+
+@app.post("/api/editor/draft", response_model=DraftResponse)
+async def save_draft(
+    request: DraftSaveRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Persists or auto-saves the academic manuscript draft and bibliography."""
+    try:
+        draft = await crud.save_workspace_draft(
+            db,
+            session_id=request.session_id,
+            title=request.title,
+            content_html=request.content_html,
+            content_markdown=request.content_markdown,
+            citations_data=request.citations_data
+        )
+        return DraftResponse(
+            id=draft.id,
+            session_id=draft.session_id,
+            title=draft.title,
+            content_html=draft.content_html,
+            content_markdown=draft.content_markdown,
+            citations_data=draft.citations_data or [],
+            updated_at=draft.updated_at
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to save draft: {str(e)}")
+
+
+@app.post("/api/editor/find-citations", response_model=FindCitationsResponse)
+async def find_citations(
+    request: FindCitationsRequest,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Semantic Citation Engine:
+    Executes real-time cosine vector similarity search over workspace ChromaDB chunks
+    for a highlighted sentence or academic claim.
+    """
+    clean_query = request.query.strip()
+    if not clean_query:
+        return FindCitationsResponse(query="", candidates=[], total_matches=0)
+
+    try:
+        results = search_similar_chunks(
+            query=clean_query,
+            top_k=request.top_k,
+            doc_names=request.doc_names
+        )
+
+        candidates: List[CitationCandidate] = []
+        if results and results.get("documents") and results["documents"][0]:
+            docs = results["documents"][0]
+            metas = results["metadatas"][0]
+            distances = results.get("distances", [[]])[0] if results.get("distances") else [0.0] * len(docs)
+
+            for text, meta, dist in zip(docs, metas, distances):
+                doc_name = meta.get("source", "Unknown Document")
+                page_number = int(meta.get("page_number", 1))
+                chunk_id = meta.get("chunk_id", f"chunk_{doc_name}_{page_number}")
+                
+                # Cosine distance to similarity percentage
+                similarity = max(0.05, min(0.99, round(1.0 - float(dist), 4))) if dist is not None else 0.85
+                
+                # Clean excerpt snippet
+                excerpt_clean = " ".join(text.split())
+                if len(excerpt_clean) > 280:
+                    excerpt_clean = excerpt_clean[:280] + "…"
+
+                formatted_ref = f"{doc_name}, Page {page_number}"
+
+                candidates.append(
+                    CitationCandidate(
+                        chunk_id=chunk_id,
+                        doc_name=doc_name,
+                        page_number=page_number,
+                        similarity_score=similarity,
+                        excerpt=excerpt_clean,
+                        formatted_ref=formatted_ref
+                    )
+                )
+
+        # Sort candidates descending by similarity score
+        candidates.sort(key=lambda c: c.similarity_score, reverse=True)
+
+        return FindCitationsResponse(
+            query=clean_query,
+            candidates=candidates,
+            total_matches=len(candidates)
+        )
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Citation search failed: {str(e)}")
+
+
+@app.post("/api/editor/ask-ai", response_model=EditorAskAIResponse)
+async def editor_ask_ai(
+    request: EditorAskAIRequest,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Inline Context Assistant:
+    Processes focused instructions (critique, expand, rewrite, formalize)
+    on highlighted text excerpts, strictly grounded in workspace papers.
+    """
+    selection = request.selection.strip()
+    instruction = request.instruction.strip()
+    keys = request.custom_keys or {}
+
+    if not selection or not instruction:
+        raise HTTPException(status_code=400, detail="Selection and instruction must not be empty.")
+
+    try:
+        # Retrieve supporting context chunks from workspace documents
+        combined_query = f"{selection} {instruction}"
+        sim_results = search_similar_chunks(
+            query=combined_query,
+            top_k=4,
+            doc_names=request.doc_names
+        )
+
+        retrieved_chunks = []
+        sources = []
+        if sim_results and sim_results.get("documents") and sim_results["documents"][0]:
+            for text, meta in zip(sim_results["documents"][0], sim_results["metadatas"][0]):
+                d_name = meta.get("source", "Document")
+                p_num = int(meta.get("page_number", 1))
+                retrieved_chunks.append({
+                    "chunk_id": meta.get("chunk_id", ""),
+                    "doc_name": d_name,
+                    "page_number": p_num,
+                    "content": text
+                })
+                sources.append({"chunk_id": meta.get("chunk_id", ""), "doc_name": d_name, "page_number": p_num})
+
+        context_block = build_context_block(retrieved_chunks)
+
+        editor_prompt = f"""
+You are ScholarsMate's In-Editor Academic Assistant.
+The researcher is writing an academic draft and highlighted this focal passage:
+---
+"{selection}"
+---
+
+User Instruction:
+"{instruction}"
+
+### RETRIEVED EVIDENCE FROM WORKSPACE PAPERS:
+{context_block}
+
+### INSTRUCTIONS:
+1. Provide a direct, authoritative, and academic response directly addressing the user's instruction.
+2. If rewriting or expanding the passage, output the refined text clearly so the author can immediately replace or insert it.
+3. If factual statements are drawn from the retrieved papers, cite them with [Doc_Name, p.X].
+4. Maintain formal academic prose and conciseness.
+""".strip()
+
+        target_model = normalize_litellm_model_id(request.model_name) or "gemini/gemini-3.7-flash"
+
+        chat_completion = _execute_completion_with_fallback(
+            model_name=target_model,
+            messages=[{"role": "user", "content": editor_prompt}],
+            custom_keys=keys,
+            temperature=0.2,
+            max_tokens=1500,
+        )
+
+        extracted = extract_reasoning_and_content(chat_completion)
+
+        return EditorAskAIResponse(
+            selection=selection,
+            instruction=instruction,
+            result=extracted.answer,
+            thinking_process=extracted.thinking,
+            sources_used=sources
+        )
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"In-Editor AI execution failed: {str(e)}")
 
 
 if __name__ == "__main__":

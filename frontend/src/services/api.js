@@ -386,3 +386,79 @@ export const sendQuery = async (
     throw error;
   }
 };
+
+// =============================================================================
+// FR-13: ASSISTED ACADEMIC DOCUMENT WRITER & CITATION APIS
+// =============================================================================
+
+/**
+ * Retrieves the persisted academic draft for a workspace session.
+ * @param {string} sessionId - Database UUID of the session.
+ */
+export const getDraftAPI = async (sessionId) => {
+  if (!sessionId) return null;
+  try {
+    const response = await apiClient.get(`/editor/draft/${sessionId}`);
+    return response.data;
+  } catch (error) {
+    console.error(`Failed to load draft for session ${sessionId}:`, error.response?.data || error.message);
+    return null;
+  }
+};
+
+/**
+ * Persists / auto-saves the active draft and bibliography state.
+ * @param {Object} draftData - { session_id, title, content_html, content_markdown, citations_data }
+ */
+export const saveDraftAPI = async (draftData) => {
+  try {
+    const response = await apiClient.post('/editor/draft', draftData);
+    return response.data;
+  } catch (error) {
+    console.error('Failed to auto-save draft:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+/**
+ * Executes vector similarity search to find grounded evidence passages for a highlighted sentence/claim.
+ * @param {string} query - Highlighted statement to verify.
+ * @param {Array<string>} [docNames=null] - Scoped workspace documents.
+ * @param {number} [topK=5] - Number of candidate matches to return.
+ */
+export const findCitationsAPI = async (query, docNames = null, topK = 5) => {
+  try {
+    const response = await apiClient.post('/editor/find-citations', {
+      query: query,
+      doc_names: docNames && docNames.length > 0 ? docNames : null,
+      top_k: topK,
+    });
+    return response.data; // { query, candidates: [...], total_matches }
+  } catch (error) {
+    console.error('Semantic citation search failed:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+/**
+ * Calls the in-editor AI assistant for a highlighted excerpt.
+ * @param {Object} params - { selection, instruction, docNames, modelName }
+ */
+export const editorAskAIAPI = async ({ selection, instruction, docNames = null, modelName = null }) => {
+  const { keys, activeModel } = getSavedBYOKConfig();
+  const selectedModel = modelName || activeModel;
+
+  try {
+    const response = await apiClient.post('/editor/ask-ai', {
+      selection: selection,
+      instruction: instruction,
+      doc_names: docNames && docNames.length > 0 ? docNames : null,
+      model_name: selectedModel || 'gemini/gemini-3.7-flash',
+      custom_keys: keys,
+    });
+    return response.data; // { selection, instruction, result, thinking_process, sources_used }
+  } catch (error) {
+    console.error('In-editor AI assistance failed:', error.response?.data || error.message);
+    throw error;
+  }
+};

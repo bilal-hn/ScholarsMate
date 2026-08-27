@@ -4,6 +4,7 @@ import {
   Search, 
   Trash2, 
   BookOpen, 
+  PenTool,
   Settings, 
   Compass, 
   Palette,
@@ -20,6 +21,7 @@ export default function DocumentSidebar({
   onDeleteWorkspace,
   onOpenCreateModal,
   onOpenLitReview,
+  onToggleWriter,
   onAuthChange,
   onOpenSettings,
   currentTheme = 'odysseus',
@@ -122,6 +124,18 @@ export default function DocumentSidebar({
           <BookOpen className="h-3.5 w-3.5 text-zinc-500 group-hover:text-amber-400 transition-colors" />
           <span>Literature Review Studio</span>
         </button>
+
+        {/* Academic Document Writer Navigation Item */}
+        {onToggleWriter && (
+          <button
+            type="button"
+            onClick={onToggleWriter}
+            className="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-xs text-zinc-400 hover:text-amber-400 hover:bg-zinc-800/30 transition-colors cursor-pointer group text-left"
+          >
+            <PenTool className="h-3.5 w-3.5 text-zinc-500 group-hover:text-amber-400 transition-colors" />
+            <span>Academic Writer</span>
+          </button>
+        )}
       </div>
 
       {/* Workspaces List */}

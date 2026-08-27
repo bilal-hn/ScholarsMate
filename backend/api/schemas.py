@@ -113,3 +113,62 @@ class DocumentListItem(BaseModel):
 class DocumentListResponse(BaseModel):
     documents: List[DocumentListItem]
     total_documents: int
+
+
+# =============================================================================
+# FR-13: ASSISTED ACADEMIC DOCUMENT WRITER SCHEMAS
+# =============================================================================
+
+class DraftSaveRequest(BaseModel):
+    session_id: str = Field(..., json_schema_extra={"example": "123e4567-e89b-12d3-a456-426614174000"})
+    title: str = Field(default="Untitled Academic Draft", json_schema_extra={"example": "Literature Review on Delta-Tuning"})
+    content_html: str = Field(default="", json_schema_extra={"example": "<h1>Abstract</h1><p>Recent advances in...</p>"})
+    content_markdown: str = Field(default="", json_schema_extra={"example": "# Abstract\n\nRecent advances in..."})
+    citations_data: Optional[List[Dict[str, Any]]] = Field(default_factory=list)
+
+
+class DraftResponse(BaseModel):
+    id: str
+    session_id: str
+    title: str
+    content_html: str
+    content_markdown: str
+    citations_data: List[Dict[str, Any]] = Field(default_factory=list)
+    updated_at: datetime
+
+
+class FindCitationsRequest(BaseModel):
+    query: str = Field(..., json_schema_extra={"example": "Dual-encoder retrieval reduces query latency by 32% under multi-hop setups."})
+    doc_names: Optional[List[str]] = Field(default=None, json_schema_extra={"example": ["sample.pdf", "sample2.pdf"]})
+    top_k: int = Field(default=5, ge=1, le=15)
+
+
+class CitationCandidate(BaseModel):
+    chunk_id: str
+    doc_name: str
+    page_number: int
+    similarity_score: float = Field(..., description="Cosine similarity confidence percentage (0.0 - 1.0)")
+    excerpt: str
+    formatted_ref: str
+
+
+class FindCitationsResponse(BaseModel):
+    query: str
+    candidates: List[CitationCandidate]
+    total_matches: int
+
+
+class EditorAskAIRequest(BaseModel):
+    selection: str = Field(..., json_schema_extra={"example": "Dual-encoder retrieval reduces query latency by 32%."})
+    instruction: str = Field(..., json_schema_extra={"example": "Critique this claim and suggest how to elaborate with evidence."})
+    doc_names: Optional[List[str]] = Field(default=None, json_schema_extra={"example": ["sample2.pdf"]})
+    model_name: Optional[str] = Field(default="gemini/gemini-3.7-flash")
+    custom_keys: Optional[Dict[str, str]] = Field(default_factory=dict)
+
+
+class EditorAskAIResponse(BaseModel):
+    selection: str
+    instruction: str
+    result: str
+    thinking_process: Optional[str] = None
+    sources_used: List[SourceItem] = Field(default_factory=list)

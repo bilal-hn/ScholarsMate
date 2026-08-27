@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import List, Optional, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from backend.db.models import ChatSession, ChatMessage, User
+from backend.db.models import ChatSession, ChatMessage, User, WorkspaceDraft
 
 
 def _normalize_json_list(val: Any) -> list:
@@ -228,3 +228,56 @@ async def delete_session(
         await db.commit()
         return True
     return False
+
+
+# =============================================================================
+# WORKSPACE DRAFT CRUD (FR-13)
+# =============================================================================
+
+async def get_workspace_draft(db: AsyncSession, session_id: str) -> Optional[WorkspaceDraft]:
+    """Retrieves the persisted academic draft for a given workspace session."""
+    stmt = select(WorkspaceDraft).where(WorkspaceDraft.session_id == session_id)
+    res = await db.execute(stmt)
+    draft = res.scalar_one_or_none()
+    if draft:
+        draft.citations_data = _normalize_json_list(draft.citations_data)
+    return draft
+
+
+async def save_workspace_draft(
+    db: AsyncSession,
+    session_id: str,
+    title: str = "Untitled Academic Draft",
+    content_html: str = "",
+    content_markdown: str = "",
+    citations_data: Optional[list] = None
+) -> WorkspaceDraft:
+    """Creates or updates the academic draft and bibliography metadata for a session."""
+    stmt = select(WorkspaceDraft).where(WorkspaceDraft.session_id == session_id)
+    res = await db.execute(stmt)
+    draft = res.scalar_one_or_none()
+
+    clean_citations = citations_data if isinstance(citations_data, list) else []
+
+    if not draft:
+        draft = WorkspaceDraft(
+            id=str(uuid.uuid4()),
+            session_id=session_id,
+            title=title,
+            content_html=content_html,
+            content_markdown=content_markdown,
+            citations_data=clean_citations,
+            updated_at=datetime.utcnow()
+        )
+        db.add(draft)
+    else:
+        draft.title = title
+        draft.content_html = content_html
+        draft.content_markdown = content_markdown
+        draft.citations_data = clean_citations
+        draft.updated_at = datetime.utcnow()
+
+    await db.commit()
+    await db.refresh(draft)
+    draft.citations_data = _normalize_json_list(draft.citations_data)
+    return draft

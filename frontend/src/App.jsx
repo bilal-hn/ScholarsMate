@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import 'katex/dist/katex.min.css';
 import DocumentSidebar from './components/document/DocumentSidebar';
 import ChatInterface from './components/chat/ChatInterface';
+import DocumentWriter from './components/writer/DocumentWriter';
 import CreateWorkspaceModal from './components/document/CreateWorkspaceModal';
 import SettingsModal from './components/layout/SettingsModal';
 import LiteratureReviewModal from './components/modals/LiteratureReviewModal';
@@ -17,7 +18,7 @@ import {
   saveBYOKConfig
 } from './services/api';
 import { getSavedTheme, saveTheme } from './theme/constants';
-import { AlertCircle, RefreshCw } from 'lucide-react';
+import { AlertCircle, RefreshCw, MessageSquare, Columns2, PenTool } from 'lucide-react';
 
 export default function App() {
   const [documents, setDocuments] = useState([]);
@@ -47,6 +48,9 @@ export default function App() {
   // Workspaces state synced from backend & fallback to localStorage
   const [workspaces, setWorkspaces] = useState([]);
   const [activeWorkspaceId, setActiveWorkspaceId] = useState(null);
+
+  // View Mode: 'chat' | 'split' | 'writer' (Odysseus-style assisted authoring canvas)
+  const [viewMode, setViewMode] = useState('chat');
 
   // Apply theme on mount and when theme changes
   useEffect(() => {
@@ -227,6 +231,7 @@ export default function App() {
         onDeleteWorkspace={handleDeleteWorkspace}
         onOpenCreateModal={() => setIsModalOpen(true)}
         onOpenLitReview={() => setIsLitReviewOpen(true)}
+        onToggleWriter={() => setViewMode(viewMode === 'chat' ? 'split' : viewMode === 'split' ? 'writer' : 'chat')}
         onAuthChange={handleAuthChange}
         onOpenSettings={() => setIsSettingsOpen(true)}
         currentTheme={currentTheme}
@@ -252,24 +257,98 @@ export default function App() {
           </div>
         )}
 
-        <div className="flex-1 flex h-full overflow-hidden">
-          <div className={`h-full transition-all duration-300 ${activePdf ? 'w-1/2 border-r border-zinc-800' : 'w-full'}`}>
-            <ChatInterface
-              documents={scopedDocuments}
-              selectedDocs={selectedDocs}
-              setSelectedDocs={setSelectedDocs}
-              onSelectCitation={handleSelectCitation}
-              incomingMessage={reviewTriggerMessage}
-              sessionId={activeWorkspaceId}
-              availableModels={discoveredModels}
-              currentModel={currentModel}
-              onModelChange={handleModelChange}
-              onOpenSettings={() => setIsSettingsOpen(true)}
-            />
+        {/* Top Header Bar with Workspace Status & 3-Mode View Switcher */}
+        <div className="h-10 border-b border-zinc-800/80 bg-zinc-950 px-4 flex items-center justify-between shrink-0 select-none">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold text-zinc-200 truncate max-w-xs">
+              {activeWorkspace ? activeWorkspace.name : 'Workspace'}
+            </span>
+            {scopedDocuments.length > 0 && (
+              <span className="text-[10px] font-mono text-zinc-400 bg-zinc-900 px-1.5 py-0.5 rounded border border-zinc-800">
+                {scopedDocuments.length} doc{scopedDocuments.length > 1 ? 's' : ''}
+              </span>
+            )}
           </div>
 
-          {/* PDF Viewer Split Screen */}
-          {activePdf && (
+          {/* 3 View Mode Toggle Pills */}
+          <div className="flex items-center bg-zinc-900/90 p-0.5 rounded-xl border border-zinc-800 text-xs">
+            <button
+              type="button"
+              onClick={() => {
+                setViewMode('chat');
+                setActivePdf(null);
+              }}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg transition-all cursor-pointer font-medium ${
+                viewMode === 'chat' && !activePdf
+                  ? 'bg-zinc-800 text-zinc-100 shadow-xs'
+                  : 'text-zinc-400 hover:text-zinc-200'
+              }`}
+              title="Full Chat View"
+            >
+              <MessageSquare className="h-3.5 w-3.5" />
+              <span>Chat</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setViewMode('split');
+                setActivePdf(null);
+              }}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg transition-all cursor-pointer font-medium ${
+                viewMode === 'split' && !activePdf
+                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30 shadow-xs'
+                  : 'text-zinc-400 hover:text-zinc-200'
+              }`}
+              title="Split View: Research Chat + Document Writer"
+            >
+              <Columns2 className="h-3.5 w-3.5" />
+              <span>Split View</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setViewMode('writer');
+                setActivePdf(null);
+              }}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg transition-all cursor-pointer font-medium ${
+                viewMode === 'writer' && !activePdf
+                  ? 'bg-zinc-800 text-zinc-100 shadow-xs'
+                  : 'text-zinc-400 hover:text-zinc-200'
+              }`}
+              title="Full Academic Writer View"
+            >
+              <PenTool className="h-3.5 w-3.5" />
+              <span>Writer</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Dynamic Workspace Work Canvas */}
+        <div className="flex-1 flex h-full overflow-hidden">
+          {/* Left Canvas: Chat Interface (in Chat or Split View) */}
+          {viewMode !== 'writer' && (
+            <div className={`h-full transition-all duration-300 ${
+              activePdf || viewMode === 'split' ? 'w-1/2 border-r border-zinc-800' : 'w-full'
+            }`}>
+              <ChatInterface
+                documents={scopedDocuments}
+                selectedDocs={selectedDocs}
+                setSelectedDocs={setSelectedDocs}
+                onSelectCitation={handleSelectCitation}
+                incomingMessage={reviewTriggerMessage}
+                sessionId={activeWorkspaceId}
+                availableModels={discoveredModels}
+                currentModel={currentModel}
+                onModelChange={handleModelChange}
+                onOpenSettings={() => setIsSettingsOpen(true)}
+              />
+            </div>
+          )}
+
+          {/* Right Canvas: PDF Viewer OR Document Writer */}
+          {activePdf ? (
             <div className="w-1/2 h-full bg-zinc-900">
               <PdfViewer
                 activePdf={activePdf}
@@ -277,6 +356,18 @@ export default function App() {
                 onClose={() => setActivePdf(null)}
               />
             </div>
+          ) : (
+            (viewMode === 'split' || viewMode === 'writer') && (
+              <div className={`${viewMode === 'writer' ? 'w-full' : 'w-1/2'} h-full transition-all duration-300`}>
+                <DocumentWriter
+                  sessionId={activeWorkspaceId}
+                  documents={scopedDocuments}
+                  availableModels={discoveredModels}
+                  currentModel={currentModel}
+                  onOpenPdfViewer={handleSelectCitation}
+                />
+              </div>
+            )
           )}
         </div>
       </div>

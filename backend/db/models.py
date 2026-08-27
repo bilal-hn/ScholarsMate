@@ -67,6 +67,12 @@ class ChatSession(Base):
         cascade="all, delete-orphan",
         order_by="ChatMessage.timestamp"
     )
+    draft: Mapped[Optional["WorkspaceDraft"]] = relationship(
+        "WorkspaceDraft",
+        back_populates="session",
+        cascade="all, delete-orphan",
+        uselist=False
+    )
 
 
 class ChatMessage(Base):
@@ -83,3 +89,18 @@ class ChatMessage(Base):
     timestamp: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     session: Mapped["ChatSession"] = relationship("ChatSession", back_populates="messages")
+
+
+class WorkspaceDraft(Base):
+    """FR-13: Academic Document Writer draft persistence per workspace session."""
+    __tablename__ = "workspace_drafts"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=generate_uuid)
+    session_id: Mapped[str] = mapped_column(String, ForeignKey("chat_sessions.id"), unique=True, index=True)
+    title: Mapped[str] = mapped_column(String, default="Untitled Academic Draft")
+    content_html: Mapped[str] = mapped_column(Text, default="")
+    content_markdown: Mapped[str] = mapped_column(Text, default="")
+    citations_data: Mapped[Optional[list]] = mapped_column(JSON, default=list)  # List of inserted citation objects
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    session: Mapped["ChatSession"] = relationship("ChatSession", back_populates="draft")
