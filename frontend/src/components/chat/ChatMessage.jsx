@@ -80,6 +80,9 @@ function InlineCitationBadge({ docName, pageNumber, sources = [], onSelectCitati
       >
         <FileText className="h-3 w-3 text-zinc-400 group-hover:text-amber-400 transition-colors shrink-0" />
         <span className="truncate max-w-[120px]">{displayName}</span>
+        {pageNumber && (
+          <span className="text-amber-400/90 text-[10.5px] font-mono">p.{pageNumber}</span>
+        )}
       </button>
 
       {/* Floating Hover Card (matching ChatGPT reference: clean name + page) */}
@@ -109,7 +112,8 @@ function InlineCitationBadge({ docName, pageNumber, sources = [], onSelectCitati
 
 /**
  * Transforms raw citation patterns in text into internal hash citation anchors (#cite:doc:page).
- * Accurately ignores academic author-year literature citations like [Su et al., 2022].
+ * Accurately supports multi-page citations (e.g. [sample2.pdf, p.2, p.22]) while ignoring
+ * academic author-year literature citations like [Su et al., 2022].
  */
 const transformCitations = (rawText) => {
   if (!rawText) return '';
@@ -128,28 +132,34 @@ const transformCitations = (rawText) => {
     return `[cite](#cite:${encodedDoc}:${cleanPage})`;
   });
 
-  // Step 2: Bracket citation with explicit page prefix: <doc, p.X>, [doc, p.X], (doc, p.X), [doc, page X], [doc pX]
-  const explicitPageRegex = /(?:<|\[|\()\s*([a-zA-Z0-9_\-\.\s]+?)(?:,\s*|\s+)(?:p\.?|page|pp\.)\s*(\d+)\s*(?:>|\]|\))/gi;
-  formatted = formatted.replace(explicitPageRegex, (match, docName, pageNum) => {
+  // Step 2: Bracket citation with explicit file extension and page list: e.g. [sample2.pdf, p.2, p.22] or [sample2.pdf, p.1]
+  const docWithPagesRegex = /(?:<|\[|\()\s*([a-zA-Z0-9_\-\.\s]+?\.(?:pdf|docx|txt|epub|md|PDF|DOCX))\s*(?:,\s*|\s+)(?:p\.?|page|pp\.)?\s*([\d\s,p\.]+?)\s*(?:>|\]|\))/gi;
+  formatted = formatted.replace(docWithPagesRegex, (match, docName, pagesRaw) => {
     const cleanDoc = docName.trim();
-    const cleanPage = pageNum.trim();
     if (cleanDoc.startsWith('http://') || cleanDoc.startsWith('https://') || cleanDoc.startsWith('#') || cleanDoc.startsWith('cite')) {
       return match;
     }
+    const pageNums = pagesRaw.match(/\d+/g);
+    if (!pageNums || pageNums.length === 0) {
+      return `[cite](#cite:${encodeURIComponent(cleanDoc)}:1)`;
+    }
     const encodedDoc = encodeURIComponent(cleanDoc);
-    return `[cite](#cite:${encodedDoc}:${cleanPage})`;
+    return pageNums.map(p => `[cite](#cite:${encodedDoc}:${p})`).join(' ');
   });
 
-  // Step 3: Bracket citation with explicit file extension and number: [file.pdf, 3] or [file.pdf:3]
-  const docFileWithNumberRegex = /(?:<|\[|\()\s*([a-zA-Z0-9_\-\.\s]+?\.(?:pdf|docx|txt|epub|md|PDF|DOCX))(?::|,\s*|\s+)(\d+)\s*(?:>|\]|\))/gi;
-  formatted = formatted.replace(docFileWithNumberRegex, (match, docName, pageNum) => {
+  // Step 3: Bracket citation without file extension but with explicit p./page prefix: e.g. [sample2, p.1] or [sample2, p.2, p.22]
+  const stemWithExplicitPageRegex = /(?:<|\[|\()\s*([a-zA-Z0-9_\-\.\s]+?)(?:,\s*|\s+)(?:p\.?|page|pp\.)\s*([\d\s,p\.]+?)\s*(?:>|\]|\))/gi;
+  formatted = formatted.replace(stemWithExplicitPageRegex, (match, docName, pagesRaw) => {
     const cleanDoc = docName.trim();
-    const cleanPage = pageNum.trim();
     if (cleanDoc.startsWith('http://') || cleanDoc.startsWith('https://') || cleanDoc.startsWith('#') || cleanDoc.startsWith('cite')) {
       return match;
     }
+    const pageNums = pagesRaw.match(/\d+/g);
+    if (!pageNums || pageNums.length === 0) {
+      return match;
+    }
     const encodedDoc = encodeURIComponent(cleanDoc);
-    return `[cite](#cite:${encodedDoc}:${cleanPage})`;
+    return pageNums.map(p => `[cite](#cite:${encodedDoc}:${p})`).join(' ');
   });
 
   // Step 4: Standalone file citations in brackets: [sample.pdf], <sample.pdf>

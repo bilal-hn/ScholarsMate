@@ -1,5 +1,6 @@
 import sys
 import os
+import re
 from dotenv import load_dotenv
 from litellm import completion
 
@@ -204,6 +205,42 @@ Provide a publication-grade Literature Review featuring:
         raise RuntimeError(f"Literature Review Synthesis failed: {str(e)}")
 
 
+def extract_sources_from_text(text: str, fallback_doc: str | None = None) -> list[dict]:
+    """Extracts all document and page references from the answer text to populate sources_used accurately."""
+    sources = []
+    seen = set()
+
+    # Matches [doc.pdf, p.X], [doc.pdf, p.X, p.Y], <doc.pdf, p.X>, [doc.pdf, page X], [doc.pdf, p.2, p.22]
+    pattern = re.compile(
+        r"(?:<|\[|\()\s*([a-zA-Z0-9_\-\.\s]+?\.(?:pdf|docx|txt|epub|md|PDF|DOCX))\s*(?:,\s*|\s+)(?:p\.?|page|pp\.)?\s*([\d\s,p\.]+?)\s*(?:>|\]|\))", 
+        re.IGNORECASE
+    )
+    
+    for match in pattern.finditer(text):
+        doc = match.group(1).strip()
+        pages_raw = match.group(2)
+        page_nums = re.findall(r"\d+", pages_raw)
+        for p in page_nums:
+            p_int = int(p)
+            key = (doc, p_int)
+            if key not in seen:
+                seen.add(key)
+                sources.append({
+                    "chunk_id": f"ref_{doc}_{p_int}",
+                    "doc_name": doc,
+                    "page_number": p_int
+                })
+
+    if not sources and fallback_doc:
+        sources.append({
+            "chunk_id": f"ref_{fallback_doc}_1",
+            "doc_name": fallback_doc,
+            "page_number": 1
+        })
+
+    return sources
+
+
 def generate_answer(
     query: str, 
     top_k: int = 10, 
@@ -251,18 +288,14 @@ def generate_answer(
     # Branch A: Instant Cached Summary Return (FR-11)
     if retrieval_mode == "cached_summary" and plan.get("cached_content"):
         target_doc = (plan.get("target_docs") or ["Document"])[0]
+        cached_text = plan.get("cached_content")
         print(f"[Generator] Serving pre-computed summary cache for '{target_doc}' (< 50ms).")
+        parsed_sources = extract_sources_from_text(cached_text, fallback_doc=target_doc)
         return {
             "query": query,
-            "answer": plan.get("cached_content"),
+            "answer": cached_text,
             "thinking_process": None,
-            "sources_used": [
-                {
-                    "chunk_id": "cached_summary_0",
-                    "doc_name": target_doc,
-                    "page_number": 1
-                }
-            ]
+            "sources_used": parsed_sources
         }
 
     # Branch B: CONVERSATIONAL Intent
@@ -361,6 +394,17 @@ def generate_answer(
         if key not in seen:
             seen.add(key)
             unique_sources.append(src)
+
+    # Merge any explicit citations found directly in the answer text
+    text_sources = extract_sources_from_text(answer_text)
+    for t_src in text_sources:
+        key = (t_src["doc_name"], t_src["page_number"])
+        if key not in seen:
+            seen.add(key)
+            unique_sources.append(t_src)
+
+    # Sort sources cleanly by document name and page number
+    unique_sources.sort(key=lambda s: (s.get("doc_name", ""), s.get("page_number", 1)))
 
     return {
         "query": query,
