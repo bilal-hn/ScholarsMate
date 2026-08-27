@@ -1,31 +1,125 @@
 @import "tailwindcss";
 
-/* 
-  Deep Discord Dark Grey & Blurple Theme Override
-*/
 @theme {
-  /* Deeper Discord Surface Colors (Mapped to Zinc utilities) */
-  --color-zinc-950: #1e1f22; /* Primary Chat Surface (Darkened from #313338) */
-  --color-zinc-900: #2b2d31; /* Sidebar, Cards & Floating Input (Darkened) */
-  --color-zinc-800: #111214; /* Deepest Background Panels & Dark Borders */
-  --color-zinc-700: #0e0f10; /* Ultra-Dark Borders & Dividers */
+  /* Dynamic Semantic Color Tokens linked to CSS Variables */
+  --color-zinc-950: var(--theme-canvas, #131417);
+  --color-zinc-900: var(--theme-surface, #1a1b20);
+  --color-zinc-800: var(--theme-elevated, #23252c);
+  --color-zinc-700: var(--theme-border-hover, #2f323c);
+  --color-zinc-600: var(--theme-subtle, #484b55);
+  --color-zinc-500: var(--theme-muted, #6b6f7a);
+  --color-zinc-400: var(--theme-text-muted, #8e929c);
+  --color-zinc-300: var(--theme-text-body, #b8bac2);
+  --color-zinc-200: var(--theme-text-light, #dcdee3);
+  --color-zinc-100: var(--theme-text-bold, #f4f5f7);
 
-  /* Discord High-Contrast Text Colors */
-  --color-zinc-100: #f2f3f5; /* Primary Header Text */
-  --color-zinc-200: #dbdee1; /* Body Text */
-  --color-zinc-300: #b5bac1; /* Muted Body Text */
-  --color-zinc-400: #949ba4; /* Subtitles & Badges */
-  --color-zinc-500: #80848e; /* Subtle Timestamps & Metadata */
-  --color-zinc-600: #4e5058; /* Disabled State & Dark Icons */
-
-  /* Discord Blurple Accent Colors (Mapped to Amber utilities) */
-  --color-amber-300: #7983f5; /* Hover Accent Highlight */
-  --color-amber-400: #5865f2; /* Discord Blurple Primary Accent */
-  --color-amber-500: #4752c4; /* Dark Blurple Active / Pressed State */
-  --color-amber-600: #3c45a5; /* Deep Blurple Border / Glow */
+  --color-amber-300: var(--theme-accent-light, #fda4af);
+  --color-amber-400: var(--theme-accent-hover, #f87171);
+  --color-amber-500: var(--theme-accent-primary, #e05d65);
+  --color-amber-600: var(--theme-accent-dark, #c8434b);
 }
 
-/* Lock full-screen workspace bounds */
+/* =============================================================================
+   THEME DEFINITIONS
+   ============================================================================= */
+
+/* 1. Odysseus Dark Theme (Default) */
+:root,
+[data-theme="odysseus"] {
+  --theme-canvas: #131417;
+  --theme-surface: #1a1b20;
+  --theme-elevated: #23252c;
+  --theme-border-hover: #2f323c;
+  --theme-subtle: #484b55;
+  --theme-muted: #6b6f7a;
+  --theme-text-muted: #8e929c;
+  --theme-text-body: #b8bac2;
+  --theme-text-light: #dcdee3;
+  --theme-text-bold: #f4f5f7;
+
+  --theme-accent-light: #fda4af;
+  --theme-accent-hover: #f87171;
+  --theme-accent-primary: #e05d65;
+  --theme-accent-dark: #c8434b;
+}
+
+/* 2. Gemini Dark Theme (Google Dark Slate & Deep Blue) */
+[data-theme="gemini"] {
+  --theme-canvas: #131314;
+  --theme-surface: #1e1f20;
+  --theme-elevated: #282a2c;
+  --theme-border-hover: #37393b;
+  --theme-subtle: #56595e;
+  --theme-muted: #80868b;
+  --theme-text-muted: #9aa0a6;
+  --theme-text-body: #bdc1c6;
+  --theme-text-light: #e8eaed;
+  --theme-text-bold: #ffffff;
+
+  --theme-accent-light: #c2e7ff;
+  --theme-accent-hover: #7cacf8;
+  --theme-accent-primary: #1a73e8;
+  --theme-accent-dark: #1557b0;
+}
+
+/* 3. ChatGPT Dark Theme (OpenAI Charcoal & Emerald Green) */
+[data-theme="chatgpt"] {
+  --theme-canvas: #212121;
+  --theme-surface: #171717;
+  --theme-elevated: #2f2f2f;
+  --theme-border-hover: #424242;
+  --theme-subtle: #5d5d5d;
+  --theme-muted: #8e8e8e;
+  --theme-text-muted: #b4b4b4;
+  --theme-text-body: #cdcdcd;
+  --theme-text-light: #ececec;
+  --theme-text-bold: #ffffff;
+
+  --theme-accent-light: #6ee7b7;
+  --theme-accent-hover: #34d399;
+  --theme-accent-primary: #10a37f;
+  --theme-accent-dark: #059669;
+}
+
+/* 4. Claude Dark Theme (Anthropic Walnut & Warm Terracotta) */
+[data-theme="claude"] {
+  --theme-canvas: #1d1c1a;
+  --theme-surface: #262522;
+  --theme-elevated: #33312c;
+  --theme-border-hover: #43403a;
+  --theme-subtle: #615c54;
+  --theme-muted: #8a8378;
+  --theme-text-muted: #b0a89c;
+  --theme-text-body: #cbbfb0;
+  --theme-text-light: #e8ded1;
+  --theme-text-bold: #faf7f2;
+
+  --theme-accent-light: #fbd38d;
+  --theme-accent-hover: #e5957d;
+  --theme-accent-primary: #cc785c;
+  --theme-accent-dark: #b25e43;
+}
+
+/* 5. Discord Dark Theme (Discord Slate & Blurple) */
+[data-theme="discord"] {
+  --theme-canvas: #1e1f22;
+  --theme-surface: #2b2d31;
+  --theme-elevated: #313338;
+  --theme-border-hover: #383a40;
+  --theme-subtle: #4e5058;
+  --theme-muted: #80848e;
+  --theme-text-muted: #949ba4;
+  --theme-text-body: #b5bac1;
+  --theme-text-light: #dbdee1;
+  --theme-text-bold: #f2f3f5;
+
+  --theme-accent-light: #a5b4fc;
+  --theme-accent-hover: #818cf8;
+  --theme-accent-primary: #5865f2;
+  --theme-accent-dark: #4752c4;
+}
+
+/* Base styling & bounds */
 html,
 body,
 #root {
@@ -37,26 +131,29 @@ body,
   overflow: hidden !important;
   background-color: var(--color-zinc-950) !important;
   color: var(--color-zinc-200);
-  font-family: gg sans, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Inter', 'Helvetica Neue', sans-serif;
   text-align: left !important;
   border: none !important;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
-/* Custom Sleek Dark Scrollbar */
+/* Custom Sleek Slim Scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--color-zinc-900);
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
   background: var(--color-zinc-800);
-  border-radius: 4px;
+  border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-amber-400); /* Blurple scrollbar hover glow */
+  background: var(--color-amber-500);
 }
