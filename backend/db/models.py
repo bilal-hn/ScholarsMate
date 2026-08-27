@@ -78,6 +78,8 @@ class ChatMessage(Base):
     text: Mapped[str] = mapped_column(Text)
     thinking_process: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # Collapsible reasoning trace
     sources_used: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)
+    model_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    meta: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)  # Telemetry (responseTime, tokens, etc.)
     timestamp: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     session: Mapped["ChatSession"] = relationship("ChatSession", back_populates="messages")

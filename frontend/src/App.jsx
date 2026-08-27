@@ -1,21 +1,23 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import 'katex/dist/katex.min.css';
-import Header from './components/layout/Header';
 import DocumentSidebar from './components/document/DocumentSidebar';
 import ChatInterface from './components/chat/ChatInterface';
 import CreateWorkspaceModal from './components/document/CreateWorkspaceModal';
 import SettingsModal from './components/layout/SettingsModal';
+import LiteratureReviewModal from './components/modals/LiteratureReviewModal';
 import PdfViewer from './components/viewer/PdfViewer';
 import { 
   getDocuments, 
   checkHealth, 
-  generateLiteratureReview, 
+  generateLiteratureReviewAPI, 
   getChatSessions, 
   deleteChatSession,
   getCurrentUser,
   getSavedBYOKConfig,
   saveBYOKConfig
 } from './services/api';
+import { getSavedTheme, saveTheme } from './theme/constants';
+import { AlertCircle, RefreshCw } from 'lucide-react';
 
 export default function App() {
   const [documents, setDocuments] = useState([]);
@@ -23,6 +25,10 @@ export default function App() {
   const [backendStatus, setBackendStatus] = useState('checking');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isLitReviewOpen, setIsLitReviewOpen] = useState(false);
+
+  // Active UI Theme (Odysseus, Gemini, ChatGPT, Claude, Discord)
+  const [currentTheme, setCurrentTheme] = useState(() => getSavedTheme());
 
   // BYOK Discovered Models & Active Model Selection
   const [discoveredModels, setDiscoveredModels] = useState(() => getSavedBYOKConfig().discoveredModels);
@@ -35,13 +41,22 @@ export default function App() {
   const [activePdf, setActivePdf] = useState(null);
   const [targetPage, setTargetPage] = useState(1);
 
-  // Literature review loading state & generated content handler
-  const [isGeneratingReview, setIsGeneratingReview] = useState(false);
+  // Literature review generated content handler
   const [reviewTriggerMessage, setReviewTriggerMessage] = useState(null);
 
   // Workspaces state synced from backend & fallback to localStorage
   const [workspaces, setWorkspaces] = useState([]);
   const [activeWorkspaceId, setActiveWorkspaceId] = useState(null);
+
+  // Apply theme on mount and when theme changes
+  useEffect(() => {
+    saveTheme(currentTheme);
+  }, [currentTheme]);
+
+  const handleThemeChange = (newTheme) => {
+    setCurrentTheme(newTheme);
+    saveTheme(newTheme);
+  };
 
   // --------------------------------------------------------------------------
   // USER IDENTITY & WORKSPACE SYNC
@@ -70,8 +85,8 @@ export default function App() {
       } else {
         setActiveWorkspaceId(null);
       }
-    } catch (err) {
-      console.error('Failed to sync user data:', err);
+    } catch {
+      // Graceful offline fallback
     }
   };
 
@@ -79,13 +94,22 @@ export default function App() {
     try {
       const data = await getDocuments();
       setDocuments(data.documents || []);
-    } catch (err) {
-      console.error('Failed to load documents:', err);
+    } catch {
+      // Graceful offline fallback
+    }
+  };
+
+  const checkStatus = async () => {
+    const res = await checkHealth();
+    setBackendStatus(res.status);
+    if (res.status === 'healthy' || res.status === 'ok') {
+      fetchDocs();
+      syncUserData();
     }
   };
 
   useEffect(() => {
-    checkHealth().then((res) => setBackendStatus(res.status));
+    checkStatus();
     fetchDocs();
     syncUserData();
 
@@ -163,8 +187,8 @@ export default function App() {
       if (activeWorkspaceId === id) {
         setActiveWorkspaceId(updated.length > 0 ? updated[0].id : null);
       }
-    } catch (err) {
-      console.error('Failed to delete workspace:', err);
+    } catch {
+      // Graceful error handling
     }
   };
 
@@ -186,54 +210,48 @@ export default function App() {
     saveBYOKConfig(null, null, modelId);
   };
 
-  const handleGenerateReview = async () => {
-    setIsGeneratingReview(true);
-    try {
-      const data = await generateLiteratureReview(selectedDocs);
-      setReviewTriggerMessage({
-        sender: 'bot',
-        text: data.content,
-        sources: (data.documents_analyzed || []).map((doc) => ({
-          doc_name: doc,
-          page_number: 1,
-        })),
-      });
-    } catch (err) {
-      console.error('Failed to generate literature review:', err);
-      setReviewTriggerMessage({
-        sender: 'bot',
-        text: '⚠️ Failed to generate literature review. Please check backend connection.',
-        sources: [],
-      });
-    } finally {
-      setIsGeneratingReview(false);
-    }
+  const handleGenerateLiteratureReview = async (config) => {
+    return await generateLiteratureReviewAPI(config);
   };
 
   return (
-    <div className="flex flex-col h-screen w-full bg-zinc-950 overflow-hidden font-sans">
-      <Header 
-        backendStatus={backendStatus} 
-        availableModels={discoveredModels}
-        currentModel={currentModel}
-        onModelChange={handleModelChange}
+    <div 
+      data-theme={currentTheme}
+      className="flex h-screen w-full bg-zinc-950 text-zinc-200 overflow-hidden font-sans transition-colors"
+    >
+      {/* 1. Left Sidebar with Theme Switcher */}
+      <DocumentSidebar
+        workspaces={workspaces}
+        activeWorkspaceId={activeWorkspaceId}
+        onSelectWorkspace={handleSelectWorkspace}
+        onDeleteWorkspace={handleDeleteWorkspace}
+        onOpenCreateModal={() => setIsModalOpen(true)}
+        onOpenLitReview={() => setIsLitReviewOpen(true)}
+        onAuthChange={handleAuthChange}
         onOpenSettings={() => setIsSettingsOpen(true)}
+        currentTheme={currentTheme}
+        onThemeChange={handleThemeChange}
       />
 
-      <div className="flex-1 flex overflow-hidden">
-        <DocumentSidebar
-          workspaces={workspaces}
-          activeWorkspaceId={activeWorkspaceId}
-          onSelectWorkspace={handleSelectWorkspace}
-          onDeleteWorkspace={handleDeleteWorkspace}
-          onOpenCreateModal={() => setIsModalOpen(true)}
-          onGenerateReview={handleGenerateReview}
-          isGenerating={isGeneratingReview}
-          onAuthChange={handleAuthChange}
-          onOpenSettings={() => setIsSettingsOpen(true)}
-        />
+      {/* 2. Main Question / Research Interface Canvas */}
+      <div className="flex-1 flex flex-col h-full overflow-hidden">
+        {/* Subtle offline alert bar if backend is disconnected */}
+        {backendStatus === 'offline' && (
+          <div className="bg-amber-500/10 border-b border-amber-500/20 px-4 py-1.5 flex items-center justify-between text-xs text-amber-400">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+              <span>Backend server is offline (FastAPI port 8000). Start backend with <code className="bg-zinc-900 px-1.5 py-0.5 rounded text-[11px] font-mono text-zinc-200">uvicorn backend.api.main:app --port 8000</code></span>
+            </div>
+            <button
+              onClick={checkStatus}
+              className="flex items-center gap-1 hover:text-white font-medium cursor-pointer transition-colors"
+            >
+              <RefreshCw className="h-3 w-3" />
+              <span>Retry</span>
+            </button>
+          </div>
+        )}
 
-        {/* Main Content Area */}
         <div className="flex-1 flex h-full overflow-hidden">
           <div className={`h-full transition-all duration-300 ${activePdf ? 'w-1/2 border-r border-zinc-800' : 'w-full'}`}>
             <ChatInterface
@@ -252,7 +270,7 @@ export default function App() {
 
           {/* PDF Viewer Split Screen */}
           {activePdf && (
-            <div className="w-1/2 h-full">
+            <div className="w-1/2 h-full bg-zinc-900">
               <PdfViewer
                 activePdf={activePdf}
                 targetPage={targetPage}
@@ -263,6 +281,7 @@ export default function App() {
         </div>
       </div>
 
+      {/* Modals */}
       <CreateWorkspaceModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
@@ -273,6 +292,15 @@ export default function App() {
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         onConfigUpdated={handleConfigUpdated}
+      />
+
+      <LiteratureReviewModal
+        isOpen={isLitReviewOpen}
+        onClose={() => setIsLitReviewOpen(false)}
+        documents={scopedDocuments}
+        selectedDocs={selectedDocs}
+        currentModel={currentModel}
+        onGenerateReview={handleGenerateLiteratureReview}
       />
     </div>
   );

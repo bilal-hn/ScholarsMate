@@ -6,9 +6,10 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-# Anchor DB path to project root
+# Anchor DB path to project data directory
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
-DB_PATH = os.path.join(BASE_DIR, "scholarsmate.db")
+DB_PATH = os.path.join(BASE_DIR, "data", "scholarsmate.db")
+os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
 
 
 def _get_connection():

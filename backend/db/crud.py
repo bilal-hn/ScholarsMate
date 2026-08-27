@@ -20,6 +20,19 @@ def _normalize_json_list(val: Any) -> list:
     return []
 
 
+def _normalize_json_dict(val: Any) -> Optional[dict]:
+    """Safely coerces strings, None, or JSON objects into a native Python dict."""
+    if isinstance(val, dict):
+        return val
+    if isinstance(val, str):
+        try:
+            parsed = json.loads(val)
+            return parsed if isinstance(parsed, dict) else None
+        except Exception:
+            return None
+    return None
+
+
 # =============================================================================
 # USER MANAGEMENT HELPERS
 # =============================================================================
@@ -154,6 +167,7 @@ async def get_session_messages(
 
     for m in messages:
         m.sources_used = _normalize_json_list(m.sources_used)
+        m.meta = _normalize_json_dict(m.meta)
 
     return messages
 
@@ -164,9 +178,11 @@ async def add_message(
     sender: str, 
     text: str, 
     thinking_process: Optional[str] = None,
-    sources: Optional[list] = None
+    sources: Optional[list] = None,
+    model_name: Optional[str] = None,
+    meta: Optional[dict] = None
 ) -> ChatMessage:
-    """Adds a new message to a chat session, stores reasoning trace, and touches session timestamp."""
+    """Adds a new message to a chat session, stores reasoning trace & telemetry, and touches session timestamp."""
     message = ChatMessage(
         id=str(uuid.uuid4()),
         session_id=session_id,
@@ -174,6 +190,8 @@ async def add_message(
         text=text,
         thinking_process=thinking_process,
         sources_used=sources or [],
+        model_name=model_name,
+        meta=meta,
         timestamp=datetime.utcnow()
     )
     db.add(message)
@@ -189,6 +207,7 @@ async def add_message(
     await db.refresh(message)
     
     message.sources_used = _normalize_json_list(message.sources_used)
+    message.meta = _normalize_json_dict(message.meta)
     return message
 
 

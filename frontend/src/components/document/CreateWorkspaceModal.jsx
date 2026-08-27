@@ -41,7 +41,6 @@ export default function CreateWorkspaceModal({ isOpen, onClose, onWorkspaceCreat
     try {
       const response = await createWorkspace(files);
 
-      // Use real session ID and metadata returned from backend
       if (onWorkspaceCreated) {
         await onWorkspaceCreated({
           id: response.session_id,
@@ -51,7 +50,6 @@ export default function CreateWorkspaceModal({ isOpen, onClose, onWorkspaceCreat
         });
       }
 
-      // Reset modal state
       setWorkspaceName('');
       setFiles([]);
       onClose();
@@ -64,24 +62,25 @@ export default function CreateWorkspaceModal({ isOpen, onClose, onWorkspaceCreat
 
   return (
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-zinc-950 border border-zinc-800 rounded-3xl max-w-md w-full p-6 shadow-2xl relative">
+      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl max-w-md w-full p-5 shadow-2xl relative text-zinc-100">
         <button
+          type="button"
           onClick={onClose}
           disabled={processing}
-          className="absolute top-5 right-5 text-zinc-500 hover:text-zinc-200 transition-colors"
+          className="absolute top-4 right-4 text-zinc-500 hover:text-zinc-200 transition-colors cursor-pointer"
         >
-          <X className="h-5 w-5" />
+          <X className="h-4 w-4" />
         </button>
 
-        <h3 className="text-lg font-bold text-zinc-100 mb-1">Create Research Workspace</h3>
-        <p className="text-xs text-zinc-400 mb-5">
-          Upload research papers or a folder to parse and embed into ChromaDB.
+        <h3 className="text-base font-bold text-zinc-100 mb-0.5">Create Research Workspace</h3>
+        <p className="text-xs text-zinc-400 mb-4">
+          Upload PDF research papers or a directory to index into your workspace.
         </p>
 
         {/* Optional Workspace Name Input */}
-        <div className="mb-5">
-          <label className="block text-xs font-medium text-zinc-300 mb-1.5">
-            Workspace Name <span className="text-zinc-500 font-normal">(Optional)</span>
+        <div className="mb-4">
+          <label className="block text-[11px] font-medium text-zinc-400 mb-1">
+            Workspace Title <span className="text-zinc-600 font-normal">(Optional)</span>
           </label>
           <input
             type="text"
@@ -89,19 +88,19 @@ export default function CreateWorkspaceModal({ isOpen, onClose, onWorkspaceCreat
             value={workspaceName}
             onChange={(e) => setWorkspaceName(e.target.value)}
             disabled={processing}
-            className="w-full bg-zinc-900 border border-zinc-800 focus:border-amber-400/80 rounded-xl px-3.5 py-2.5 text-xs text-zinc-100 placeholder-zinc-600 focus:outline-none transition-colors"
+            className="w-full bg-zinc-950/70 border border-zinc-800 focus:border-amber-500/80 rounded-xl px-3 py-2 text-xs text-zinc-100 placeholder-zinc-600 focus:outline-none transition-colors"
           />
         </div>
 
         {/* File / Folder Select Buttons */}
-        <div className="grid grid-cols-2 gap-3 mb-5">
+        <div className="grid grid-cols-2 gap-2.5 mb-4">
           <button
             type="button"
             disabled={processing}
             onClick={() => fileInputRef.current?.click()}
-            className="flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border border-zinc-800 bg-zinc-900/50 hover:border-amber-400/60 hover:bg-amber-500/5 transition-all group cursor-pointer"
+            className="flex flex-col items-center justify-center gap-1.5 p-3.5 rounded-xl border border-zinc-800 bg-zinc-900/90 hover:border-amber-500/50 hover:bg-amber-500/5 transition-all group cursor-pointer"
           >
-            <Upload className="h-5 w-5 text-amber-400 group-hover:scale-110 transition-transform" />
+            <Upload className="h-4 w-4 text-amber-500 group-hover:scale-105 transition-transform" />
             <span className="text-xs font-medium text-zinc-200">Select PDFs</span>
           </button>
 
@@ -109,9 +108,9 @@ export default function CreateWorkspaceModal({ isOpen, onClose, onWorkspaceCreat
             type="button"
             disabled={processing}
             onClick={() => folderInputRef.current?.click()}
-            className="flex flex-col items-center justify-center gap-2 p-4 rounded-2xl border border-zinc-800 bg-zinc-900/50 hover:border-amber-400/60 hover:bg-amber-500/5 transition-all group cursor-pointer"
+            className="flex flex-col items-center justify-center gap-1.5 p-3.5 rounded-xl border border-zinc-800 bg-zinc-900/90 hover:border-amber-500/50 hover:bg-amber-500/5 transition-all group cursor-pointer"
           >
-            <FolderPlus className="h-5 w-5 text-amber-400 group-hover:scale-110 transition-transform" />
+            <FolderPlus className="h-4 w-4 text-amber-500 group-hover:scale-105 transition-transform" />
             <span className="text-xs font-medium text-zinc-200">Select Folder</span>
           </button>
 
@@ -121,13 +120,13 @@ export default function CreateWorkspaceModal({ isOpen, onClose, onWorkspaceCreat
 
         {/* Selected Files Preview */}
         {files.length > 0 && (
-          <div className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-3 mb-5 max-h-32 overflow-y-auto space-y-1">
-            <span className="text-[11px] font-semibold text-amber-400 block mb-1">
+          <div className="bg-zinc-950/70 border border-zinc-800/80 rounded-xl p-2.5 mb-4 max-h-28 overflow-y-auto space-y-1">
+            <span className="text-[10px] font-semibold text-amber-400 block mb-0.5 font-mono">
               {files.length} Document(s) Ready:
             </span>
             {files.map((f, i) => (
-              <div key={i} className="flex items-center gap-2 text-xs text-zinc-300 truncate">
-                <FileText className="h-3.5 w-3.5 text-zinc-500 shrink-0" />
+              <div key={i} className="flex items-center gap-1.5 text-xs text-zinc-300 truncate font-mono text-[11px]">
+                <FileText className="h-3 w-3 text-zinc-500 shrink-0" />
                 <span className="truncate">{f.name}</span>
               </div>
             ))}
@@ -135,24 +134,25 @@ export default function CreateWorkspaceModal({ isOpen, onClose, onWorkspaceCreat
         )}
 
         {error && (
-          <div className="mb-4 text-xs text-rose-400 flex items-center gap-1.5 bg-rose-950/30 border border-rose-900/50 p-3 rounded-xl">
-            <AlertCircle className="h-4 w-4 shrink-0" />
+          <div className="mb-3 text-xs text-rose-400 flex items-center gap-1.5 bg-rose-950/30 border border-rose-900/50 p-2.5 rounded-xl">
+            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
             <span>{error}</span>
           </div>
         )}
 
         <button
+          type="button"
           onClick={handleStartProcessing}
           disabled={processing || files.length === 0}
-          className="w-full bg-amber-400 hover:bg-amber-300 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-950 font-semibold py-3 rounded-xl flex items-center justify-center gap-2 transition-all cursor-pointer"
+          className="w-full bg-amber-500 hover:bg-amber-400 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-950 font-semibold py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all cursor-pointer text-xs"
         >
           {processing ? (
             <>
-              <Loader2 className="h-4 w-4 animate-spin" />
-              <span>Parsing & Embedding Papers...</span>
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              <span>Indexing Papers...</span>
             </>
           ) : (
-            <span>Process & Start Chat</span>
+            <span>Start Research Workspace</span>
           )}
         </button>
       </div>

@@ -45,34 +45,64 @@ def _resolve_router_api_key(provider: str, custom_keys: dict) -> str | None:
 def resolve_target_documents(query: str, available_docs: List[str], cutoff: float = 0.6) -> List[str]:
     """
     Deterministic & Fuzzy Entity Resolution:
-    Matches target filenames against typos, trailing backticks, quotes, punctuation,
-    and partial sub-tokens (e.g., '00945', 's12599', '2504.15909').
+    Matches target filenames against @ mentions, exact word tokens, and fuzzy typos
+    while preventing substring collisions (e.g. 'sample' matching inside 'sample2').
     """
     if not available_docs:
         return []
 
-    # Strip markdown backticks, quotes, and symbols
-    clean_query = re.sub(r"[`'\"\\/,;:()<>{}[\]]", " ", query.lower()).strip()
+    matched = set()
+    query_lower = query.lower()
+
+    # 1. Check for explicit @mentions (e.g., @sample2.pdf, @sample2)
+    at_mentions = re.findall(r"@([a-zA-Z0-9_\-\.]+)", query)
+    if at_mentions:
+        for mention in at_mentions:
+            mention_lower = mention.lower()
+            mention_base = mention_lower.replace(".pdf", "")
+            for doc in available_docs:
+                doc_lower = doc.lower()
+                doc_base = doc_lower.replace(".pdf", "")
+                if mention_lower == doc_lower or mention_base == doc_base:
+                    matched.add(doc)
+        if matched:
+            return list(matched)
+
+    # Clean query for word boundary token checks
+    clean_query = re.sub(r"[`'\"\\/,;:()<>{}[\]@]", " ", query_lower).strip()
     words = clean_query.split()
 
-    matched = set()
-
+    # 2. Exact word boundary match for full document filename or base stem
     for doc in available_docs:
         doc_lower = doc.lower()
         doc_base = doc_lower.replace(".pdf", "")
 
-        # 1. Exact or substring match in cleaned query
-        if doc_lower in clean_query or doc_base in clean_query:
-            matched.add(doc)
-            continue
+        # Word boundary matching so 'sample' does not match 'sample2'
+        doc_pattern = r"\b" + re.escape(doc_lower) + r"\b"
+        base_pattern = r"\b" + re.escape(doc_base) + r"\b"
 
-        # 2. Match significant numeric/text identifiers (e.g., '00945', '2504.15909')
+        if re.search(doc_pattern, clean_query) or re.search(base_pattern, clean_query):
+            matched.add(doc)
+
+    if matched:
+        return list(matched)
+
+    # 3. Match significant numeric/text identifiers (e.g., '00945', '2504.15909')
+    for doc in available_docs:
+        doc_lower = doc.lower()
+        doc_base = doc_lower.replace(".pdf", "")
         doc_subtokens = [t for t in re.split(r"[-_.\s]", doc_base) if len(t) >= 4]
-        if any(subtok in clean_query for subtok in doc_subtokens):
+        if any(re.search(r"\b" + re.escape(subtok) + r"\b", clean_query) for subtok in doc_subtokens):
             matched.add(doc)
-            continue
 
-        # 3. Fuzzy matching on words against document stems to handle typos
+    if matched:
+        return list(matched)
+
+    # 4. Fuzzy matching on words against document stems to handle typos
+    for doc in available_docs:
+        doc_lower = doc.lower()
+        doc_base = doc_lower.replace(".pdf", "")
+        doc_subtokens = [t for t in re.split(r"[-_.\s]", doc_base) if len(t) >= 4]
         for word in words:
             if len(word) >= 5:
                 fuzzy_hits = difflib.get_close_matches(word, [doc_lower, doc_base] + doc_subtokens, n=1, cutoff=cutoff)

@@ -121,14 +121,21 @@ export const saveBYOKConfig = (keys = null, discoveredModels = null, activeModel
 
 /**
  * Fetches the currently authenticated profile or active guest session.
+ * Gracefully falls back to Guest session if backend is offline.
  */
 export const getCurrentUser = async () => {
   try {
     const response = await apiClient.get('/auth/me');
     return response.data;
   } catch (error) {
-    console.error('Failed to get current user:', error.response?.data || error.message);
-    throw error;
+    // Return clean fallback guest session on network failure or offline backend
+    return {
+      id: getGuestId(),
+      name: 'Guest User',
+      email: null,
+      is_guest: true,
+      avatar_url: null,
+    };
   }
 };
 
@@ -155,24 +162,23 @@ export const logoutUser = () => {
  */
 export const checkHealth = async () => {
   try {
-    const response = await apiClient.get('/health');
+    const response = await apiClient.get('/health', { timeout: 2500 });
     return response.data;
-  } catch (error) {
-    console.error('Backend offline:', error.message);
+  } catch {
     return { status: 'offline' };
   }
 };
 
 /**
  * Retrieves the catalog of indexed documents and chunk counts.
+ * Returns empty document list on network failure.
  */
 export const getDocuments = async () => {
   try {
     const response = await apiClient.get('/documents');
     return response.data;
   } catch (error) {
-    console.error('Failed to fetch document catalog:', error.response?.data || error.message);
-    throw error;
+    return { documents: [] };
   }
 };
 
@@ -302,8 +308,7 @@ export const getChatSessions = async () => {
     const response = await apiClient.get('/sessions');
     return response.data;
   } catch (error) {
-    console.error('Failed to fetch chat sessions:', error.response?.data || error.message);
-    throw error;
+    return [];
   }
 };
 
@@ -316,8 +321,7 @@ export const getSessionMessages = async (sessionId) => {
     const response = await apiClient.get(`/sessions/${sessionId}`);
     return response.data;
   } catch (error) {
-    console.error(`Failed to fetch messages for session ${sessionId}:`, error.response?.data || error.message);
-    throw error;
+    return { messages: [] };
   }
 };
 

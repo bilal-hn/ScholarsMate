@@ -59,5 +59,31 @@ async def init_db():
                     print("\n[DB Migration] Adding missing 'user_id' column to chat_sessions...")
                     await conn.execute(text("ALTER TABLE chat_sessions ADD COLUMN user_id VARCHAR;"))
                     print("[DB Migration] Column 'user_id' added successfully.")
+
+            # Automated migrations for user_documents table
+            result_docs = await conn.execute(text("PRAGMA table_info(user_documents);"))
+            doc_columns = [row[1] for row in result_docs.fetchall()]
+            if doc_columns:
+                if "summary_cache" not in doc_columns:
+                    print("\n[DB Migration] Adding missing 'summary_cache' column to user_documents...")
+                    await conn.execute(text("ALTER TABLE user_documents ADD COLUMN summary_cache TEXT;"))
+                    print("[DB Migration] Column 'summary_cache' added successfully.")
+                if "summary_generated_at" not in doc_columns:
+                    print("\n[DB Migration] Adding missing 'summary_generated_at' column to user_documents...")
+                    await conn.execute(text("ALTER TABLE user_documents ADD COLUMN summary_generated_at DATETIME;"))
+                    print("[DB Migration] Column 'summary_generated_at' added successfully.")
+
+            # Automated migrations for chat_messages table
+            result_msgs = await conn.execute(text("PRAGMA table_info(chat_messages);"))
+            msg_columns = [row[1] for row in result_msgs.fetchall()]
+            if msg_columns:
+                if "model_name" not in msg_columns:
+                    print("\n[DB Migration] Adding missing 'model_name' column to chat_messages...")
+                    await conn.execute(text("ALTER TABLE chat_messages ADD COLUMN model_name VARCHAR;"))
+                    print("[DB Migration] Column 'model_name' added successfully.")
+                if "meta" not in msg_columns:
+                    print("\n[DB Migration] Adding missing 'meta' column to chat_messages...")
+                    await conn.execute(text("ALTER TABLE chat_messages ADD COLUMN meta JSON;"))
+                    print("[DB Migration] Column 'meta' added successfully.")
         except Exception as e:
             print(f"[DB Migration Warning] Column verification skipped: {e}")
