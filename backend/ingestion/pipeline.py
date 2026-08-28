@@ -15,14 +15,21 @@ def calculate_sha256(file_path: str) -> str:
     return sha256_hash.hexdigest()
 
 
-def extract_pages_layout_aware(pdf_path: str, file_hash: str) -> tuple[list[Document], str]:
-    """Reads a PDF, extracts layout-aware text, and extracts paper title."""
+from backend.ingestion.bibliographic_extractor import extract_bibliographic_metadata
+
+
+def extract_pages_layout_aware(pdf_path: str, file_hash: str) -> tuple[list[Document], dict]:
+    """Reads a PDF, extracts layout-aware text, and extracts bibliographic metadata."""
     doc = fitz.open(pdf_path)
     clean_doc_name = os.path.basename(pdf_path)
     raw_pages = []
 
-    # Attempt to extract title from PyMuPDF metadata
-    extracted_title = doc.metadata.get("title", "").strip()
+    # Extract 3-tier bibliographic metadata
+    bib_meta = extract_bibliographic_metadata(pdf_path)
+    paper_title = bib_meta.get("title") or clean_doc_name
+    authors = bib_meta.get("authors") or ""
+    year = bib_meta.get("year") or ""
+    formatted_citation = bib_meta.get("formatted_citation") or ""
 
     for page_num in range(len(doc)):
         page = doc[page_num]
@@ -30,10 +37,6 @@ def extract_pages_layout_aware(pdf_path: str, file_hash: str) -> tuple[list[Docu
 
         # Filter out non-text blocks (b[6] != 0 are images/vectors)
         text_blocks = [b for b in blocks if b[6] == 0 and b[4].strip()]
-
-        # Fallback: Use first text block of Page 1 as paper title if metadata is empty
-        if page_num == 0 and not extracted_title and text_blocks:
-            extracted_title = text_blocks[0][4].strip().replace("\n", " ")
 
         page_text = "\n\n".join(b[4].strip() for b in text_blocks)
 
@@ -44,14 +47,17 @@ def extract_pages_layout_aware(pdf_path: str, file_hash: str) -> tuple[list[Docu
                     metadata={
                         "source": clean_doc_name,
                         "file_hash": file_hash,
-                        "paper_title": extracted_title or clean_doc_name,
+                        "paper_title": paper_title,
+                        "authors": authors,
+                        "year": year,
+                        "formatted_citation": formatted_citation,
                         "page_number": page_num + 1,
                     },
                 )
             )
 
     doc.close()
-    return raw_pages, (extracted_title or clean_doc_name)
+    return raw_pages, bib_meta
 
 
 def process_path(
@@ -119,7 +125,7 @@ def process_path(
 
         print(f"Processing: {pdf_file.name} (SHA-256: {file_hash[:10]}...)...")
         
-        raw_pages, paper_title = extract_pages_layout_aware(str(pdf_file), file_hash)
+        raw_pages, bib_meta = extract_pages_layout_aware(str(pdf_file), file_hash)
 
         doc_chunks = splitter.split_documents(raw_pages)
 
@@ -129,7 +135,10 @@ def process_path(
             p_num = chunk.metadata["page_number"]
             chunk.metadata["source"] = clean_doc_name
             chunk.metadata["file_hash"] = file_hash
-            chunk.metadata["paper_title"] = paper_title
+            chunk.metadata["paper_title"] = bib_meta.get("title") or clean_doc_name
+            chunk.metadata["authors"] = bib_meta.get("authors") or ""
+            chunk.metadata["year"] = bib_meta.get("year") or ""
+            chunk.metadata["formatted_citation"] = bib_meta.get("formatted_citation") or ""
             
             key = (clean_doc_name, p_num)
             page_counters[key] = page_counters.get(key, 0) + 1

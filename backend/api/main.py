@@ -39,6 +39,7 @@ from backend.api.schemas import (
     EditorAskAIResponse,
 )
 from backend.ingestion.pipeline import process_path
+from backend.ingestion.bibliographic_extractor import extract_bibliographic_metadata
 from backend.ingestion.summary_worker import trigger_async_summary_generation
 from backend.embeddings.vector_store import store_chunks, get_or_create_collection, search_similar_chunks
 from backend.rag.retriever import build_context_block
@@ -712,6 +713,25 @@ async def find_citations(
                 page_number = int(meta.get("page_number", 1))
                 chunk_id = meta.get("chunk_id", f"chunk_{doc_name}_{page_number}")
                 
+                # Check if chunk metadata already has complete bibliographic information
+                paper_title = meta.get("paper_title")
+                authors = meta.get("authors")
+                year = meta.get("year")
+                formatted_citation = meta.get("formatted_citation")
+                
+                # If missing or incomplete (legacy index), dynamically extract and cache
+                if not authors or not year or not paper_title or paper_title == doc_name:
+                    pdf_full_path = UPLOADS_DIR / doc_name
+                    if pdf_full_path.exists():
+                        bib = extract_bibliographic_metadata(str(pdf_full_path))
+                        paper_title = bib.get("title") or paper_title or doc_name
+                        authors = bib.get("authors") or authors
+                        year = bib.get("year") or year
+                        formatted_citation = bib.get("formatted_citation") or formatted_citation
+
+                if not paper_title:
+                    paper_title = doc_name.replace(".pdf", "").replace("_", " ").replace("-", " ").title()
+
                 # Cosine distance to similarity percentage
                 similarity = max(0.05, min(0.99, round(1.0 - float(dist), 4))) if dist is not None else 0.85
                 
@@ -720,7 +740,7 @@ async def find_citations(
                 if len(excerpt_clean) > 280:
                     excerpt_clean = excerpt_clean[:280] + "…"
 
-                formatted_ref = f"{doc_name}, Page {page_number}"
+                formatted_ref = f"{paper_title}, Page {page_number}"
 
                 candidates.append(
                     CitationCandidate(
@@ -729,7 +749,11 @@ async def find_citations(
                         page_number=page_number,
                         similarity_score=similarity,
                         excerpt=excerpt_clean,
-                        formatted_ref=formatted_ref
+                        formatted_ref=formatted_ref,
+                        paper_title=paper_title,
+                        authors=authors,
+                        year=year,
+                        formatted_citation=formatted_citation
                     )
                 )
 

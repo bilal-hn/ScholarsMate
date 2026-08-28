@@ -1,5 +1,18 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
+  Document,
+  Packer,
+  Paragraph,
+  TextRun,
+  HeadingLevel,
+  AlignmentType,
+  BorderStyle,
+  convertInchesToTwip,
+  ExternalHyperlink,
+  NumberFormat,
+  PageBreak,
+} from 'docx';
+import {
   X,
   Undo2,
   Redo2,
@@ -29,7 +42,6 @@ import {
   ChevronUp,
   ChevronLeft,
   ChevronRight,
-  ExternalLink
 } from 'lucide-react';
 import FloatingBubbleMenu from './FloatingBubbleMenu';
 import CitationDrawer from './CitationDrawer';
@@ -74,6 +86,73 @@ const HEADING_STYLES = [
   { label: 'Subtitle', tag: 'h4' },
 ];
 
+/**
+ * 3-Tier Grouped Bibliographic Formatter:
+ * Groups citations by unique document, compiling cited page numbers together,
+ * and rendering standard academic formats (Tier 1: Authors + Year + Title, Tier 2: Title + Year/Filename, Tier 3: Filename).
+ */
+export function getGroupedBibliography(citations = []) {
+  if (!Array.isArray(citations) || citations.length === 0) return [];
+
+  const docMap = new Map();
+
+  citations.forEach((c) => {
+    const key = c.doc_name || 'Unknown Source';
+    if (!docMap.has(key)) {
+      const fallbackTitle = key
+        .replace(/\.[^/.]+$/, '')
+        .replace(/[-_]/g, ' ')
+        .replace(/\b\w/g, (char) => char.toUpperCase());
+
+      docMap.set(key, {
+        doc_index: c.doc_index || (docMap.size + 1),
+        doc_name: key,
+        title: c.paper_title || fallbackTitle,
+        authors: c.authors || null,
+        year: c.year || null,
+        formatted_citation: c.formatted_citation || null,
+        pages: new Set(),
+      });
+    }
+
+    if (c.page_number) {
+      docMap.get(key).pages.add(c.page_number);
+    }
+  });
+
+  const list = Array.from(docMap.values());
+  list.sort((a, b) => a.doc_index - b.doc_index);
+
+  return list.map((item, idx) => {
+    const sortedPages = Array.from(item.pages).sort((a, b) => Number(a) - Number(b));
+    const pagesStr = sortedPages.length > 0
+      ? ` — Cited at p. ${sortedPages.join(', ')}`
+      : '';
+
+    let citationMain = '';
+    if (item.authors && item.year) {
+      citationMain = `${item.authors} (${item.year}). "${item.title}"`;
+    } else if (item.year) {
+      citationMain = `"${item.title}" (${item.year})`;
+    } else if (item.title && item.title.toLowerCase() !== item.doc_name.toLowerCase()) {
+      citationMain = `"${item.title}" (${item.doc_name})`;
+    } else {
+      citationMain = `Document: ${item.doc_name}`;
+    }
+
+    return {
+      doc_index: idx + 1,
+      doc_name: item.doc_name,
+      title: item.title,
+      authors: item.authors,
+      year: item.year,
+      citationMain,
+      pagesStr,
+      fullText: `[${idx + 1}]  ${citationMain}${pagesStr}`,
+    };
+  });
+}
+
 export default function DocumentWriter({
   sessionId,
   documents = [],
@@ -85,11 +164,13 @@ export default function DocumentWriter({
   onClose,
 }) {
   const editorRef = useRef(null);
+  const canvasRef = useRef(null); // ref for the full document canvas (incl. references)
   const [title, setTitle] = useState('Fyp');
   const [citations, setCitations] = useState([]);
   const [saveStatus, setSaveStatus] = useState('saved'); // 'saved' | 'saving' | 'unsaved'
   const [wordCount, setWordCount] = useState(82);
   const [pageCount, setPageCount] = useState(1);
+  const [virtualPageCount, setVirtualPageCount] = useState(1); // visual page gap count
   const [copied, setCopied] = useState(false);
 
   // Top Toolbar Collapse State
@@ -225,11 +306,32 @@ export default function DocumentWriter({
     const words = text.trim().split(/\s+/).filter(Boolean).length;
     setWordCount(words);
 
-    // Calculate dynamic page count (~950px of content per A4 Word page)
+    // Calculate dynamic page count (~1056px per A4 page at 96 dpi)
     const height = editorRef.current.scrollHeight || 0;
-    const pages = Math.max(1, Math.ceil(height / 950));
+    const pages = Math.max(1, Math.ceil(height / 1056));
     setPageCount(pages);
   };
+
+  // ResizeObserver: watch the full canvas div and update virtual page count
+  useEffect(() => {
+    const A4_HEIGHT_PX = 1056; // A4 at 96 dpi
+
+    const recalcPages = () => {
+      if (!canvasRef.current || !editorRef.current) return;
+      const explicitBreaks = editorRef.current.querySelectorAll('.word-page-break, .page-break').length;
+      const totalHeight = canvasRef.current.scrollHeight || 0;
+      const pages = Math.max(1 + explicitBreaks, Math.ceil(totalHeight / A4_HEIGHT_PX));
+      setVirtualPageCount(pages);
+      setPageCount(pages);
+    };
+
+    recalcPages();
+
+    if (!canvasRef.current) return;
+    const observer = new ResizeObserver(recalcPages);
+    observer.observe(canvasRef.current);
+    return () => observer.disconnect();
+  }, [citations]); // recalc when citations added too
 
   const handleSelectionChange = () => {
     const selection = window.getSelection();
@@ -422,11 +524,30 @@ export default function DocumentWriter({
       sel.addRange(targetRange);
       editorRef.current.focus();
 
-      const nextIndex = citations.length + 1;
+      // Check if this document has already been cited in the document
+      const existingDoc = citations.find((c) => c.doc_name === candidate.doc_name);
+      let docRefNumber;
+      if (existingDoc && existingDoc.doc_index) {
+        docRefNumber = existingDoc.doc_index;
+      } else {
+        const uniqueDocs = Array.from(new Set(citations.map((c) => c.doc_name)));
+        docRefNumber = uniqueDocs.includes(candidate.doc_name)
+          ? uniqueDocs.indexOf(candidate.doc_name) + 1
+          : uniqueDocs.length + 1;
+      }
+
+      const nextId = citations.length + 1;
+      const cleanTitle = candidate.paper_title || candidate.doc_name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+
       const newCitationEntry = {
-        id: nextIndex,
+        id: nextId,
+        doc_index: docRefNumber,
         chunk_id: candidate.chunk_id,
         doc_name: candidate.doc_name,
+        paper_title: cleanTitle,
+        authors: candidate.authors || null,
+        year: candidate.year || null,
+        formatted_citation: candidate.formatted_citation || null,
         page_number: candidate.page_number,
         excerpt: candidate.excerpt,
         similarity_score: candidate.similarity_score,
@@ -436,9 +557,10 @@ export default function DocumentWriter({
       const updatedCitations = [...citations, newCitationEntry];
       setCitations(updatedCitations);
 
-      // Clean Word-style academic superscript bracket: [1]
+      // Clean academic inline citation marker: [1] (with rich tooltip)
       const sup = document.createElement('sup');
-      sup.innerHTML = `<span data-citation-id="${nextIndex}" class="citation-ref" style="font-family: inherit; font-size: 0.85em; font-weight: 700; color: #1e3a8a; cursor: pointer; user-select: none; padding: 0 2px;" title="${candidate.doc_name} (Page ${candidate.page_number})">[${nextIndex}]</span>&nbsp;`;
+      const authorYearHint = candidate.authors ? `${candidate.authors} (${candidate.year || ''})` : cleanTitle;
+      sup.innerHTML = `<span data-citation-id="${nextId}" data-doc-ref="${docRefNumber}" data-doc-name="${candidate.doc_name}" class="citation-ref" style="font-family: inherit; font-size: 0.85em; font-weight: 700; color: #1e3a8a; cursor: pointer; user-select: none; padding: 0 2px;" title="${authorYearHint} — p. ${candidate.page_number}">[${docRefNumber}]</span>&nbsp;`;
 
       targetRange.insertNode(sup);
 
@@ -459,14 +581,23 @@ export default function DocumentWriter({
       editorRef.current.focus();
     }
     const pageBreakHtml = `
-      <div class="page-break" style="margin: 2.5rem -3.5rem; border-top: 1px dashed #cbd5e1; padding-top: 1rem; text-align: center; color: #94a3b8; font-size: 11px; font-family: monospace; user-select: none;">
-        <span>— PAGE BREAK —</span>
+      <div class="word-page-break" contenteditable="false" data-page-break="true">
+        <div class="page-bottom-space"></div>
+        <div class="page-gap-bar"></div>
+        <div class="page-top-space"></div>
       </div>
       <p><br/></p>
     `;
     document.execCommand('insertHTML', false, pageBreakHtml);
     updateWordCount();
     triggerAutoSave();
+  };
+
+  const handleKeyDown = (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      handleInsertPageBreak();
+    }
   };
 
   // --------------------------------------------------------------------------
@@ -528,14 +659,20 @@ export default function DocumentWriter({
   // --------------------------------------------------------------------------
   // 6. MULTI-FORMAT EXPORT ENGINE (Word .docx, PDF, Markdown, Copy)
   // --------------------------------------------------------------------------
+  const formatMarkdownBibliography = (cList) => {
+    const grouped = getGroupedBibliography(cList);
+    if (grouped.length === 0) return '';
+    let md = '\n\n---\n\n## References\n\n';
+    grouped.forEach((item) => {
+      md += `${item.fullText}\n`;
+    });
+    return md;
+  };
+
   const handleCopyMarkdown = () => {
     if (!editorRef.current) return;
     const plainText = editorRef.current.innerText || '';
-    
-    let fullExport = `# ${title}\n\n${plainText}\n\n---\n\n## References\n\n`;
-    citations.forEach((c) => {
-      fullExport += `[${c.id}] ${c.doc_name}, Page ${c.page_number} — "${c.excerpt}"\n`;
-    });
+    const fullExport = `# ${title}\n\n${plainText}${formatMarkdownBibliography(citations)}`;
 
     navigator.clipboard.writeText(fullExport);
     setCopied(true);
@@ -546,10 +683,7 @@ export default function DocumentWriter({
   const handleDownloadMarkdown = () => {
     if (!editorRef.current) return;
     const plainText = editorRef.current.innerText || '';
-    let fullExport = `# ${title}\n\n${plainText}\n\n---\n\n## References\n\n`;
-    citations.forEach((c) => {
-      fullExport += `[${c.id}] ${c.doc_name}, Page ${c.page_number} — "${c.excerpt}"\n`;
-    });
+    const fullExport = `# ${title}\n\n${plainText}${formatMarkdownBibliography(citations)}`;
 
     const blob = new Blob([fullExport], { type: 'text/markdown;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -561,48 +695,191 @@ export default function DocumentWriter({
     setIsExportMenuOpen(false);
   };
 
-  const handleExportDocx = () => {
+  const handleExportDocx = async () => {
     if (!editorRef.current) return;
-    const htmlContent = editorRef.current.innerHTML;
-    let biblioHtml = '';
-    if (citations.length > 0) {
-      biblioHtml = `<div style="margin-top: 30pt; border-top: 1pt solid #ccc; padding-top: 15pt;"><h2 style="font-size: 14pt; font-weight: bold;">References & Bibliography</h2><ol>${citations.map(c => `<li><strong>${c.doc_name}</strong> (Page ${c.page_number}) — "${c.excerpt}"</li>`).join('')}</ol></div>`;
+    setIsExportMenuOpen(false);
+
+    // ── Helper: parse one DOM element into docx Paragraph(s) ──────────────
+    const domToParagraphs = (el) => {
+      const paragraphs = [];
+
+      const nodeToRuns = (node) => {
+        const runs = [];
+        node.childNodes.forEach((child) => {
+          if (child.nodeType === Node.TEXT_NODE) {
+            const text = child.textContent || '';
+            if (text) runs.push(new TextRun({ text }));
+          } else if (child.nodeType === Node.ELEMENT_NODE) {
+            const tag = child.tagName.toLowerCase();
+            const isBold = tag === 'b' || tag === 'strong';
+            const isItalic = tag === 'i' || tag === 'em';
+            const isUnderline = tag === 'u';
+            const innerText = child.innerText || child.textContent || '';
+            if (innerText) {
+              runs.push(
+                new TextRun({
+                  text: innerText,
+                  bold: isBold,
+                  italics: isItalic,
+                  underline: isUnderline ? { type: 'single' } : undefined,
+                })
+              );
+            }
+          }
+        });
+        return runs;
+      };
+
+      const walkNode = (node) => {
+        if (node.nodeType !== Node.ELEMENT_NODE) return;
+        const tag = node.tagName.toLowerCase();
+
+        if (tag === 'div' && (node.classList.contains('word-page-break') || node.classList.contains('page-break') || node.getAttribute('data-page-break') === 'true')) {
+          paragraphs.push(new Paragraph({ children: [new PageBreak()] }));
+          return;
+        } else if (tag === 'h1') {
+          paragraphs.push(new Paragraph({ heading: HeadingLevel.HEADING_1, children: nodeToRuns(node) }));
+        } else if (tag === 'h2') {
+          paragraphs.push(new Paragraph({ heading: HeadingLevel.HEADING_2, children: nodeToRuns(node) }));
+        } else if (tag === 'h3') {
+          paragraphs.push(new Paragraph({ heading: HeadingLevel.HEADING_3, children: nodeToRuns(node) }));
+        } else if (tag === 'h4') {
+          paragraphs.push(new Paragraph({ heading: HeadingLevel.HEADING_4, children: nodeToRuns(node) }));
+        } else if (tag === 'blockquote') {
+          paragraphs.push(
+            new Paragraph({
+              children: nodeToRuns(node),
+              indent: { left: convertInchesToTwip(0.5) },
+            })
+          );
+        } else if (tag === 'ul') {
+          node.querySelectorAll('li').forEach((li) => {
+            paragraphs.push(
+              new Paragraph({
+                bullet: { level: 0 },
+                children: [new TextRun({ text: li.innerText || li.textContent || '' })],
+              })
+            );
+          });
+        } else if (tag === 'ol') {
+          node.querySelectorAll('li').forEach((li) => {
+            paragraphs.push(
+              new Paragraph({
+                numbering: { reference: 'default-numbering', level: 0 },
+                children: [new TextRun({ text: li.innerText || li.textContent || '' })],
+              })
+            );
+          });
+        } else if (tag === 'p' || tag === 'div') {
+          const text = node.innerText || node.textContent || '';
+          if (text.trim()) {
+            paragraphs.push(new Paragraph({ children: nodeToRuns(node) }));
+          }
+        } else if (tag === 'br') {
+          paragraphs.push(new Paragraph({ children: [new TextRun({ text: '' })] }));
+        } else {
+          // Recurse into unknown wrappers
+          node.childNodes.forEach((child) => walkNode(child));
+        }
+      };
+
+      el.childNodes.forEach((child) => walkNode(child));
+      return paragraphs;
+    };
+
+    // ── Build content paragraphs from editor HTML ──────────────────────────
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = editorRef.current.innerHTML;
+    const contentParagraphs = domToParagraphs(tempDiv);
+
+    // ── Build Grouped References section ───────────────────────────────────
+    const refParagraphs = [];
+    const groupedBib = getGroupedBibliography(citations);
+    if (groupedBib.length > 0) {
+      refParagraphs.push(new Paragraph({ children: [new TextRun({ text: '' })] }));
+      refParagraphs.push(
+        new Paragraph({
+          heading: HeadingLevel.HEADING_2,
+          children: [new TextRun({ text: 'References', bold: true })],
+          border: { top: { style: BorderStyle.SINGLE, size: 6, space: 1, color: '999999' } },
+        })
+      );
+      groupedBib.forEach((item) => {
+        const runs = [
+          new TextRun({ text: `[${item.doc_index}]  `, bold: true }),
+        ];
+        if (item.authors) {
+          runs.push(new TextRun({ text: `${item.authors} `, bold: true }));
+        }
+        if (item.year) {
+          runs.push(new TextRun({ text: `(${item.year}). `, italics: false }));
+        }
+        runs.push(new TextRun({ text: `"${item.title}"`, italics: true }));
+        if (item.pagesStr) {
+          runs.push(new TextRun({ text: item.pagesStr, color: '555555' }));
+        }
+        refParagraphs.push(
+          new Paragraph({
+            children: runs,
+            spacing: { before: 120 },
+          })
+        );
+      });
     }
 
-    const wordHtml = `
-      <!DOCTYPE html>
-      <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
-      <head>
-        <meta charset='utf-8'>
-        <title>${title}</title>
-        <style>
-          body { font-family: 'Times New Roman', 'Source Serif 4', Georgia, serif; font-size: 12pt; line-height: 1.5; color: #111; margin: 1in; }
-          h1 { font-size: 24pt; font-weight: bold; margin-bottom: 12pt; }
-          h2 { font-size: 16pt; font-weight: bold; margin-top: 16pt; margin-bottom: 6pt; }
-          h3 { font-size: 13pt; font-weight: bold; margin-top: 12pt; margin-bottom: 4pt; }
-          p { margin-bottom: 8pt; }
-          table { border-collapse: collapse; width: 100%; margin: 12pt 0; }
-          td, th { border: 1px solid #cbd5e1; padding: 6pt 10pt; text-align: left; }
-          th { background-color: #f1f5f9; font-weight: bold; }
-          blockquote { border-left: 3pt solid #94a3b8; padding-left: 10pt; margin-left: 0; color: #475569; font-style: italic; }
-        </style>
-      </head>
-      <body>
-        <h1>${title}</h1>
-        ${htmlContent}
-        ${biblioHtml}
-      </body>
-      </html>
-    `;
+    // ── Assemble docx Document ─────────────────────────────────────────────
+    const doc = new Document({
+      numbering: {
+        config: [
+          {
+            reference: 'default-numbering',
+            levels: [
+              {
+                level: 0,
+                format: NumberFormat.DECIMAL,
+                text: '%1.',
+                alignment: AlignmentType.LEFT,
+              },
+            ],
+          },
+        ],
+      },
+      sections: [
+        {
+          properties: {
+            page: {
+              margin: {
+                top: convertInchesToTwip(1),
+                right: convertInchesToTwip(1),
+                bottom: convertInchesToTwip(1),
+                left: convertInchesToTwip(1),
+              },
+            },
+          },
+          children: [
+            // Document title
+            new Paragraph({
+              heading: HeadingLevel.TITLE,
+              children: [new TextRun({ text: title || 'Academic Draft', bold: true })],
+              spacing: { after: 400 },
+            }),
+            // Body content
+            ...contentParagraphs,
+            // References
+            ...refParagraphs,
+          ],
+        },
+      ],
+    });
 
-    const blob = new Blob(['\ufeff', wordHtml], { type: 'application/msword' });
+    // ── Pack and download ──────────────────────────────────────────────────
+    const blob = await Packer.toBlob(doc);
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `${title.toLowerCase().replace(/[^a-z0-9]+/g, '_') || 'document'}.docx`;
+    link.download = `${(title || 'academic_draft').toLowerCase().replace(/[^a-z0-9]+/g, '_')}.docx`;
     link.click();
     URL.revokeObjectURL(url);
-    setIsExportMenuOpen(false);
   };
 
   const handleExportPdf = () => {
@@ -618,8 +895,9 @@ export default function DocumentWriter({
       element.style.backgroundColor = '#ffffff';
       element.innerHTML = `<h1 style="font-size: 26px; font-weight: bold; margin-bottom: 20px; font-family: serif;">${title}</h1>${editorRef.current.innerHTML}`;
       
-      if (citations.length > 0) {
-        element.innerHTML += `<div style="margin-top: 40px; border-top: 2px solid #e5e7eb; padding-top: 20px;"><h2 style="font-size: 16px; font-weight: bold;">References & Bibliography</h2><ol>${citations.map(c => `<li><strong>${c.doc_name}</strong> (Page ${c.page_number}) — "${c.excerpt}"</li>`).join('')}</ol></div>`;
+      const groupedBib = getGroupedBibliography(citations);
+      if (groupedBib.length > 0) {
+        element.innerHTML += `<div style="margin-top: 40px; border-top: 2px solid #e5e7eb; padding-top: 20px;"><h2 style="font-size: 16px; font-weight: bold; font-family: serif; margin-bottom: 16px;">References</h2><ol style="padding-left: 0; list-style: none;">${groupedBib.map(item => `<li style="margin-bottom: 10px; font-size: 13px; line-height: 1.6;"><strong>[${item.doc_index}]</strong> ${item.citationMain}${item.pagesStr}</li>`).join('')}</ol></div>`;
       }
       
       const opt = {
@@ -1171,115 +1449,81 @@ export default function DocumentWriter({
 
         {/* Word-Style Paginated Canvas (A4 Sheet Dimensions) */}
         <div className="word-canvas-wrapper my-6 pb-28">
+
+          {/* Single document canvas — white sheet with authentic page breaks */}
           <div
+            ref={canvasRef}
             style={{
               fontFamily: currentFont,
               fontSize: `${currentFontSize}pt`,
             }}
             className="word-document-canvas"
           >
-            {/* 1. Document Title Header */}
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => {
-                setTitle(e.target.value);
-                triggerAutoSave(editorRef.current?.innerHTML, e.target.value, citations);
-              }}
-              placeholder="Document Title"
-              className="w-full text-3xl sm:text-4xl font-bold text-zinc-900 placeholder-zinc-400 border-none outline-none mb-6 pb-2 transition-colors bg-transparent font-serif"
-            />
+              {/* 1. Document Title Header */}
+              <input
+                type="text"
+                value={title}
+                onChange={(e) => {
+                  setTitle(e.target.value);
+                  triggerAutoSave(editorRef.current?.innerHTML, e.target.value, citations);
+                }}
+                placeholder="Document Title"
+                className="w-full text-3xl sm:text-4xl font-bold text-zinc-900 placeholder-zinc-400 border-none outline-none mb-6 pb-2 transition-colors bg-transparent font-serif"
+              />
 
-            {/* 2. Rich Contenteditable Manuscript Body */}
-            <div
-              ref={editorRef}
-              contentEditable
-              suppressContentEditableWarning
-              onInput={() => {
-                updateWordCount();
-                triggerAutoSave(editorRef.current?.innerHTML, title, citations);
-              }}
-              className="academic-editor prose prose-zinc max-w-none focus:outline-none min-h-[600px] leading-relaxed text-[#1a1a1a]"
-            />
-
-            {/* 3. References & Bibliography Section (Pinned at the bottom of the manuscript) */}
-            {citations && citations.length > 0 && (
+              {/* 2. Rich Contenteditable Manuscript Body */}
               <div
-                contentEditable={false}
+                ref={editorRef}
+                contentEditable
                 suppressContentEditableWarning
-                className="mt-20 pt-10 border-t-2 border-zinc-200 font-sans text-xs text-zinc-700 select-text not-prose pointer-events-auto"
-              >
-                <div className="flex items-center justify-between mb-8 border-b-2 border-zinc-200 pb-4">
-                  <div>
-                    <h2 className="text-2xl font-bold text-zinc-900 font-serif tracking-tight">
-                      References & Bibliography
-                    </h2>
-                    <p className="text-xs text-zinc-500 mt-0.5">
-                      Grounded workspace citations and verified source passages
-                    </p>
-                  </div>
-                  <span className="text-xs font-mono text-zinc-600 bg-zinc-100 border border-zinc-200 px-2.5 py-1 rounded">
-                    {citations.length} Sources Cited
-                  </span>
-                </div>
+                onKeyDown={handleKeyDown}
+                onInput={() => {
+                  updateWordCount();
+                  triggerAutoSave(editorRef.current?.innerHTML, title, citations);
+                }}
+                className="academic-editor prose prose-zinc max-w-none focus:outline-none min-h-[600px] leading-relaxed text-[#1a1a1a]"
+              />
 
-                <div className="space-y-4">
-                  {citations.map((cite) => (
-                    <div
-                      key={cite.id}
-                      id={`reference-${cite.id}`}
-                      className="p-4 bg-zinc-50/90 hover:bg-zinc-100/90 rounded-lg border border-zinc-200 transition-colors flex items-start justify-between gap-4 group shadow-xs"
-                    >
-                      <div className="flex items-start gap-3 min-w-0">
-                        <span className="font-bold text-zinc-900 font-serif shrink-0 text-base">
-                          [{cite.id}]
+              {/* 3. References Section (Pinned at the bottom of the manuscript) */}
+              {citations && citations.length > 0 && (
+                <div
+                  className="mt-20 pt-8 border-t-2 border-zinc-300 font-sans select-text not-prose"
+                >
+                  <h2 className="text-xl font-bold text-zinc-900 font-serif tracking-tight mb-5">
+                    References
+                  </h2>
+
+                  <ol className="space-y-3 list-none p-0 m-0">
+                    {getGroupedBibliography(citations).map((item) => (
+                      <li
+                        key={item.doc_name}
+                        id={`reference-${item.doc_index}`}
+                        className="flex items-baseline gap-3 text-sm text-zinc-800 leading-relaxed"
+                      >
+                        <span className="font-bold text-zinc-900 font-serif shrink-0 min-w-[2rem]">
+                          [{item.doc_index}]
                         </span>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-semibold text-zinc-900 text-sm">
-                              {cite.doc_name}
-                            </span>
-                            <span className="text-xs text-zinc-500 font-mono bg-zinc-200/70 px-1.5 py-0.5 rounded">
-                              Page {cite.page_number}
-                            </span>
-                            {cite.similarity_score && (
-                              <span className="text-xs font-mono text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
-                                {Math.round(cite.similarity_score * 100)}% match
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-xs text-zinc-700 italic mt-2 leading-relaxed bg-white/80 p-2.5 rounded border border-zinc-200/60 font-serif">
-                            "{cite.excerpt}"
-                          </p>
-                        </div>
-                      </div>
-
-                      {onOpenPdfViewer && (
-                        <button
-                          type="button"
-                          onClick={() => onOpenPdfViewer(cite.doc_name, cite.page_number)}
-                          className="p-2 rounded text-zinc-400 hover:text-zinc-900 hover:bg-zinc-200 transition-colors shrink-0 cursor-pointer"
-                          title={`Open ${cite.doc_name} at Page ${cite.page_number}`}
-                        >
-                          <ExternalLink className="h-4 w-4" />
-                        </button>
-                      )}
-                    </div>
-                  ))}
+                        <span className="flex-1">
+                          {item.authors && (
+                            <span className="font-semibold text-zinc-900">{item.authors} </span>
+                          )}
+                          {item.year && (
+                            <span className="text-zinc-700">({item.year}). </span>
+                          )}
+                          <span className="italic font-serif text-zinc-900">"{item.title}"</span>
+                          {item.pagesStr && (
+                            <span className="text-zinc-600 text-xs font-mono ml-1.5">{item.pagesStr}</span>
+                          )}
+                          {item.doc_name && !item.title.toLowerCase().includes(item.doc_name.toLowerCase()) && (
+                            <span className="text-zinc-400 text-xs font-mono ml-2">({item.doc_name})</span>
+                          )}
+                        </span>
+                      </li>
+                    ))}
+                  </ol>
                 </div>
-              </div>
-            )}
-
-            {/* 4. Bottom Document Page Footer */}
-            <div
-              contentEditable={false}
-              suppressContentEditableWarning
-              className="mt-16 pt-4 border-t border-zinc-200 flex items-center justify-between text-[11px] text-zinc-400 font-mono select-none"
-            >
-              <span>{title || 'Academic Draft'}</span>
-              <span>{pageCount > 1 ? `Page 1 of ${pageCount}` : 'Page 1 of 1'}</span>
+              )}
             </div>
-          </div>
         </div>
       </div>
 
@@ -1289,7 +1533,7 @@ export default function DocumentWriter({
       <div className="bg-[#121316] border-t border-[#24262b] px-6 py-2.5 flex items-center justify-between text-xs text-zinc-400 select-none shrink-0 fixed bottom-0 left-0 right-0 z-20">
         <div className="flex items-center gap-2">
           <FileText className="h-3.5 w-3.5 text-zinc-500" />
-          <span>{wordCount} words · ~{Math.max(1, Math.ceil(wordCount / 200))} min read · Page {pageCount > 1 ? `1 of ${pageCount}` : '1 of 1'}</span>
+          <span>{wordCount} words · ~{Math.max(1, Math.ceil(wordCount / 200))} min read · {virtualPageCount} {virtualPageCount === 1 ? 'page' : 'pages'}</span>
         </div>
 
         <div className="flex items-center gap-1.5 text-xs text-zinc-400">

@@ -64,25 +64,39 @@ export default function CitationDrawer({
                 className="p-3.5 bg-zinc-900/70 hover:bg-zinc-900 border border-zinc-800/90 hover:border-zinc-700 rounded-xl transition-all flex flex-col gap-2.5 group shadow-sm"
               >
                 {/* Candidate Header: Source & Confidence */}
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <FileText className="h-3.5 w-3.5 text-amber-400 shrink-0" />
-                    <span className="text-xs font-semibold text-zinc-200 truncate" title={candidate.doc_name}>
-                      {candidate.doc_name}
-                    </span>
-                    <span className="text-[10px] font-mono text-zinc-400 bg-zinc-800 px-1.5 py-0.5 rounded border border-zinc-700/60">
-                      p.{candidate.page_number}
-                    </span>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex flex-col min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <FileText className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                      <span className="text-xs font-semibold text-zinc-100 truncate" title={candidate.paper_title || candidate.doc_name}>
+                        {candidate.paper_title || candidate.doc_name}
+                      </span>
+                    </div>
+
+                    {/* Authors & Year or Filename metadata */}
+                    <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-zinc-400 flex-wrap">
+                      {candidate.authors && (
+                        <span className="truncate max-w-[180px] text-zinc-300 font-medium" title={candidate.authors}>
+                          {candidate.authors}
+                        </span>
+                      )}
+                      {candidate.year && (
+                        <span className="font-mono text-zinc-400">({candidate.year})</span>
+                      )}
+                      <span className="text-[10px] font-mono text-zinc-400 bg-zinc-800 px-1.5 py-0.5 rounded border border-zinc-700/60 ml-auto">
+                        p.{candidate.page_number}
+                      </span>
+                    </div>
                   </div>
 
                   <span
-                    className={`text-[10.5px] font-mono px-2 py-0.5 rounded-full font-medium shrink-0 ${
+                    className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-medium shrink-0 ${
                       isHighConfidence
                         ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
                         : 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
                     }`}
                   >
-                    {matchPercentage}% Match
+                    {matchPercentage}%
                   </span>
                 </div>
 

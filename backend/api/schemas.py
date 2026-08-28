@@ -150,6 +150,10 @@ class CitationCandidate(BaseModel):
     similarity_score: float = Field(..., description="Cosine similarity confidence percentage (0.0 - 1.0)")
     excerpt: str
     formatted_ref: str
+    paper_title: Optional[str] = None
+    authors: Optional[str] = None
+    year: Optional[str] = None
+    formatted_citation: Optional[str] = None
 
 
 class FindCitationsResponse(BaseModel):
