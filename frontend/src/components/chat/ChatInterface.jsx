@@ -7,18 +7,21 @@ import {
   Plus, 
   Edit2, 
   Trash2, 
-  Sparkles 
+  Sparkles,
+  PenTool
 } from 'lucide-react';
 import ChatMessage from './ChatMessage';
 import ChatInput from './ChatInput';
 import LiteratureReviewModal from '../modals/LiteratureReviewModal';
 import PromptInspectorModal from '../modals/PromptInspectorModal';
 import CustomLensModal from '../modals/CustomLensModal';
+import WorkspaceLoadingState from './WorkspaceLoadingState';
+import QueryNavigator from './QueryNavigator';
 import { 
   sendQuery, 
   generateLiteratureReviewAPI, 
   getSessionMessages, 
-  updateSessionModeAPI,
+  updateSessionModeAPI, 
   getCustomLenses,
   saveCustomLens,
   deleteCustomLens
@@ -121,8 +124,6 @@ When synthesizing:
   },
 ];
 
-import WorkspaceLoadingState from './WorkspaceLoadingState';
-
 export default function ChatInterface({ 
   documents = [], 
   selectedDocs = [], 
@@ -134,6 +135,9 @@ export default function ChatInterface({
   currentModel,
   onModelChange,
   onOpenSettings,
+  hasWriterButton = false,
+  onToggleWriter,
+  isSplitScreen = false,
   customKeys
 }) {
   const [messages, setMessages] = useState([]);
@@ -446,6 +450,28 @@ export default function ChatInterface({
 
   return (
     <main className="flex-1 flex flex-col bg-zinc-950 h-full relative overflow-hidden text-zinc-200 font-sans transition-colors">
+      {/* Far Right Vertically-Centered Action Dock (Query Navigator + Re-open Document Writer) */}
+      {!isSessionLoading && !isSplitScreen && (
+        <div className="absolute right-3.5 top-1/2 -translate-y-1/2 z-40 flex flex-col items-center gap-2.5">
+          {/* 1. Query Jump Navigator (3-Bars Icon Only) */}
+          {messages.length > 0 && (
+            <QueryNavigator messages={messages} />
+          )}
+
+          {/* 2. Re-open Document Writer (Pen Icon Only, Appears Underneath) */}
+          {hasWriterButton && (
+            <button
+              type="button"
+              onClick={onToggleWriter}
+              title="Open Academic Document Writer"
+              className="p-2.5 rounded-xl bg-zinc-900/90 hover:bg-zinc-800 border border-zinc-800 hover:border-amber-500/40 shadow-xl text-zinc-400 hover:text-amber-300 transition-all cursor-pointer backdrop-blur-md hover:scale-105 flex items-center justify-center group"
+            >
+              <PenTool className="h-4 w-4 stroke-[2] group-hover:rotate-12 transition-transform" />
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Main Content Area */}
       {isSessionLoading ? (
         <WorkspaceLoadingState />
@@ -477,6 +503,7 @@ export default function ChatInterface({
             <ChatMessage 
               key={idx} 
               message={msg} 
+              index={idx}
               onSelectCitation={onSelectCitation} 
             />
           ))}

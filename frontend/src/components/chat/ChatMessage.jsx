@@ -176,7 +176,7 @@ const transformCitations = (rawText) => {
   return formatted;
 };
 
-export default function ChatMessage({ message, onSelectCitation }) {
+export default function ChatMessage({ message, index, onSelectCitation }) {
   const [showThinking, setShowThinking] = useState(false);
   const [showSources, setShowSources] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -326,7 +326,10 @@ export default function ChatMessage({ message, onSelectCitation }) {
   const processedMessageText = isBot ? transformCitations(message.text) : message.text;
 
   return (
-    <div className="w-full flex flex-col items-center justify-center my-3 animate-in fade-in duration-200">
+    <div 
+      id={index !== undefined ? `chat-msg-${index}` : undefined} 
+      className="w-full flex flex-col items-center justify-center my-3 animate-in fade-in duration-200 scroll-mt-6 transition-all"
+    >
       {isBot ? (
         /* ===================================================================
            BOT RESPONSE CARD (Centralized, Odysseus / OpenWebUI Inspired)

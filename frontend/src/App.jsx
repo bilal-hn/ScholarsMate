@@ -65,6 +65,7 @@ export default function App() {
   // Assisted Academic Document Writer State (FR-13)
   const [isWriterOpen, setIsWriterOpen] = useState(false);
   const [isWriterFullscreen, setIsWriterFullscreen] = useState(false);
+  const [openedWriterSessions, setOpenedWriterSessions] = useState(() => new Set());
 
   // Apply theme on mount and when theme changes
   useEffect(() => {
@@ -81,6 +82,9 @@ export default function App() {
       setIsWriterOpen(true);
       setIsWriterFullscreen(false);
       setActivePdf(null);
+      if (activeWorkspaceId) {
+        setOpenedWriterSessions((prev) => new Set(prev).add(activeWorkspaceId));
+      }
     } else {
       setIsWriterOpen(false);
       setIsWriterFullscreen(false);
@@ -367,6 +371,9 @@ export default function App() {
               currentModel={currentModel}
               onModelChange={handleModelChange}
               onOpenSettings={() => setIsSettingsOpen(true)}
+              hasWriterButton={activeWorkspaceId ? openedWriterSessions.has(activeWorkspaceId) && !isWriterOpen : false}
+              onToggleWriter={handleToggleWriter}
+              isSplitScreen={Boolean(activePdf || isWriterOpen)}
             />
           </div>
 
