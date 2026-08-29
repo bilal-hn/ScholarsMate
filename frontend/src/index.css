@@ -23,8 +23,9 @@
    THEME DEFINITIONS
    ============================================================================= */
 
-/* 1. Odysseus Dark Theme (Default) */
+/* 1. Original (Default Obsidian & Coral) */
 :root,
+[data-theme="original"],
 [data-theme="odysseus"] {
   --theme-canvas: #131417;
   --theme-surface: #1a1b20;
@@ -43,7 +44,27 @@
   --theme-accent-dark: #c8434b;
 }
 
-/* 2. Gemini Dark Theme (Google Dark Slate & Deep Blue) */
+/* 2. Light Theme */
+[data-theme="light"] {
+  --theme-canvas: #ffffff;
+  --theme-surface: #f4f4f5;
+  --theme-elevated: #e4e4e7;
+  --theme-border-hover: #d4d4d8;
+  --theme-subtle: #a1a1aa;
+  --theme-muted: #71717a;
+  --theme-text-muted: #52525b;
+  --theme-text-body: #3f3f46;
+  --theme-text-light: #27272a;
+  --theme-text-bold: #09090b;
+
+  --theme-accent-light: #fda4af;
+  --theme-accent-hover: #f87171;
+  --theme-accent-primary: #e05d65;
+  --theme-accent-dark: #c8434b;
+}
+
+/* 3. Midnight Theme */
+[data-theme="midnight"],
 [data-theme="gemini"] {
   --theme-canvas: #131314;
   --theme-surface: #1e1f20;
@@ -56,13 +77,205 @@
   --theme-text-light: #e8eaed;
   --theme-text-bold: #ffffff;
 
-  --theme-accent-light: #c2e7ff;
-  --theme-accent-hover: #7cacf8;
-  --theme-accent-primary: #1a73e8;
-  --theme-accent-dark: #1557b0;
+  --theme-accent-light: #fca5a5;
+  --theme-accent-hover: #f87171;
+  --theme-accent-primary: #ef4444;
+  --theme-accent-dark: #dc2626;
 }
 
-/* 3. ChatGPT Dark Theme (OpenAI Charcoal & Emerald Green) */
+/* 4. Paper Theme */
+[data-theme="paper"] {
+  --theme-canvas: #ffffff;
+  --theme-surface: #f8fafc;
+  --theme-elevated: #f1f5f9;
+  --theme-border-hover: #e2e8f0;
+  --theme-subtle: #cbd5e1;
+  --theme-muted: #94a3b8;
+  --theme-text-muted: #64748b;
+  --theme-text-body: #334155;
+  --theme-text-light: #1e293b;
+  --theme-text-bold: #0f172a;
+
+  --theme-accent-light: #fef08a;
+  --theme-accent-hover: #fde047;
+  --theme-accent-primary: #eab308;
+  --theme-accent-dark: #ca8a04;
+}
+
+/* 5. Cyberpunk Theme */
+[data-theme="cyberpunk"] {
+  --theme-canvas: #120824;
+  --theme-surface: #1e0d3a;
+  --theme-elevated: #29124e;
+  --theme-border-hover: #3e1b75;
+  --theme-subtle: #5a27aa;
+  --theme-muted: #8b4ddb;
+  --theme-text-muted: #b886fc;
+  --theme-text-body: #d8b4fe;
+  --theme-text-light: #f3e8ff;
+  --theme-text-bold: #ffffff;
+
+  --theme-accent-light: #f5d0fe;
+  --theme-accent-hover: #f0abfc;
+  --theme-accent-primary: #d946ef;
+  --theme-accent-dark: #c026d3;
+}
+
+/* 6. Retrowave Theme */
+[data-theme="retrowave"] {
+  --theme-canvas: #140924;
+  --theme-surface: #261042;
+  --theme-elevated: #35165c;
+  --theme-border-hover: #4e2187;
+  --theme-subtle: #6c2ebc;
+  --theme-muted: #9a4fe8;
+  --theme-text-muted: #c084fc;
+  --theme-text-body: #e9d5ff;
+  --theme-text-light: #faf5ff;
+  --theme-text-bold: #ffffff;
+
+  --theme-accent-light: #fecdd3;
+  --theme-accent-hover: #fda4af;
+  --theme-accent-primary: #f43f5e;
+  --theme-accent-dark: #e11d48;
+}
+
+/* 7. Forest Theme */
+[data-theme="forest"] {
+  --theme-canvas: #0b140e;
+  --theme-surface: #122418;
+  --theme-elevated: #1a3322;
+  --theme-border-hover: #264a32;
+  --theme-subtle: #376a47;
+  --theme-muted: #549468;
+  --theme-text-muted: #7dbf91;
+  --theme-text-body: #a7e0b8;
+  --theme-text-light: #dcfce7;
+  --theme-text-bold: #ffffff;
+
+  --theme-accent-light: #bbf7d0;
+  --theme-accent-hover: #86efac;
+  --theme-accent-primary: #22c55e;
+  --theme-accent-dark: #16a34a;
+}
+
+/* 8. Ocean Theme */
+[data-theme="ocean"] {
+  --theme-canvas: #08131d;
+  --theme-surface: #0f2233;
+  --theme-elevated: #16324b;
+  --theme-border-hover: #1f4769;
+  --theme-subtle: #2d6694;
+  --theme-muted: #438fc9;
+  --theme-text-muted: #72b3e8;
+  --theme-text-body: #a5d4f8;
+  --theme-text-light: #e0f2fe;
+  --theme-text-bold: #ffffff;
+
+  --theme-accent-light: #bae6fd;
+  --theme-accent-hover: #7dd3fc;
+  --theme-accent-primary: #0ea5e9;
+  --theme-accent-dark: #0284c7;
+}
+
+/* 9. Ume Theme */
+[data-theme="ume"] {
+  --theme-canvas: #140a12;
+  --theme-surface: #261121;
+  --theme-elevated: #36172f;
+  --theme-border-hover: #4e2144;
+  --theme-subtle: #6f2e60;
+  --theme-muted: #9e468b;
+  --theme-text-muted: #c96cb3;
+  --theme-text-body: #e8a5d7;
+  --theme-text-light: #fdf2f8;
+  --theme-text-bold: #ffffff;
+
+  --theme-accent-light: #fbcfe8;
+  --theme-accent-hover: #f472b6;
+  --theme-accent-primary: #ec4899;
+  --theme-accent-dark: #db2777;
+}
+
+/* 10. Copper Theme */
+[data-theme="copper"] {
+  --theme-canvas: #140c08;
+  --theme-surface: #26160f;
+  --theme-elevated: #361f15;
+  --theme-border-hover: #4e2d1f;
+  --theme-subtle: #70402c;
+  --theme-muted: #9e5d42;
+  --theme-text-muted: #c88366;
+  --theme-text-body: #e8b19a;
+  --theme-text-light: #ffedd5;
+  --theme-text-bold: #ffffff;
+
+  --theme-accent-light: #fed7aa;
+  --theme-accent-hover: #fb923c;
+  --theme-accent-primary: #f97316;
+  --theme-accent-dark: #ea580c;
+}
+
+/* 11. Terminal Theme */
+[data-theme="terminal"] {
+  --theme-canvas: #060d08;
+  --theme-surface: #0c1a10;
+  --theme-elevated: #122617;
+  --theme-border-hover: #1c3b24;
+  --theme-subtle: #295735;
+  --theme-muted: #3f8251;
+  --theme-text-muted: #64b87c;
+  --theme-text-body: #96e0a9;
+  --theme-text-light: #dcfce7;
+  --theme-text-bold: #ffffff;
+
+  --theme-accent-light: #bbf7d0;
+  --theme-accent-hover: #86efac;
+  --theme-accent-primary: #22c55e;
+  --theme-accent-dark: #16a34a;
+}
+
+/* 12. Origins Theme */
+[data-theme="origins"] {
+  --theme-canvas: #121214;
+  --theme-surface: #1d1e22;
+  --theme-elevated: #282a30;
+  --theme-border-hover: #373a43;
+  --theme-subtle: #4e525f;
+  --theme-muted: #747a8d;
+  --theme-text-muted: #9fa6bc;
+  --theme-text-body: #cacedb;
+  --theme-text-light: #f1f2f6;
+  --theme-text-bold: #ffffff;
+
+  --theme-accent-light: #fef3c7;
+  --theme-accent-hover: #fde68a;
+  --theme-accent-primary: #e2b36f;
+  --theme-accent-dark: #d99a44;
+}
+
+/* 13. Lavender Theme */
+[data-theme="lavender"],
+[data-theme="discord"] {
+  --theme-canvas: #100d18;
+  --theme-surface: #1e192c;
+  --theme-elevated: #2b233e;
+  --theme-border-hover: #3c3257;
+  --theme-subtle: #56487d;
+  --theme-muted: #7e6bb2;
+  --theme-text-muted: #a695d6;
+  --theme-text-body: #ccc3eb;
+  --theme-text-light: #f3f0fa;
+  --theme-text-bold: #ffffff;
+
+  --theme-accent-light: #e9d5ff;
+  --theme-accent-hover: #c084fc;
+  --theme-accent-primary: #a855f7;
+  --theme-accent-dark: #9333ea;
+}
+
+/* 14. GPT Theme */
+[data-theme="gpt"],
 [data-theme="chatgpt"] {
   --theme-canvas: #212121;
   --theme-surface: #171717;
@@ -81,7 +294,7 @@
   --theme-accent-dark: #059669;
 }
 
-/* 4. Claude Dark Theme (Anthropic Walnut & Warm Terracotta) */
+/* 15. Claude Theme */
 [data-theme="claude"] {
   --theme-canvas: #1d1c1a;
   --theme-surface: #262522;
@@ -100,23 +313,61 @@
   --theme-accent-dark: #b25e43;
 }
 
-/* 5. Discord Dark Theme (Discord Slate & Blurple) */
-[data-theme="discord"] {
-  --theme-canvas: #1e1f22;
-  --theme-surface: #2b2d31;
-  --theme-elevated: #313338;
-  --theme-border-hover: #383a40;
-  --theme-subtle: #4e5058;
-  --theme-muted: #80848e;
-  --theme-text-muted: #949ba4;
-  --theme-text-body: #b5bac1;
-  --theme-text-light: #dbdee1;
-  --theme-text-bold: #f2f3f5;
+/* 16. Cute Theme */
+[data-theme="cute"] {
+  --theme-canvas: #ffffff;
+  --theme-surface: #fdf2f4;
+  --theme-elevated: #fce7eb;
+  --theme-border-hover: #f9cbd4;
+  --theme-subtle: #f497a9;
+  --theme-muted: #e75874;
+  --theme-text-muted: #be2e4b;
+  --theme-text-body: #881a30;
+  --theme-text-light: #4c0d1b;
+  --theme-text-bold: #2b050d;
 
-  --theme-accent-light: #a5b4fc;
-  --theme-accent-hover: #818cf8;
-  --theme-accent-primary: #5865f2;
-  --theme-accent-dark: #4752c4;
+  --theme-accent-light: #fbcfe8;
+  --theme-accent-hover: #f472b6;
+  --theme-accent-primary: #ec4899;
+  --theme-accent-dark: #db2777;
+}
+
+/* 17. Blaze Animated Theme (Carbon Black & Crimson Embers) */
+[data-theme="blaze"] {
+  --theme-canvas: #090404;
+  --theme-surface: #120707;
+  --theme-elevated: #1b0c0c;
+  --theme-border-hover: #2e1414;
+  --theme-subtle: #4a2121;
+  --theme-muted: #783838;
+  --theme-text-muted: #a65a5a;
+  --theme-text-body: #d49898;
+  --theme-text-light: #f5d3d3;
+  --theme-text-bold: #ffffff;
+
+  --theme-accent-light: #fca5a5;
+  --theme-accent-hover: #f87171;
+  --theme-accent-primary: #ef4444;
+  --theme-accent-dark: #dc2626;
+}
+
+/* 18. Cosmic Aurora Animated Theme (Abyss & Nebula Starlight) */
+[data-theme="aurora"] {
+  --theme-canvas: #080911;
+  --theme-surface: #10111f;
+  --theme-elevated: #17192d;
+  --theme-border-hover: #252845;
+  --theme-subtle: #3a3f6b;
+  --theme-muted: #666fa8;
+  --theme-text-muted: #8d97d4;
+  --theme-text-body: #b8c0f0;
+  --theme-text-light: #e4e7ff;
+  --theme-text-bold: #ffffff;
+
+  --theme-accent-light: #c7d2fe;
+  --theme-accent-hover: #a5b4fc;
+  --theme-accent-primary: #818cf8;
+  --theme-accent-dark: #6366f1;
 }
 
 /* Base styling & bounds */

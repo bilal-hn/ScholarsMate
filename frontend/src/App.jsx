@@ -6,6 +6,7 @@ import DocumentWriter from './components/writer/DocumentWriter';
 import CreateWorkspaceModal from './components/document/CreateWorkspaceModal';
 import SettingsModal from './components/layout/SettingsModal';
 import LiteratureReviewModal from './components/modals/LiteratureReviewModal';
+import ThemeModal from './components/modals/ThemeModal';
 import PdfViewer from './components/viewer/PdfViewer';
 import { 
   getDocuments, 
@@ -18,6 +19,7 @@ import {
   saveBYOKConfig
 } from './services/api';
 import { getSavedTheme, saveTheme } from './theme/constants';
+import AnimatedThemeCanvas from './components/theme/AnimatedThemeCanvas';
 import { AlertCircle, RefreshCw, ChevronLeft, PanelLeftOpen } from 'lucide-react';
 
 export default function App() {
@@ -27,8 +29,9 @@ export default function App() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isLitReviewOpen, setIsLitReviewOpen] = useState(false);
+  const [isThemeModalOpen, setIsThemeModalOpen] = useState(false);
 
-  // Active UI Theme (Odysseus, Gemini, ChatGPT, Claude, Discord)
+  // Active UI Theme
   const [currentTheme, setCurrentTheme] = useState(() => getSavedTheme());
 
   // Sidebar collapsed state
@@ -303,8 +306,11 @@ export default function App() {
   return (
     <div 
       data-theme={currentTheme}
-      className="flex h-screen w-full bg-zinc-950 text-zinc-200 overflow-hidden font-sans transition-colors"
+      className="flex h-screen w-full bg-zinc-950 text-zinc-200 overflow-hidden font-sans transition-colors relative"
     >
+      {/* Background Animated Particles Engine (for Blaze & Aurora themes) */}
+      <AnimatedThemeCanvas theme={currentTheme} />
+
       {/* 1. Left Sidebar with Theme Switcher */}
       <DocumentSidebar
         workspaces={workspaces}
@@ -317,8 +323,7 @@ export default function App() {
         isWriterActive={isWriterOpen}
         onAuthChange={handleAuthChange}
         onOpenSettings={() => setIsSettingsOpen(true)}
-        currentTheme={currentTheme}
-        onThemeChange={handleThemeChange}
+        onOpenThemeModal={() => setIsThemeModalOpen(true)}
         isCollapsed={isSidebarCollapsed}
         onToggleCollapse={handleToggleSidebar}
       />
@@ -400,6 +405,7 @@ export default function App() {
                 </button>
 
                 <DocumentWriter
+                  key={activeWorkspaceId || 'global-writer'}
                   sessionId={activeWorkspaceId}
                   documents={scopedDocuments}
                   availableModels={discoveredModels}
@@ -438,6 +444,13 @@ export default function App() {
         selectedDocs={selectedDocs}
         currentModel={currentModel}
         onGenerateReview={handleGenerateLiteratureReview}
+      />
+
+      <ThemeModal
+        isOpen={isThemeModalOpen}
+        onClose={() => setIsThemeModalOpen(false)}
+        currentTheme={currentTheme}
+        onThemeChange={handleThemeChange}
       />
     </div>
   );
