@@ -11,6 +11,11 @@ import {
   ExternalHyperlink,
   NumberFormat,
   PageBreak,
+  Table,
+  TableRow,
+  TableCell,
+  WidthType,
+  ShadingType,
 } from 'docx';
 import {
   X,
@@ -699,109 +704,284 @@ export default function DocumentWriter({
     if (!editorRef.current) return;
     setIsExportMenuOpen(false);
 
-    // ── Helper: parse one DOM element into docx Paragraph(s) ──────────────
-    const domToParagraphs = (el) => {
-      const paragraphs = [];
+    // ── Helper: recursively parse DOM nodes to docx TextRun(s) with deep style preservation ──
+    const parseDomToRuns = (node, currentStyles = {}) => {
+      const runs = [];
 
-      const nodeToRuns = (node) => {
-        const runs = [];
-        node.childNodes.forEach((child) => {
-          if (child.nodeType === Node.TEXT_NODE) {
-            const text = child.textContent || '';
-            if (text) runs.push(new TextRun({ text }));
-          } else if (child.nodeType === Node.ELEMENT_NODE) {
-            const tag = child.tagName.toLowerCase();
-            const isBold = tag === 'b' || tag === 'strong';
-            const isItalic = tag === 'i' || tag === 'em';
-            const isUnderline = tag === 'u';
-            const innerText = child.innerText || child.textContent || '';
-            if (innerText) {
-              runs.push(
-                new TextRun({
-                  text: innerText,
-                  bold: isBold,
-                  italics: isItalic,
-                  underline: isUnderline ? { type: 'single' } : undefined,
+      node.childNodes.forEach((child) => {
+        if (child.nodeType === Node.TEXT_NODE) {
+          const text = child.textContent;
+          if (text) {
+            runs.push(
+              new TextRun({
+                text,
+                bold: currentStyles.bold,
+                italics: currentStyles.italics,
+                underline: currentStyles.underline ? { type: 'single' } : undefined,
+                strike: currentStyles.strike,
+                superScript: currentStyles.superScript,
+                subScript: currentStyles.subScript,
+              })
+            );
+          }
+        } else if (child.nodeType === Node.ELEMENT_NODE) {
+          const tag = child.tagName.toLowerCase();
+
+          if (tag === 'br') {
+            runs.push(new TextRun({ break: 1 }));
+            return;
+          }
+
+          const newStyles = { ...currentStyles };
+          if (tag === 'b' || tag === 'strong') newStyles.bold = true;
+          if (tag === 'i' || tag === 'em') newStyles.italics = true;
+          if (tag === 'u') newStyles.underline = true;
+          if (tag === 's' || tag === 'strike' || tag === 'del') newStyles.strike = true;
+          if (tag === 'sup' || child.classList.contains('citation-ref')) newStyles.superScript = true;
+          if (tag === 'sub') newStyles.subScript = true;
+
+          // Recurse into child to preserve deep nested styles
+          runs.push(...parseDomToRuns(child, newStyles));
+        }
+      });
+
+      return runs;
+    };
+
+    // ── Helper: convert HTML DOM tree into docx Paragraphs and Tables ────────
+    const domToDocxElements = (rootEl) => {
+      const docxElements = [];
+
+      const processNode = (node) => {
+        if (node.nodeType === Node.TEXT_NODE) {
+          const text = node.textContent?.trim();
+          if (text) {
+            docxElements.push(
+              new Paragraph({
+                children: [new TextRun({ text: node.textContent })],
+                spacing: { after: 180, line: 360 },
+              })
+            );
+          }
+          return;
+        }
+
+        if (node.nodeType !== Node.ELEMENT_NODE) return;
+
+        const tag = node.tagName.toLowerCase();
+
+        // 1. Page Break
+        if (tag === 'div' && (node.classList.contains('word-page-break') || node.classList.contains('page-break') || node.getAttribute('data-page-break') === 'true')) {
+          docxElements.push(new Paragraph({ children: [new PageBreak()] }));
+          return;
+        }
+
+        // 2. Headings
+        if (tag === 'h1') {
+          docxElements.push(
+            new Paragraph({
+              heading: HeadingLevel.HEADING_1,
+              children: parseDomToRuns(node),
+              spacing: { before: 280, after: 140 },
+            })
+          );
+          return;
+        }
+        if (tag === 'h2') {
+          docxElements.push(
+            new Paragraph({
+              heading: HeadingLevel.HEADING_2,
+              children: parseDomToRuns(node),
+              spacing: { before: 220, after: 110 },
+            })
+          );
+          return;
+        }
+        if (tag === 'h3') {
+          docxElements.push(
+            new Paragraph({
+              heading: HeadingLevel.HEADING_3,
+              children: parseDomToRuns(node),
+              spacing: { before: 180, after: 90 },
+            })
+          );
+          return;
+        }
+        if (tag === 'h4') {
+          docxElements.push(
+            new Paragraph({
+              heading: HeadingLevel.HEADING_4,
+              children: parseDomToRuns(node),
+              spacing: { before: 150, after: 75 },
+            })
+          );
+          return;
+        }
+
+        // 3. Blockquote
+        if (tag === 'blockquote') {
+          docxElements.push(
+            new Paragraph({
+              children: parseDomToRuns(node, { italics: true }),
+              indent: { left: convertInchesToTwip(0.5) },
+              spacing: { before: 160, after: 160 },
+              border: { left: { style: BorderStyle.SINGLE, size: 12, space: 10, color: '94a3b8' } },
+            })
+          );
+          return;
+        }
+
+        // 4. Unordered List
+        if (tag === 'ul') {
+          node.querySelectorAll('li').forEach((li) => {
+            docxElements.push(
+              new Paragraph({
+                bullet: { level: 0 },
+                children: parseDomToRuns(li),
+                spacing: { after: 100 },
+              })
+            );
+          });
+          return;
+        }
+
+        // 5. Ordered List
+        if (tag === 'ol') {
+          node.querySelectorAll('li').forEach((li) => {
+            docxElements.push(
+              new Paragraph({
+                numbering: { reference: 'default-numbering', level: 0 },
+                children: parseDomToRuns(li),
+                spacing: { after: 100 },
+              })
+            );
+          });
+          return;
+        }
+
+        // 6. Tables (Native Microsoft Word Table with Borders & Header Shading)
+        if (tag === 'table') {
+          const tableRows = [];
+          const trElements = node.querySelectorAll('tr');
+
+          trElements.forEach((tr, rowIndex) => {
+            const cells = [];
+            const cellElements = tr.querySelectorAll('th, td');
+
+            cellElements.forEach((cell) => {
+              const isHeader = cell.tagName.toLowerCase() === 'th' || rowIndex === 0;
+              const cellRuns = parseDomToRuns(cell, isHeader ? { bold: true } : {});
+
+              cells.push(
+                new TableCell({
+                  children: [
+                    new Paragraph({
+                      children: cellRuns.length > 0 ? cellRuns : [new TextRun({ text: '' })],
+                      spacing: { before: 80, after: 80 },
+                    }),
+                  ],
+                  shading: isHeader
+                    ? { fill: 'F1F5F9', type: ShadingType.CLEAR, color: 'auto' }
+                    : undefined,
+                  margins: {
+                    top: convertInchesToTwip(0.08),
+                    bottom: convertInchesToTwip(0.08),
+                    left: convertInchesToTwip(0.12),
+                    right: convertInchesToTwip(0.12),
+                  },
+                })
+              );
+            });
+
+            if (cells.length > 0) {
+              tableRows.push(
+                new TableRow({
+                  children: cells,
+                  tableHeader: rowIndex === 0,
                 })
               );
             }
+          });
+
+          if (tableRows.length > 0) {
+            docxElements.push(
+              new Table({
+                rows: tableRows,
+                width: { size: 100, type: WidthType.PERCENTAGE },
+              })
+            );
+            docxElements.push(new Paragraph({ children: [new TextRun({ text: '' })], spacing: { after: 120 } }));
           }
-        });
-        return runs;
-      };
-
-      const walkNode = (node) => {
-        if (node.nodeType !== Node.ELEMENT_NODE) return;
-        const tag = node.tagName.toLowerCase();
-
-        if (tag === 'div' && (node.classList.contains('word-page-break') || node.classList.contains('page-break') || node.getAttribute('data-page-break') === 'true')) {
-          paragraphs.push(new Paragraph({ children: [new PageBreak()] }));
           return;
-        } else if (tag === 'h1') {
-          paragraphs.push(new Paragraph({ heading: HeadingLevel.HEADING_1, children: nodeToRuns(node) }));
-        } else if (tag === 'h2') {
-          paragraphs.push(new Paragraph({ heading: HeadingLevel.HEADING_2, children: nodeToRuns(node) }));
-        } else if (tag === 'h3') {
-          paragraphs.push(new Paragraph({ heading: HeadingLevel.HEADING_3, children: nodeToRuns(node) }));
-        } else if (tag === 'h4') {
-          paragraphs.push(new Paragraph({ heading: HeadingLevel.HEADING_4, children: nodeToRuns(node) }));
-        } else if (tag === 'blockquote') {
-          paragraphs.push(
-            new Paragraph({
-              children: nodeToRuns(node),
-              indent: { left: convertInchesToTwip(0.5) },
-            })
-          );
-        } else if (tag === 'ul') {
-          node.querySelectorAll('li').forEach((li) => {
-            paragraphs.push(
+        }
+
+        // 7. Standard Paragraph
+        if (tag === 'p') {
+          const runs = parseDomToRuns(node);
+          if (runs.length > 0) {
+            docxElements.push(
               new Paragraph({
-                bullet: { level: 0 },
-                children: [new TextRun({ text: li.innerText || li.textContent || '' })],
+                children: runs,
+                spacing: { after: 180, line: 360 }, // 1.5 line spacing
               })
             );
-          });
-        } else if (tag === 'ol') {
-          node.querySelectorAll('li').forEach((li) => {
-            paragraphs.push(
+          } else {
+            docxElements.push(
               new Paragraph({
-                numbering: { reference: 'default-numbering', level: 0 },
-                children: [new TextRun({ text: li.innerText || li.textContent || '' })],
+                children: [new TextRun({ text: '' })],
+                spacing: { after: 100 },
               })
             );
-          });
-        } else if (tag === 'p' || tag === 'div') {
-          const text = node.innerText || node.textContent || '';
-          if (text.trim()) {
-            paragraphs.push(new Paragraph({ children: nodeToRuns(node) }));
           }
-        } else if (tag === 'br') {
-          paragraphs.push(new Paragraph({ children: [new TextRun({ text: '' })] }));
+          return;
+        }
+
+        // 8. Line breaks
+        if (tag === 'br') {
+          docxElements.push(new Paragraph({ children: [new TextRun({ text: '' })], spacing: { after: 100 } }));
+          return;
+        }
+
+        // 9. Div blocks / Container wrappers
+        const hasBlockChildren = Array.from(node.childNodes).some(
+          (c) => c.nodeType === Node.ELEMENT_NODE && ['p', 'div', 'table', 'h1', 'h2', 'h3', 'h4', 'ul', 'ol', 'blockquote'].includes(c.tagName.toLowerCase())
+        );
+
+        if (hasBlockChildren) {
+          node.childNodes.forEach((child) => processNode(child));
         } else {
-          // Recurse into unknown wrappers
-          node.childNodes.forEach((child) => walkNode(child));
+          const runs = parseDomToRuns(node);
+          if (runs.length > 0) {
+            docxElements.push(
+              new Paragraph({
+                children: runs,
+                spacing: { after: 180, line: 360 },
+              })
+            );
+          }
         }
       };
 
-      el.childNodes.forEach((child) => walkNode(child));
-      return paragraphs;
+      rootEl.childNodes.forEach((child) => processNode(child));
+      return docxElements;
     };
 
-    // ── Build content paragraphs from editor HTML ──────────────────────────
+    // ── Build content elements from editor HTML ────────────────────────────
     const tempDiv = document.createElement('div');
     tempDiv.innerHTML = editorRef.current.innerHTML;
-    const contentParagraphs = domToParagraphs(tempDiv);
+    const contentElements = domToDocxElements(tempDiv);
 
     // ── Build Grouped References section ───────────────────────────────────
     const refParagraphs = [];
     const groupedBib = getGroupedBibliography(citations);
     if (groupedBib.length > 0) {
-      refParagraphs.push(new Paragraph({ children: [new TextRun({ text: '' })] }));
+      refParagraphs.push(new Paragraph({ children: [new TextRun({ text: '' })], spacing: { before: 240 } }));
       refParagraphs.push(
         new Paragraph({
           heading: HeadingLevel.HEADING_2,
           children: [new TextRun({ text: 'References', bold: true })],
-          border: { top: { style: BorderStyle.SINGLE, size: 6, space: 1, color: '999999' } },
+          border: { top: { style: BorderStyle.SINGLE, size: 8, space: 4, color: 'cbd5e1' } },
+          spacing: { before: 200, after: 120 },
         })
       );
       groupedBib.forEach((item) => {
@@ -816,12 +996,12 @@ export default function DocumentWriter({
         }
         runs.push(new TextRun({ text: `"${item.title}"`, italics: true }));
         if (item.pagesStr) {
-          runs.push(new TextRun({ text: item.pagesStr, color: '555555' }));
+          runs.push(new TextRun({ text: item.pagesStr, color: '4b5563' }));
         }
         refParagraphs.push(
           new Paragraph({
             children: runs,
-            spacing: { before: 120 },
+            spacing: { before: 100, after: 80, line: 320 },
           })
         );
       });
@@ -861,11 +1041,11 @@ export default function DocumentWriter({
             new Paragraph({
               heading: HeadingLevel.TITLE,
               children: [new TextRun({ text: title || 'Academic Draft', bold: true })],
-              spacing: { after: 400 },
+              spacing: { after: 360 },
             }),
-            // Body content
-            ...contentParagraphs,
-            // References
+            // Body content (Paragraphs, Headings, Tables, Lists)
+            ...contentElements,
+            // Grouped Academic References
             ...refParagraphs,
           ],
         },
