@@ -32,6 +32,7 @@ from backend.api.schemas import (
     ModelItem,
     DraftSaveRequest,
     DraftResponse,
+    UpdateModeRequest,
     FindCitationsRequest,
     CitationCandidate,
     FindCitationsResponse,
@@ -267,6 +268,16 @@ async def get_me(current_user: User = Depends(get_current_user)):
 
 
 # =============================================================================
+from backend.rag.modes import list_available_modes
+
+
+@app.get("/api/modes")
+def get_modes():
+    """Returns available academic reasoning modes and their UI metadata."""
+    return {"modes": list_available_modes()}
+
+
+# =============================================================================
 # CHAT SESSION MANAGEMENT ENDPOINTS (MULTI-TENANT)
 # =============================================================================
 
@@ -283,6 +294,20 @@ async def create_session(
         doc_names=req.doc_names, 
         user_id=current_user.id
     )
+    return session
+
+
+@app.patch("/api/sessions/{session_id}/mode", response_model=ChatSessionResponse)
+async def update_session_mode_endpoint(
+    session_id: str,
+    req: UpdateModeRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Updates the active reasoning mode for a specific chat session."""
+    session = await crud.update_session_mode(db, session_id=session_id, mode=req.mode, user_id=current_user.id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Chat session not found or unauthorized.")
     return session
 
 
@@ -313,6 +338,7 @@ async def get_session_details(
     return {
         "id": session_meta.id,
         "title": session_meta.title,
+        "active_mode": getattr(session_meta, "active_mode", "research") or "research",
         "created_at": session_meta.created_at,
         "messages": messages,
     }
@@ -341,18 +367,33 @@ async def query_rag(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Accepts query, routes plan, persists chat turn to DB, and returns response with thinking trace."""
+    """
+    Executes grounded RAG pipeline across selected papers with dynamic model fallbacks,
+    active reasoning mode directives, and persists conversation turns to database.
+    """
     try:
-        # 1. Resolve active workspace document list
-        target_documents = getattr(request, "doc_names", None) or getattr(request, "selected_docs", None) or []
+        # 1. Resolve target documents
+        target_documents = None
+        if request.doc_names:
+            target_documents = request.doc_names
+        elif request.selected_docs:
+            target_documents = request.selected_docs
 
-        # 2. Check session existence for user
+        # 2. Manage Session Scope
         session_id = request.session_id
         session_exists = False
+        target_mode = getattr(request, "mode", None) or "research"
         
         if session_id:
             user_sessions = await crud.get_all_sessions(db, user_id=current_user.id)
-            session_exists = any(s.id == session_id for s in user_sessions)
+            current_session = next((s for s in user_sessions if s.id == session_id), None)
+            if current_session:
+                session_exists = True
+                # If request explicitly provided a mode and session had a different mode, update session
+                if request.mode and request.mode != getattr(current_session, "active_mode", None):
+                    await crud.update_session_mode(db, session_id=session_id, mode=request.mode, user_id=current_user.id)
+                elif not request.mode and getattr(current_session, "active_mode", None):
+                    target_mode = current_session.active_mode
 
         # Fallback: create fresh session linked to user
         if not session_id or not session_exists:
@@ -360,7 +401,8 @@ async def query_rag(
                 db, 
                 title=request.query[:40] + "...", 
                 doc_names=target_documents, 
-                user_id=current_user.id
+                user_id=current_user.id,
+                active_mode=target_mode
             )
             session_id = new_session.id
 
@@ -374,7 +416,7 @@ async def query_rag(
                 for msg in (request.chat_history or [])
             ]
 
-        # 4. Generate answer via RAG Pipeline (with FR-11 instant summary cache hit)
+        # 4. Generate answer via RAG Pipeline (with mode lens + FR-11 instant summary cache hit)
         start_time = time.perf_counter()
         result = generate_answer(
             query=request.query, 
@@ -383,20 +425,23 @@ async def query_rag(
             chat_history=history_list,
             model_name=request.model_name,
             custom_keys=request.custom_keys or {},
+            mode=target_mode
         )
         duration_sec = round(time.perf_counter() - start_time, 2)
-        prompt_words = len(request.query.split()) + (len(target_documents) * 120)
+        prompt_words = len(request.query.split()) + (len(target_documents or []) * 120)
         completion_words = len(result["answer"].split()) + len((result.get("thinking_process") or "").split())
         total_tokens = max(1, int((prompt_words + completion_words) * 1.33))
         
+        applied_mode = result.get("mode_applied", target_mode)
         telemetry_meta = {
             "responseTime": f"{duration_sec}s",
             "tokens": total_tokens,
-            "model": request.model_name
+            "model": request.model_name,
+            "mode": applied_mode
         }
 
         # 5. Save User prompt & Bot answer (including thinking trace & telemetry) to Database
-        await crud.add_message(db, session_id=session_id, sender="user", text=request.query)
+        await crud.add_message(db, session_id=session_id, sender="user", text=request.query, mode_applied=applied_mode)
         await crud.add_message(
             db, 
             session_id=session_id, 
@@ -405,6 +450,7 @@ async def query_rag(
             thinking_process=result.get("thinking_process"),
             sources=result["sources_used"],
             model_name=request.model_name,
+            mode_applied=applied_mode,
             meta=telemetry_meta,
         )
 
@@ -415,6 +461,7 @@ async def query_rag(
             sources_used=result["sources_used"],
             session_id=session_id,
             model_name=request.model_name,
+            mode_applied=applied_mode,
             meta=telemetry_meta,
         )
     except Exception as e:

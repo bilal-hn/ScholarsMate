@@ -227,6 +227,17 @@ export default function ChatMessage({ message, onSelectCitation }) {
 
   const speed = calculateSpeed();
 
+  const MODE_BADGES = {
+    research: { name: 'Research', color: 'text-amber-400 border-amber-500/30 bg-amber-500/10' },
+    socratic: { name: 'Socratic Tutor', color: 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10' },
+    reviewer: { name: 'Peer Reviewer', color: 'text-rose-400 border-rose-500/30 bg-rose-500/10' },
+    executive: { name: 'Executive Brief', color: 'text-blue-400 border-blue-500/30 bg-blue-500/10' },
+    survey: { name: 'Literature Survey', color: 'text-purple-400 border-purple-500/30 bg-purple-500/10' },
+  };
+
+  const appliedMode = message.mode_applied || (message.meta && message.meta.mode) || null;
+  const appliedModeInfo = appliedMode && MODE_BADGES[appliedMode] ? MODE_BADGES[appliedMode] : null;
+
   /**
    * Enterprise-Grade Multi-MIME Clipboard Copy
    * Writes both rich HTML (for Microsoft Word, Google Docs, Apple Notes) and Markdown (for code editors).
@@ -617,6 +628,14 @@ export default function ChatMessage({ message, onSelectCitation }) {
                     <span className="text-zinc-500 flex items-center gap-0.5">
                       <Zap className="h-2.5 w-2.5 text-amber-400/80" />
                       <span>{speed} tok/s</span>
+                    </span>
+                  </>
+                )}
+                {appliedModeInfo && (
+                  <>
+                    <span className="text-zinc-700">|</span>
+                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-sans border font-medium ${appliedModeInfo.color}`}>
+                      {appliedModeInfo.name}
                     </span>
                   </>
                 )}

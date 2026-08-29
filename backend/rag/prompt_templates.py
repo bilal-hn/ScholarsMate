@@ -87,10 +87,18 @@ Return ONLY a valid JSON object matching this schema:
 """.strip()
 
 
-def construct_prompt(query: str, context_block: str) -> str:
-    """Assembles the user query and context block into a polished, professional prompt."""
+from backend.rag.modes import get_mode_config
+
+
+def construct_prompt(query: str, context_block: str, mode: str = "research") -> str:
+    """Assembles the user query, active mode directives, and context block into a polished, professional prompt."""
+    mode_cfg = get_mode_config(mode)
+    mode_directive = mode_cfg.get("prompt_directive", "")
+
     return f"""
 {SOURCE_LOCKED_SYSTEM_PROMPT}
+
+{mode_directive}
 
 ### RETRIEVED CONTEXT FROM PAPERS:
 {context_block if context_block.strip() else "No specific document context retrieved for this prompt."}

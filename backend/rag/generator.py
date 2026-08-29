@@ -241,16 +241,30 @@ def extract_sources_from_text(text: str, fallback_doc: str | None = None) -> lis
     return sources
 
 
+from backend.rag.modes import get_mode_config, match_slash_command
+
+
 def generate_answer(
     query: str, 
     top_k: int = 10, 
     explicit_docs: list[str] | None = None,
     chat_history: list[dict] | None = None,
     model_name: str | None = None,
-    custom_keys: dict | None = None
+    custom_keys: dict | None = None,
+    mode: str = "research"
 ) -> dict:
-    """Universal RAG inference across any model provider with dynamic key resolution & fallback."""
-    clean_query = query.strip()
+    """Universal RAG inference across any model provider with dynamic key resolution, mode directives & fallback."""
+    # Detect inline slash commands (e.g. '/socratic Explain attention')
+    detected_mode, stripped_query = match_slash_command(query)
+    if detected_mode:
+        mode = detected_mode
+        clean_query = stripped_query.strip()
+    else:
+        clean_query = query.strip()
+
+    mode_cfg = get_mode_config(mode)
+    mode_temp = mode_cfg.get("temperature", 0.0)
+    effective_top_k = mode_cfg.get("top_k", top_k) if top_k == 10 else top_k
     keys = custom_keys or {}
 
     # 1. Resolve Target Model
@@ -343,7 +357,7 @@ def generate_answer(
     # -------------------------------------------------------------------------
     retrieved_chunks, plan = retrieve_context(
         query=clean_query,
-        top_k=top_k,
+        top_k=effective_top_k,
         explicit_docs=explicit_docs,
         chat_history=chat_history,
         model_name=target_model,
@@ -362,13 +376,13 @@ def generate_answer(
     else:
         # Branch E: Standard Synthesis
         context_block = build_context_block(retrieved_chunks)
-        full_prompt = construct_prompt(query=clean_query, context_block=context_block)
+        full_prompt = construct_prompt(query=clean_query, context_block=context_block, mode=mode)
 
         chat_completion = _execute_completion_with_fallback(
             model_name=target_model,
             messages=[{"role": "user", "content": full_prompt}],
             custom_keys=keys,
-            temperature=0.0,
+            temperature=mode_temp,
             max_tokens=RAG_MAX_TOKENS,
         )
         extracted = extract_reasoning_and_content(chat_completion)
@@ -410,5 +424,6 @@ def generate_answer(
         "query": query,
         "answer": answer_text,
         "thinking_process": thinking_text or None,
-        "sources_used": unique_sources
+        "sources_used": unique_sources,
+        "mode_applied": mode
     }

@@ -38,6 +38,23 @@ def _get_connection():
         cursor.execute("ALTER TABLE user_documents ADD COLUMN summary_cache TEXT;")
     if "summary_generated_at" not in columns:
         cursor.execute("ALTER TABLE user_documents ADD COLUMN summary_generated_at DATETIME;")
+
+    # 3. FR-15: Check and add active_mode to chat_sessions and mode_applied to chat_messages
+    try:
+        cursor.execute("PRAGMA table_info(chat_sessions)")
+        cs_columns = [row[1] for row in cursor.fetchall()]
+        if cs_columns and "active_mode" not in cs_columns:
+            cursor.execute("ALTER TABLE chat_sessions ADD COLUMN active_mode VARCHAR(50) DEFAULT 'research';")
+    except Exception:
+        pass
+
+    try:
+        cursor.execute("PRAGMA table_info(chat_messages)")
+        cm_columns = [row[1] for row in cursor.fetchall()]
+        if cm_columns and "mode_applied" not in cm_columns:
+            cursor.execute("ALTER TABLE chat_messages ADD COLUMN mode_applied VARCHAR(50) DEFAULT 'research';")
+    except Exception:
+        pass
         
     conn.commit()
     return conn
@@ -48,7 +65,7 @@ def update_schema_for_summary_cache(db_path: str = DB_PATH):
     try:
         conn = _get_connection()
         conn.close()
-        print(f"[DB Service] Initialized and verified 'user_documents' table at {DB_PATH}")
+        print(f"[DB Service] Initialized and verified database schemas (user_documents, chat_sessions.active_mode, chat_messages.mode_applied) at {DB_PATH}")
     except Exception as e:
         print(f"[DB Service Migration Error] {e}")
 

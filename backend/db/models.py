@@ -56,6 +56,7 @@ class ChatSession(Base):
     user_id: Mapped[Optional[str]] = mapped_column(String, ForeignKey("users.id"), nullable=True, index=True)
     title: Mapped[str] = mapped_column(String, default="New Research Chat")
     doc_names: Mapped[list[str]] = mapped_column(JSON, default=list)
+    active_mode: Mapped[str] = mapped_column(String, default="research")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -85,6 +86,7 @@ class ChatMessage(Base):
     thinking_process: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # Collapsible reasoning trace
     sources_used: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)
     model_name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    mode_applied: Mapped[Optional[str]] = mapped_column(String, default="research", nullable=True)
     meta: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)  # Telemetry (responseTime, tokens, etc.)
     timestamp: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 

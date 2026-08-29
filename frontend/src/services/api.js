@@ -326,6 +326,35 @@ export const getSessionMessages = async (sessionId) => {
 };
 
 /**
+ * Retrieves the list of available academic reasoning modes.
+ */
+export const fetchModesAPI = async () => {
+  try {
+    const response = await apiClient.get('/modes');
+    return response.data?.modes || [];
+  } catch (error) {
+    console.error('Failed to fetch academic modes:', error);
+    return [];
+  }
+};
+
+/**
+ * Updates the active reasoning mode for a specific chat session.
+ * @param {string} sessionId - Database UUID of the session.
+ * @param {string} mode - Mode ID (e.g. 'research', 'socratic', 'reviewer', 'executive', 'survey').
+ */
+export const updateSessionModeAPI = async (sessionId, mode) => {
+  if (!sessionId) return null;
+  try {
+    const response = await apiClient.patch(`/sessions/${sessionId}/mode`, { mode });
+    return response.data;
+  } catch (error) {
+    console.error(`Failed to update mode for session ${sessionId}:`, error);
+    throw error;
+  }
+};
+
+/**
  * Deletes a chat session thread and its associated message history.
  * @param {string} sessionId - Database UUID of the session.
  */
@@ -340,13 +369,14 @@ export const deleteChatSession = async (sessionId) => {
 };
 
 /**
- * Sends a research query to the ScholarsMate RAG pipeline with BYOK support.
+ * Sends a research query to the ScholarsMate RAG pipeline with BYOK support and active reasoning mode.
  * @param {string} query - User question.
  * @param {Array<string>} [docNames=null] - Selected document filters.
  * @param {Array<Object>} [chatHistory=[]] - Fallback conversation history.
  * @param {string|null} [sessionId=null] - Active chat session UUID.
  * @param {number} [topK=10] - Context chunk count limit.
  * @param {string|null} [modelName=null] - Specific model ID to override active model.
+ * @param {string} [mode="research"] - Active academic reasoning lens.
  */
 export const sendQuery = async (
   query,
@@ -354,7 +384,8 @@ export const sendQuery = async (
   chatHistory = [],
   sessionId = null,
   topK = 10,
-  modelName = null
+  modelName = null,
+  mode = 'research'
 ) => {
   const formattedHistory = Array.isArray(chatHistory)
     ? chatHistory.slice(-6).map((msg) => ({
@@ -379,6 +410,7 @@ export const sendQuery = async (
       top_k: topK,
       model_name: selectedModel,
       custom_keys: keys,
+      mode: mode || 'research',
     });
     return response.data;
   } catch (error) {

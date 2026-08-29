@@ -1,4 +1,4 @@
-# FR-15: Multi-Lens Academic Reasoning Modes & Personas
+# FR-14: Multi-Lens Academic Reasoning Modes & Personas
 
 ## 1. Feature Purpose
 

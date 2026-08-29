@@ -114,7 +114,8 @@ async def create_chat_session(
     db: AsyncSession, 
     title: str = "New Research Chat", 
     doc_names: Optional[List[str]] = None,
-    user_id: Optional[str] = None
+    user_id: Optional[str] = None,
+    active_mode: str = "research"
 ) -> ChatSession:
     """Creates a new persistent chat session thread linked to a specific user/tenant."""
     target_docs = doc_names if isinstance(doc_names, list) else []
@@ -124,6 +125,7 @@ async def create_chat_session(
         title=title,
         doc_names=target_docs,
         user_id=user_id,
+        active_mode=active_mode or "research",
         created_at=datetime.utcnow(),
         updated_at=datetime.utcnow()
     )
@@ -131,6 +133,29 @@ async def create_chat_session(
     await db.commit()
     await db.refresh(session)
     
+    session.doc_names = _normalize_json_list(session.doc_names)
+    return session
+
+
+async def update_session_mode(
+    db: AsyncSession,
+    session_id: str,
+    mode: str,
+    user_id: Optional[str] = None
+) -> Optional[ChatSession]:
+    """Updates the active reasoning mode for a chat session."""
+    stmt = select(ChatSession).where(ChatSession.id == session_id)
+    if user_id:
+        stmt = stmt.where(ChatSession.user_id == user_id)
+    result = await db.execute(stmt)
+    session = result.scalar_one_or_none()
+    if not session:
+        return None
+
+    session.active_mode = mode.strip().lower() if mode else "research"
+    session.updated_at = datetime.utcnow()
+    await db.commit()
+    await db.refresh(session)
     session.doc_names = _normalize_json_list(session.doc_names)
     return session
 
@@ -180,6 +205,7 @@ async def add_message(
     thinking_process: Optional[str] = None,
     sources: Optional[list] = None,
     model_name: Optional[str] = None,
+    mode_applied: Optional[str] = "research",
     meta: Optional[dict] = None
 ) -> ChatMessage:
     """Adds a new message to a chat session, stores reasoning trace & telemetry, and touches session timestamp."""
@@ -191,6 +217,7 @@ async def add_message(
         thinking_process=thinking_process,
         sources_used=sources or [],
         model_name=model_name,
+        mode_applied=mode_applied or "research",
         meta=meta,
         timestamp=datetime.utcnow()
     )

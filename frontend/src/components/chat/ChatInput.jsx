@@ -15,6 +15,14 @@ import {
   Layers
 } from 'lucide-react';
 
+export const SLASH_COMMANDS = [
+  { cmd: '/research', mode: 'research', label: 'Research Synthesizer', desc: 'Formal citation-dense synthesis with benchmark tables' },
+  { cmd: '/socratic', mode: 'socratic', label: 'Socratic Tutor', desc: 'Intuitive Feynman breakdown with 1 check question' },
+  { cmd: '/critique', mode: 'reviewer', label: 'Peer Reviewer', desc: 'Red-team critical audit of methodology & limitations' },
+  { cmd: '/brief', mode: 'executive', label: 'Executive Brief', desc: 'High-density TL;DR, core innovation & takeaways' },
+  { cmd: '/survey', mode: 'survey', label: 'Literature Survey', desc: 'Cross-paper comparative synthesis & timelines' },
+];
+
 export default function ChatInput({
   input,
   setInput,
@@ -40,6 +48,11 @@ export default function ChatInput({
   const [mentionIndex, setMentionIndex] = useState(0);
   const mentionMenuRef = useRef(null);
 
+  // Slash Command Menu State
+  const [showSlashMenu, setShowSlashMenu] = useState(false);
+  const [slashQuery, setSlashQuery] = useState('');
+  const [slashIndex, setSlashIndex] = useState(0);
+
   // Filter documents matching whatever is typed after '@'
   const matchingDocuments = useMemo(() => {
     if (!showMentionMenu) return [];
@@ -48,7 +61,17 @@ export default function ChatInput({
     return availableDocuments.filter((doc) => doc.toLowerCase().includes(query));
   }, [showMentionMenu, mentionQuery, availableDocuments]);
 
-  // Track '@' trigger in textarea
+  // Filter slash commands matching whatever is typed after '/'
+  const matchingSlashCommands = useMemo(() => {
+    if (!showSlashMenu) return [];
+    const query = slashQuery.toLowerCase().trim();
+    if (!query) return SLASH_COMMANDS;
+    return SLASH_COMMANDS.filter(
+      (c) => c.cmd.toLowerCase().includes(query) || c.label.toLowerCase().includes(query)
+    );
+  }, [showSlashMenu, slashQuery]);
+
+  // Track '@' and '/' triggers in textarea
   const handleInputChange = (e) => {
     const value = e.target.value;
     const cursorPos = e.target.selectionStart;
@@ -56,8 +79,21 @@ export default function ChatInput({
 
     // Look at the text before the current cursor
     const textBeforeCursor = value.slice(0, cursorPos);
-    const lastWordMatch = textBeforeCursor.match(/@([^\s]*)$/);
 
+    // 1. Check for slash command at the very start
+    const slashMatch = textBeforeCursor.match(/^\/([a-zA-Z]*)$/);
+    if (slashMatch) {
+      setShowSlashMenu(true);
+      setSlashQuery(slashMatch[1]);
+      setSlashIndex(0);
+      setShowMentionMenu(false);
+      return;
+    } else {
+      setShowSlashMenu(false);
+    }
+
+    // 2. Check for @ document mention
+    const lastWordMatch = textBeforeCursor.match(/@([^\s]*)$/);
     if (lastWordMatch && availableDocuments.length > 0) {
       setShowMentionMenu(true);
       setMentionQuery(lastWordMatch[1]);
@@ -89,7 +125,47 @@ export default function ChatInput({
     }, 0);
   };
 
+  // Insert selected slash command into the textarea
+  const selectSlashCommand = (item) => {
+    if (!textareaRef.current) return;
+    const fullNewText = `${item.cmd} `;
+    setInput(fullNewText);
+    setShowSlashMenu(false);
+
+    setTimeout(() => {
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+        textareaRef.current.setSelectionRange(fullNewText.length, fullNewText.length);
+      }
+    }, 0);
+  };
+
   const handleKeyDown = (e) => {
+    // Slash commands navigation
+    if (showSlashMenu && matchingSlashCommands.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSlashIndex((prev) => (prev + 1) % matchingSlashCommands.length);
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSlashIndex((prev) => (prev - 1 + matchingSlashCommands.length) % matchingSlashCommands.length);
+        return;
+      }
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault();
+        selectSlashCommand(matchingSlashCommands[slashIndex]);
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setShowSlashMenu(false);
+        return;
+      }
+    }
+
+    // Mention navigation
     if (showMentionMenu && matchingDocuments.length > 0) {
       if (e.key === 'ArrowDown') {
         e.preventDefault();
@@ -116,6 +192,7 @@ export default function ChatInput({
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       setShowMentionMenu(false);
+      setShowSlashMenu(false);
       onSubmit(e);
     }
   };
@@ -205,6 +282,8 @@ export default function ChatInput({
     }
   }, [isDropdownOpen, currentModel, filteredModels]);
 
+  const slashMenuRef = useRef(null);
+
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
@@ -212,6 +291,9 @@ export default function ChatInput({
       }
       if (mentionMenuRef.current && !mentionMenuRef.current.contains(event.target)) {
         setShowMentionMenu(false);
+      }
+      if (slashMenuRef.current && !slashMenuRef.current.contains(event.target)) {
+        setShowSlashMenu(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -227,6 +309,43 @@ export default function ChatInput({
         onSubmit={onSubmit}
         className="max-w-3xl mx-auto bg-zinc-900 hover:bg-zinc-900/95 border border-zinc-800 hover:border-zinc-700/80 focus-within:border-zinc-600 rounded-2xl p-3 flex flex-col gap-2 transition-all shadow-2xl relative"
       >
+        {/* Slash Command Autocomplete Menu */}
+        {showSlashMenu && matchingSlashCommands.length > 0 && (
+          <div
+            ref={slashMenuRef}
+            className="absolute bottom-full left-3 mb-2.5 w-80 max-h-60 overflow-y-auto bg-zinc-900/95 border border-zinc-800 rounded-xl p-1.5 shadow-2xl backdrop-blur-xl z-50 animate-in fade-in zoom-in-95 duration-100"
+          >
+            <div className="text-[10px] font-semibold text-zinc-500 uppercase px-2 py-1 tracking-wider border-b border-zinc-800/80 mb-1 flex items-center justify-between font-mono">
+              <span>Academic Slash Commands</span>
+              <span className="text-[9px] text-zinc-600 font-normal">↵ to select</span>
+            </div>
+            <div className="space-y-0.5">
+              {matchingSlashCommands.map((item, idx) => {
+                const isFocused = idx === slashIndex;
+                return (
+                  <button
+                    key={item.cmd}
+                    type="button"
+                    onClick={() => selectSlashCommand(item)}
+                    onMouseEnter={() => setSlashIndex(idx)}
+                    className={`w-full flex items-start gap-2 px-2.5 py-1.5 rounded-lg text-left text-xs transition-colors cursor-pointer ${
+                      isFocused
+                        ? 'bg-zinc-800 text-amber-300 font-medium'
+                        : 'text-zinc-300 hover:bg-zinc-800/50'
+                    }`}
+                  >
+                    <span className="font-mono text-amber-400 font-bold shrink-0 text-[11.5px] mt-0.5">{item.cmd}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[11.5px] font-semibold text-zinc-200">{item.label}</div>
+                      <div className="text-[10.5px] text-zinc-400 truncate">{item.desc}</div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* @ Mention Document Autocomplete Menu */}
         {showMentionMenu && matchingDocuments.length > 0 && (
           <div

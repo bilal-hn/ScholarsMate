@@ -14,6 +14,7 @@ class QueryRequest(BaseModel):
     doc_names: Optional[List[str]] = Field(default=None, json_schema_extra={"example": ["sample.pdf"]})
     selected_docs: Optional[List[str]] = Field(default=None, json_schema_extra={"example": ["sample.pdf"]})
     session_id: Optional[str] = Field(default=None, json_schema_extra={"example": "123e4567-e89b-12d3-a456-426614174000"})
+    mode: Optional[str] = Field(default="research", json_schema_extra={"example": "research"})
     chat_history: Optional[List[MessageItem]] = Field(
         default_factory=list, 
         json_schema_extra={
@@ -46,6 +47,7 @@ class QueryResponse(BaseModel):
     sources_used: List[SourceItem] = Field(default_factory=list)
     session_id: Optional[str] = None
     model_name: Optional[str] = None
+    mode_applied: Optional[str] = None
     meta: Optional[Dict[str, Any]] = None
 
 
@@ -68,6 +70,10 @@ class ModelItem(BaseModel):
 # CHAT SESSION & DB PERSISTENCE SCHEMAS
 # =============================================================================
 
+class UpdateModeRequest(BaseModel):
+    mode: str = Field(..., json_schema_extra={"example": "socratic"})
+
+
 class ChatMessageResponse(BaseModel):
     id: str
     session_id: str
@@ -76,6 +82,7 @@ class ChatMessageResponse(BaseModel):
     thinking_process: Optional[str] = None
     sources_used: Optional[List[SourceItem]] = None
     model_name: Optional[str] = None
+    mode_applied: Optional[str] = None
     meta: Optional[Dict[str, Any]] = None
     timestamp: datetime
 
@@ -84,6 +91,7 @@ class ChatSessionResponse(BaseModel):
     id: str
     title: str
     doc_names: Optional[List[str]] = None
+    active_mode: Optional[str] = "research"
     created_at: datetime
     updated_at: datetime
 
@@ -91,6 +99,7 @@ class ChatSessionResponse(BaseModel):
 class ChatSessionDetailResponse(BaseModel):
     id: str
     title: str
+    active_mode: Optional[str] = "research"
     created_at: datetime
     messages: List[ChatMessageResponse]
 
