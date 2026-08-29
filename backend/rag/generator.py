@@ -251,7 +251,8 @@ def generate_answer(
     chat_history: list[dict] | None = None,
     model_name: str | None = None,
     custom_keys: dict | None = None,
-    mode: str = "research"
+    mode: str = "research",
+    custom_prompt_directive: str | None = None
 ) -> dict:
     """Universal RAG inference across any model provider with dynamic key resolution, mode directives & fallback."""
     # Detect inline slash commands (e.g. '/socratic Explain attention')
@@ -376,7 +377,12 @@ def generate_answer(
     else:
         # Branch E: Standard Synthesis
         context_block = build_context_block(retrieved_chunks)
-        full_prompt = construct_prompt(query=clean_query, context_block=context_block, mode=mode)
+        full_prompt = construct_prompt(
+            query=clean_query, 
+            context_block=context_block, 
+            mode=mode,
+            custom_prompt_directive=custom_prompt_directive
+        )
 
         chat_completion = _execute_completion_with_fallback(
             model_name=target_model,

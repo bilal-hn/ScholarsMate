@@ -368,6 +368,58 @@ export const deleteChatSession = async (sessionId) => {
   }
 };
 
+// =============================================================================
+// CUSTOM ACADEMIC LENSES LOCAL PERSISTENCE
+// =============================================================================
+
+const CUSTOM_LENSES_KEY = 'scholarsmate_custom_lenses';
+
+export const getCustomLenses = () => {
+  try {
+    const raw = localStorage.getItem(CUSTOM_LENSES_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (err) {
+    console.error('Failed to parse custom lenses:', err);
+    return [];
+  }
+};
+
+export const saveCustomLens = (lens) => {
+  try {
+    const existing = getCustomLenses();
+    const idx = existing.findIndex((l) => l.id === lens.id);
+    let updated;
+    if (idx !== -1) {
+      updated = [...existing];
+      updated[idx] = { ...existing[idx], ...lens, updated_at: new Date().toISOString() };
+    } else {
+      const newLens = {
+        ...lens,
+        id: lens.id || `custom_${Date.now()}`,
+        created_at: new Date().toISOString(),
+      };
+      updated = [...existing, newLens];
+    }
+    localStorage.setItem(CUSTOM_LENSES_KEY, JSON.stringify(updated));
+    return updated;
+  } catch (err) {
+    console.error('Failed to save custom lens:', err);
+    return getCustomLenses();
+  }
+};
+
+export const deleteCustomLens = (lensId) => {
+  try {
+    const existing = getCustomLenses();
+    const updated = existing.filter((l) => l.id !== lensId);
+    localStorage.setItem(CUSTOM_LENSES_KEY, JSON.stringify(updated));
+    return updated;
+  } catch (err) {
+    console.error('Failed to delete custom lens:', err);
+    return getCustomLenses();
+  }
+};
+
 /**
  * Sends a research query to the ScholarsMate RAG pipeline with BYOK support and active reasoning mode.
  * @param {string} query - User question.
@@ -377,6 +429,7 @@ export const deleteChatSession = async (sessionId) => {
  * @param {number} [topK=10] - Context chunk count limit.
  * @param {string|null} [modelName=null] - Specific model ID to override active model.
  * @param {string} [mode="research"] - Active academic reasoning lens.
+ * @param {string|null} [customPromptDirective=null] - Optional custom prompt directive.
  */
 export const sendQuery = async (
   query,
@@ -385,7 +438,8 @@ export const sendQuery = async (
   sessionId = null,
   topK = 10,
   modelName = null,
-  mode = 'research'
+  mode = 'research',
+  customPromptDirective = null
 ) => {
   const formattedHistory = Array.isArray(chatHistory)
     ? chatHistory.slice(-6).map((msg) => ({
@@ -411,6 +465,7 @@ export const sendQuery = async (
       model_name: selectedModel,
       custom_keys: keys,
       mode: mode || 'research',
+      custom_prompt_directive: customPromptDirective || null,
     });
     return response.data;
   } catch (error) {

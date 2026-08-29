@@ -425,7 +425,8 @@ async def query_rag(
             chat_history=history_list,
             model_name=request.model_name,
             custom_keys=request.custom_keys or {},
-            mode=target_mode
+            mode=target_mode,
+            custom_prompt_directive=getattr(request, "custom_prompt_directive", None)
         )
         duration_sec = round(time.perf_counter() - start_time, 2)
         prompt_words = len(request.query.split()) + (len(target_documents or []) * 120)

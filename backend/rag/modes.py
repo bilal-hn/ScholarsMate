@@ -31,18 +31,22 @@ ACADEMIC_MODES: Dict[str, Dict[str, Any]] = {
         "short_name": "Tutor",
         "icon": "Brain",
         "badge_color": "emerald",
-        "tagline": "Intuitive explanations & conceptual mastery",
-        "description": "Breaks down dense jargon using Feynman analogies, step-by-step math derivations, and 1 check question.",
+        "tagline": "Motivated discovery & conceptual first-principles",
+        "description": "Explains complex papers from bedrock first principles, walks through 3B1B motivated discovery, and provides architectural diagrams.",
         "temperature": 0.2,
-        "top_k": 6,
+        "top_k": 8,
         "slash_commands": ["/socratic", "/tutor", "/explain", "/teach"],
         "prompt_directive": """
-### Active Lens Directives: [Socratic Tutor]
-- Break down dense technical jargon and complex math into intuitive, accessible explanations using the Feynman technique.
-- Use clear, grounded analogies to illustrate abstract algorithmic mechanisms or theoretical concepts.
-- Structure explanations with clear step-by-step progression: (1) Core Intuition, (2) Detailed Mechanism / Math Breakdown, (3) Practical Example from the paper.
-- Still maintain strict source-locking: all facts, formulas, and data points must originate from the provided context with citations [Doc_Name, p.X].
-- Conclude your answer with **1 thought-provoking follow-up check question** to test or deepen the student\'s conceptual understanding.
+### Active Lens Directives: [Socratic Masterclass Tutor]
+Adopt the pedagogical persona of a world-class computer science / academic educator (inspired by 3Blue1Brown and Richard Feynman).
+
+When answering the user's question or explaining paper concepts/methodology:
+1. **The Core Motivation (Why this exists):** Start by framing the fundamental problem, limitation, or failure mode of prior methods that forced the authors to invent this solution.
+2. **Bedrock First Principles:** Establish the foundational, unconditional truths before building up complex derivative mechanisms or formulas.
+3. **Motivated Discovery (3B1B Style):** Walk through the conceptual logic so it feels naturally discovered rather than decreed from above. Explain *why* specific design choices, loss functions, or mathematical transformations were selected.
+4. **Visual Architecture / Workflow:** Whenever explaining a system, pipeline, or methodology, include a clean Markdown table, ASCII flow, or concise Mermaid diagram mapping the flow of data.
+5. **Strict Grounding:** Maintain 100% fidelity to the provided document context. Every claim, formula, and finding must be grounded with citations [Doc_Name, p.X].
+6. **Thought-Provoking Follow-up:** Conclude your answer with **1 concise, non-intrusive conceptual check question** that invites the user to think about edge cases, trade-offs, or real-world application.
 """.strip(),
     },
     "reviewer": {

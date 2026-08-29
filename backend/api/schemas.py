@@ -15,6 +15,7 @@ class QueryRequest(BaseModel):
     selected_docs: Optional[List[str]] = Field(default=None, json_schema_extra={"example": ["sample.pdf"]})
     session_id: Optional[str] = Field(default=None, json_schema_extra={"example": "123e4567-e89b-12d3-a456-426614174000"})
     mode: Optional[str] = Field(default="research", json_schema_extra={"example": "research"})
+    custom_prompt_directive: Optional[str] = Field(default=None, json_schema_extra={"example": "### Custom Lens Directives: ..."})
     chat_history: Optional[List[MessageItem]] = Field(
         default_factory=list, 
         json_schema_extra={

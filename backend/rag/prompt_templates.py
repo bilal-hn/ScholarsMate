@@ -90,10 +90,18 @@ Return ONLY a valid JSON object matching this schema:
 from backend.rag.modes import get_mode_config
 
 
-def construct_prompt(query: str, context_block: str, mode: str = "research") -> str:
-    """Assembles the user query, active mode directives, and context block into a polished, professional prompt."""
-    mode_cfg = get_mode_config(mode)
-    mode_directive = mode_cfg.get("prompt_directive", "")
+def construct_prompt(
+    query: str, 
+    context_block: str, 
+    mode: str = "research",
+    custom_prompt_directive: str | None = None
+) -> str:
+    """Assembles the user query, active mode directives (or custom prompt directives), and context block into a polished, professional prompt."""
+    if custom_prompt_directive and custom_prompt_directive.strip():
+        mode_directive = custom_prompt_directive.strip()
+    else:
+        mode_cfg = get_mode_config(mode)
+        mode_directive = mode_cfg.get("prompt_directive", "")
 
     return f"""
 {SOURCE_LOCKED_SYSTEM_PROMPT}

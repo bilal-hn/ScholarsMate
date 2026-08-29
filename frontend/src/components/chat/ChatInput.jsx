@@ -34,6 +34,7 @@ export default function ChatInput({
   onOpenSettings,
   availableDocuments = [],
   telemetry = null, // { responseTime, tokenUsage, docCount, isCached }
+  customLenses = [],
 }) {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [expandedProvider, setExpandedProvider] = useState(null);
@@ -41,6 +42,23 @@ export default function ChatInput({
   const [isDeepSearchActive, setIsDeepSearchActive] = useState(false);
   const dropdownRef = useRef(null);
   const textareaRef = useRef(null);
+
+  // Combine default and custom slash commands
+  const allSlashCommands = useMemo(() => {
+    const customCmds = (customLenses || [])
+      .map((l) => {
+        const cmd = l.slash_commands?.[0] || l.slashCommand || `/${l.id}`;
+        return {
+          cmd: cmd.startsWith('/') ? cmd : `/${cmd}`,
+          mode: l.id,
+          label: l.name,
+          desc: l.tagline || l.description || 'Custom Academic Lens',
+        };
+      })
+      .filter((c) => Boolean(c.cmd));
+
+    return [...SLASH_COMMANDS, ...customCmds];
+  }, [customLenses]);
 
   // @ Mention State
   const [showMentionMenu, setShowMentionMenu] = useState(false);
@@ -65,11 +83,11 @@ export default function ChatInput({
   const matchingSlashCommands = useMemo(() => {
     if (!showSlashMenu) return [];
     const query = slashQuery.toLowerCase().trim();
-    if (!query) return SLASH_COMMANDS;
-    return SLASH_COMMANDS.filter(
+    if (!query) return allSlashCommands;
+    return allSlashCommands.filter(
       (c) => c.cmd.toLowerCase().includes(query) || c.label.toLowerCase().includes(query)
     );
-  }, [showSlashMenu, slashQuery]);
+  }, [showSlashMenu, slashQuery, allSlashCommands]);
 
   // Track '@' and '/' triggers in textarea
   const handleInputChange = (e) => {
