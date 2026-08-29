@@ -8,7 +8,7 @@ from backend.rag.retriever import build_context_block, retrieve_context
 def test_build_context_block_empty():
     """Ensures empty chunk list returns a graceful fallback message."""
     result = build_context_block([])
-    assert result == "No relevant documents found."
+    assert result == "No relevant document context found."
 
 
 def test_build_context_block_formatting():
@@ -22,7 +22,7 @@ def test_build_context_block_formatting():
         }
     ]
     block = build_context_block(mock_chunks)
-    assert "[Document: test.pdf | Page: 1 | Tag: test.pdf::p1::1]" in block
+    assert "[Document: test.pdf | Page: 1 | Chunk Tag: test.pdf::p1::1]" in block
     assert "Retrieval-Augmented Generation enhances LLM accuracy." in block
 
 
@@ -33,8 +33,8 @@ def test_construct_prompt_source_locking():
     prompt = construct_prompt(query, context)
 
     assert SOURCE_LOCKED_SYSTEM_PROMPT in prompt
-    assert "USER QUESTION:\nWhat is RAG?" in prompt
-    assert "RETRIEVED CONTEXT:\nRAG stands for Retrieval-Augmented Generation." in prompt
+    assert "### USER QUESTION:\nWhat is RAG?" in prompt
+    assert "### RETRIEVED CONTEXT FROM PAPERS:\nRAG stands for Retrieval-Augmented Generation." in prompt
 
 
 def _hit_results(query_text: str):

@@ -217,7 +217,7 @@ def classify_query_intent(
     """
     clean_query = query.strip()
     fallback_k = evaluate_query_scope_fallback(clean_query)
-    heuristic = heuristic_intent(clean_query)
+    heuristic = heuristic_intent(clean_query, chat_history)
     lowered = clean_query.lower()
 
     # Fast-Path 1: Metadata queries
@@ -290,7 +290,7 @@ Return ONLY a JSON object. No prose, no markdown, no chain-of-thought.
 
 Intent labels:
 - CONVERSATIONAL: greetings, thanks, or questions about you the assistant. No PDF retrieval.
-- FOLLOW_UP: depends on prior turns (summarise it, why, go on, that method).
+- FOLLOW_UP: questions that refer to or ask for clarification on previous messages ("i dont understand", "explain simpler", "give an example", "why?", "tell me more", "summarise it", "that method").
 - NEW_QUERY: a self-contained question about the papers/workspace.
 
 Retrieval:

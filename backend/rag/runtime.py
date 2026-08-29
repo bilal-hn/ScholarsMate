@@ -181,18 +181,36 @@ def parse_json_object(text: str) -> dict:
     return json.loads(cleaned[start : end + 1])
 
 
-def heuristic_intent(query: str) -> str:
-    """Parse-failure fallback: short/assistant talk vs document questions. Not a model list."""
+def heuristic_intent(query: str, chat_history: list | None = None) -> str:
+    """Parse-failure fallback: distinguishes conversational, follow-up clarification, and document queries."""
     q = (query or "").strip()
     if not q:
         return "CONVERSATIONAL"
 
     words = q.split()
     has_question = "?" in q
+    lowered = q.lower()
+
+    # Direct conversational pleasantries
+    greetings = {"hi", "hello", "hey", "help", "who are you", "what can you do", "thanks", "thank you", "bye", "goodbye"}
+    if lowered in greetings or any(lowered == g for g in greetings):
+        return "CONVERSATIONAL"
+
+    # Follow-up and clarification cues
+    follow_up_cues = re.search(
+        r"\b(i don'?t understand|explain simpler|make it simpler|elaborate|clarify|what do you mean|what does that mean|"
+        r"can you give an example|give an example|tell me more|why is that|huh|how so|what about that|go on|continue|"
+        r"summarise that|summarize that|more details|explain further)\b",
+        lowered,
+        re.IGNORECASE,
+    )
+    if follow_up_cues or (chat_history and len(chat_history) > 0 and len(words) <= 5 and not any(lowered.startswith(g) for g in greetings)):
+        return "FOLLOW_UP"
+
     research_cues = re.search(
         r"\b(paper|papers|document|documents|pdf|method|methodology|findings|compare|"
         r"summar(?:y|ise|ize)|dataset|result|results|author|citation|workspace|literature)\b",
-        q,
+        lowered,
         re.IGNORECASE,
     )
 

@@ -8,7 +8,12 @@ load_dotenv(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.env"
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
 from backend.rag.retriever import retrieve_context, build_context_block
-from backend.rag.prompt_templates import construct_prompt, SOURCE_LOCKED_SYSTEM_PROMPT
+from backend.rag.prompt_templates import (
+    construct_prompt, 
+    construct_system_prompt,
+    build_conversation_messages,
+    SOURCE_LOCKED_SYSTEM_PROMPT
+)
 from backend.embeddings.vector_store import list_indexed_documents
 from backend.rag.router import classify_query_intent
 from backend.rag.runtime import (
@@ -328,10 +333,22 @@ def generate_answer(
 
     # Branch B: CONVERSATIONAL Intent
     if intent == "CONVERSATIONAL":
-        conv_prompt = f"You are ScholarsMate, a helpful academic research AI. Reply politely and concisely to: '{clean_query}'"
+        conv_messages = [
+            {"role": "system", "content": "You are ScholarsMate, an elite, helpful academic research AI. Reply politely, warmly, and concisely."}
+        ]
+        if chat_history:
+            for msg in chat_history[-4:]:
+                sender = msg.get("sender") if isinstance(msg, dict) else getattr(msg, "sender", "user")
+                text = (msg.get("text") if isinstance(msg, dict) else getattr(msg, "text", "")) or ""
+                if text.strip():
+                    role = "assistant" if sender in ["bot", "assistant"] else "user"
+                    conv_messages.append({"role": role, "content": text.strip()})
+        if not conv_messages or conv_messages[-1]["role"] != "user":
+            conv_messages.append({"role": "user", "content": clean_query})
+
         res = _execute_completion_with_fallback(
             model_name=target_model,
-            messages=[{"role": "user", "content": conv_prompt}],
+            messages=conv_messages,
             custom_keys=keys,
             temperature=0.5,
             max_tokens=CONV_MAX_TOKENS,
@@ -388,18 +405,19 @@ def generate_answer(
             custom_keys=keys
         )
     else:
-        # Branch E: Standard Synthesis
+        # Branch E: Standard Multi-Turn Synthesis
         context_block = build_context_block(retrieved_chunks)
-        full_prompt = construct_prompt(
-            query=clean_query, 
-            context_block=context_block, 
+        messages_payload = build_conversation_messages(
+            query=clean_query,
+            context_block=context_block,
+            chat_history=chat_history,
             mode=mode,
             custom_prompt_directive=custom_prompt_directive
         )
 
         chat_completion = _execute_completion_with_fallback(
             model_name=target_model,
-            messages=[{"role": "user", "content": full_prompt}],
+            messages=messages_payload,
             custom_keys=keys,
             temperature=mode_temp,
             max_tokens=RAG_MAX_TOKENS,

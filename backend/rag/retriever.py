@@ -82,7 +82,8 @@ Given the conversation context and a user query, determine if the query is a fol
 Rules:
 1. If the user query is a standalone question or general summary request, DO NOT inject conversational greetings or random names.
 2. If the user refers to pronouns or previous context (e.g., "explain its results", "why did they use it?"), resolve the pronoun using the conversation context.
-3. Return ONLY the search query string. Do NOT add explanations, quotes, or markdown formatting.
+3. If the user asks for clarification, simpler explanation, or expresses confusion (e.g., "i dont understand", "explain simpler", "give an example", "what does that mean", "why?", "tell me more"), rewrite it into an explicit search query targeting the specific concepts, mechanisms, or papers discussed in the immediate previous turn.
+4. Return ONLY the search query string. Do NOT add explanations, quotes, or markdown formatting.
 
 Recent Conversation:
 {formatted_history.strip()}
