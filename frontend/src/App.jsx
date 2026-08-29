@@ -108,6 +108,16 @@ export default function App() {
     }
   };
 
+  const handleDismissWriterBadge = () => {
+    if (activeWorkspaceId) {
+      setOpenedWriterSessions((prev) => {
+        const next = new Set(prev);
+        next.delete(activeWorkspaceId);
+        return next;
+      });
+    }
+  };
+
   // --------------------------------------------------------------------------
   // USER IDENTITY & WORKSPACE SYNC
   // --------------------------------------------------------------------------
@@ -401,6 +411,7 @@ export default function App() {
               onOpenSettings={() => setIsSettingsOpen(true)}
               hasWriterButton={activeWorkspaceId ? openedWriterSessions.has(activeWorkspaceId) && !isWriterOpen : false}
               onToggleWriter={handleToggleWriter}
+              onDismissWriterBadge={handleDismissWriterBadge}
               isSplitScreen={Boolean(activePdf || isWriterOpen)}
               targetMessageIndex={targetMessageIndex}
               onTargetMessageScrolled={() => setTargetMessageIndex(null)}

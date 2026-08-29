@@ -18,7 +18,8 @@ import {
   CheckSquare,
   Square,
   Eye,
-  Edit2
+  Edit2,
+  X
 } from 'lucide-react';
 
 export const SLASH_COMMANDS = [
@@ -52,6 +53,9 @@ export default function ChatInput({
   onOpenLitReview,
   onExportTranscript,
   onClearMessages,
+  hasWriterButton = false,
+  onToggleWriter,
+  onDismissWriterBadge,
 }) {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isLensDropdownOpen, setIsLensDropdownOpen] = useState(false);
@@ -384,6 +388,32 @@ export default function ChatInput({
 
   return (
     <div className="w-full px-4 pb-4 pt-1 bg-gradient-to-t from-zinc-950 via-zinc-950/90 to-transparent shrink-0 relative z-30 transition-colors">
+      {/* Floating Document Pill Capsule (above chat input box) */}
+      {hasWriterButton && (
+        <div className="max-w-3xl mx-auto mb-2 flex items-center">
+          <div
+            onClick={onToggleWriter}
+            className="inline-flex items-center gap-2 px-3 py-1 bg-[#131417] hover:bg-[#1a1b1f] border border-zinc-800/90 hover:border-zinc-700/80 rounded-full text-xs text-zinc-300 hover:text-zinc-100 shadow-xl backdrop-blur-md transition-all cursor-pointer select-none group animate-in fade-in slide-in-from-bottom-2 duration-150"
+          >
+            <FileText className="h-3.5 w-3.5 text-zinc-400 group-hover:text-amber-400 transition-colors" />
+            <span className="font-medium text-[12px] tracking-tight">Document</span>
+            {onDismissWriterBadge && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDismissWriterBadge();
+                }}
+                className="p-0.5 -mr-0.5 rounded-full text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 transition-colors cursor-pointer"
+                title="Dismiss"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       <form
         onSubmit={onSubmit}
         className="max-w-3xl mx-auto bg-zinc-900 hover:bg-zinc-900/95 border border-zinc-800 hover:border-zinc-700/80 focus-within:border-zinc-600 rounded-2xl p-3 flex flex-col gap-2 transition-all shadow-2xl relative"

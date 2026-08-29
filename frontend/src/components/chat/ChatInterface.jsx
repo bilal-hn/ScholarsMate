@@ -137,6 +137,7 @@ export default function ChatInterface({
   onOpenSettings,
   hasWriterButton = false,
   onToggleWriter,
+  onDismissWriterBadge,
   isSplitScreen = false,
   targetMessageIndex = null,
   onTargetMessageScrolled,
@@ -472,25 +473,10 @@ export default function ChatInterface({
 
   return (
     <main className="flex-1 flex flex-col bg-zinc-950 h-full relative overflow-hidden text-zinc-200 font-sans transition-colors">
-      {/* Far Right Vertically-Centered Action Dock (Query Navigator + Re-open Document Writer) */}
-      {!isSessionLoading && !isSplitScreen && (
+      {/* Far Right Vertically-Centered Query Navigator */}
+      {!isSessionLoading && !isSplitScreen && messages.length > 0 && (
         <div className="absolute right-3.5 top-1/2 -translate-y-1/2 z-40 flex flex-col items-center gap-2.5">
-          {/* 1. Query Jump Navigator (3-Bars Icon Only) */}
-          {messages.length > 0 && (
-            <QueryNavigator messages={messages} />
-          )}
-
-          {/* 2. Re-open Document Writer (Pen Icon Only, Appears Underneath) */}
-          {hasWriterButton && (
-            <button
-              type="button"
-              onClick={onToggleWriter}
-              title="Open Academic Document Writer"
-              className="p-2.5 rounded-xl bg-zinc-900/90 hover:bg-zinc-800 border border-zinc-800 hover:border-amber-500/40 shadow-xl text-zinc-400 hover:text-amber-300 transition-all cursor-pointer backdrop-blur-md hover:scale-105 flex items-center justify-center group"
-            >
-              <PenTool className="h-4 w-4 stroke-[2] group-hover:rotate-12 transition-transform" />
-            </button>
-          )}
+          <QueryNavigator messages={messages} />
         </div>
       )}
 
@@ -575,6 +561,9 @@ export default function ChatInterface({
         onOpenLitReview={() => setIsLitReviewOpen(true)}
         onExportTranscript={handleExportTranscript}
         onClearMessages={handleClearMessages}
+        hasWriterButton={hasWriterButton}
+        onToggleWriter={onToggleWriter}
+        onDismissWriterBadge={onDismissWriterBadge}
       />
 
       {/* Literature Review Studio Modal */}
