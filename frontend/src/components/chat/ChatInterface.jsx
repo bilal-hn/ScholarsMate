@@ -138,6 +138,8 @@ export default function ChatInterface({
   hasWriterButton = false,
   onToggleWriter,
   isSplitScreen = false,
+  targetMessageIndex = null,
+  onTargetMessageScrolled,
   customKeys
 }) {
   const [messages, setMessages] = useState([]);
@@ -231,6 +233,26 @@ export default function ChatInterface({
       setCurrentMode(defaultGlobal);
     }
   }, [sessionId]);
+
+  // Scroll to targeted message from global search or query jump
+  useEffect(() => {
+    if (targetMessageIndex !== null && targetMessageIndex !== undefined && !isSessionLoading && messages.length > 0) {
+      const timer = setTimeout(() => {
+        const el = document.getElementById(`chat-msg-${targetMessageIndex}`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          el.classList.add('ring-2', 'ring-red-500/50', 'bg-red-500/5', 'rounded-2xl');
+          setTimeout(() => {
+            el.classList.remove('ring-2', 'ring-red-500/50', 'bg-red-500/5', 'rounded-2xl');
+          }, 2500);
+        }
+        if (onTargetMessageScrolled) {
+          onTargetMessageScrolled();
+        }
+      }, 120);
+      return () => clearTimeout(timer);
+    }
+  }, [targetMessageIndex, isSessionLoading, messages, onTargetMessageScrolled]);
 
   const handleModeChange = async (modeId) => {
     setCurrentMode(modeId);

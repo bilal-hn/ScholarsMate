@@ -28,18 +28,10 @@ export default function DocumentSidebar({
   onAuthChange,
   onOpenSettings,
   onOpenThemeModal,
+  onOpenSearchModal,
   isCollapsed = false,
   onToggleCollapse,
 }) {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [isSearching, setIsSearching] = useState(false);
-
-  const filteredWorkspaces = useMemo(() => {
-    if (!searchQuery.trim()) return workspaces;
-    const q = searchQuery.toLowerCase();
-    return workspaces.filter((ws) => ws.name.toLowerCase().includes(q));
-  }, [workspaces, searchQuery]);
-
   return (
     <aside className={`bg-zinc-900/90 border-r border-zinc-800/80 flex flex-col h-full shrink-0 select-none text-zinc-300 font-sans transition-all duration-300 ${
       isCollapsed ? 'w-0 opacity-0 overflow-hidden border-r-0 pointer-events-none' : 'w-60 opacity-100'
@@ -79,39 +71,15 @@ export default function DocumentSidebar({
           <span>New Workspace</span>
         </button>
 
-        {/* Search Toggle / Input */}
-        {isSearching ? (
-          <div className="flex items-center gap-1.5 px-2.5 py-1 bg-zinc-950/60 border border-zinc-800 rounded-lg text-xs">
-            <Search className="h-3.5 w-3.5 text-zinc-500 shrink-0" />
-            <input
-              type="text"
-              placeholder="Filter workspaces..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              autoFocus
-              className="w-full bg-transparent text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none"
-            />
-            <button
-              type="button"
-              onClick={() => {
-                setIsSearching(false);
-                setSearchQuery('');
-              }}
-              className="text-zinc-500 hover:text-zinc-300 cursor-pointer"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        ) : (
-          <button
-            type="button"
-            onClick={() => setIsSearching(true)}
-            className="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-xs text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/30 transition-colors cursor-pointer text-left"
-          >
-            <Search className="h-3.5 w-3.5 text-zinc-500" />
-            <span>Search</span>
-          </button>
-        )}
+        {/* Global Search Modal Navigation Item */}
+        <button
+          type="button"
+          onClick={onOpenSearchModal}
+          className="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-xs text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/30 transition-colors cursor-pointer text-left group"
+        >
+          <Search className="h-3.5 w-3.5 text-zinc-500 group-hover:text-zinc-300 transition-colors" />
+          <span>Search</span>
+        </button>
 
         {/* Literature Review Studio Navigation Item */}
         <button
@@ -157,12 +125,12 @@ export default function DocumentSidebar({
           <span className="text-[10px] text-zinc-600 font-mono">{workspaces.length}</span>
         </div>
 
-        {filteredWorkspaces.length === 0 ? (
-          <div className="px-3 py-6 text-center text-xs text-zinc-600">
-            {searchQuery ? 'No matching workspaces' : 'No workspaces yet'}
+        {workspaces.length === 0 ? (
+          <div className="px-3 py-6 text-center text-xs text-zinc-500 font-mono">
+            No workspaces yet
           </div>
         ) : (
-          filteredWorkspaces.map((ws) => {
+          workspaces.map((ws) => {
             const isActive = ws.id === activeWorkspaceId;
             return (
               <div

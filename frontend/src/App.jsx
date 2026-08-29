@@ -7,6 +7,7 @@ import CreateWorkspaceModal from './components/document/CreateWorkspaceModal';
 import SettingsModal from './components/layout/SettingsModal';
 import LiteratureReviewModal from './components/modals/LiteratureReviewModal';
 import ThemeModal from './components/modals/ThemeModal';
+import GlobalSearchModal from './components/modals/GlobalSearchModal';
 import PdfViewer from './components/viewer/PdfViewer';
 import { 
   getDocuments, 
@@ -30,9 +31,22 @@ export default function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isLitReviewOpen, setIsLitReviewOpen] = useState(false);
   const [isThemeModalOpen, setIsThemeModalOpen] = useState(false);
+  const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
 
   // Active UI Theme
   const [currentTheme, setCurrentTheme] = useState(() => getSavedTheme());
+
+  // Global Cmd+K / Ctrl+K keyboard shortcut for Conversation Search
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setIsSearchModalOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // Sidebar collapsed state
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
@@ -198,6 +212,8 @@ export default function App() {
     }
   }, [activeWorkspace]);
 
+  const [targetMessageIndex, setTargetMessageIndex] = useState(null);
+
   const handleWorkspaceCreated = async (newWorkspace) => {
     await syncUserData();
     if (newWorkspace?.id) {
@@ -206,13 +222,19 @@ export default function App() {
     await fetchDocs();
   };
 
-  const handleSelectWorkspace = (workspaceOrId) => {
+  const handleSelectWorkspace = (workspaceOrId, messageIndex = null) => {
     const wsObj = typeof workspaceOrId === 'object' && workspaceOrId !== null
       ? workspaceOrId
       : workspaces.find((w) => w.id === workspaceOrId);
 
     const targetId = wsObj ? wsObj.id : (typeof workspaceOrId === 'string' ? workspaceOrId : null);
     if (!targetId) return;
+
+    if (messageIndex !== null && messageIndex !== undefined) {
+      setTargetMessageIndex(messageIndex);
+    } else {
+      setTargetMessageIndex(null);
+    }
 
     setActiveWorkspaceId(targetId);
     if (wsObj?.documents && wsObj.documents.length > 0) {
@@ -324,6 +346,7 @@ export default function App() {
         onAuthChange={handleAuthChange}
         onOpenSettings={() => setIsSettingsOpen(true)}
         onOpenThemeModal={() => setIsThemeModalOpen(true)}
+        onOpenSearchModal={() => setIsSearchModalOpen(true)}
         isCollapsed={isSidebarCollapsed}
         onToggleCollapse={handleToggleSidebar}
       />
@@ -379,6 +402,8 @@ export default function App() {
               hasWriterButton={activeWorkspaceId ? openedWriterSessions.has(activeWorkspaceId) && !isWriterOpen : false}
               onToggleWriter={handleToggleWriter}
               isSplitScreen={Boolean(activePdf || isWriterOpen)}
+              targetMessageIndex={targetMessageIndex}
+              onTargetMessageScrolled={() => setTargetMessageIndex(null)}
             />
           </div>
 
@@ -451,6 +476,13 @@ export default function App() {
         onClose={() => setIsThemeModalOpen(false)}
         currentTheme={currentTheme}
         onThemeChange={handleThemeChange}
+      />
+
+      <GlobalSearchModal
+        isOpen={isSearchModalOpen}
+        onClose={() => setIsSearchModalOpen(false)}
+        workspaces={workspaces}
+        onSelectWorkspace={handleSelectWorkspace}
       />
     </div>
   );
