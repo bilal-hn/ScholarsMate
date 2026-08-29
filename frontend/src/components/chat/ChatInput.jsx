@@ -6,13 +6,19 @@ import {
   Plus, 
   Key, 
   Check, 
-  Sparkles, 
   FileText,
   Search,
-  Terminal,
+  LayoutGrid,
   Clock,
   Cpu,
-  Layers
+  Layers,
+  BookOpen,
+  Download,
+  Trash2,
+  CheckSquare,
+  Square,
+  Eye,
+  Edit2
 } from 'lucide-react';
 
 export const SLASH_COMMANDS = [
@@ -35,12 +41,27 @@ export default function ChatInput({
   availableDocuments = [],
   telemetry = null, // { responseTime, tokenUsage, docCount, isCached }
   customLenses = [],
+  currentMode = 'research',
+  onModeChange,
+  allAvailableModes = [],
+  onOpenInspector,
+  onOpenCustomLensModal,
+  documents = [],
+  selectedDocs = [],
+  setSelectedDocs,
+  onOpenLitReview,
+  onExportTranscript,
+  onClearMessages,
 }) {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isLensDropdownOpen, setIsLensDropdownOpen] = useState(false);
+  const [isMatrixMenuOpen, setIsMatrixMenuOpen] = useState(false);
   const [expandedProvider, setExpandedProvider] = useState(null);
-  const [activeMode, setActiveMode] = useState('chat'); // 'agent' | 'chat'
   const [isDeepSearchActive, setIsDeepSearchActive] = useState(false);
+  
   const dropdownRef = useRef(null);
+  const lensDropdownRef = useRef(null);
+  const matrixMenuRef = useRef(null);
   const textareaRef = useRef(null);
 
   // Combine default and custom slash commands
@@ -307,6 +328,12 @@ export default function ChatInput({
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setIsDropdownOpen(false);
       }
+      if (lensDropdownRef.current && !lensDropdownRef.current.contains(event.target)) {
+        setIsLensDropdownOpen(false);
+      }
+      if (matrixMenuRef.current && !matrixMenuRef.current.contains(event.target)) {
+        setIsMatrixMenuOpen(false);
+      }
       if (mentionMenuRef.current && !mentionMenuRef.current.contains(event.target)) {
         setShowMentionMenu(false);
       }
@@ -318,8 +345,42 @@ export default function ChatInput({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const toggleDoc = (docName) => {
+    if (!setSelectedDocs) return;
+    if (selectedDocs.includes(docName)) {
+      setSelectedDocs(selectedDocs.filter((name) => name !== docName));
+    } else {
+      setSelectedDocs([...selectedDocs, docName]);
+    }
+  };
+
+  const toggleSelectAll = () => {
+    if (!setSelectedDocs) return;
+    if (selectedDocs.length === documents.length) {
+      setSelectedDocs([]);
+    } else {
+      setSelectedDocs(documents.map((d) => d.doc_name));
+    }
+  };
+
+  const getScopeLabel = () => {
+    if (!documents || documents.length === 0) return 'No papers';
+    if (selectedDocs.length === 0 || selectedDocs.length === documents.length) {
+      return `All (${documents.length})`;
+    }
+    return `${selectedDocs.length} of ${documents.length}`;
+  };
+
   const selectedModelObj = filteredModels.find((m) => m.id === currentModel) || filteredModels[0];
   const currentFormatted = formatModelInfo(selectedModelObj);
+
+  const activeModeObj = useMemo(() => {
+    return allAvailableModes.find((m) => m.id === currentMode) || allAvailableModes[0] || {
+      id: 'research',
+      name: 'Research Synthesizer',
+      short_name: 'Research',
+    };
+  }, [allAvailableModes, currentMode]);
 
   return (
     <div className="w-full px-4 pb-4 pt-1 bg-gradient-to-t from-zinc-950 via-zinc-950/90 to-transparent shrink-0 relative z-30 transition-colors">
@@ -368,10 +429,10 @@ export default function ChatInput({
         {showMentionMenu && matchingDocuments.length > 0 && (
           <div
             ref={mentionMenuRef}
-            className="absolute bottom-full left-3 mb-2.5 w-76 max-h-52 overflow-y-auto bg-zinc-900/95 border border-zinc-800 rounded-xl p-1.5 shadow-2xl backdrop-blur-xl z-50 animate-in fade-in zoom-in-95 duration-100"
+            className="absolute bottom-full left-3 mb-2.5 w-80 max-h-60 overflow-y-auto bg-zinc-900/95 border border-zinc-800 rounded-xl p-1.5 shadow-2xl backdrop-blur-xl z-50 animate-in fade-in zoom-in-95 duration-100"
           >
-            <div className="text-[10px] font-semibold text-zinc-500 uppercase px-2 py-1 tracking-wider border-b border-zinc-800/80 mb-1 flex items-center justify-between">
-              <span>Target Research Paper</span>
+            <div className="text-[10px] font-semibold text-zinc-500 uppercase px-2 py-1 tracking-wider border-b border-zinc-800/80 mb-1 flex items-center justify-between font-mono">
+              <span>Indexed Research Documents</span>
               <span className="text-[9px] text-zinc-600 font-normal">↵ to tag</span>
             </div>
             <div className="space-y-0.5">
@@ -383,14 +444,14 @@ export default function ChatInput({
                     type="button"
                     onClick={() => selectDocumentTag(doc)}
                     onMouseEnter={() => setMentionIndex(idx)}
-                    className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left text-xs transition-colors cursor-pointer ${
+                    className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-left text-xs transition-colors cursor-pointer ${
                       isFocused
                         ? 'bg-zinc-800 text-amber-300 font-medium'
                         : 'text-zinc-300 hover:bg-zinc-800/50'
                     }`}
                   >
-                    <FileText className={`h-3.5 w-3.5 shrink-0 ${isFocused ? 'text-amber-400' : 'text-zinc-500'}`} />
-                    <span className="truncate">{doc}</span>
+                    <FileText className="h-3.5 w-3.5 text-zinc-400 shrink-0" />
+                    <span className="truncate flex-1 font-mono text-[11.5px]">{doc}</span>
                   </button>
                 );
               })}
@@ -409,10 +470,118 @@ export default function ChatInput({
           className="w-full bg-transparent text-[13.5px] text-zinc-100 placeholder-zinc-500 focus:outline-none resize-none px-2 pt-1 font-sans leading-relaxed"
         />
 
-        {/* Bottom Control & Tool Row (Odysseus Style) */}
+        {/* Bottom Control & Tool Row */}
         <div className="flex items-center justify-between pt-0.5 px-1">
-          {/* Left Action Toolbar + Live Telemetry */}
+          {/* Left Action Toolbar */}
           <div className="flex items-center gap-1.5">
+            {/* 9-Dots Matrix Menu Button */}
+            <div className="relative" ref={matrixMenuRef}>
+              <button
+                type="button"
+                onClick={() => setIsMatrixMenuOpen((prev) => !prev)}
+                title="Workspace Tools & Scoped Documents"
+                className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                  isMatrixMenuOpen
+                    ? 'text-amber-400 bg-zinc-800'
+                    : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/60'
+                }`}
+              >
+                <LayoutGrid className="h-3.5 w-3.5" />
+              </button>
+
+              {/* 9-Dots Matrix Menu Popover */}
+              {isMatrixMenuOpen && (
+                <div className="absolute bottom-full left-0 mb-2.5 w-80 bg-zinc-900 border border-zinc-800 rounded-xl p-2 shadow-2xl backdrop-blur-xl z-50 text-zinc-200 animate-in fade-in zoom-in-95 duration-100">
+                  {/* Scoped Documents Header */}
+                  <div className="px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-500 font-mono border-b border-zinc-800 mb-1.5 flex items-center justify-between">
+                    <span>Scoped Documents ({getScopeLabel()})</span>
+                    {documents.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={toggleSelectAll}
+                        className="text-amber-400 hover:underline cursor-pointer lowercase font-sans font-normal text-[10.5px]"
+                      >
+                        
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Scoped Documents List */}
+                  <div className="max-h-40 overflow-y-auto space-y-0.5 pr-0.5 mb-2 border-b border-zinc-800/80 pb-1.5">
+                    {documents.length === 0 ? (
+                      <p className="text-[11px] text-zinc-500 py-2 text-center font-mono">No PDFs indexed in this workspace.</p>
+                    ) : (
+                      documents.map((doc) => {
+                        const isSelected = selectedDocs.length === 0 || selectedDocs.includes(doc.doc_name);
+                        return (
+                          <div
+                            key={doc.doc_name}
+                            onClick={() => toggleDoc(doc.doc_name)}
+                            className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs cursor-pointer transition-colors ${
+                              isSelected
+                                ? 'bg-zinc-800 text-zinc-100 font-medium'
+                                : 'text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200'
+                            }`}
+                          >
+                            {isSelected ? (
+                              <CheckSquare className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                            ) : (
+                              <Square className="h-3.5 w-3.5 text-zinc-600 shrink-0" />
+                            )}
+                            <span className="truncate flex-1 text-[11.5px]">{doc.doc_name}</span>
+                            <span className="text-[9.5px] font-mono text-zinc-500">{doc.chunk_count}c</span>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+
+                  {/* Tools & Actions */}
+                  <div className="space-y-0.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (onOpenLitReview) onOpenLitReview();
+                        setIsMatrixMenuOpen(false);
+                      }}
+                      className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-zinc-300 hover:text-amber-300 hover:bg-zinc-800/60 transition-colors cursor-pointer text-left"
+                    >
+                      <BookOpen className="h-3.5 w-3.5 text-zinc-400" />
+                      <span>Literature Review Studio</span>
+                    </button>
+
+                    {onExportTranscript && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onExportTranscript();
+                          setIsMatrixMenuOpen(false);
+                        }}
+                        className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800/60 transition-colors cursor-pointer text-left"
+                      >
+                        <Download className="h-3.5 w-3.5 text-zinc-400" />
+                        <span>Export Chat Transcript</span>
+                      </button>
+                    )}
+
+                    {onClearMessages && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onClearMessages();
+                          setIsMatrixMenuOpen(false);
+                        }}
+                        className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-rose-400/90 hover:text-rose-300 hover:bg-rose-500/10 transition-colors cursor-pointer text-left"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        <span>Clear Chat History</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Search Tool Toggle */}
             <button
               type="button"
@@ -427,15 +596,6 @@ export default function ChatInput({
               <Search className="h-3.5 w-3.5" />
             </button>
 
-            {/* Terminal / Analysis Mode */}
-            <button
-              type="button"
-              title="Academic Prompt Mode"
-              className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/60 transition-colors cursor-pointer"
-            >
-              <Terminal className="h-3.5 w-3.5" />
-            </button>
-
             {/* Attach File Button */}
             <button
               type="button"
@@ -446,35 +606,108 @@ export default function ChatInput({
             </button>
           </div>
 
-          {/* Right Controls: Model Pill, Mode Switch, and Submit */}
+          {/* Right Controls: Academic Lens Selector, Model Pill, Submit */}
           <div className="flex items-center gap-2">
-            {/* Mode Switch: Agent | Chat */}
-            <div className="flex items-center bg-zinc-900 border border-zinc-800/80 rounded-lg p-0.5 text-[11px] font-medium text-zinc-400 select-none">
+            {/* Academic Lens Selector Pill */}
+            <div className="relative" ref={lensDropdownRef}>
               <button
                 type="button"
-                onClick={() => setActiveMode('agent')}
-                className={`px-2 py-0.5 rounded-md transition-all cursor-pointer ${
-                  activeMode === 'agent'
-                    ? 'bg-zinc-800 text-amber-300 font-semibold shadow-xs'
-                    : 'hover:text-zinc-200'
-                }`}
+                onClick={() => setIsLensDropdownOpen((prev) => !prev)}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-zinc-300 hover:text-zinc-100 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 transition-all cursor-pointer select-none"
+                title={`Active Lens: ${activeModeObj?.name || 'Academic Lens'}`}
               >
-                Agent
+                <span>{activeModeObj?.short_name || activeModeObj?.name || 'Research'}</span>
+                <ChevronDown className={`h-3 w-3 text-zinc-500 transition-transform duration-150 ${isLensDropdownOpen ? 'rotate-180 text-amber-400' : ''}`} />
               </button>
-              <button
-                type="button"
-                onClick={() => setActiveMode('chat')}
-                className={`px-2 py-0.5 rounded-md transition-all cursor-pointer ${
-                  activeMode === 'chat'
-                    ? 'bg-zinc-800 text-zinc-100 font-semibold shadow-xs'
-                    : 'hover:text-zinc-200'
-                }`}
-              >
-                Chat
-              </button>
+
+              {/* Lens Selector Popover */}
+              {isLensDropdownOpen && (
+                <div className="absolute bottom-full right-0 mb-2.5 w-80 rounded-xl bg-zinc-900 border border-zinc-800 shadow-2xl p-1.5 z-50 text-xs animate-in fade-in zoom-in-95 duration-150 max-h-[70vh] overflow-y-auto">
+                  <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-500 font-mono border-b border-zinc-800/80 mb-1 flex items-center justify-between">
+                    <span>Academic Reasoning Lens</span>
+                  </div>
+
+                  <div className="space-y-0.5">
+                    {(allAvailableModes || []).map((mode) => {
+                      const isSelected = mode.id === currentMode;
+                      return (
+                        <div
+                          key={mode.id}
+                          onClick={() => {
+                            if (onModeChange) onModeChange(mode.id);
+                            setIsLensDropdownOpen(false);
+                          }}
+                          className={`w-full flex items-start justify-between px-2.5 py-2 rounded-lg text-left transition-colors cursor-pointer group ${
+                            isSelected ? 'bg-zinc-800 text-zinc-100 font-medium' : 'hover:bg-zinc-800/50 text-zinc-400 hover:text-zinc-200'
+                          }`}
+                        >
+                          <div className="flex-1 min-w-0 pr-2">
+                            <div className="flex items-center justify-between">
+                              <span className={`text-[12px] ${isSelected ? 'text-zinc-100 font-semibold' : 'text-zinc-300'}`}>
+                                {mode.name}
+                              </span>
+                            </div>
+                            <p className="text-[10.5px] text-zinc-500 leading-tight mt-0.5 truncate">{mode.tagline || mode.description}</p>
+                          </div>
+
+                          <div className="flex items-center gap-1 shrink-0 mt-0.5">
+                            {onOpenInspector && (
+                              <button
+                                type="button"
+                                title="Inspect System Prompt"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onOpenInspector(mode, e);
+                                  setIsLensDropdownOpen(false);
+                                }}
+                                className="p-1 rounded text-zinc-500 hover:text-amber-300 hover:bg-zinc-700/60 transition-colors"
+                              >
+                                <Eye className="h-3 w-3" />
+                              </button>
+                            )}
+                            {mode.isCustom && onOpenCustomLensModal && (
+                              <button
+                                type="button"
+                                title="Edit Custom Lens"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onOpenCustomLensModal(mode, e);
+                                  setIsLensDropdownOpen(false);
+                                }}
+                                className="p-1 rounded text-zinc-500 hover:text-zinc-200 hover:bg-zinc-700/60 transition-colors"
+                              >
+                                <Edit2 className="h-3 w-3" />
+                              </button>
+                            )}
+                            {isSelected && <Check className="h-3.5 w-3.5 text-amber-400 ml-1" />}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Create Custom Lens Button */}
+                  {onOpenCustomLensModal && (
+                    <div className="mt-1.5 pt-1.5 border-t border-zinc-800/80">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onOpenCustomLensModal(null, e);
+                          setIsLensDropdownOpen(false);
+                        }}
+                        className="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 bg-zinc-800/60 hover:bg-zinc-800 text-zinc-300 hover:text-zinc-100 border border-zinc-700/50 rounded-lg text-xs font-medium transition-colors cursor-pointer"
+                      >
+                        <Plus className="h-3.5 w-3.5 text-amber-400" />
+                        <span>Create Custom Lens</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
-            {/* Model Selector Pill (with Odysseus-style '@' prefix) */}
+            {/* Model Selector Pill */}
             {filteredModels && filteredModels.length > 0 ? (
               <div className="relative" ref={dropdownRef}>
                 <button
@@ -509,8 +742,8 @@ export default function ChatInput({
                               type="button"
                               onClick={() => setExpandedProvider(isExpanded ? null : providerKey)}
                               className={`w-full flex items-center justify-between px-2.5 py-1.5 text-xs font-medium cursor-pointer transition-colors ${
-                                hasActiveModel ? 'text-amber-400 font-semibold' : 'text-zinc-300 hover:text-white'
-                              } hover:bg-zinc-800/50`}
+                                hasActiveModel ? 'text-amber-400 font-semibold' : 'text-zinc-300 hover:bg-zinc-800/50 hover:text-white'
+                              }`}
                             >
                               <div className="flex items-center gap-1.5 truncate">
                                 <span className="uppercase tracking-wide text-[11px]">{providerKey}</span>
@@ -552,7 +785,7 @@ export default function ChatInput({
                                       </div>
 
                                       {isSelected && (
-                                        <Check className="h-3 w-3 text-amber-400 shrink-0" />
+                                        <Check className="h-3.5 w-3.5 text-amber-400 shrink-0" />
                                       )}
                                     </div>
                                   );
@@ -577,7 +810,7 @@ export default function ChatInput({
               </button>
             )}
 
-            {/* Circular Coral / Salmon Red Submit Button (Odysseus Style) */}
+            {/* Submit Button */}
             <button
               type="submit"
               disabled={loading || !input.trim()}

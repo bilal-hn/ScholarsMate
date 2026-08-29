@@ -2,26 +2,18 @@ import React, { useState, useRef, useEffect } from 'react';
 import { 
   Compass, 
   Loader2, 
-  BookOpen, 
-  ChevronDown, 
   Check, 
-  Microscope, 
-  Brain, 
-  ShieldAlert, 
-  BarChart3, 
-  Library,
-  Eye,
-  Plus,
-  Edit2,
-  Trash2,
-  Sparkles
+  Eye, 
+  Plus, 
+  Edit2, 
+  Trash2, 
+  Sparkles 
 } from 'lucide-react';
-import DocumentSelector from '../document/DocumentSelector';
 import ChatMessage from './ChatMessage';
 import ChatInput from './ChatInput';
 import LiteratureReviewModal from '../modals/LiteratureReviewModal';
 import PromptInspectorModal from '../modals/PromptInspectorModal';
-import CustomLensModal, { ICON_MAP } from '../modals/CustomLensModal';
+import CustomLensModal from '../modals/CustomLensModal';
 import { 
   sendQuery, 
   generateLiteratureReviewAPI, 
@@ -38,8 +30,6 @@ export const ACADEMIC_MODES = [
     id: 'research',
     name: 'Research Synthesizer',
     short_name: 'Research',
-    icon: Microscope,
-    badgeColor: 'text-amber-400 bg-amber-400/10 border-amber-400/30',
     tagline: 'Rigorous, citation-dense academic analysis',
     description: 'Publication-grade synthesis, benchmark tables, and methodology trade-offs.',
     temperature: 0.0,
@@ -56,8 +46,6 @@ export const ACADEMIC_MODES = [
     id: 'socratic',
     name: 'Socratic Tutor',
     short_name: 'Socratic Tutor',
-    icon: Brain,
-    badgeColor: 'text-emerald-400 bg-emerald-400/10 border-emerald-400/30',
     tagline: 'Intuitive clarity & Feynman first-principles',
     description: 'Explains complex papers intuitively using real-world analogies, step-by-step logic, and adaptive check questions.',
     temperature: 0.2,
@@ -79,8 +67,6 @@ Pedagogical Rules:
     id: 'reviewer',
     name: 'Peer Reviewer',
     short_name: 'Peer Reviewer',
-    icon: ShieldAlert,
-    badgeColor: 'text-rose-400 bg-rose-400/10 border-rose-400/30',
     tagline: 'Critical red-team audit & limitation analysis',
     description: 'Audits methodology, unstated assumptions, and potential vulnerabilities.',
     temperature: 0.1,
@@ -99,8 +85,6 @@ Structure your critique as follows:
     id: 'executive',
     name: 'Executive Brief',
     short_name: 'Executive Brief',
-    icon: BarChart3,
-    badgeColor: 'text-blue-400 bg-blue-400/10 border-blue-400/30',
     tagline: 'High-density TL;DR & key takeaways',
     description: 'Core innovations, quantitative highlights, and 3 actionable takeaways.',
     temperature: 0.0,
@@ -120,8 +104,6 @@ Format strictly under these 4 section headers:
     id: 'survey',
     name: 'Literature Survey',
     short_name: 'Literature Survey',
-    icon: Library,
-    badgeColor: 'text-purple-400 bg-purple-400/10 border-purple-400/30',
     tagline: 'Cross-paper synthesis & timeline mapping',
     description: 'Groups approaches by school of thought, comparative matrix, and research gaps.',
     temperature: 0.0,
@@ -154,9 +136,10 @@ export default function ChatInterface({
 }) {
   const [messages, setMessages] = useState([]);
   const [activeSessionId, setActiveSessionId] = useState(sessionId || null);
-  const [currentMode, setCurrentMode] = useState('research');
+  const [currentMode, setCurrentMode] = useState(() => {
+    return localStorage.getItem('scholarsmate_global_default_mode') || 'research';
+  });
   const [customLenses, setCustomLenses] = useState([]);
-  const [isModeDropdownOpen, setIsModeDropdownOpen] = useState(false);
   const [inspectingMode, setInspectingMode] = useState(null);
   const [isInspectorOpen, setIsInspectorOpen] = useState(false);
   const [editingLens, setEditingLens] = useState(null);
@@ -167,7 +150,6 @@ export default function ChatInterface({
   const [isLitReviewOpen, setIsLitReviewOpen] = useState(false);
   const [telemetry, setTelemetry] = useState(null); // { responseTime: '1.2s', tokenUsage: 280, docCount: 4 }
   const messagesEndRef = useRef(null);
-  const modeDropdownRef = useRef(null);
 
   // Load custom lenses from localStorage on mount
   useEffect(() => {
@@ -178,22 +160,10 @@ export default function ChatInterface({
   const allAvailableModes = React.useMemo(() => {
     const formattedCustom = (customLenses || []).map((c) => ({
       ...c,
-      icon: ICON_MAP[c.iconName] || Sparkles,
       isCustom: true,
     }));
     return [...ACADEMIC_MODES, ...formattedCustom];
   }, [customLenses]);
-
-  // Close mode dropdown on outside click
-  useEffect(() => {
-    const handleOutsideClick = (e) => {
-      if (modeDropdownRef.current && !modeDropdownRef.current.contains(e.target)) {
-        setIsModeDropdownOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleOutsideClick);
-    return () => document.removeEventListener('mousedown', handleOutsideClick);
-  }, []);
 
   // Extract raw string document names for @ mention autocomplete
   const availableDocNames = (documents || [])
@@ -245,13 +215,13 @@ export default function ChatInterface({
         });
     } else {
       setMessages([]);
-      setCurrentMode('research');
+      const defaultGlobal = localStorage.getItem('scholarsmate_global_default_mode') || 'research';
+      setCurrentMode(defaultGlobal);
     }
   }, [sessionId]);
 
   const handleModeChange = async (modeId) => {
     setCurrentMode(modeId);
-    setIsModeDropdownOpen(false);
     if (activeSessionId) {
       try {
         await updateSessionModeAPI(activeSessionId, modeId);
@@ -442,162 +412,32 @@ export default function ChatInterface({
     return await generateLiteratureReviewAPI(config);
   };
 
+  const handleExportTranscript = () => {
+    if (!messages || messages.length === 0) return;
+    const mdContent = messages.map((m) => {
+      const header = m.sender === 'user' ? '### 👤 User' : '### 🤖 ScholarsMate';
+      return `${header}\n\n${m.text}\n\n---\n`;
+    }).join('\n');
+
+    const blob = new Blob([mdContent], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `scholarsmate-chat-${new Date().toISOString().slice(0, 10)}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleClearMessages = () => {
+    if (window.confirm('Clear all messages in this research chat?')) {
+      setMessages([]);
+    }
+  };
+
   const isHeroEmpty = messages.length === 0;
 
   return (
     <main className="flex-1 flex flex-col bg-zinc-950 h-full relative overflow-hidden text-zinc-200 font-sans transition-colors">
-      {/* Top Header Bar */}
-      <div className="px-5 py-2.5 bg-zinc-950/95 border-b border-zinc-800/60 flex items-center justify-between shrink-0 z-20">
-        <div className="flex items-center gap-2.5">
-          <DocumentSelector
-            documents={documents}
-            selectedDocs={selectedDocs}
-            setSelectedDocs={setSelectedDocs}
-          />
-
-          {/* Academic Reasoning Lens / Mode Selector */}
-          <div className="relative" ref={modeDropdownRef}>
-            <button
-              type="button"
-              onClick={() => setIsModeDropdownOpen((prev) => !prev)}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11.5px] font-medium border transition-all cursor-pointer ${activeModeObj.badgeColor}`}
-              title={`Active Lens: ${activeModeObj.name} - ${activeModeObj.tagline}`}
-            >
-              <ActiveModeIcon className="h-3.5 w-3.5" />
-              <span>{activeModeObj.short_name}</span>
-              <ChevronDown className={`h-3 w-3 opacity-70 transition-transform ${isModeDropdownOpen ? 'rotate-180' : ''}`} />
-            </button>
-
-            {isModeDropdownOpen && (
-              <div className="absolute left-0 mt-1.5 w-80 rounded-xl bg-zinc-900 border border-zinc-800 shadow-2xl p-1.5 z-50 text-xs animate-in fade-in zoom-in-95 duration-150 max-h-[80vh] overflow-y-auto">
-                <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-500 font-mono border-b border-zinc-800/80 mb-1 flex items-center justify-between">
-                  <span>Core Academic Lenses</span>
-                </div>
-
-                <div className="space-y-1">
-                  {ACADEMIC_MODES.map((mode) => {
-                    const ModeIcon = mode.icon;
-                    const isSelected = mode.id === currentMode;
-                    return (
-                      <div
-                        key={mode.id}
-                        onClick={() => handleModeChange(mode.id)}
-                        className={`w-full flex items-start gap-2.5 px-2.5 py-2 rounded-lg text-left transition-colors cursor-pointer group ${
-                          isSelected ? 'bg-zinc-800 text-zinc-100' : 'hover:bg-zinc-800/60 text-zinc-300'
-                        }`}
-                      >
-                        <div className={`p-1 rounded-md mt-0.5 ${mode.badgeColor}`}>
-                          <ModeIcon className="h-3.5 w-3.5" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between">
-                            <span className="font-semibold text-zinc-200">{mode.name}</span>
-                            <div className="flex items-center gap-1">
-                              <button
-                                type="button"
-                                title="Inspect System Prompt"
-                                onClick={(e) => handleOpenInspector(mode, e)}
-                                className="p-1 rounded text-zinc-400 hover:text-amber-300 hover:bg-zinc-700/60 transition-colors"
-                              >
-                                <Eye className="h-3 w-3" />
-                              </button>
-                              {isSelected && <Check className="h-3.5 w-3.5 text-amber-400" />}
-                            </div>
-                          </div>
-                          <p className="text-[11px] text-zinc-400 mt-0.5 leading-tight">{mode.tagline}</p>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* Custom Lenses Section */}
-                {customLenses && customLenses.length > 0 && (
-                  <div className="mt-2 pt-2 border-t border-zinc-800/80">
-                    <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-amber-400/80 font-mono mb-1">
-                      Custom Academic Lenses
-                    </div>
-                    <div className="space-y-1">
-                      {customLenses.map((lens) => {
-                        const LensIcon = ICON_MAP[lens.iconName] || Sparkles;
-                        const isSelected = lens.id === currentMode;
-                        return (
-                          <div
-                            key={lens.id}
-                            onClick={() => handleModeChange(lens.id)}
-                            className={`w-full flex items-start gap-2.5 px-2.5 py-2 rounded-lg text-left transition-colors cursor-pointer group ${
-                              isSelected ? 'bg-zinc-800 text-zinc-100' : 'hover:bg-zinc-800/60 text-zinc-300'
-                            }`}
-                          >
-                            <div className={`p-1 rounded-md mt-0.5 ${lens.badgeColor}`}>
-                              <LensIcon className="h-3.5 w-3.5" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center justify-between">
-                                <span className="font-semibold text-zinc-200">{lens.name}</span>
-                                <div className="flex items-center gap-1">
-                                  <button
-                                    type="button"
-                                    title="Inspect Prompt"
-                                    onClick={(e) => handleOpenInspector(lens, e)}
-                                    className="p-1 rounded text-zinc-400 hover:text-amber-300 hover:bg-zinc-700/60 transition-colors"
-                                  >
-                                    <Eye className="h-3 w-3" />
-                                  </button>
-                                  <button
-                                    type="button"
-                                    title="Edit Lens"
-                                    onClick={(e) => handleOpenCustomLensModal(lens, e)}
-                                    className="p-1 rounded text-zinc-400 hover:text-zinc-200 hover:bg-zinc-700/60 transition-colors"
-                                  >
-                                    <Edit2 className="h-3 w-3" />
-                                  </button>
-                                  {isSelected && <Check className="h-3.5 w-3.5 text-amber-400" />}
-                                </div>
-                              </div>
-                              <p className="text-[11px] text-zinc-400 mt-0.5 leading-tight">{lens.tagline}</p>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {/* Create Custom Lens Trigger */}
-                <div className="mt-2 pt-2 border-t border-zinc-800/80">
-                  <button
-                    type="button"
-                    onClick={(e) => handleOpenCustomLensModal(null, e)}
-                    className="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 bg-zinc-800/80 hover:bg-zinc-800 text-amber-300 hover:text-amber-200 border border-zinc-700/60 rounded-lg text-xs font-medium transition-colors cursor-pointer"
-                  >
-                    <Plus className="h-3.5 w-3.5 text-amber-400" />
-                    <span>Create Custom Lens</span>
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Center Minimal Workspace Identifier */}
-        <div className="hidden sm:flex items-center gap-1 text-xs text-zinc-400 font-medium">
-          <span>{activeSessionId ? 'Current Research Workspace' : 'New Chat'}</span>
-        </div>
-
-        {/* Right Minimal Literature Review Trigger */}
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setIsLitReviewOpen(true)}
-            className="flex items-center gap-1.5 px-2.5 py-1 bg-zinc-900/90 hover:bg-zinc-800 border border-zinc-800/80 hover:border-amber-500/40 text-amber-300 text-[11.5px] font-medium rounded-lg transition-colors cursor-pointer"
-          >
-            <BookOpen className="h-3 w-3 text-amber-400" />
-            <span>Lit Review Studio</span>
-          </button>
-        </div>
-      </div>
-
       {/* Main Content Area */}
       {isHeroEmpty ? (
         /* Minimalist Hero Empty State */
@@ -646,7 +486,7 @@ export default function ChatInterface({
         </div>
       )}
 
-      {/* Floating Chat Input with Telemetry */}
+      {/* Floating Chat Input with 9-Dots Matrix Menu, Scoped Docs, and Minimal Lens Selector */}
       <ChatInput
         input={input}
         setInput={setInput}
@@ -659,6 +499,17 @@ export default function ChatInterface({
         availableDocuments={availableDocNames}
         telemetry={telemetry}
         customLenses={customLenses}
+        currentMode={currentMode}
+        onModeChange={handleModeChange}
+        allAvailableModes={allAvailableModes}
+        onOpenInspector={handleOpenInspector}
+        onOpenCustomLensModal={handleOpenCustomLensModal}
+        documents={documents}
+        selectedDocs={selectedDocs}
+        setSelectedDocs={setSelectedDocs}
+        onOpenLitReview={() => setIsLitReviewOpen(true)}
+        onExportTranscript={handleExportTranscript}
+        onClearMessages={handleClearMessages}
       />
 
       {/* Literature Review Studio Modal */}

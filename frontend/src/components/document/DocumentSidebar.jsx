@@ -9,10 +9,21 @@ import {
   Compass, 
   Palette,
   Check,
-  X
+  X,
+  Sparkles,
+  SlidersHorizontal
 } from 'lucide-react';
 import { AuthProfile } from '../layout/AuthProfile';
 import { APP_CONFIG, THEMES } from '../../theme/constants';
+import { getCustomLenses } from '../../services/api';
+
+const CORE_LENSES = [
+  { id: 'research', name: 'Research Synthesizer', short_name: 'Research' },
+  { id: 'socratic', name: 'Socratic Tutor', short_name: 'Tutor' },
+  { id: 'reviewer', name: 'Peer Reviewer', short_name: 'Reviewer' },
+  { id: 'executive', name: 'Executive Brief', short_name: 'Brief' },
+  { id: 'survey', name: 'Literature Survey', short_name: 'Survey' },
+];
 
 export default function DocumentSidebar({
   workspaces = [],
@@ -27,11 +38,40 @@ export default function DocumentSidebar({
   onOpenSettings,
   currentTheme = 'odysseus',
   onThemeChange,
+  onGlobalLensChange,
 }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [isThemeMenuOpen, setIsThemeMenuOpen] = useState(false);
+  const [isLensMenuOpen, setIsLensMenuOpen] = useState(false);
+  const [globalLens, setGlobalLens] = useState(() => {
+    return localStorage.getItem('scholarsmate_global_default_mode') || 'research';
+  });
+  const [customLenses, setCustomLenses] = useState([]);
+
   const themeMenuRef = useRef(null);
+  const lensMenuRef = useRef(null);
+
+  useEffect(() => {
+    setCustomLenses(getCustomLenses() || []);
+  }, []);
+
+  const allAvailableLenses = useMemo(() => {
+    const custom = (customLenses || []).map((c) => ({
+      id: c.id,
+      name: c.name,
+      short_name: c.short_name || c.name,
+      isCustom: true
+    }));
+    return [...CORE_LENSES, ...custom];
+  }, [customLenses]);
+
+  const handleSelectGlobalLens = (lensId) => {
+    setGlobalLens(lensId);
+    localStorage.setItem('scholarsmate_global_default_mode', lensId);
+    if (onGlobalLensChange) onGlobalLensChange(lensId);
+    setIsLensMenuOpen(false);
+  };
 
   const filteredWorkspaces = useMemo(() => {
     if (!searchQuery.trim()) return workspaces;
@@ -39,22 +79,26 @@ export default function DocumentSidebar({
     return workspaces.filter((ws) => ws.name.toLowerCase().includes(q));
   }, [workspaces, searchQuery]);
 
-  // Close theme popover on outside click
+  // Close menus on outside click
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (themeMenuRef.current && !themeMenuRef.current.contains(e.target)) {
         setIsThemeMenuOpen(false);
       }
+      if (lensMenuRef.current && !lensMenuRef.current.contains(e.target)) {
+        setIsLensMenuOpen(false);
+      }
     };
-    if (isThemeMenuOpen) {
+    if (isThemeMenuOpen || isLensMenuOpen) {
       document.addEventListener('mousedown', handleClickOutside);
     }
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [isThemeMenuOpen]);
+  }, [isThemeMenuOpen, isLensMenuOpen]);
 
   const activeThemeObj = THEMES.find((t) => t.id === currentTheme) || THEMES[0];
+  const activeGlobalLensObj = allAvailableLenses.find((l) => l.id === globalLens) || allAvailableLenses[0];
 
   return (
     <aside className="w-60 bg-zinc-900/90 border-r border-zinc-800/80 flex flex-col h-full shrink-0 select-none text-zinc-300 font-sans transition-colors">
@@ -160,10 +204,10 @@ export default function DocumentSidebar({
             return (
               <div
                 key={ws.id}
-                onClick={() => onSelectWorkspace(ws)}
-                className={`group flex items-center justify-between px-3 py-2 rounded-lg text-xs cursor-pointer transition-all ${
+                onClick={() => onSelectWorkspace(ws.id)}
+                className={`group flex items-center justify-between px-3 py-2 rounded-lg text-xs cursor-pointer transition-colors ${
                   isActive
-                    ? 'bg-zinc-800/80 text-zinc-100 font-medium text-amber-300'
+                    ? 'bg-zinc-800 text-zinc-100 font-medium'
                     : 'text-zinc-400 hover:bg-zinc-800/40 hover:text-zinc-200'
                 }`}
               >
@@ -189,11 +233,55 @@ export default function DocumentSidebar({
         )}
       </div>
 
-      {/* Footer: User Profile, Theme Selector & Settings */}
+      {/* Footer: User Profile, Global Lens, Theme Selector & Settings */}
       <div className="border-t border-zinc-800/80 bg-zinc-950/60 p-2 relative">
         <div className="flex items-center justify-between gap-1.5">
           <div className="min-w-0 flex-1">
             <AuthProfile onAuthChange={onAuthChange} />
+          </div>
+
+          {/* Global Default Lens Selector Popover Button */}
+          <div className="relative" ref={lensMenuRef}>
+            <button
+              type="button"
+              onClick={() => setIsLensMenuOpen((prev) => !prev)}
+              title={`Global Default Lens: ${activeGlobalLensObj.name}`}
+              className="p-1.5 rounded-lg text-zinc-400 hover:text-amber-400 hover:bg-zinc-800/70 transition-colors cursor-pointer shrink-0"
+            >
+              <SlidersHorizontal className="h-4 w-4" />
+            </button>
+
+            {/* Global Lens Popover Menu */}
+            {isLensMenuOpen && (
+              <div className="absolute bottom-full right-0 mb-2 w-60 bg-zinc-900 border border-zinc-800 rounded-xl p-1.5 shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-100 backdrop-blur-xl">
+                <div className="px-2.5 py-1.5 text-[10.5px] font-semibold text-zinc-500 uppercase tracking-wider border-b border-zinc-800/80 mb-1 flex items-center justify-between font-mono">
+                  <span>Default Global Lens</span>
+                </div>
+
+                <div className="space-y-0.5 max-h-56 overflow-y-auto">
+                  {allAvailableLenses.map((lens) => {
+                    const isSelected = lens.id === globalLens;
+                    return (
+                      <button
+                        key={lens.id}
+                        type="button"
+                        onClick={() => handleSelectGlobalLens(lens.id)}
+                        className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs cursor-pointer transition-all ${
+                          isSelected
+                            ? 'bg-zinc-800 text-zinc-100 font-medium'
+                            : 'text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200'
+                        }`}
+                      >
+                        <span className="truncate text-[11.5px]">{lens.name}</span>
+                        {isSelected && (
+                          <Check className="h-3.5 w-3.5 text-amber-400 shrink-0 ml-2" />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Theme Selector Popover Button */}
