@@ -272,12 +272,34 @@ def retrieve_context(
     return pack_chunks(list(all_chunks.values())[: max(effective_top_k * 3, effective_top_k)]), plan
 
 
-def build_context_block(chunks: list[dict]) -> str:
-    """Formats retrieved chunks into a standard source-locked prompt context block."""
+def build_context_block(chunks: list[dict], max_context_tokens: int = 4200) -> str:
+    """Formats retrieved chunks into a standard source-locked prompt context block with token budgeting."""
     if not chunks:
         return "No relevant document context found."
 
     lines = []
+    current_tokens = 0
+
     for c in chunks:
-        lines.append(f"--- [Document: {c['doc_name']} | Page: {c['page_number']} | Chunk Tag: {c['chunk_id']}] ---\n{c['content']}\n")
+        content = c.get("content", "").strip()
+        doc_name = c.get("doc_name", "Unknown Document")
+        page_num = c.get("page_number", 1)
+        chunk_id = c.get("chunk_id", f"chunk_{page_num}")
+
+        # Rough token estimation (~1.33 tokens per word)
+        chunk_words = content.split()
+        chunk_tokens = max(1, int(len(chunk_words) * 1.33))
+
+        # If adding full chunk exceeds budget, truncate the last chunk to fit
+        if current_tokens + chunk_tokens > max_context_tokens:
+            remaining_tokens = max(0, max_context_tokens - current_tokens)
+            if remaining_tokens > 150:
+                allowed_words = int(remaining_tokens / 1.33)
+                truncated_content = " ".join(chunk_words[:allowed_words]) + " ... [excerpt trimmed for token budget]"
+                lines.append(f"--- [Document: {doc_name} | Page: {page_num} | Chunk Tag: {chunk_id}] ---\n{truncated_content}\n")
+            break
+
+        lines.append(f"--- [Document: {doc_name} | Page: {page_num} | Chunk Tag: {chunk_id}] ---\n{content}\n")
+        current_tokens += chunk_tokens
+
     return "\n".join(lines)

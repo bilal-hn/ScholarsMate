@@ -67,9 +67,10 @@ def _execute_completion_with_fallback(
         ],
         "groq": [
             model_name,
-            "groq/compound-mini",
-            "groq/qwen/qwen3.6-27b",
-            "groq/openai/gpt-oss-120b",
+            "groq/llama-3.3-70b-versatile",
+            "groq/llama-3.1-8b-instant",
+            "groq/qwen/qwen-2.5-32b",
+            "groq/deepseek-r1-distill-llama-70b",
         ],
         "openai": [
             model_name,
@@ -85,6 +86,7 @@ def _execute_completion_with_fallback(
         custom_keys=custom_keys,
     )
 
+    current_messages = list(messages) if messages else []
     last_error = None
     for model in fallback_chain:
         normalized_target = normalize_litellm_model_id(model)
@@ -93,7 +95,7 @@ def _execute_completion_with_fallback(
 
         call_kwargs = {
             "model": normalized_target,
-            "messages": messages,
+            "messages": current_messages,
             "api_key": active_key,
             "max_tokens": max_tokens,
             "drop_params": True,
@@ -114,10 +116,21 @@ def _execute_completion_with_fallback(
                 code in err_str for code in [
                     "404", "429", "503", 
                     "RESOURCE_EXHAUSTED", "RateLimitError", 
-                    "ServiceUnavailableError", "NotFoundError", "quota", "no longer available"
+                    "ServiceUnavailableError", "NotFoundError", "quota", "no longer available",
+                    "tokens per minute", "TPM", "Request too large"
                 ]
             )
             if is_recoverable:
+                # If rate limited due to prompt token size, proactively trim prompt for fallback attempt
+                if ("tokens per minute" in err_str or "TPM" in err_str or "Request too large" in err_str) and current_messages:
+                    trimmed_messages = []
+                    for m in current_messages:
+                        content = m.get("content", "")
+                        if len(content) > 5000:
+                            content = content[:4500] + "\n... [Context truncated to comply with provider rate limits]\n### ACADEMIC SYNTHESIS:"
+                        trimmed_messages.append({**m, "content": content})
+                    current_messages = trimmed_messages
+
                 print(f"[LLM Fallback] Attempting next model in chain...")
                 continue
             
@@ -280,7 +293,7 @@ def generate_answer(
         elif "openrouter" in keys:
             target_model = "openrouter/auto"
         elif "groq" in keys:
-            target_model = "groq/compound-mini"
+            target_model = "groq/llama-3.3-70b-versatile"
         else:
             target_model = "gemini/gemini-3.6-flash"
 
