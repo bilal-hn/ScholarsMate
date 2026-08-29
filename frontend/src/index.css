@@ -360,4 +360,63 @@ body,
   height: 48px;
   background-color: #ffffff;
 }
+
+/* =============================================================================
+   WORKSPACE SYNTHESIS & ORBITAL LOADER ANIMATIONS
+   ============================================================================= */
+
+@keyframes shimmerWave {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.animate-shimmer-wave {
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0.12) 50%, rgba(255, 255, 255, 0.03) 100%);
+  background-size: 200% 100%;
+  animation: shimmerWave 2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+@keyframes spinSlow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes spinReverseSlow {
+  from {
+    transform: rotate(360deg);
+  }
+  to {
+    transform: rotate(0deg);
+  }
+}
+
+.animate-orbit-slow {
+  animation: spinSlow 20s linear infinite;
+}
+
+.animate-orbit-reverse {
+  animation: spinReverseSlow 14s linear infinite;
+}
+
+@keyframes floatOrb {
+  0%, 100% {
+    transform: translateY(0px) scale(1);
+  }
+  50% {
+    transform: translateY(-5px) scale(1.04);
+  }
+}
+
+.animate-float-orb {
+  animation: floatOrb 3.5s ease-in-out infinite;
+}
+
 

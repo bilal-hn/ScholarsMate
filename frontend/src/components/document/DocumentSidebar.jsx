@@ -10,20 +10,10 @@ import {
   Palette,
   Check,
   X,
-  Sparkles,
-  SlidersHorizontal
+  PanelLeftClose
 } from 'lucide-react';
 import { AuthProfile } from '../layout/AuthProfile';
 import { APP_CONFIG, THEMES } from '../../theme/constants';
-import { getCustomLenses } from '../../services/api';
-
-const CORE_LENSES = [
-  { id: 'research', name: 'Research Synthesizer', short_name: 'Research' },
-  { id: 'socratic', name: 'Socratic Tutor', short_name: 'Tutor' },
-  { id: 'reviewer', name: 'Peer Reviewer', short_name: 'Reviewer' },
-  { id: 'executive', name: 'Executive Brief', short_name: 'Brief' },
-  { id: 'survey', name: 'Literature Survey', short_name: 'Survey' },
-];
 
 export default function DocumentSidebar({
   workspaces = [],
@@ -38,40 +28,14 @@ export default function DocumentSidebar({
   onOpenSettings,
   currentTheme = 'odysseus',
   onThemeChange,
-  onGlobalLensChange,
+  isCollapsed = false,
+  onToggleCollapse,
 }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [isThemeMenuOpen, setIsThemeMenuOpen] = useState(false);
-  const [isLensMenuOpen, setIsLensMenuOpen] = useState(false);
-  const [globalLens, setGlobalLens] = useState(() => {
-    return localStorage.getItem('scholarsmate_global_default_mode') || 'research';
-  });
-  const [customLenses, setCustomLenses] = useState([]);
 
   const themeMenuRef = useRef(null);
-  const lensMenuRef = useRef(null);
-
-  useEffect(() => {
-    setCustomLenses(getCustomLenses() || []);
-  }, []);
-
-  const allAvailableLenses = useMemo(() => {
-    const custom = (customLenses || []).map((c) => ({
-      id: c.id,
-      name: c.name,
-      short_name: c.short_name || c.name,
-      isCustom: true
-    }));
-    return [...CORE_LENSES, ...custom];
-  }, [customLenses]);
-
-  const handleSelectGlobalLens = (lensId) => {
-    setGlobalLens(lensId);
-    localStorage.setItem('scholarsmate_global_default_mode', lensId);
-    if (onGlobalLensChange) onGlobalLensChange(lensId);
-    setIsLensMenuOpen(false);
-  };
 
   const filteredWorkspaces = useMemo(() => {
     if (!searchQuery.trim()) return workspaces;
@@ -85,23 +49,21 @@ export default function DocumentSidebar({
       if (themeMenuRef.current && !themeMenuRef.current.contains(e.target)) {
         setIsThemeMenuOpen(false);
       }
-      if (lensMenuRef.current && !lensMenuRef.current.contains(e.target)) {
-        setIsLensMenuOpen(false);
-      }
     };
-    if (isThemeMenuOpen || isLensMenuOpen) {
+    if (isThemeMenuOpen) {
       document.addEventListener('mousedown', handleClickOutside);
     }
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [isThemeMenuOpen, isLensMenuOpen]);
+  }, [isThemeMenuOpen]);
 
   const activeThemeObj = THEMES.find((t) => t.id === currentTheme) || THEMES[0];
-  const activeGlobalLensObj = allAvailableLenses.find((l) => l.id === globalLens) || allAvailableLenses[0];
 
   return (
-    <aside className="w-60 bg-zinc-900/90 border-r border-zinc-800/80 flex flex-col h-full shrink-0 select-none text-zinc-300 font-sans transition-colors">
+    <aside className={`bg-zinc-900/90 border-r border-zinc-800/80 flex flex-col h-full shrink-0 select-none text-zinc-300 font-sans transition-all duration-300 ${
+      isCollapsed ? 'w-0 opacity-0 overflow-hidden border-r-0 pointer-events-none' : 'w-60 opacity-100'
+    }`}>
       {/* Top Brand Header */}
       <div className="px-4 pt-4 pb-3 flex items-center justify-between">
         <div className="flex items-center gap-2.5">
@@ -112,9 +74,20 @@ export default function DocumentSidebar({
             {APP_CONFIG.name}
           </span>
         </div>
+
+        {onToggleCollapse && (
+          <button
+            type="button"
+            onClick={onToggleCollapse}
+            title="Collapse Sidebar"
+            className="p-1 rounded-lg text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800/60 transition-colors cursor-pointer"
+          >
+            <PanelLeftClose className="h-4 w-4" />
+          </button>
+        )}
       </div>
 
-      {/* Primary Minimal Navigation Actions */}
+      {/* Primary Navigation Actions */}
       <div className="px-2 py-2 space-y-0.5 border-b border-zinc-800/40">
         {/* Minimal "+ New Workspace" Action */}
         <button
@@ -185,6 +158,64 @@ export default function DocumentSidebar({
             <span>Academic Writer</span>
           </button>
         )}
+
+        {/* Theme Selector Navigation Item */}
+        <div className="relative" ref={themeMenuRef}>
+          <button
+            type="button"
+            onClick={() => setIsThemeMenuOpen((prev) => !prev)}
+            className={`w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-xs transition-colors cursor-pointer text-left ${
+              isThemeMenuOpen
+                ? 'bg-zinc-800 text-zinc-100 font-medium'
+                : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/30'
+            }`}
+          >
+            <Palette className="h-3.5 w-3.5 text-zinc-500 shrink-0" />
+            <span>Theme</span>
+          </button>
+
+          {/* Theme Popover Menu */}
+          {isThemeMenuOpen && (
+            <div className="absolute top-full left-0 mt-1 w-56 bg-zinc-900 border border-zinc-800 rounded-xl p-1.5 shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-100 backdrop-blur-xl">
+              <div className="px-2.5 py-1 text-[10.5px] font-semibold text-zinc-500 uppercase tracking-wider border-b border-zinc-800/80 mb-1 flex items-center justify-between font-mono">
+                <span>Interface Theme</span>
+              </div>
+
+              <div className="space-y-0.5">
+                {THEMES.map((theme) => {
+                  const isSelected = theme.id === currentTheme;
+                  return (
+                    <button
+                      key={theme.id}
+                      type="button"
+                      onClick={() => {
+                        if (onThemeChange) onThemeChange(theme.id);
+                        setIsThemeMenuOpen(false);
+                      }}
+                      className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs cursor-pointer transition-all ${
+                        isSelected
+                          ? 'bg-zinc-800 text-zinc-100 font-medium'
+                          : 'text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div
+                          className="w-3 h-3 rounded-full border border-zinc-700/80 shrink-0"
+                          style={{ backgroundColor: theme.accentColor }}
+                        />
+                        <span className="truncate leading-none">{theme.name}</span>
+                      </div>
+
+                      {isSelected && (
+                        <Check className="h-3.5 w-3.5 text-amber-400 shrink-0 ml-2" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Workspaces List */}
@@ -204,7 +235,7 @@ export default function DocumentSidebar({
             return (
               <div
                 key={ws.id}
-                onClick={() => onSelectWorkspace(ws.id)}
+                onClick={() => onSelectWorkspace(ws)}
                 className={`group flex items-center justify-between px-3 py-2 rounded-lg text-xs cursor-pointer transition-colors ${
                   isActive
                     ? 'bg-zinc-800 text-zinc-100 font-medium'
@@ -233,118 +264,11 @@ export default function DocumentSidebar({
         )}
       </div>
 
-      {/* Footer: User Profile, Global Lens, Theme Selector & Settings */}
+      {/* Footer: User Profile & Settings */}
       <div className="border-t border-zinc-800/80 bg-zinc-950/60 p-2 relative">
         <div className="flex items-center justify-between gap-1.5">
           <div className="min-w-0 flex-1">
             <AuthProfile onAuthChange={onAuthChange} />
-          </div>
-
-          {/* Global Default Lens Selector Popover Button */}
-          <div className="relative" ref={lensMenuRef}>
-            <button
-              type="button"
-              onClick={() => setIsLensMenuOpen((prev) => !prev)}
-              title={`Global Default Lens: ${activeGlobalLensObj.name}`}
-              className="p-1.5 rounded-lg text-zinc-400 hover:text-amber-400 hover:bg-zinc-800/70 transition-colors cursor-pointer shrink-0"
-            >
-              <SlidersHorizontal className="h-4 w-4" />
-            </button>
-
-            {/* Global Lens Popover Menu */}
-            {isLensMenuOpen && (
-              <div className="absolute bottom-full right-0 mb-2 w-60 bg-zinc-900 border border-zinc-800 rounded-xl p-1.5 shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-100 backdrop-blur-xl">
-                <div className="px-2.5 py-1.5 text-[10.5px] font-semibold text-zinc-500 uppercase tracking-wider border-b border-zinc-800/80 mb-1 flex items-center justify-between font-mono">
-                  <span>Default Global Lens</span>
-                </div>
-
-                <div className="space-y-0.5 max-h-56 overflow-y-auto">
-                  {allAvailableLenses.map((lens) => {
-                    const isSelected = lens.id === globalLens;
-                    return (
-                      <button
-                        key={lens.id}
-                        type="button"
-                        onClick={() => handleSelectGlobalLens(lens.id)}
-                        className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs cursor-pointer transition-all ${
-                          isSelected
-                            ? 'bg-zinc-800 text-zinc-100 font-medium'
-                            : 'text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200'
-                        }`}
-                      >
-                        <span className="truncate text-[11.5px]">{lens.name}</span>
-                        {isSelected && (
-                          <Check className="h-3.5 w-3.5 text-amber-400 shrink-0 ml-2" />
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Theme Selector Popover Button */}
-          <div className="relative" ref={themeMenuRef}>
-            <button
-              type="button"
-              onClick={() => setIsThemeMenuOpen((prev) => !prev)}
-              title={`Active Theme: ${activeThemeObj.name}`}
-              className="p-1.5 rounded-lg text-zinc-400 hover:text-amber-400 hover:bg-zinc-800/70 transition-colors cursor-pointer shrink-0 relative flex items-center gap-1"
-            >
-              <Palette className="h-4 w-4" />
-              <span
-                className="w-1.5 h-1.5 rounded-full shrink-0"
-                style={{ backgroundColor: activeThemeObj.accentColor }}
-              />
-            </button>
-
-            {/* Theme Popover Menu */}
-            {isThemeMenuOpen && (
-              <div className="absolute bottom-full right-0 mb-2 w-56 bg-zinc-900 border border-zinc-800 rounded-xl p-1.5 shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-100 backdrop-blur-xl">
-                <div className="px-2.5 py-1.5 text-[10.5px] font-semibold text-zinc-500 uppercase tracking-wider border-b border-zinc-800/80 mb-1 flex items-center justify-between">
-                  <span>Interface Theme</span>
-                  <span className="text-[9px] text-zinc-600 font-mono">5 Themes</span>
-                </div>
-
-                <div className="space-y-0.5">
-                  {THEMES.map((theme) => {
-                    const isSelected = theme.id === currentTheme;
-                    return (
-                      <button
-                        key={theme.id}
-                        type="button"
-                        onClick={() => {
-                          if (onThemeChange) onThemeChange(theme.id);
-                          setIsThemeMenuOpen(false);
-                        }}
-                        className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs cursor-pointer transition-all ${
-                          isSelected
-                            ? 'bg-zinc-800 text-zinc-100 font-medium'
-                            : 'text-zinc-400 hover:bg-zinc-800/50 hover:text-zinc-200'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2 min-w-0">
-                          {/* Colored Theme Preview Swatch */}
-                          <div
-                            className="w-3.5 h-3.5 rounded-full border border-zinc-700/80 shrink-0 shadow-sm"
-                            style={{ backgroundColor: theme.accentColor }}
-                          />
-                          <div className="text-left truncate">
-                            <div className="truncate leading-none">{theme.name}</div>
-                            <div className="text-[9.5px] text-zinc-500 truncate mt-0.5">{theme.subtitle}</div>
-                          </div>
-                        </div>
-
-                        {isSelected && (
-                          <Check className="h-3.5 w-3.5 text-amber-400 shrink-0 ml-2" />
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
           </div>
 
           {/* BYOK & Model Settings */}
@@ -352,7 +276,7 @@ export default function DocumentSidebar({
             type="button"
             onClick={onOpenSettings}
             title="BYOK & Model Settings"
-            className="p-1.5 rounded-lg text-zinc-500 hover:text-amber-400 hover:bg-zinc-800/70 transition-colors cursor-pointer shrink-0"
+            className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800/70 transition-colors cursor-pointer shrink-0"
           >
             <Settings className="h-4 w-4" />
           </button>

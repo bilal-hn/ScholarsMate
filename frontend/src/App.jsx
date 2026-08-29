@@ -18,7 +18,7 @@ import {
   saveBYOKConfig
 } from './services/api';
 import { getSavedTheme, saveTheme } from './theme/constants';
-import { AlertCircle, RefreshCw, ChevronLeft } from 'lucide-react';
+import { AlertCircle, RefreshCw, ChevronLeft, PanelLeftOpen } from 'lucide-react';
 
 export default function App() {
   const [documents, setDocuments] = useState([]);
@@ -30,6 +30,19 @@ export default function App() {
 
   // Active UI Theme (Odysseus, Gemini, ChatGPT, Claude, Discord)
   const [currentTheme, setCurrentTheme] = useState(() => getSavedTheme());
+
+  // Sidebar collapsed state
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+    return localStorage.getItem('scholarsmate_sidebar_collapsed') === 'true';
+  });
+
+  const handleToggleSidebar = () => {
+    setIsSidebarCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem('scholarsmate_sidebar_collapsed', String(next));
+      return next;
+    });
+  };
 
   // BYOK Discovered Models & Active Model Selection
   const [discoveredModels, setDiscoveredModels] = useState(() => getSavedBYOKConfig().discoveredModels);
@@ -186,10 +199,17 @@ export default function App() {
     await fetchDocs();
   };
 
-  const handleSelectWorkspace = (workspace) => {
-    setActiveWorkspaceId(workspace.id);
-    if (workspace.documents && workspace.documents.length > 0) {
-      setSelectedDocs(workspace.documents);
+  const handleSelectWorkspace = (workspaceOrId) => {
+    const wsObj = typeof workspaceOrId === 'object' && workspaceOrId !== null
+      ? workspaceOrId
+      : workspaces.find((w) => w.id === workspaceOrId);
+
+    const targetId = wsObj ? wsObj.id : (typeof workspaceOrId === 'string' ? workspaceOrId : null);
+    if (!targetId) return;
+
+    setActiveWorkspaceId(targetId);
+    if (wsObj?.documents && wsObj.documents.length > 0) {
+      setSelectedDocs(wsObj.documents);
     } else {
       setSelectedDocs([]);
     }
@@ -295,10 +315,24 @@ export default function App() {
         onOpenSettings={() => setIsSettingsOpen(true)}
         currentTheme={currentTheme}
         onThemeChange={handleThemeChange}
+        isCollapsed={isSidebarCollapsed}
+        onToggleCollapse={handleToggleSidebar}
       />
 
       {/* 2. Main Question / Research Interface Canvas */}
       <div className="flex-1 flex flex-col h-full overflow-hidden relative">
+        {/* Floating Expand Sidebar Button when collapsed */}
+        {isSidebarCollapsed && (
+          <button
+            type="button"
+            onClick={handleToggleSidebar}
+            title="Expand Sidebar"
+            className="absolute top-3 left-3 z-40 p-2 bg-zinc-900/90 hover:bg-zinc-800 border border-zinc-800 rounded-xl shadow-xl text-zinc-400 hover:text-zinc-100 transition-all cursor-pointer backdrop-blur-md hover:scale-105"
+          >
+            <PanelLeftOpen className="h-4 w-4" />
+          </button>
+        )}
+
         {/* Subtle offline alert bar if backend is disconnected */}
         {backendStatus === 'offline' && (
           <div className="bg-amber-500/10 border-b border-amber-500/20 px-4 py-1.5 flex items-center justify-between text-xs text-amber-400 shrink-0">

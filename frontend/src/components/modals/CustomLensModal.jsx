@@ -2,52 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { 
   X, 
   Sparkles, 
-  Microscope, 
-  Brain, 
-  ShieldAlert, 
-  BarChart3, 
-  Library, 
-  BookOpen, 
-  GraduationCap, 
-  FileCode, 
-  CheckCircle, 
-  Scale, 
-  Scroll,
   Trash2,
   Check
 } from 'lucide-react';
-
-export const ICON_MAP = {
-  Microscope,
-  Brain,
-  ShieldAlert,
-  BarChart3,
-  Library,
-  Sparkles,
-  BookOpen,
-  GraduationCap,
-  FileCode,
-  CheckCircle,
-  Scale,
-  Scroll,
-};
-
-export const COLOR_PRESETS = [
-  { id: 'amber', name: 'Amber', badgeColor: 'text-amber-400 bg-amber-500/10 border-amber-500/30' },
-  { id: 'emerald', name: 'Emerald', badgeColor: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30' },
-  { id: 'rose', name: 'Rose', badgeColor: 'text-rose-400 bg-rose-500/10 border-rose-500/30' },
-  { id: 'blue', name: 'Blue', badgeColor: 'text-blue-400 bg-blue-500/10 border-blue-500/30' },
-  { id: 'purple', name: 'Purple', badgeColor: 'text-purple-400 bg-purple-500/10 border-purple-500/30' },
-  { id: 'cyan', name: 'Cyan', badgeColor: 'text-cyan-400 bg-cyan-500/10 border-cyan-500/30' },
-  { id: 'orange', name: 'Orange', badgeColor: 'text-orange-400 bg-orange-500/10 border-orange-500/30' },
-];
 
 export const STARTER_TEMPLATES = [
   {
     name: 'Blank Custom Template',
     tagline: 'Define your own specialized academic reasoning rules',
-    icon: 'Sparkles',
-    color: 'amber',
     cmd: '/custom',
     directive: `### Active Lens Directives: [Custom Lens Name]
 Adopt the specialized academic persona for this workflow.
@@ -61,8 +23,6 @@ When answering the user's question:
   {
     name: 'Grant Proposal Reviewer',
     tagline: 'Audits papers for NSF / Horizon Europe merit criteria',
-    icon: 'Scale',
-    color: 'rose',
     cmd: '/grant',
     directive: `### Active Lens Directives: [Grant Proposal Reviewer]
 Adopt the persona of an expert scientific grant proposal reviewer (NSF / Horizon Europe panelist).
@@ -76,8 +36,6 @@ When evaluating or synthesizing the paper:
   {
     name: 'LaTeX Proof & Derivation Expert',
     tagline: 'Outputs copy-pasteable LaTeX equations & formal step derivations',
-    icon: 'FileCode',
-    color: 'cyan',
     cmd: '/latex',
     directive: `### Active Lens Directives: [LaTeX Proof Expert]
 Adopt the persona of a theoretical computer science & mathematics formalizer.
@@ -101,8 +59,6 @@ export default function CustomLensModal({
   const [shortName, setShortName] = useState('');
   const [tagline, setTagline] = useState('');
   const [slashCommand, setSlashCommand] = useState('/custom');
-  const [iconName, setIconName] = useState('Sparkles');
-  const [colorId, setColorId] = useState('amber');
   const [temperature, setTemperature] = useState(0.1);
   const [promptDirective, setPromptDirective] = useState('');
 
@@ -112,8 +68,6 @@ export default function CustomLensModal({
       setShortName(initialLens.short_name || initialLens.name || '');
       setTagline(initialLens.tagline || initialLens.description || '');
       setSlashCommand(initialLens.slash_commands?.[0] || initialLens.slashCommand || '/custom');
-      setIconName(initialLens.iconName || 'Sparkles');
-      setColorId(initialLens.colorId || 'amber');
       setTemperature(initialLens.temperature ?? 0.1);
       setPromptDirective(initialLens.prompt_directive || initialLens.promptDirective || '');
     } else {
@@ -126,15 +80,10 @@ export default function CustomLensModal({
     setShortName(tpl.name.split(' ')[0]);
     setTagline(tpl.tagline);
     setSlashCommand(tpl.cmd);
-    setIconName(tpl.icon);
-    setColorId(tpl.color);
     setPromptDirective(tpl.directive);
   };
 
   if (!isOpen) return null;
-
-  const activeColorObj = COLOR_PRESETS.find((c) => c.id === colorId) || COLOR_PRESETS[0];
-  const IconComp = ICON_MAP[iconName] || Sparkles;
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -149,9 +98,6 @@ export default function CustomLensModal({
       short_name: shortName.trim() || name.trim(),
       tagline: tagline.trim(),
       description: tagline.trim(),
-      iconName: iconName,
-      colorId: colorId,
-      badgeColor: activeColorObj.badgeColor,
       temperature: parseFloat(temperature),
       top_k: 8,
       slash_commands: [formattedCmd],
@@ -172,18 +118,13 @@ export default function CustomLensModal({
       >
         {/* Modal Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800/80 bg-zinc-950/60">
-          <div className="flex items-center gap-2.5">
-            <div className={`p-2 rounded-xl border ${activeColorObj.badgeColor}`}>
-              <IconComp className="h-5 w-5" />
-            </div>
-            <div>
-              <h2 className="text-sm font-semibold text-zinc-100">
-                {initialLens?.id ? 'Edit Academic Lens' : 'Create Custom Academic Lens'}
-              </h2>
-              <p className="text-xs text-zinc-400 mt-0.5">
-                Define specialized cognitive rules, persona directives, and output formatting.
-              </p>
-            </div>
+          <div>
+            <h2 className="text-sm font-semibold text-zinc-100">
+              {initialLens?.id ? 'Edit Academic Lens' : 'Create Custom Academic Lens'}
+            </h2>
+            <p className="text-xs text-zinc-400 mt-0.5">
+              Define specialized cognitive rules, persona directives, and output formatting.
+            </p>
           </div>
 
           <button
@@ -208,9 +149,9 @@ export default function CustomLensModal({
                   key={tpl.name}
                   type="button"
                   onClick={() => applyTemplate(tpl)}
-                  className="px-2.5 py-2 rounded-lg bg-zinc-950/60 border border-zinc-800 hover:border-amber-500/40 text-left transition-colors cursor-pointer group"
+                  className="px-2.5 py-2 rounded-lg bg-zinc-950/60 border border-zinc-800 hover:border-zinc-600 text-left transition-colors cursor-pointer group"
                 >
-                  <div className="font-medium text-zinc-200 group-hover:text-amber-300 text-[11.5px] truncate">
+                  <div className="font-medium text-zinc-200 group-hover:text-zinc-100 text-[11.5px] truncate">
                     {tpl.name}
                   </div>
                   <div className="text-[10.5px] text-zinc-500 truncate mt-0.5">{tpl.tagline}</div>
@@ -231,7 +172,7 @@ export default function CustomLensModal({
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g. Grant Proposal Reviewer"
-                className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-amber-500/50 text-xs"
+                className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-zinc-600 text-xs"
               />
             </div>
 
@@ -244,7 +185,7 @@ export default function CustomLensModal({
                 value={shortName}
                 onChange={(e) => setShortName(e.target.value)}
                 placeholder="e.g. Grant"
-                className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-amber-500/50 text-xs"
+                className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-zinc-600 text-xs"
               />
             </div>
           </div>
@@ -260,7 +201,7 @@ export default function CustomLensModal({
                 value={tagline}
                 onChange={(e) => setTagline(e.target.value)}
                 placeholder="e.g. Audits papers against NSF merit criteria"
-                className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-amber-500/50 text-xs"
+                className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-zinc-600 text-xs"
               />
             </div>
 
@@ -273,57 +214,8 @@ export default function CustomLensModal({
                 value={slashCommand}
                 onChange={(e) => setSlashCommand(e.target.value)}
                 placeholder="/grant"
-                className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-zinc-100 font-mono placeholder-zinc-600 focus:outline-none focus:border-amber-500/50 text-xs"
+                className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-zinc-100 font-mono placeholder-zinc-600 focus:outline-none focus:border-zinc-600 text-xs"
               />
-            </div>
-          </div>
-
-          {/* Visual Styling: Icon & Color */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-            {/* Icon Picker */}
-            <div>
-              <label className="block text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-1.5 font-mono">
-                Icon
-              </label>
-              <div className="flex flex-wrap gap-1.5 p-2 bg-zinc-950 border border-zinc-800 rounded-lg">
-                {Object.keys(ICON_MAP).map((k) => {
-                  const Icon = ICON_MAP[k];
-                  const isSel = iconName === k;
-                  return (
-                    <button
-                      key={k}
-                      type="button"
-                      onClick={() => setIconName(k)}
-                      className={`p-1.5 rounded-md transition-colors cursor-pointer ${
-                        isSel ? 'bg-zinc-800 text-amber-300 ring-1 ring-amber-500/40' : 'text-zinc-500 hover:text-zinc-200'
-                      }`}
-                    >
-                      <Icon className="h-4 w-4" />
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Color Picker */}
-            <div>
-              <label className="block text-[11px] font-semibold text-zinc-400 uppercase tracking-wider mb-1.5 font-mono">
-                Color Theme
-              </label>
-              <div className="flex flex-wrap gap-1.5 p-2 bg-zinc-950 border border-zinc-800 rounded-lg">
-                {COLOR_PRESETS.map((c) => (
-                  <button
-                    key={c.id}
-                    type="button"
-                    onClick={() => setColorId(c.id)}
-                    className={`px-2 py-1 rounded text-[11px] border font-medium transition-all cursor-pointer ${c.badgeColor} ${
-                      colorId === c.id ? 'ring-2 ring-zinc-400' : 'opacity-80 hover:opacity-100'
-                    }`}
-                  >
-                    {c.name}
-                  </button>
-                ))}
-              </div>
             </div>
           </div>
 
@@ -341,7 +233,7 @@ export default function CustomLensModal({
               value={promptDirective}
               onChange={(e) => setPromptDirective(e.target.value)}
               placeholder="Enter instructions, persona rules, formatting requirements..."
-              className="w-full p-3 bg-zinc-950 border border-zinc-800 rounded-lg font-mono text-xs text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-amber-500/50 leading-relaxed resize-y"
+              className="w-full p-3 bg-zinc-950 border border-zinc-800 rounded-lg font-mono text-xs text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-zinc-600 leading-relaxed resize-y"
             />
           </div>
         </form>
@@ -375,7 +267,7 @@ export default function CustomLensModal({
             <button
               type="button"
               onClick={handleSubmit}
-              className="flex items-center gap-1.5 px-4 py-1.5 bg-amber-500 hover:bg-amber-400 text-zinc-950 font-semibold rounded-lg shadow-sm transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 px-4 py-1.5 bg-zinc-100 hover:bg-white text-zinc-950 font-semibold rounded-lg shadow-sm transition-colors cursor-pointer"
             >
               <Check className="h-4 w-4" />
               <span>Save Lens</span>

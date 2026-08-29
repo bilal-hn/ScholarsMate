@@ -121,6 +121,8 @@ When synthesizing:
   },
 ];
 
+import WorkspaceLoadingState from './WorkspaceLoadingState';
+
 export default function ChatInterface({ 
   documents = [], 
   selectedDocs = [], 
@@ -135,6 +137,7 @@ export default function ChatInterface({
   customKeys
 }) {
   const [messages, setMessages] = useState([]);
+  const [isSessionLoading, setIsSessionLoading] = useState(false);
   const [activeSessionId, setActiveSessionId] = useState(sessionId || null);
   const [currentMode, setCurrentMode] = useState(() => {
     return localStorage.getItem('scholarsmate_global_default_mode') || 'research';
@@ -174,6 +177,7 @@ export default function ChatInterface({
   useEffect(() => {
     setActiveSessionId(sessionId || null);
     if (sessionId) {
+      setIsSessionLoading(true);
       getSessionMessages(sessionId)
         .then((data) => {
           if (data && data.messages && data.messages.length > 0) {
@@ -212,9 +216,13 @@ export default function ChatInterface({
         })
         .catch(() => {
           setMessages([]);
+        })
+        .finally(() => {
+          setIsSessionLoading(false);
         });
     } else {
       setMessages([]);
+      setIsSessionLoading(false);
       const defaultGlobal = localStorage.getItem('scholarsmate_global_default_mode') || 'research';
       setCurrentMode(defaultGlobal);
     }
@@ -439,7 +447,9 @@ export default function ChatInterface({
   return (
     <main className="flex-1 flex flex-col bg-zinc-950 h-full relative overflow-hidden text-zinc-200 font-sans transition-colors">
       {/* Main Content Area */}
-      {isHeroEmpty ? (
+      {isSessionLoading ? (
+        <WorkspaceLoadingState />
+      ) : isHeroEmpty ? (
         /* Minimalist Hero Empty State */
         <div className="flex-1 flex flex-col items-center justify-center p-6 text-center select-none relative">
           <div className="max-w-md w-full flex flex-col items-center animate-in fade-in duration-300 -mt-16">
@@ -472,13 +482,19 @@ export default function ChatInterface({
           ))}
 
           {loading && (
-            <div className="flex gap-3.5 items-start">
-              <div className="h-7 w-7 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 shrink-0 mt-0.5">
-                <Compass className="h-4 w-4 animate-spin" />
+            <div className="flex gap-3.5 items-start animate-in fade-in duration-200">
+              <div className="h-7 w-7 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 shrink-0 mt-0.5 animate-float-orb">
+                <Compass className="h-4 w-4" />
               </div>
-              <div className="bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 flex items-center gap-2.5 text-zinc-400 text-xs shadow-md">
-                <Loader2 className="h-3.5 w-3.5 animate-spin text-amber-400" />
-                <span>Synthesizing source-locked research evidence...</span>
+              <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl px-4 py-3 text-zinc-300 text-xs shadow-xl space-y-2.5 max-w-md w-full">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-3.5 w-3.5 text-amber-400 animate-pulse" />
+                  <span className="font-medium text-zinc-200">Synthesizing evidence across papers...</span>
+                </div>
+                <div className="space-y-1.5 pt-0.5">
+                  <div className="h-2 w-full rounded-full animate-shimmer-wave" />
+                  <div className="h-2 w-4/5 rounded-full animate-shimmer-wave" />
+                </div>
               </div>
             </div>
           )}
