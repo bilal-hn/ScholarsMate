@@ -9,11 +9,16 @@ venv/
 .env
 .env.local
 
-# Generated data — do not commit vector DB or SQLite files
+# Generated databases, vector stores, and upload data
+chroma_db/
 backend/chroma_db/
-backend/*.sqlite3
-backend/*.db
+*.sqlite3
+*.db
+*.bin
+*.pickle
+data/
 data/*.pdf
+data/uploads/
 
 # Frontend
 frontend/node_modules/

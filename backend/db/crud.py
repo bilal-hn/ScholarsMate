@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import List, Optional, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from backend.db.models import ChatSession, ChatMessage, User, WorkspaceDraft
+from backend.db.models import ChatSession, ChatMessage, User, WorkspaceDraft, BrainMemory
 
 
 def _normalize_json_list(val: Any) -> list:
@@ -115,7 +115,7 @@ async def create_chat_session(
     title: str = "New Research Chat", 
     doc_names: Optional[List[str]] = None,
     user_id: Optional[str] = None,
-    active_mode: str = "research"
+    active_mode: str = "assistant"
 ) -> ChatSession:
     """Creates a new persistent chat session thread linked to a specific user/tenant."""
     target_docs = doc_names if isinstance(doc_names, list) else []
@@ -125,7 +125,7 @@ async def create_chat_session(
         title=title,
         doc_names=target_docs,
         user_id=user_id,
-        active_mode=active_mode or "research",
+        active_mode=active_mode or "assistant",
         created_at=datetime.utcnow(),
         updated_at=datetime.utcnow()
     )
@@ -152,7 +152,7 @@ async def update_session_mode(
     if not session:
         return None
 
-    session.active_mode = mode.strip().lower() if mode else "research"
+    session.active_mode = mode.strip().lower() if mode else "assistant"
     session.updated_at = datetime.utcnow()
     await db.commit()
     await db.refresh(session)
@@ -307,4 +307,151 @@ async def save_workspace_draft(
     await db.commit()
     await db.refresh(draft)
     draft.citations_data = _normalize_json_list(draft.citations_data)
-    return draft
+    return draft
+
+
+# =============================================================================
+# BRAIN MEMORY CRUD OPERATIONS
+# =============================================================================
+
+async def get_brain_memories(
+    db: AsyncSession,
+    user_id: str,
+    workspace_id: Optional[str] = None,
+    scope: Optional[str] = None,
+    category: Optional[str] = None,
+    active_only: bool = False
+) -> List[BrainMemory]:
+    """Retrieves brain memories for a user with optional workspace and scope filters."""
+    stmt = select(BrainMemory).where(BrainMemory.user_id == user_id)
+
+    if scope:
+        stmt = stmt.where(BrainMemory.scope == scope)
+    elif workspace_id:
+        # If workspace provided without strict scope, get both global memories and workspace-specific memories
+        stmt = stmt.where(
+            (BrainMemory.scope == "global") | (BrainMemory.workspace_id == workspace_id)
+        )
+
+    if category:
+        stmt = stmt.where(BrainMemory.category == category)
+
+    if active_only:
+        stmt = stmt.where(BrainMemory.is_active.is_(True))
+
+    stmt = stmt.order_by(BrainMemory.created_at.desc())
+    result = await db.execute(stmt)
+    return list(result.scalars().all())
+
+
+async def add_brain_memory(
+    db: AsyncSession,
+    user_id: str,
+    thought: str,
+    scope: str = "global",
+    category: str = "preference",
+    workspace_id: Optional[str] = None,
+    is_active: bool = True
+) -> BrainMemory:
+    """Inserts a new learned thought or instruction into Brain memory."""
+    clean_thought = thought.strip()
+    memory = BrainMemory(
+        id=str(uuid.uuid4()),
+        user_id=user_id,
+        workspace_id=workspace_id if scope == "workspace" else None,
+        scope=scope,
+        category=category,
+        thought=clean_thought,
+        is_active=is_active,
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow()
+    )
+    db.add(memory)
+    await db.commit()
+    await db.refresh(memory)
+    return memory
+
+
+async def update_brain_memory(
+    db: AsyncSession,
+    memory_id: str,
+    user_id: str,
+    thought: Optional[str] = None,
+    category: Optional[str] = None,
+    scope: Optional[str] = None,
+    workspace_id: Optional[str] = None,
+    is_active: Optional[bool] = None
+) -> Optional[BrainMemory]:
+    """Updates an existing brain memory record."""
+    stmt = select(BrainMemory).where(
+        BrainMemory.id == memory_id,
+        BrainMemory.user_id == user_id
+    )
+    result = await db.execute(stmt)
+    memory = result.scalar_one_or_none()
+
+    if not memory:
+        return None
+
+    if thought is not None:
+        memory.thought = thought.strip()
+    if category is not None:
+        memory.category = category
+    if scope is not None:
+        memory.scope = scope
+        if scope == "global":
+            memory.workspace_id = None
+        elif workspace_id is not None:
+            memory.workspace_id = workspace_id
+    if is_active is not None:
+        memory.is_active = is_active
+
+    memory.updated_at = datetime.utcnow()
+    await db.commit()
+    await db.refresh(memory)
+    return memory
+
+
+async def delete_brain_memory(
+    db: AsyncSession,
+    memory_id: str,
+    user_id: str
+) -> bool:
+    """Deletes a single brain memory record."""
+    stmt = select(BrainMemory).where(
+        BrainMemory.id == memory_id,
+        BrainMemory.user_id == user_id
+    )
+    result = await db.execute(stmt)
+    memory = result.scalar_one_or_none()
+
+    if not memory:
+        return False
+
+    await db.delete(memory)
+    await db.commit()
+    return True
+
+
+async def clear_brain_memories(
+    db: AsyncSession,
+    user_id: str,
+    scope: Optional[str] = None,
+    workspace_id: Optional[str] = None
+) -> int:
+    """Batch clears brain memories for a user."""
+    stmt = select(BrainMemory).where(BrainMemory.user_id == user_id)
+    if scope:
+        stmt = stmt.where(BrainMemory.scope == scope)
+    if workspace_id:
+        stmt = stmt.where(BrainMemory.workspace_id == workspace_id)
+
+    result = await db.execute(stmt)
+    memories = list(result.scalars().all())
+    count = len(memories)
+
+    for m in memories:
+        await db.delete(m)
+
+    await db.commit()
+    return count

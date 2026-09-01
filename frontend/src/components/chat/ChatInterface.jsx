@@ -13,7 +13,6 @@ import {
 import ChatMessage from './ChatMessage';
 import ChatInput from './ChatInput';
 import LiteratureReviewModal from '../modals/LiteratureReviewModal';
-import PromptInspectorModal from '../modals/PromptInspectorModal';
 import CustomLensModal from '../modals/CustomLensModal';
 import WorkspaceLoadingState from './WorkspaceLoadingState';
 import QueryNavigator from './QueryNavigator';
@@ -30,97 +29,70 @@ import { APP_CONFIG } from '../../theme/constants';
 
 export const ACADEMIC_MODES = [
   {
-    id: 'research',
-    name: 'Research Synthesizer',
-    short_name: 'Research',
-    tagline: 'Rigorous, citation-dense academic analysis',
-    description: 'Publication-grade synthesis, benchmark tables, and methodology trade-offs.',
-    temperature: 0.0,
-    top_k: 8,
-    slash_commands: ['/research', '/synth', '/academic'],
-    prompt_directive: `### Active Lens Directives: [Research Synthesizer]
-- Deliver an authoritative, publication-grade academic synthesis directly addressing the user's inquiry.
-- Prioritize technical precision, quantitative benchmark metrics, and exact algorithmic or theoretical definitions found in the text.
-- When comparing multiple approaches, models, or datasets, format the trade-offs inside a clean, structured Markdown table.
-- Append precise inline citations [Doc_Name, p.X] to every factual assertion, finding, and data point.
-- Avoid generic conversational filler; begin directly with the academic analysis.`,
+    id: 'assistant',
+    name: 'Paper Assistant',
+    short_name: 'Paper Assistant',
+    icon: 'FileText',
+    badge_color: 'blue',
+    tagline: 'Fast, clear answers grounded directly in your uploaded papers',
+    description: 'Direct, easy-to-read answers from your documents with clean citations and practical explanations.',
+    temperature: 0.1,
+    top_k: 6,
+    slash_commands: ['/ask', '/paper', '/assistant', '/study', '/read', '/overview', '/default'],
+    prompt_directive: `### Active Lens Directives: [Paper Assistant - Default Mode]
+You are ScholarsMate's Paper Assistant, an intelligent, helpful research companion.
+- Provide direct, clear, and easy-to-understand answers grounded in the retrieved document context.
+- Keep explanations approachable, structured, and free of unnecessary academic jargon.
+- When referencing specific facts, definitions, or findings from the user's uploaded papers, append clean inline citations: [Doc_Name, p.X].
+- If asked a general knowledge question not in the papers, answer clearly and helpfully without fabricating document citations.`,
   },
   {
-    id: 'socratic',
-    name: 'Socratic Tutor',
-    short_name: 'Socratic Tutor',
-    tagline: 'Intuitive clarity & Feynman first-principles',
-    description: 'Explains complex papers intuitively using real-world analogies, step-by-step logic, and adaptive check questions.',
+    id: 'research',
+    name: 'Deep Research',
+    short_name: 'Deep Research',
+    icon: 'Microscope',
+    badge_color: 'amber',
+    tagline: 'Exhaustive, high-rigor analysis with tables & formal citations',
+    description: 'In-depth technical breakdown, quantitative benchmark tables, mathematical precision, and exact page citations [Doc, p.X].',
+    temperature: 0.0,
+    top_k: 8,
+    slash_commands: ['/research', '/deep', '/synth', '/academic'],
+    prompt_directive: `### Active Lens Directives: [Deep Research Mode]
+Deliver an exhaustive, publication-grade academic analysis directly addressing the inquiry with maximum depth and precision.
+- Prioritize technical rigor, quantitative benchmark metrics, exact mathematical formulations, and algorithmic trade-offs.
+- When comparing multiple approaches, models, or datasets, format the trade-offs inside a clean Markdown table.
+- Append precise inline citations [Doc_Name, p.X] to every factual assertion, finding, and data point.
+- Jump straight into the substantive analysis without conversational filler.`,
+  },
+  {
+    id: 'teacher',
+    name: 'Masterclass Teacher',
+    short_name: 'Masterclass Teacher',
+    icon: 'GraduationCap',
+    badge_color: 'emerald',
+    tagline: 'First-principles learning & motivated discovery',
+    description: 'Teaches so concepts truly lock in: diagnostic check, 3Blue1Brown motivated discovery, and Socratic quizzes.',
     temperature: 0.2,
     top_k: 8,
-    slash_commands: ['/socratic', '/tutor', '/explain', '/teach'],
-    prompt_directive: `### Active Lens Directives: [Socratic Masterclass Tutor]
-Adopt the persona of a world-class, friendly computer science / academic professor at office hours (inspired by Richard Feynman and 3Blue1Brown).
+    slash_commands: ['/teach', '/learn', '/socratic', '/tutor', '/feynman'],
+    prompt_directive: `### Active Lens Directives: [Masterclass Teacher & Interactive Evaluator]
+You are a world-class 1-on-1 tutor. Your goal is NEVER to dump passive textbook monologues or test rote memorization. Your goal is **true, locked-in understanding (the "click")** through active Socratic dialogue, motivated discovery, and interactive evaluation.
 
-Pedagogical Rules:
-1. **Adaptive Scope (Do Not Over-Engineer):** Calibrate your response length to the question.
-   - For basic or foundational questions (e.g. "What is RAG?"): Give a crisp, crystal-clear 2 to 3 paragraph explanation with an intuitive real-world analogy. Do not force an unnecessary 6-part dissertation.
-   - For complex, multi-stage systems: Break down (1) the core problem that forced its invention, (2) the step-by-step mechanism, and (3) a clean flowchart or table.
-2. **Mandatory Relatable Analogy (The Feynman Principle):** Anchor abstract mathematical or architectural jargon with a vivid, relatable real-world metaphor before diving into technical details.
-3. **Motivated Engineering (Why, Not Just What):** Explain *why* the authors made specific design choices (e.g. why dot-product attention instead of RNNs).
-4. **Strict Grounding & Citations:** Every technical fact and finding must be attributed with [Doc_Name, p.X].
-5. **Targeted Follow-up:** End with **1 concise, thought-provoking conceptual check question** (marked with 💡) that tests active understanding without being patronizing.`,
-  },
-  {
-    id: 'reviewer',
-    name: 'Peer Reviewer',
-    short_name: 'Peer Reviewer',
-    tagline: 'Critical red-team audit & limitation analysis',
-    description: 'Audits methodology, unstated assumptions, and potential vulnerabilities.',
-    temperature: 0.1,
-    top_k: 10,
-    slash_commands: ['/reviewer', '/critique', '/audit', '/redteam'],
-    prompt_directive: `### Active Lens Directives: [Peer Reviewer & Red Team Auditor]
-Adopt the analytical, discerning persona of a senior academic meta-reviewer (e.g., NeurIPS, ICML, Nature reviewer).
+Execute the 3-Stage Teaching Loop:
 
-Structure your critique as follows:
-1. **Validated Strengths:** Concisely state the legitimate empirical and theoretical contributions substantiated by the paper [Doc_Name, p.X].
-2. **Methodological Vulnerabilities & Unstated Assumptions:** Dissect theoretical gaps, dataset scale limits, missing baselines, and synthetic evaluation biases.
-3. **Scalability & Deployment Realities:** Detail computational overhead, latency penalties, hardware constraints, or out-of-distribution failure modes.
-- Support all criticisms by quoting or citing the author's own stated claims and empirical bounds with [Doc_Name, p.X].`,
-  },
-  {
-    id: 'executive',
-    name: 'Executive Brief',
-    short_name: 'Executive Brief',
-    tagline: 'High-density TL;DR & key takeaways',
-    description: 'Core innovations, quantitative highlights, and 3 actionable takeaways.',
-    temperature: 0.0,
-    top_k: 5,
-    slash_commands: ['/executive', '/brief', '/tldr', '/summary'],
-    prompt_directive: `### Active Lens Directives: [Executive Brief & Rapid Triage]
-Deliver a high-density, zero-fluff technical briefing structured for rapid executive triage.
+1. **Stage 1 — Diagnostic Probe (Check Foundations):**
+   - When a user asks you to teach them a new concept (e.g. "Teach me self-attention", "How does backpropagation work?"):
+     * Do NOT dump a full textbook chapter all at once.
+     * State the core question, and immediately give **1 quick diagnostic check question or mini-challenge** to evaluate what foundation they already have.
+     * Example: *"To understand Attention from scratch, let's start with the problem that forced its invention: Why do standard RNNs struggle with long sentences as more words are processed?"*
 
-Format strictly under these 4 section headers:
-- **Executive TL;DR:** Exactly 2 sentences summarizing the core problem and the proposed solution.
-- **Key Innovation:** What is genuinely novel compared to prior literature [Doc_Name, p.X].
-- **Quantitative Highlights:** A compact table or bulleted list of top benchmark metrics and efficiency gains.
-- **3 Actionable Takeaways:** Three concrete, practical engineering or research implications.
-- Ground all metrics and claims with citations [Doc_Name, p.X].`,
-  },
-  {
-    id: 'survey',
-    name: 'Literature Survey',
-    short_name: 'Literature Survey',
-    tagline: 'Cross-paper synthesis & timeline mapping',
-    description: 'Groups approaches by school of thought, comparative matrix, and research gaps.',
-    temperature: 0.0,
-    top_k: 12,
-    slash_commands: ['/survey', '/litreview', '/compare', '/timeline'],
-    prompt_directive: `### Active Lens Directives: [Literature Survey & Cross-Paper Synthesis]
-Synthesize evidence across all relevant papers in the workspace.
+2. **Stage 2 — First-Principles Teaching & Motivated Discovery (3Blue1Brown Style):**
+   - **Unconditional Truths First:** Always anchor the lesson in simple, rock-solid bedrock truths that can be accepted without caveats.
+   - **"How could you have discovered this yourself?":** Explain the *why* before the *how*. What failure mode forced this invention? Make every formula or design choice feel like something the learner would have invented themselves.
 
-When synthesizing:
-1. **Thematic Categorization:** Group retrieved papers and paradigms into coherent schools of thought.
-2. **Comparative Synthesis Matrix:** Build a clear Markdown table comparing methodologies, advantages, and limitations across papers.
-3. **Evolution of Ideas:** Explain how newer techniques addressed previous bottlenecks or failure modes.
-4. **Open Research Gaps:** Highlight unresolved contradictions, benchmark voids, or future research frontiers.
-5. Explicitly attribute every finding with inline citations [Doc_Name, p.X].`,
+3. **Stage 3 — Verify & Re-Evaluate (Instant Feedback):**
+   - Evaluate the student's responses with clear, constructive feedback (✓ / ✗ with the exact intuition).
+   - End every instructional step with **1 targeted conceptual check question (💡)** to confirm the idea has locked into their mental model before moving to the next level.`,
   },
 ];
 
@@ -128,7 +100,7 @@ export default function ChatInterface({
   documents = [], 
   selectedDocs = [], 
   setSelectedDocs, 
-  onSelectCitation,
+  onSelectCitation, 
   incomingMessage,
   sessionId,
   availableModels = [],
@@ -147,11 +119,9 @@ export default function ChatInterface({
   const [isSessionLoading, setIsSessionLoading] = useState(false);
   const [activeSessionId, setActiveSessionId] = useState(sessionId || null);
   const [currentMode, setCurrentMode] = useState(() => {
-    return localStorage.getItem('scholarsmate_global_default_mode') || 'research';
+    return localStorage.getItem('scholarsmate_global_default_mode') || 'assistant';
   });
   const [customLenses, setCustomLenses] = useState([]);
-  const [inspectingMode, setInspectingMode] = useState(null);
-  const [isInspectorOpen, setIsInspectorOpen] = useState(false);
   const [editingLens, setEditingLens] = useState(null);
   const [isCustomLensModalOpen, setIsCustomLensModalOpen] = useState(false);
 
@@ -280,33 +250,11 @@ export default function ChatInterface({
     }
   };
 
-  const handleOpenInspector = (mode, e) => {
-    e?.stopPropagation();
-    setInspectingMode(mode);
-    setIsInspectorOpen(true);
-    setIsModeDropdownOpen(false);
-  };
-
   const handleOpenCustomLensModal = (lens = null, e) => {
     e?.stopPropagation();
     setEditingLens(lens);
     setIsCustomLensModalOpen(true);
     setIsModeDropdownOpen(false);
-  };
-
-  const handleCloneAsCustom = (mode) => {
-    setEditingLens({
-      name: `${mode.name} (Custom)`,
-      short_name: `${mode.short_name || mode.name}`,
-      tagline: mode.tagline || mode.description,
-      description: mode.tagline || mode.description,
-      slashCommand: `/${mode.id}_custom`,
-      iconName: mode.icon?.name || 'Sparkles',
-      colorId: 'amber',
-      temperature: mode.temperature ?? 0.1,
-      prompt_directive: mode.prompt_directive || mode.description || '',
-    });
-    setIsCustomLensModalOpen(true);
   };
 
   // Appends incoming generated messages (e.g. Literature Reviews)
@@ -523,8 +471,7 @@ export default function ChatInterface({
               </div>
               <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl px-4 py-3 text-zinc-300 text-xs shadow-xl space-y-2.5 max-w-md w-full">
                 <div className="flex items-center gap-2">
-                  <Sparkles className="h-3.5 w-3.5 text-amber-400 animate-pulse" />
-                  <span className="font-medium text-zinc-200">Synthesizing evidence across papers...</span>
+                  
                 </div>
                 <div className="space-y-1.5 pt-0.5">
                   <div className="h-2 w-full rounded-full animate-shimmer-wave" />
@@ -553,7 +500,6 @@ export default function ChatInterface({
         currentMode={currentMode}
         onModeChange={handleModeChange}
         allAvailableModes={allAvailableModes}
-        onOpenInspector={handleOpenInspector}
         onOpenCustomLensModal={handleOpenCustomLensModal}
         documents={documents}
         selectedDocs={selectedDocs}
@@ -575,14 +521,6 @@ export default function ChatInterface({
         currentModel={currentModel}
         customKeys={customKeys}
         onGenerateReview={handleGenerateLiteratureReview}
-      />
-
-      {/* Prompt Transparency Inspector Modal */}
-      <PromptInspectorModal
-        isOpen={isInspectorOpen}
-        onClose={() => setIsInspectorOpen(false)}
-        modeObj={inspectingMode}
-        onCloneAsCustom={handleCloneAsCustom}
       />
 
       {/* Custom Academic Lens Modal */}

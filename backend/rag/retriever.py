@@ -245,7 +245,11 @@ def retrieve_context(
         for doc in target_docs:
             results = search_similar_chunks(query=search_query, top_k=per_doc_k, collection_name=collection_name, doc_names=[doc])
             if results and results.get("documents") and results["documents"][0]:
-                for text, meta in zip(results["documents"][0], results["metadatas"][0]):
+                distances = results.get("distances", [[]])[0] if results.get("distances") else [0.0] * len(results["documents"][0])
+                for text, meta, dist in zip(results["documents"][0], results["metadatas"][0], distances):
+                    # Gate 2: Quality threshold filter (cosine distance <= 0.75)
+                    if dist is not None and dist > 0.75:
+                        continue
                     cid = meta.get("chunk_id", "Unknown")
                     all_chunks[cid] = {
                         "chunk_id": cid,
@@ -260,7 +264,11 @@ def retrieve_context(
     for q in search_queries:
         results = search_similar_chunks(query=q, top_k=effective_top_k, collection_name=collection_name, doc_names=target_docs)
         if results and results.get("documents") and results["documents"][0]:
-            for text, meta in zip(results["documents"][0], results["metadatas"][0]):
+            distances = results.get("distances", [[]])[0] if results.get("distances") else [0.0] * len(results["documents"][0])
+            for text, meta, dist in zip(results["documents"][0], results["metadatas"][0], distances):
+                # Gate 2: Quality threshold filter (cosine distance <= 0.75)
+                if dist is not None and dist > 0.75:
+                    continue
                 cid = meta.get("chunk_id", "Unknown")
                 if cid not in all_chunks:
                     all_chunks[cid] = {

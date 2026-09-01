@@ -19,15 +19,30 @@ import {
   Square,
   Eye,
   Edit2,
-  X
+  X,
+  Info,
+  Sparkles
 } from 'lucide-react';
 
+export const LENS_GUIDES = {
+  assistant: {
+    what: 'Fast, clear, and direct answers grounded in your uploaded documents without heavy academic jargon.',
+    when: 'Your everyday mode for chatting with papers, finding specific facts, and asking questions.',
+  },
+  research: {
+    what: 'Exhaustive, publication-grade academic analysis with mathematical precision, benchmark tables, and exact page citations.',
+    when: 'When you need maximum analytical depth, methodology breakdowns, and formal citations for any query.',
+  },
+  teacher: {
+    what: '1-on-1 Socratic masterclass tutor that diagnoses baseline understanding, teaches from first principles, and tests concepts with quizzes.',
+    when: 'Mastering complex architectures (like Transformers), difficult math, or algorithms so they permanently lock into your memory.',
+  },
+};
+
 export const SLASH_COMMANDS = [
-  { cmd: '/research', mode: 'research', label: 'Research Synthesizer', desc: 'Formal citation-dense synthesis with benchmark tables' },
-  { cmd: '/socratic', mode: 'socratic', label: 'Socratic Tutor', desc: 'Intuitive Feynman breakdown with 1 check question' },
-  { cmd: '/critique', mode: 'reviewer', label: 'Peer Reviewer', desc: 'Red-team critical audit of methodology & limitations' },
-  { cmd: '/brief', mode: 'executive', label: 'Executive Brief', desc: 'High-density TL;DR, core innovation & takeaways' },
-  { cmd: '/survey', mode: 'survey', label: 'Literature Survey', desc: 'Cross-paper comparative synthesis & timelines' },
+  { cmd: '/ask', mode: 'assistant', label: 'Paper Assistant', desc: 'Direct, clear answers grounded directly in your uploaded papers' },
+  { cmd: '/research', mode: 'research', label: 'Deep Research', desc: 'Exhaustive citation-dense academic analysis & benchmark tables' },
+  { cmd: '/teach', mode: 'teacher', label: 'Masterclass Teacher', desc: 'First-principles motivated discovery & Socratic understanding' },
 ];
 
 export default function ChatInput({
@@ -42,10 +57,9 @@ export default function ChatInput({
   availableDocuments = [],
   telemetry = null, // { responseTime, tokenUsage, docCount, isCached }
   customLenses = [],
-  currentMode = 'research',
+  currentMode = 'assistant',
   onModeChange,
   allAvailableModes = [],
-  onOpenInspector,
   onOpenCustomLensModal,
   documents = [],
   selectedDocs = [],
@@ -59,6 +73,7 @@ export default function ChatInput({
 }) {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isLensDropdownOpen, setIsLensDropdownOpen] = useState(false);
+  const [expandedInfoMode, setExpandedInfoMode] = useState(null);
   const [isMatrixMenuOpen, setIsMatrixMenuOpen] = useState(false);
   const [expandedProvider, setExpandedProvider] = useState(null);
   const [isDeepSearchActive, setIsDeepSearchActive] = useState(false);
@@ -380,9 +395,9 @@ export default function ChatInput({
 
   const activeModeObj = useMemo(() => {
     return allAvailableModes.find((m) => m.id === currentMode) || allAvailableModes[0] || {
-      id: 'research',
-      name: 'Research Synthesizer',
-      short_name: 'Research',
+      id: 'assistant',
+      name: 'Paper Assistant',
+      short_name: 'Paper Assistant',
     };
   }, [allAvailableModes, currentMode]);
 
@@ -657,60 +672,97 @@ export default function ChatInput({
                     <span>Academic Reasoning Lens</span>
                   </div>
 
-                  <div className="space-y-0.5">
+                  <div className="space-y-1">
                     {(allAvailableModes || []).map((mode) => {
                       const isSelected = mode.id === currentMode;
+                      const guide = LENS_GUIDES[mode.id];
+                      const isInfoExpanded = expandedInfoMode === mode.id;
+
                       return (
                         <div
                           key={mode.id}
-                          onClick={() => {
-                            if (onModeChange) onModeChange(mode.id);
-                            setIsLensDropdownOpen(false);
-                          }}
-                          className={`w-full flex items-start justify-between px-2.5 py-2 rounded-lg text-left transition-colors cursor-pointer group ${
-                            isSelected ? 'bg-zinc-800 text-zinc-100 font-medium' : 'hover:bg-zinc-800/50 text-zinc-400 hover:text-zinc-200'
+                          className={`w-full rounded-lg text-left transition-all border ${
+                            isSelected
+                              ? 'bg-zinc-800/90 border-zinc-700/80 text-zinc-100'
+                              : 'bg-zinc-900/40 hover:bg-zinc-800/50 border-transparent text-zinc-400 hover:text-zinc-200'
                           }`}
                         >
-                          <div className="flex-1 min-w-0 pr-2">
-                            <div className="flex items-center justify-between">
-                              <span className={`text-[12px] ${isSelected ? 'text-zinc-100 font-semibold' : 'text-zinc-300'}`}>
-                                {mode.name}
-                              </span>
+                          <div
+                            onClick={() => {
+                              if (onModeChange) onModeChange(mode.id);
+                              setIsLensDropdownOpen(false);
+                            }}
+                            className="flex items-start justify-between px-2.5 py-2 cursor-pointer"
+                          >
+                            <div className="flex-1 min-w-0 pr-2">
+                              <div className="flex items-center gap-1.5">
+                                <span className={`text-[12px] font-medium ${isSelected ? 'text-amber-400 font-semibold' : 'text-zinc-200'}`}>
+                                  {mode.name}
+                                </span>
+                              </div>
+                              <p className="text-[10.5px] text-zinc-500 leading-tight mt-0.5 truncate">{mode.tagline || mode.description}</p>
                             </div>
-                            <p className="text-[10.5px] text-zinc-500 leading-tight mt-0.5 truncate">{mode.tagline || mode.description}</p>
+
+                            <div className="flex items-center gap-1 shrink-0 mt-0.5">
+                              {/* Info Button */}
+                              <button
+                                type="button"
+                                title="What is this lens and when to use it?"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setExpandedInfoMode((prev) => (prev === mode.id ? null : mode.id));
+                                }}
+                                className={`p-1 rounded-md transition-colors ${
+                                  isInfoExpanded
+                                    ? 'bg-amber-500/20 text-amber-300'
+                                    : 'text-zinc-500 hover:text-amber-400 hover:bg-zinc-700/60'
+                                }`}
+                              >
+                                <Info className="h-3 w-3" />
+                              </button>
+
+                              {mode.isCustom && onOpenCustomLensModal && (
+                                <button
+                                  type="button"
+                                  title="Edit Custom Lens"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onOpenCustomLensModal(mode, e);
+                                    setIsLensDropdownOpen(false);
+                                  }}
+                                  className="p-1 rounded text-zinc-500 hover:text-zinc-200 hover:bg-zinc-700/60 transition-colors"
+                                >
+                                  <Edit2 className="h-3 w-3" />
+                                </button>
+                              )}
+                              {isSelected && <Check className="h-3.5 w-3.5 text-amber-400 ml-0.5" />}
+                            </div>
                           </div>
 
-                          <div className="flex items-center gap-1 shrink-0 mt-0.5">
-                            {onOpenInspector && (
-                              <button
-                                type="button"
-                                title="Inspect System Prompt"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onOpenInspector(mode, e);
-                                  setIsLensDropdownOpen(false);
-                                }}
-                                className="p-1 rounded text-zinc-500 hover:text-amber-300 hover:bg-zinc-700/60 transition-colors"
-                              >
-                                <Eye className="h-3 w-3" />
-                              </button>
-                            )}
-                            {mode.isCustom && onOpenCustomLensModal && (
-                              <button
-                                type="button"
-                                title="Edit Custom Lens"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onOpenCustomLensModal(mode, e);
-                                  setIsLensDropdownOpen(false);
-                                }}
-                                className="p-1 rounded text-zinc-500 hover:text-zinc-200 hover:bg-zinc-700/60 transition-colors"
-                              >
-                                <Edit2 className="h-3 w-3" />
-                              </button>
-                            )}
-                            {isSelected && <Check className="h-3.5 w-3.5 text-amber-400 ml-1" />}
-                          </div>
+                          {/* Expandable Guide Drawer */}
+                          {isInfoExpanded && (
+                            <div
+                              onClick={(e) => e.stopPropagation()}
+                              className="px-3 pb-2.5 pt-1 border-t border-zinc-800/80 bg-zinc-950/60 rounded-b-lg space-y-1.5 text-[11px] animate-in fade-in slide-in-from-top-1 duration-150"
+                            >
+                              <div>
+                                <span className="text-[9.5px] font-semibold uppercase tracking-wider text-amber-400/80 block">
+                                  What it is:
+                                </span>
+                                <p className="text-zinc-300 leading-snug mt-0.5">
+                                  {guide?.what || mode.description}
+                                </p>
+                              </div>
+                              <div>
+                                <span className="text-[9.5px] font-semibold uppercase tracking-wider text-zinc-400 block">
+                                  When to use:
+                                </span>
+                                <p className="text-zinc-400 leading-snug mt-0.5">
+                                  {guide?.when || mode.tagline}
+                                </p>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       );
                     })}

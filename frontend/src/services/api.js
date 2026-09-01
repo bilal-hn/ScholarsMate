@@ -549,3 +549,78 @@ export const editorAskAIAPI = async ({ selection, instruction, docNames = null, 
     throw error;
   }
 };
+
+// =============================================================================
+// BRAIN MEMORY CLIENT API
+// =============================================================================
+
+/**
+ * Retrieves all persistent memories, preferences, and workspace thoughts for the current user.
+ * @param {Object} [params] - { workspace_id, scope, category, active_only }
+ */
+export const fetchBrainMemoriesAPI = async (params = {}) => {
+  try {
+    const response = await apiClient.get('/brain/memories', { params });
+    return response.data; // { memories: [...], total: N }
+  } catch (error) {
+    console.error('Failed to fetch brain memories:', error.response?.data || error.message);
+    return { memories: [], total: 0 };
+  }
+};
+
+/**
+ * Manually adds a new thought, rule, or preference to Brain.
+ * @param {Object} memoryData - { thought, scope, category, workspace_id, is_active }
+ */
+export const createBrainMemoryAPI = async (memoryData) => {
+  try {
+    const response = await apiClient.post('/brain/memories', memoryData);
+    return response.data;
+  } catch (error) {
+    console.error('Failed to create brain memory:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+/**
+ * Updates or toggles an existing memory in Brain.
+ * @param {string} memoryId
+ * @param {Object} memoryData - { thought, category, scope, workspace_id, is_active }
+ */
+export const updateBrainMemoryAPI = async (memoryId, memoryData) => {
+  try {
+    const response = await apiClient.patch(`/brain/memories/${memoryId}`, memoryData);
+    return response.data;
+  } catch (error) {
+    console.error(`Failed to update brain memory ${memoryId}:`, error.response?.data || error.message);
+    throw error;
+  }
+};
+
+/**
+ * Erases a single memory record from Brain.
+ * @param {string} memoryId
+ */
+export const deleteBrainMemoryAPI = async (memoryId) => {
+  try {
+    const response = await apiClient.delete(`/brain/memories/${memoryId}`);
+    return response.data;
+  } catch (error) {
+    console.error(`Failed to delete brain memory ${memoryId}:`, error.response?.data || error.message);
+    throw error;
+  }
+};
+
+/**
+ * Batch clears memories from Brain.
+ * @param {Object} [params] - { scope, workspace_id }
+ */
+export const clearBrainMemoriesAPI = async (params = {}) => {
+  try {
+    const response = await apiClient.delete('/brain/memories', { params });
+    return response.data;
+  } catch (error) {
+    console.error('Failed to clear brain memories:', error.response?.data || error.message);
+    throw error;
+  }
+};

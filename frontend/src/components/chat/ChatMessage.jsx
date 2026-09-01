@@ -115,6 +115,10 @@ function InlineCitationBadge({ docName, pageNumber, sources = [], onSelectCitati
  * Accurately supports multi-page citations (e.g. [sample2.pdf, p.2, p.22]) while ignoring
  * academic author-year literature citations like [Su et al., 2022].
  */
+const safeEncodeDoc = (doc) => {
+  return encodeURIComponent(doc || '').replace(/\(/g, '%28').replace(/\)/g, '%29');
+};
+
 const transformCitations = (rawText) => {
   if (!rawText) return '';
 
@@ -124,32 +128,44 @@ const transformCitations = (rawText) => {
   formatted = formatted.replace(/`(\s*(?:\[|\(|<).*?(?:\]|\)|>)\s*)`/g, '$1');
 
   // Step 1: Raw citation:filename:page or citation:filename (legacy or edge cases)
-  const rawCitationPrefixRegex = /citation:\s*([a-zA-Z0-9_\-\.\s]+?\.(?:pdf|docx|txt|epub|md|PDF|DOCX))(?::(\d+))?/gi;
+  const rawCitationPrefixRegex = /citation:\s*([^\s:]+?\.(?:pdf|docx|txt|epub|md|PDF|DOCX))(?::(\d+))?/gi;
   formatted = formatted.replace(rawCitationPrefixRegex, (match, docName, pageNum) => {
     const cleanDoc = docName.trim();
     const cleanPage = pageNum ? pageNum.trim() : '1';
-    const encodedDoc = encodeURIComponent(cleanDoc);
-    return `[cite](#cite:${encodedDoc}:${cleanPage})`;
+    return `[cite](#cite:${safeEncodeDoc(cleanDoc)}:${cleanPage})`;
   });
 
-  // Step 2: Bracket citation with explicit file extension and page list: e.g. [sample2.pdf, p.2, p.22] or [sample2.pdf, p.1]
-  const docWithPagesRegex = /(?:<|\[|\()\s*([a-zA-Z0-9_\-\.\s]+?\.(?:pdf|docx|txt|epub|md|PDF|DOCX))\s*(?:,\s*|\s+)(?:p\.?|page|pp\.)?\s*([\d\s,p\.]+?)\s*(?:>|\]|\))/gi;
-  formatted = formatted.replace(docWithPagesRegex, (match, docName, pagesRaw) => {
+  // Step 2: Square bracket citation with explicit file extension and page list: e.g. [sample2.pdf, p.2, p.22] or [Build_a_Large_Language_Model_(From_Scrat (3).pdf, p.14]
+  const squareWithPagesRegex = /\[\s*([^\]]+?\.(?:pdf|docx|txt|epub|md|PDF|DOCX))\s*(?:,\s*|\s+)(?:p\.?|page|pp\.)?\s*([\d\s,p\.]+?)\s*\]/gi;
+  formatted = formatted.replace(squareWithPagesRegex, (match, docName, pagesRaw) => {
     const cleanDoc = docName.trim();
     if (cleanDoc.startsWith('http://') || cleanDoc.startsWith('https://') || cleanDoc.startsWith('#') || cleanDoc.startsWith('cite')) {
       return match;
     }
     const pageNums = pagesRaw.match(/\d+/g);
     if (!pageNums || pageNums.length === 0) {
-      return `[cite](#cite:${encodeURIComponent(cleanDoc)}:1)`;
+      return `[cite](#cite:${safeEncodeDoc(cleanDoc)}:1)`;
     }
-    const encodedDoc = encodeURIComponent(cleanDoc);
-    return pageNums.map(p => `[cite](#cite:${encodedDoc}:${p})`).join(' ');
+    return pageNums.map(p => `[cite](#cite:${safeEncodeDoc(cleanDoc)}:${p})`).join(' ');
   });
 
-  // Step 3: Bracket citation without file extension but with explicit p./page prefix: e.g. [sample2, p.1] or [sample2, p.2, p.22]
-  const stemWithExplicitPageRegex = /(?:<|\[|\()\s*([a-zA-Z0-9_\-\.\s]+?)(?:,\s*|\s+)(?:p\.?|page|pp\.)\s*([\d\s,p\.]+?)\s*(?:>|\]|\))/gi;
-  formatted = formatted.replace(stemWithExplicitPageRegex, (match, docName, pagesRaw) => {
+  // Step 2b: Parenthesis citation: (sample2.pdf, p.2) or (sample.pdf, page 14)
+  const parenWithPagesRegex = /\(\s*([^)]+?\.(?:pdf|docx|txt|epub|md|PDF|DOCX))\s*(?:,\s*|\s+)(?:p\.?|page|pp\.)?\s*([\d\s,p\.]+?)\s*\)/gi;
+  formatted = formatted.replace(parenWithPagesRegex, (match, docName, pagesRaw) => {
+    const cleanDoc = docName.trim();
+    if (cleanDoc.startsWith('http://') || cleanDoc.startsWith('https://') || cleanDoc.startsWith('#') || cleanDoc.startsWith('cite')) {
+      return match;
+    }
+    const pageNums = pagesRaw.match(/\d+/g);
+    if (!pageNums || pageNums.length === 0) {
+      return `[cite](#cite:${safeEncodeDoc(cleanDoc)}:1)`;
+    }
+    return pageNums.map(p => `[cite](#cite:${safeEncodeDoc(cleanDoc)}:${p})`).join(' ');
+  });
+
+  // Step 3: Square bracket citation without file extension but with explicit p./page prefix: e.g. [sample2, p.1] or [sample2, p.2, p.22]
+  const squareStemWithPageRegex = /\[\s*([^\]]+?)(?:,\s*|\s+)(?:p\.?|page|pp\.)\s*([\d\s,p\.]+?)\s*\]/gi;
+  formatted = formatted.replace(squareStemWithPageRegex, (match, docName, pagesRaw) => {
     const cleanDoc = docName.trim();
     if (cleanDoc.startsWith('http://') || cleanDoc.startsWith('https://') || cleanDoc.startsWith('#') || cleanDoc.startsWith('cite')) {
       return match;
@@ -158,19 +174,17 @@ const transformCitations = (rawText) => {
     if (!pageNums || pageNums.length === 0) {
       return match;
     }
-    const encodedDoc = encodeURIComponent(cleanDoc);
-    return pageNums.map(p => `[cite](#cite:${encodedDoc}:${p})`).join(' ');
+    return pageNums.map(p => `[cite](#cite:${safeEncodeDoc(cleanDoc)}:${p})`).join(' ');
   });
 
-  // Step 4: Standalone file citations in brackets: [sample.pdf], <sample.pdf>
-  const withoutPageRegex = /(?:<|\[|\()\s*([a-zA-Z0-9_\-\.\s]+?\.(?:pdf|docx|txt|epub|md|PDF|DOCX))\s*(?:>|\]|\))/gi;
-  formatted = formatted.replace(withoutPageRegex, (match, docName) => {
+  // Step 4: Standalone file citations in brackets: [sample.pdf] or [Build_a_Large_Language_Model_(From_Scrat (3).pdf]
+  const squareWithoutPageRegex = /\[\s*([^\]]+?\.(?:pdf|docx|txt|epub|md|PDF|DOCX))\s*\]/gi;
+  formatted = formatted.replace(squareWithoutPageRegex, (match, docName) => {
     const cleanDoc = docName.trim();
     if (cleanDoc.startsWith('http://') || cleanDoc.startsWith('https://') || cleanDoc.startsWith('#') || cleanDoc.startsWith('cite')) {
       return match;
     }
-    const encodedDoc = encodeURIComponent(cleanDoc);
-    return `[cite](#cite:${encodedDoc}:1)`;
+    return `[cite](#cite:${safeEncodeDoc(cleanDoc)}:1)`;
   });
 
   return formatted;
@@ -227,18 +241,20 @@ export default function ChatMessage({ message, index, onSelectCitation }) {
 
   const speed = calculateSpeed();
 
-  const MODE_BADGES = {
-    research: { name: 'Research', color: 'text-zinc-400 border-zinc-700/80 bg-zinc-800/60' },
-    socratic: { name: 'Socratic Tutor', color: 'text-zinc-400 border-zinc-700/80 bg-zinc-800/60' },
-    reviewer: { name: 'Peer Reviewer', color: 'text-zinc-400 border-zinc-700/80 bg-zinc-800/60' },
-    executive: { name: 'Executive Brief', color: 'text-zinc-400 border-zinc-700/80 bg-zinc-800/60' },
-    survey: { name: 'Literature Survey', color: 'text-zinc-400 border-zinc-700/80 bg-zinc-800/60' },
+  const MODE_NAMES = {
+    assistant: 'Paper Assistant',
+    research: 'Deep Research',
+    teacher: 'Masterclass Teacher',
+    // Aliases for backwards compatibility
+    student: 'Paper Assistant',
+    socratic: 'Masterclass Teacher',
+    reviewer: 'Deep Research',
+    executive: 'Paper Assistant',
+    survey: 'Deep Research',
   };
 
   const appliedMode = message.mode_applied || (message.meta && message.meta.mode) || null;
-  const appliedModeInfo = appliedMode
-    ? MODE_BADGES[appliedMode] || { name: appliedMode, color: 'text-zinc-400 border-zinc-700/80 bg-zinc-800/60' }
-    : null;
+  const appliedModeName = appliedMode ? (MODE_NAMES[appliedMode] || appliedMode) : null;
 
   /**
    * Enterprise-Grade Multi-MIME Clipboard Copy
@@ -636,11 +652,11 @@ export default function ChatMessage({ message, index, onSelectCitation }) {
                     </span>
                   </>
                 )}
-                {appliedModeInfo && (
+                {appliedModeName && (
                   <>
                     <span className="text-zinc-700">|</span>
-                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-sans border font-medium ${appliedModeInfo.color}`}>
-                      {appliedModeInfo.name}
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-sans border font-medium text-zinc-400 border-zinc-800 bg-zinc-900/90">
+                      {appliedModeName}
                     </span>
                   </>
                 )}

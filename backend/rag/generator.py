@@ -66,9 +66,9 @@ def _execute_completion_with_fallback(
     provider_fallbacks = {
         "gemini": [
             model_name,
-            "gemini/gemini-3.7-flash",
             "gemini/gemini-3.6-flash",
             "gemini/gemini-2.5-flash",
+            "gemini/gemini-3.7-flash",
         ],
         "groq": [
             model_name,
@@ -228,13 +228,12 @@ def extract_sources_from_text(text: str, fallback_doc: str | None = None) -> lis
     sources = []
     seen = set()
 
-    # Matches [doc.pdf, p.X], [doc.pdf, p.X, p.Y], <doc.pdf, p.X>, [doc.pdf, page X], [doc.pdf, p.2, p.22]
-    pattern = re.compile(
-        r"(?:<|\[|\()\s*([a-zA-Z0-9_\-\.\s]+?\.(?:pdf|docx|txt|epub|md|PDF|DOCX))\s*(?:,\s*|\s+)(?:p\.?|page|pp\.)?\s*([\d\s,p\.]+?)\s*(?:>|\]|\))", 
+    # 1. Matches square bracket citations: [doc.pdf, p.X], [doc (3).pdf, p.2, p.22], [doc.pdf, page 40]
+    square_pattern = re.compile(
+        r"\[\s*([^\]]+?\.(?:pdf|docx|txt|epub|md|PDF|DOCX))\s*(?:,\s*|\s+)(?:p\.?|page|pp\.)?\s*([\d\s,p\.]+?)\s*\]",
         re.IGNORECASE
     )
-    
-    for match in pattern.finditer(text):
+    for match in square_pattern.finditer(text):
         doc = match.group(1).strip()
         pages_raw = match.group(2)
         page_nums = re.findall(r"\d+", pages_raw)
@@ -248,6 +247,41 @@ def extract_sources_from_text(text: str, fallback_doc: str | None = None) -> lis
                     "doc_name": doc,
                     "page_number": p_int
                 })
+
+    # 2. Matches parenthesis citations: (doc.pdf, p.X)
+    paren_pattern = re.compile(
+        r"\(\s*([^)]+?\.(?:pdf|docx|txt|epub|md|PDF|DOCX))\s*(?:,\s*|\s+)(?:p\.?|page|pp\.)?\s*([\d\s,p\.]+?)\s*\)",
+        re.IGNORECASE
+    )
+    for match in paren_pattern.finditer(text):
+        doc = match.group(1).strip()
+        pages_raw = match.group(2)
+        page_nums = re.findall(r"\d+", pages_raw)
+        for p in page_nums:
+            p_int = int(p)
+            key = (doc, p_int)
+            if key not in seen:
+                seen.add(key)
+                sources.append({
+                    "chunk_id": f"ref_{doc}_{p_int}",
+                    "doc_name": doc,
+                    "page_number": p_int
+                })
+
+    # 3. Matches markdown link anchors: #cite:doc:page
+    cite_anchor_pattern = re.compile(r"#cite:([^:]+):(\d+)", re.IGNORECASE)
+    for match in cite_anchor_pattern.finditer(text):
+        import urllib.parse
+        doc = urllib.parse.unquote(match.group(1)).strip()
+        p_int = int(match.group(2))
+        key = (doc, p_int)
+        if key not in seen:
+            seen.add(key)
+            sources.append({
+                "chunk_id": f"ref_{doc}_{p_int}",
+                "doc_name": doc,
+                "page_number": p_int
+            })
 
     if not sources and fallback_doc:
         sources.append({
@@ -270,7 +304,8 @@ def generate_answer(
     model_name: str | None = None,
     custom_keys: dict | None = None,
     mode: str = "research",
-    custom_prompt_directive: str | None = None
+    custom_prompt_directive: str | None = None,
+    brain_context: str | None = None
 ) -> dict:
     """Universal RAG inference across any model provider with dynamic key resolution, mode directives & fallback."""
     # Detect inline slash commands (e.g. '/socratic Explain attention')
@@ -324,17 +359,32 @@ def generate_answer(
         cached_text = plan.get("cached_content")
         print(f"[Generator] Serving pre-computed summary cache for '{target_doc}' (< 50ms).")
         parsed_sources = extract_sources_from_text(cached_text, fallback_doc=target_doc)
+        
+        # If in Masterclass Teacher mode, append a Socratic diagnostic check
+        final_summary = cached_text
+        if mode == "teacher":
+            final_summary = f"{cached_text}\n\n---\n### 💡 Socratic Learning Check\nTo begin exploring this work from first principles: **Which core concept or chapter above would you like us to break down and master first?**"
+
         return {
             "query": query,
-            "answer": cached_text,
+            "answer": final_summary,
             "thinking_process": None,
-            "sources_used": parsed_sources
+            "sources_used": parsed_sources,
+            "mode_applied": mode
         }
 
-    # Branch B: CONVERSATIONAL Intent
-    if intent == "CONVERSATIONAL":
+    # Branch B: CONVERSATIONAL & GENERAL KNOWLEDGE Intents
+    if intent in {"CONVERSATIONAL", "GENERAL_KNOWLEDGE"}:
+        if intent == "CONVERSATIONAL":
+            conv_sys = "You are ScholarsMate, a collegiate, intelligent AI research assistant. The user is chatting casually, thinking out loud, or sharing project context/goals (e.g. 'I am working on my bachelor's FYP'). Reply naturally, warmly, and concisely like a brilliant human research colleague. If they share an open-ended goal or context, acknowledge it enthusiastically and ask a natural, relevant clarifying question (e.g. what specific topic, domain, or model they are building) to help them plan. Do not dump unprompted dissertations, tables, or robotic headers."
+        else:
+            conv_sys = "You are ScholarsMate, an elite, helpful academic research AI. Provide a clear, authoritative, and direct answer to the user's question from general scientific and programming knowledge. Avoid repetitive robotic prefixes like 'Academic Synthesis:' and speak naturally. Do not fabricate paper citations."
+
+        if brain_context and brain_context.strip():
+            conv_sys = f"{conv_sys}\n\n{brain_context.strip()}"
+
         conv_messages = [
-            {"role": "system", "content": "You are ScholarsMate, an elite, helpful academic research AI. Reply politely, warmly, and concisely."}
+            {"role": "system", "content": conv_sys}
         ]
         if chat_history:
             for msg in chat_history[-4:]:
@@ -350,7 +400,7 @@ def generate_answer(
             model_name=target_model,
             messages=conv_messages,
             custom_keys=keys,
-            temperature=0.5,
+            temperature=0.4 if intent == "GENERAL_KNOWLEDGE" else 0.5,
             max_tokens=CONV_MAX_TOKENS,
         )
         extracted = extract_reasoning_and_content(res)
@@ -358,7 +408,8 @@ def generate_answer(
             "query": query,
             "answer": extracted.answer,
             "thinking_process": extracted.thinking or None,
-            "sources_used": []
+            "sources_used": [],
+            "mode_applied": mode
         }
 
     # Branch C: Workspace Meta-Query
@@ -371,7 +422,8 @@ def generate_answer(
             "query": query,
             "answer": answer_text,
             "thinking_process": None,
-            "sources_used": []
+            "sources_used": [],
+            "mode_applied": mode
         }
 
     # Early exit safeguard if workspace has no documents
@@ -380,7 +432,8 @@ def generate_answer(
             "query": query,
             "answer": "There are no documents uploaded in this workspace. Please upload research papers to begin.",
             "thinking_process": None,
-            "sources_used": []
+            "sources_used": [],
+            "mode_applied": mode
         }
 
     # -------------------------------------------------------------------------
@@ -412,7 +465,8 @@ def generate_answer(
             context_block=context_block,
             chat_history=chat_history,
             mode=mode,
-            custom_prompt_directive=custom_prompt_directive
+            custom_prompt_directive=custom_prompt_directive,
+            brain_context=brain_context
         )
 
         chat_completion = _execute_completion_with_fallback(

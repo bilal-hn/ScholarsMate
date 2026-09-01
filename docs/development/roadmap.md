@@ -4,27 +4,27 @@ This document outlines the phased development roadmap for ScholarsMate. Features
 
 ---
 
-## Milestone 1: Core Grounded RAG & UI Foundation (V1.0) — *Current Status: Complete / Refining*
-**Objective:** Establish a RAG pipeline with high-precision vector search, citation tagging, and a modern Gemini-style dark mode interface.
+## Milestone 1: Core Grounded RAG & UI Foundation (V1.0) — *Status: Complete / Production Ready*
+**Objective:** Establish a RAG pipeline with high-precision vector search, citation tagging, and a modern dark mode interface.
 
 ### Delivered Capabilities:
 - [x] **FastAPI & ChromaDB Integration:** PDF chunking, embedding generation, and vector index persistence.
-- [x] **Groq LLM Pipeline:** Integration with `llama-3.3-70b-versatile` for single-pass RAG synthesis.
-- [x] **Map-Reduce Synthesis Engine:** Two-stage Map-Reduce pass using `llama-3.1-8b-instant` and `llama-3.3-70b` for literature reviews over large context.
-- [x] **Gemini-Style UI:** Responsive React interface with borderless chat bubbles, custom gold typography, and scannable visual layout.
-- [x] **Page-Level Citations:** Extraction and rendering of `[Doc_Name, p.X]` inline tags and deduplicated context source badges.
-- [x] **Intent Guardrails:** Fast-path regex routing for greetings and meta-queries without triggering vector search or empty citation tags.
+- [x] **Universal BYOK Multi-Model Engine:** Support for Gemini, Claude, GPT, Groq, and Ollama.
+- [x] **Map-Reduce Synthesis Engine:** Two-stage Map-Reduce pass for large-scale literature review synthesis.
+- [x] **Academic UI & Themes:** Minimalist dark mode interface with theme switcher (Obsidian, Crimson, Blaze, Aurora, Emerald).
+- [x] **Page-Level Inline Citations:** Traceable `[Doc_Name, p.X]` tags linked to split-screen PDF viewer.
+- [x] **Relational SQLite / Postgres Database:** Complete persistence for users, chat sessions, messages, and document summary caches.
+- [x] **Persistent Autonomous Brain Memory (F-15):** Two-tier memory studio for learned research profiles, citation rules, and workspace milestones.
 
 ---
 
-## Milestone 2: Enterprise Response Engine & Multi-Turn Memory (V1.5) — *Next Up*
-**Objective:** Enhance synthesis formatting depth (tables, code blocks) and introduce conversational memory for continuous research discussions.
+## Milestone 2: 3-Gate Semantic Quality & Intent Routing (V1.5) — *In Progress*
+**Objective:** Eliminate irrelevant chunk pollution, recognize conversational thinking/pauses, and provide general knowledge fallbacks.
 
-### Target Features:
-- [ ] **2.1 Markdown Table Engine:** Enforce automatic Markdown table generation (`| Paper | Method | Results |`) for multi-paper comparisons, metrics, and benchmarks.
-- [ ] **2.2 Code & Formula Extraction:** Format algorithm listings, pseudocode, and mathematical equations directly into syntax-highlighted code blocks (` ```python `).
-- [ ] **2.3 Stand-Alone Query Rewriting:** Implement a lightweight query contextualization pass using `llama-3.1-8b-instant` to convert follow-up prompts (e.g., *"Summarize its methodology"*) into standalone search queries.
-- [ ] **2.4 Conversation Memory Buffer:** Pass a sliding window buffer of recent chat turns (last 4–6 messages) to maintain context across continuous follow-up questions.
+### Target Capabilities:
+- [x] **2.1 Extended Intent Routing (F-02):** Distinguish conversational pauses, acknowledgments, and general knowledge from active research inquiries.
+- [ ] **2.2 Vector Similarity Distance Thresholding (F-01 Gate 2):** Drop statistically irrelevant vector chunks ($< 0.40$) before prompt injection.
+- [ ] **2.3 Adaptive Synthesis Fallback (F-01 Gate 3):** Answer naturally from general knowledge when workspace documents lack relevant evidence.
 
 ---
 

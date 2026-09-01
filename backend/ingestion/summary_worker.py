@@ -76,37 +76,31 @@ def generate_and_cache_summary_sync(doc_name: str, model_name: str = "gemini/gem
 
     context_block = build_context_block(sampled_chunks)
 
-    # backend/ingestion/summary_worker.py
-
     prompt = f"""
 {SOURCE_LOCKED_SYSTEM_PROMPT}
 
-You are creating a comprehensive, publication-grade academic summary for the research paper: "{doc_name}".
+You are creating a comprehensive, clear, and well-structured summary for the document: "{doc_name}".
 
 RETRIEVED SOURCE EXCERPTS:
 {context_block}
 
-STRUCTURE YOUR SUMMARY USING THIS EXACT 7-POINT SCHEMA:
-1. Executive Abstract & Core Motivation
-2. Research Problem & Theoretical Foundations
-3. Methodology & System Architecture
-4. Datasets, Benchmarks & Quantitative Findings
-5. Practical Applications & Implications
-6. Critical Limitations & Identified Vulnerabilities
-7. Main Conclusion & Future Directions
+INSTRUCTIONS FOR ADAPTIVE SUMMARY:
+1. **Document-Type Awareness:**
+   - Detect the nature of this document (e.g., Empirical Research Paper, Textbook/Monograph, Technical Report, Literature/Narrative, or General Document).
+   - Tailor your summary structure naturally to match what the document actually is.
+   - NEVER force non-empirical documents into machine learning / CS paper schemas.
+   - NEVER fabricate mathematical formulas, LaTeX equations, or artificial benchmark tables if they are not explicitly present in the source text.
 
-STRICT FORMATTING AND MATHEMATICAL RULES:
-- Ground every claim with exact inline page brackets: `[{doc_name}, p.X]`.
-- For standalone mathematical equations, place them on their own line enclosed in `$$`:
-  $$D = f_N \\circ \\dots \\circ f_2 \\circ f_1(Q)$$
-- For inline variables, use single dollar signs: `$Q$`, `$\\Psi(\\cdot)$`, `$\\tau$`.
-- DO NOT wrap equations in backtick code blocks (```).
-- When creating Markdown tables for benchmarks or variables, always put a blank newline before the table, and place EVERY row on a new line:
+2. **Clean & Natural Structure:**
+   Use clean, intuitive Markdown headings such as:
+   - **Overview & Core Focus:** What this work is, its primary motivation or premise, and scope.
+   - **Key Concepts & Structural Framework:** The main ideas, methodologies, architecture, or narrative systems discussed.
+   - **Major Findings & Practical Takeaways:** The core insights, empirical results, or practical implications.
+   - **Limitations & Considerations:** Any open challenges, constraints, or nuances noted in the text.
 
-| Symbol | Type | Description |
-| :--- | :--- | :--- |
-| $\\Psi(\\cdot)$ | Function | Reasoning function generating intermediate results [{doc_name}, p.36] |
-| $\\Gamma(\\cdot)$ | Function | Decision function producing final output [{doc_name}, p.36] |
+3. **Grounding & Citations:**
+   - Support factual statements, quotes, and specific concepts with inline page citations: `[{doc_name}, p.X]`.
+   - For empirical research papers that include real formulas or benchmark data in the text, present them cleanly with math notation or tables. For non-mathematical texts, explain the concepts purely in articulate, natural prose.
 """.strip()
     try:
         norm_model = normalize_litellm_model_id(model_name)

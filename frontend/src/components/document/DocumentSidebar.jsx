@@ -2,6 +2,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { 
   Plus, 
   Search, 
+  Brain,
   Trash2, 
   BookOpen, 
   PenTool,
@@ -23,6 +24,7 @@ export default function DocumentSidebar({
   onDeleteWorkspace,
   onOpenCreateModal,
   onOpenLitReview,
+  onOpenBrainModal,
   onToggleWriter,
   isWriterActive = false,
   onAuthChange,
@@ -80,6 +82,18 @@ export default function DocumentSidebar({
           <Search className="h-3.5 w-3.5 text-zinc-500 group-hover:text-zinc-300 transition-colors" />
           <span>Search</span>
         </button>
+
+        {/* Brain Memory Studio Navigation Item */}
+        {onOpenBrainModal && (
+          <button
+            type="button"
+            onClick={onOpenBrainModal}
+            className="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-xs text-zinc-400 hover:text-red-400 hover:bg-zinc-800/30 transition-colors cursor-pointer group text-left"
+          >
+            <Brain className="h-3.5 w-3.5 text-zinc-500 group-hover:text-red-400 transition-colors" />
+            <span>Brain</span>
+          </button>
+        )}
 
         {/* Literature Review Studio Navigation Item */}
         <button

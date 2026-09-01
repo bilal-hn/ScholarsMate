@@ -8,7 +8,6 @@ from litellm import completion
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
-from backend.embeddings.vector_store import get_indexed_document_catalog
 from backend.db.document_service import get_cached_document_summary
 from backend.rag.runtime import (
     extract_reasoning_and_content,
@@ -151,10 +150,10 @@ def sanitize_plan(plan: dict, query: str, available_docs: list[str]) -> dict:
     """Normalize router JSON so intent, retrieval mode, and docs stay consistent."""
     fallback_k = evaluate_query_scope_fallback(query)
     intent = (plan.get("intent") or "NEW_QUERY").upper()
-    if intent not in {"CONVERSATIONAL", "FOLLOW_UP", "NEW_QUERY"}:
+    if intent not in {"CONVERSATIONAL", "GENERAL_KNOWLEDGE", "FOLLOW_UP", "NEW_QUERY"}:
         intent = "NEW_QUERY"
 
-    if intent == "CONVERSATIONAL":
+    if intent in {"CONVERSATIONAL", "GENERAL_KNOWLEDGE"}:
         plan["intent"] = intent
         plan["scope"] = "none"
         plan["target_docs"] = []
@@ -280,6 +279,7 @@ def classify_query_intent(
     provider = provider_from_model(model_name)
     active_key = _resolve_router_api_key(provider, keys)
 
+    from backend.embeddings.vector_store import get_indexed_document_catalog
     full_catalog = get_indexed_document_catalog()
     catalog = [item for item in full_catalog if item["filename"] in available_docs] if available_docs else full_catalog
     formatted_history = _truncate_history(chat_history)
@@ -289,9 +289,10 @@ You are an academic query execution planner for ScholarsMate, a multi-document R
 Return ONLY a JSON object. No prose, no markdown, no chain-of-thought.
 
 Intent labels:
-- CONVERSATIONAL: greetings, thanks, or questions about you the assistant. No PDF retrieval.
-- FOLLOW_UP: questions that refer to or ask for clarification on previous messages ("i dont understand", "explain simpler", "give an example", "why?", "tell me more", "summarise it", "that method").
-- NEW_QUERY: a self-contained question about the papers/workspace.
+- CONVERSATIONAL: greetings, thanks, acknowledgments ("okay got it", "makes sense", "understood", "cool"), thinking pauses / state markers ("let me think", "give me a moment", "wait a sec", "hmmm"), or polite remarks where the user is NOT requesting paper research. No PDF retrieval.
+- GENERAL_KNOWLEDGE: questions about general programming, math, logic, definitions, or topics unrelated to specific uploaded research papers (e.g. "Write a Python script for mergesort", "What is photosynthesis?"). No PDF retrieval.
+- FOLLOW_UP: the user is ACTIVELY asking a follow-up question or requesting clarification/elaboration on previous points ("why is that?", "can you give an example?", "explain that simpler", "what did you mean by X?"). Requires PDF retrieval.
+- NEW_QUERY: a substantive question about the research papers or workspace. Requires PDF retrieval.
 
 Retrieval:
 - vector_search: default focused question.
@@ -309,10 +310,10 @@ User Query: "{clean_query}"
 
 JSON schema:
 {{
-  "intent": "CONVERSATIONAL" | "FOLLOW_UP" | "NEW_QUERY",
-  "scope": "single" | "named_subset" | "full_corpus",
+  "intent": "CONVERSATIONAL" | "GENERAL_KNOWLEDGE" | "FOLLOW_UP" | "NEW_QUERY",
+  "scope": "single" | "named_subset" | "full_corpus" | "none",
   "target_docs": ["filename1.pdf"],
-  "retrieval_mode": "full_text" | "vector_search" | "per_document_search" | "metadata_only",
+  "retrieval_mode": "full_text" | "vector_search" | "per_document_search" | "metadata_only" | "none",
   "generation_mode": "single_pass" | "map_reduce" | "structured_comparison" | "no_llm",
   "is_meta_query": false,
   "query_depth": "broad_synthesis" | "focused",

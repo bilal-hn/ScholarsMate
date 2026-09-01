@@ -23,6 +23,8 @@ AsyncSessionLocal = async_sessionmaker(
     autoflush=False,
 )
 
+SessionLocal = AsyncSessionLocal
+
 Base = declarative_base()
 
 
@@ -38,7 +40,7 @@ async def get_db():
 async def init_db():
     """Initializes tables and performs automated schema migrations for missing tables/columns."""
     # Ensure all models are registered on Base.metadata before creating tables
-    from backend.db.models import User, ChatSession, ChatMessage, UserDocument  # noqa
+    from backend.db.models import User, ChatSession, ChatMessage, UserDocument, WorkspaceDraft, BrainMemory  # noqa
 
     async with engine.begin() as conn:
         # Create all registered tables if they do not exist

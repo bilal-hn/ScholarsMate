@@ -8,6 +8,7 @@ import SettingsModal from './components/layout/SettingsModal';
 import LiteratureReviewModal from './components/modals/LiteratureReviewModal';
 import ThemeModal from './components/modals/ThemeModal';
 import GlobalSearchModal from './components/modals/GlobalSearchModal';
+import BrainModal from './components/modals/BrainModal';
 import PdfViewer from './components/viewer/PdfViewer';
 import { 
   getDocuments, 
@@ -32,6 +33,7 @@ export default function App() {
   const [isLitReviewOpen, setIsLitReviewOpen] = useState(false);
   const [isThemeModalOpen, setIsThemeModalOpen] = useState(false);
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
+  const [isBrainModalOpen, setIsBrainModalOpen] = useState(false);
 
   // Active UI Theme
   const [currentTheme, setCurrentTheme] = useState(() => getSavedTheme());
@@ -351,6 +353,7 @@ export default function App() {
         onDeleteWorkspace={handleDeleteWorkspace}
         onOpenCreateModal={() => setIsModalOpen(true)}
         onOpenLitReview={() => setIsLitReviewOpen(true)}
+        onOpenBrainModal={() => setIsBrainModalOpen(true)}
         onToggleWriter={handleToggleWriter}
         isWriterActive={isWriterOpen}
         onAuthChange={handleAuthChange}
@@ -494,6 +497,13 @@ export default function App() {
         onClose={() => setIsSearchModalOpen(false)}
         workspaces={workspaces}
         onSelectWorkspace={handleSelectWorkspace}
+      />
+
+      <BrainModal
+        isOpen={isBrainModalOpen}
+        onClose={() => setIsBrainModalOpen(false)}
+        activeWorkspaceId={activeWorkspaceId}
+        workspaces={workspaces}
       />
     </div>
   );

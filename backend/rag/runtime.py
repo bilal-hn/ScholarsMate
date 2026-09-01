@@ -182,46 +182,65 @@ def parse_json_object(text: str) -> dict:
 
 
 def heuristic_intent(query: str, chat_history: list | None = None) -> str:
-    """Parse-failure fallback: distinguishes conversational, follow-up clarification, and document queries."""
+    """Parse-failure fallback: distinguishes conversational, general knowledge, follow-up clarification, and document queries."""
     q = (query or "").strip()
     if not q:
         return "CONVERSATIONAL"
 
     words = q.split()
-    has_question = "?" in q
+    has_question = "?" in q or any(q.lower().startswith(w) for w in ["why", "how", "what", "which", "who", "when", "where", "can you", "could you"])
     lowered = q.lower()
 
-    # Direct conversational pleasantries
-    greetings = {"hi", "hello", "hey", "help", "who are you", "what can you do", "thanks", "thank you", "bye", "goodbye"}
-    if lowered in greetings or any(lowered == g for g in greetings):
+    # 1. Conversational greetings, thinking pauses, acknowledgments, and state markers
+    conversational_patterns = [
+        r"^(hi|hello|hey|greetings|howdy|sup)\b",
+        r"^(thanks|thank you|thx|cheers|appreciated)\b",
+        r"^(bye|goodbye|cya|see you)\b",
+        r"^(let me think|give me a (sec|second|moment|minute)|wait|wait a sec|hold on|hmm+)\b",
+        r"^(okay|ok|got it|okay got it|makes sense|i see|understood|cool|nice|alright|right|yep|yes|no|great|awesome)\b",
+        r"^(who are you|what can you do|what is your name)\b",
+    ]
+    if any(re.search(p, lowered) for p in conversational_patterns) and not has_question:
         return "CONVERSATIONAL"
 
-    # Follow-up and clarification cues
+    # 2. Active follow-up and clarification requests
     follow_up_cues = re.search(
         r"\b(i don'?t understand|explain simpler|make it simpler|elaborate|clarify|what do you mean|what does that mean|"
         r"can you give an example|give an example|tell me more|why is that|huh|how so|what about that|go on|continue|"
-        r"summarise that|summarize that|more details|explain further)\b",
+        r"summarise that|summarize that|more details|explain further|repeat that|expand on)\b",
         lowered,
         re.IGNORECASE,
     )
-    if follow_up_cues or (chat_history and len(chat_history) > 0 and len(words) <= 5 and not any(lowered.startswith(g) for g in greetings)):
+    if follow_up_cues:
         return "FOLLOW_UP"
 
+    # 3. Explicit research and document cues
     research_cues = re.search(
         r"\b(paper|papers|document|documents|pdf|method|methodology|findings|compare|"
         r"summar(?:y|ise|ize)|dataset|result|results|author|citation|workspace|literature)\b",
         lowered,
         re.IGNORECASE,
     )
-
     if research_cues:
         return "NEW_QUERY"
-    if has_question and len(words) > 6:
-        return "NEW_QUERY"
-    if len(words) <= 4 and not research_cues:
+
+    # 4. Contextual follow-up if history exists AND user is actively asking a question
+    if chat_history and len(chat_history) > 0 and has_question and len(words) <= 12:
+        return "FOLLOW_UP"
+
+    # 5. Non-question short statements without research keywords are conversational
+    if not has_question and len(words) <= 5 and not research_cues:
         return "CONVERSATIONAL"
-    if has_question and len(words) <= 6 and not research_cues:
-        return "CONVERSATIONAL"
+
+    # 6. General coding / math / broad questions without research cues
+    general_cues = re.search(
+        r"\b(write a (python|javascript|code|script|function)|how to code|solve (this|the equation)|what is (the capital|photosynthesis))\b",
+        lowered,
+        re.IGNORECASE,
+    )
+    if general_cues:
+        return "GENERAL_KNOWLEDGE"
+
     return "NEW_QUERY"
 
 

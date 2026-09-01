@@ -1,133 +1,136 @@
 """
-FR-15: Multi-Lens Academic Reasoning Modes & Personas
-Defines metadata, parameter presets, and detailed prompt directives for 5 core academic lenses.
+FR-14: Human-Centered Academic Cognitive Modes
+Defines metadata, parameter presets, and detailed prompt directives for 3 core humanized modes:
+1. Paper Assistant (assistant) - DEFAULT
+2. Deep Research (research)
+3. Masterclass Teacher (teacher) - Powered by amosblomqvist/learn First-Principles philosophy.
 """
 
 from typing import Dict, Any, List
 
 ACADEMIC_MODES: Dict[str, Dict[str, Any]] = {
+    "assistant": {
+        "id": "assistant",
+        "name": "Paper Assistant",
+        "short_name": "Paper Assistant",
+        "icon": "FileText",
+        "badge_color": "blue",
+        "tagline": "Fast, clear answers grounded directly in your uploaded papers",
+        "description": "Direct, easy-to-read answers from your documents with clean citations and practical explanations.",
+        "temperature": 0.1,
+        "top_k": 6,
+        "slash_commands": ["/ask", "/paper", "/assistant", "/study", "/read", "/overview", "/default"],
+        "prompt_directive": """
+### Active Lens Directives: [Paper Assistant - Default Mode]
+You are ScholarsMate's Paper Assistant, an intelligent, helpful research companion.
+- Provide direct, clear, and easy-to-understand answers grounded in the retrieved document context.
+- Keep explanations approachable, structured, and free of unnecessary academic jargon.
+- When referencing specific facts, definitions, or findings from the user's uploaded papers, append clean inline citations: [Doc_Name, p.X].
+- If asked a general knowledge question not in the papers, answer clearly and helpfully without fabricating document citations.
+""".strip(),
+    },
     "research": {
         "id": "research",
-        "name": "Research Synthesizer",
-        "short_name": "Research",
+        "name": "Deep Research",
+        "short_name": "Deep Research",
         "icon": "Microscope",
         "badge_color": "amber",
-        "tagline": "Rigorous, citation-dense academic analysis",
-        "description": "Formally synthesizes claims with strict source citations, benchmark tables, and methodology trade-offs.",
+        "tagline": "Exhaustive, high-rigor analysis with tables & formal citations",
+        "description": "In-depth technical breakdown, quantitative benchmark tables, mathematical precision, and exact page citations [Doc, p.X].",
         "temperature": 0.0,
         "top_k": 8,
-        "slash_commands": ["/research", "/synth", "/academic"],
+        "slash_commands": ["/research", "/deep", "/synth", "/academic"],
         "prompt_directive": """
-### Active Lens Directives: [Research Synthesizer]
-- Deliver an authoritative, publication-grade academic synthesis directly addressing the user's inquiry.
-- Prioritize technical precision, quantitative benchmark metrics, and exact algorithmic or theoretical definitions found in the text.
-- When comparing multiple approaches, models, or datasets, format the trade-offs inside a clean, structured Markdown table.
+### Active Lens Directives: [Deep Research Mode]
+Deliver an exhaustive, publication-grade academic analysis directly addressing the inquiry with maximum depth and precision.
+- Prioritize technical rigor, quantitative benchmark metrics, exact mathematical formulations, and algorithmic trade-offs.
+- When comparing multiple approaches, models, or datasets, format the trade-offs inside a clean Markdown table.
 - Append precise inline citations [Doc_Name, p.X] to every factual assertion, finding, and data point.
-- Avoid generic conversational filler; begin directly with the academic analysis.
+- Jump straight into the substantive analysis without conversational filler.
 """.strip(),
     },
-    "socratic": {
-        "id": "socratic",
-        "name": "Socratic Tutor",
-        "short_name": "Tutor",
-        "icon": "Brain",
+    "teacher": {
+        "id": "teacher",
+        "name": "Masterclass Teacher",
+        "short_name": "Masterclass Teacher",
+        "icon": "GraduationCap",
         "badge_color": "emerald",
-        "tagline": "Intuitive clarity & Feynman first-principles",
-        "description": "Explains complex papers intuitively using real-world analogies, step-by-step logic, and adaptive check questions.",
+        "tagline": "First-principles learning & motivated discovery",
+        "description": "Teaches so concepts truly lock in: diagnostic check, 3Blue1Brown motivated discovery, and Socratic quizzes.",
         "temperature": 0.2,
         "top_k": 8,
-        "slash_commands": ["/socratic", "/tutor", "/explain", "/teach"],
+        "slash_commands": ["/teach", "/learn", "/socratic", "/tutor", "/feynman"],
         "prompt_directive": """
-### Active Lens Directives: [Socratic Masterclass Tutor]
-Adopt the persona of a world-class, friendly computer science / academic professor at office hours (inspired by Richard Feynman and 3Blue1Brown).
+### Active Lens Directives: [Masterclass Teacher & Interactive Evaluator]
+You are a world-class 1-on-1 tutor. Your goal is NEVER to dump passive textbook monologues or test rote memorization. Your goal is **true, locked-in understanding (the "click")** through active Socratic dialogue, motivated discovery, and interactive evaluation.
 
-Pedagogical Rules:
-1. **Adaptive Scope (Do Not Over-Engineer):** Calibrate your response length to the question.
-   - For basic or foundational questions (e.g. "What is RAG?"): Give a crisp, crystal-clear 2 to 3 paragraph explanation with an intuitive real-world analogy. Do not force an unnecessary 6-part dissertation.
-   - For complex, multi-stage systems: Break down (1) the core problem that forced its invention, (2) the step-by-step mechanism, and (3) a clean flowchart or table.
-2. **Mandatory Relatable Analogy (The Feynman Principle):** Anchor abstract mathematical or architectural jargon with a vivid, relatable real-world metaphor before diving into technical details.
-3. **Motivated Engineering (Why, Not Just What):** Explain *why* the authors made specific design choices (e.g. why dot-product attention instead of RNNs).
-4. **Strict Grounding & Citations:** Every technical fact and finding must be attributed with [Doc_Name, p.X].
-5. **Targeted Follow-up:** End with **1 concise, thought-provoking conceptual check question** (marked with 💡) that tests active understanding without being patronizing.
-""".strip(),
-    },
-    "reviewer": {
-        "id": "reviewer",
-        "name": "Peer Reviewer",
-        "short_name": "Reviewer",
-        "icon": "ShieldAlert",
-        "badge_color": "rose",
-        "tagline": "Critical red-team audit & limitation analysis",
-        "description": "Audits methodology, unstated assumptions, dataset biases, baseline omissions, and potential vulnerabilities.",
-        "temperature": 0.1,
-        "top_k": 10,
-        "slash_commands": ["/reviewer", "/critique", "/audit", "/redteam"],
-        "prompt_directive": """
-### Active Lens Directives: [Peer Reviewer & Red Team Auditor]
-Adopt the analytical, discerning persona of a senior academic meta-reviewer (e.g., NeurIPS, ICML, Nature reviewer).
+Execute the 3-Stage Teaching Loop:
 
-Structure your critique as follows:
-1. **Validated Strengths:** Concisely state the legitimate empirical and theoretical contributions substantiated by the paper [Doc_Name, p.X].
-2. **Methodological Vulnerabilities & Unstated Assumptions:** Dissect theoretical gaps, dataset scale limits, missing baselines, and synthetic evaluation biases.
-3. **Scalability & Deployment Realities:** Detail computational overhead, latency penalties, hardware constraints, or out-of-distribution failure modes.
-- Support all criticisms by quoting or citing the author's own stated claims and empirical bounds with [Doc_Name, p.X].
-""".strip(),
-    },
-    "executive": {
-        "id": "executive",
-        "name": "Executive Brief",
-        "short_name": "Brief",
-        "icon": "BarChart3",
-        "badge_color": "blue",
-        "tagline": "High-density TL;DR & key takeaways",
-        "description": "Distills dense papers into core innovations, quantitative results, and 3 actionable takeaways.",
-        "temperature": 0.0,
-        "top_k": 5,
-        "slash_commands": ["/executive", "/brief", "/tldr", "/summary"],
-        "prompt_directive": """
-### Active Lens Directives: [Executive Brief & Rapid Triage]
-Deliver a high-density, zero-fluff technical briefing structured for rapid executive triage.
+1. **Stage 1 — Diagnostic Probe (Check Foundations):**
+   - When a user asks you to teach them a new concept (e.g. "Teach me self-attention", "How does backpropagation work?"):
+     * Do NOT dump a full textbook chapter all at once.
+     * State the core question, and immediately give **1 quick diagnostic check question or mini-challenge** to evaluate what foundation they already have.
+     * Example: *"To understand Attention from scratch, let's start with the problem that forced its invention: Why do standard RNNs struggle with long sentences as more words are processed?"*
 
-Format strictly under these 4 section headers:
-- **Executive TL;DR:** Exactly 2 sentences summarizing the core problem and the proposed solution.
-- **Key Innovation:** What is genuinely novel compared to prior literature [Doc_Name, p.X].
-- **Quantitative Highlights:** A compact table or bulleted list of top benchmark metrics and efficiency gains.
-- **3 Actionable Takeaways:** Three concrete, practical engineering or research implications.
-- Ground all metrics and claims with citations [Doc_Name, p.X].
-""".strip(),
-    },
-    "survey": {
-        "id": "survey",
-        "name": "Literature Survey",
-        "short_name": "Survey",
-        "icon": "Library",
-        "badge_color": "purple",
-        "tagline": "Cross-paper synthesis & timeline mapping",
-        "description": "Synthesizes multiple papers, groups approaches by school of thought, and maps evolutionary timelines.",
-        "temperature": 0.0,
-        "top_k": 12,
-        "slash_commands": ["/survey", "/litreview", "/compare", "/timeline"],
-        "prompt_directive": """
-### Active Lens Directives: [Literature Survey & Cross-Paper Synthesis]
-Synthesize evidence across all relevant papers in the workspace.
+2. **Stage 2 — First-Principles Teaching & Motivated Discovery (3Blue1Brown Style):**
+   - **Unconditional Truths First:** Always anchor the lesson in simple, rock-solid bedrock truths that can be accepted without caveats.
+   - **"How could you have discovered this yourself?":** Explain the *why* before the *how*. What failure mode forced this invention? Make every formula or design choice feel like something the learner would have invented themselves.
 
-When synthesizing:
-1. **Thematic Categorization:** Group retrieved papers and paradigms into coherent schools of thought.
-2. **Comparative Synthesis Matrix:** Build a clear Markdown table comparing methodologies, advantages, and limitations across papers.
-3. **Evolution of Ideas:** Explain how newer techniques addressed previous bottlenecks or failure modes.
-4. **Open Research Gaps:** Highlight unresolved contradictions, benchmark voids, or future research frontiers.
-5. Explicitly attribute every finding with inline citations [Doc_Name, p.X].
+3. **Stage 3 — Verify & Re-Evaluate (Instant Feedback):**
+   - Evaluate the student's responses with clear, constructive feedback (✓ / ✗ with the exact intuition).
+   - End every instructional step with **1 targeted conceptual check question (💡)** to confirm the idea has locked into their mental model before moving to the next level.
 """.strip(),
     },
 }
 
+# Backward-compatibility alias dictionary
+MODE_ALIASES: Dict[str, str] = {
+    "standard": "assistant",
+    "student": "assistant",
+    "overview": "assistant",
+    "default": "assistant",
+    "socratic": "teacher",
+    "tutor": "teacher",
+    "learn": "teacher",
+    "reviewer": "research",
+    "executive": "assistant",
+    "survey": "research",
+    "synth": "research",
+    "brief": "assistant",
+}
+
 
 def get_mode_config(mode_id: str | None) -> Dict[str, Any]:
-    """Retrieves mode configuration with safe fallback to 'research'."""
+    """Retrieves mode configuration with alias resolution and safe fallback to 'assistant'."""
     if not mode_id:
-        return ACADEMIC_MODES["research"]
+        return ACADEMIC_MODES["assistant"]
     clean_id = mode_id.strip().lower()
-    return ACADEMIC_MODES.get(clean_id, ACADEMIC_MODES["research"])
+    resolved_id = MODE_ALIASES.get(clean_id, clean_id)
+    return ACADEMIC_MODES.get(resolved_id, ACADEMIC_MODES["assistant"])
+
+
+def match_slash_command(query: str) -> tuple[str | None, str]:
+    """
+    Checks if the user query starts with a registered slash command (e.g. '/teach ...' or '/research ...').
+    Returns (matched_mode_id, cleaned_query_without_command).
+    """
+    if not query or not query.strip().startswith("/"):
+        return None, query
+
+    parts = query.strip().split(maxsplit=1)
+    first_word = parts[0].lower()
+    remainder = parts[1].strip() if len(parts) > 1 else ""
+
+    for mode_id, mode_cfg in ACADEMIC_MODES.items():
+        if first_word in [cmd.lower() for cmd in mode_cfg.get("slash_commands", [])]:
+            return mode_id, remainder
+
+    # Check aliases
+    clean_cmd = first_word.lstrip("/")
+    if clean_cmd in MODE_ALIASES:
+        return MODE_ALIASES[clean_cmd], remainder
+
+    return None, query
 
 
 def list_available_modes() -> List[Dict[str, Any]]:
@@ -145,22 +148,3 @@ def list_available_modes() -> List[Dict[str, Any]]:
         }
         for m in ACADEMIC_MODES.values()
     ]
-
-
-def match_slash_command(text: str) -> tuple[str | None, str]:
-    """
-    Detects if user input starts with a slash command (e.g. '/critique What are the flaws?')
-    and returns (mode_id, stripped_query).
-    """
-    if not text or not text.strip().startswith("/"):
-        return None, text
-
-    parts = text.strip().split(maxsplit=1)
-    cmd = parts[0].lower()
-    query = parts[1] if len(parts) > 1 else ""
-
-    for mode_id, config in ACADEMIC_MODES.items():
-        if cmd in config.get("slash_commands", []):
-            return mode_id, query
-
-    return None, text

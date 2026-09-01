@@ -1095,7 +1095,7 @@ export default function DocumentWriter({
   };
 
   return (
-    <div className="flex flex-col w-full h-full bg-[#121316] text-zinc-100 font-sans select-text relative overflow-hidden">
+    <div className="flex flex-col w-full h-full bg-zinc-950 text-zinc-100 font-sans select-text relative overflow-hidden">
       {/* -------------------------------------------------------------------- */}
       {/* 1. COLLAPSIBLE TOP RIBBON TOOLBAR (Overflow visible so popovers float) */}
       {/* -------------------------------------------------------------------- */}
@@ -1104,7 +1104,7 @@ export default function DocumentWriter({
           isToolbarCollapsed ? 'h-0 opacity-0 overflow-hidden pointer-events-none' : 'h-auto opacity-100 overflow-visible'
         }`}
       >
-        <div className="bg-[#18191c] border-b border-[#282a2e] px-3.5 py-2 flex items-center justify-between gap-2 select-none shadow-xl text-zinc-300 text-xs overflow-visible">
+        <div className="bg-zinc-900 border-b border-zinc-800 px-3.5 py-2 flex items-center justify-between gap-2 select-none shadow-xl text-zinc-300 text-xs overflow-visible">
           {/* Left Controls Cluster */}
           <div className="flex items-center gap-1 flex-wrap sm:flex-nowrap shrink-0 overflow-visible">
             {/* Close Writer Button (Cross / X) */}
@@ -1125,7 +1125,7 @@ export default function DocumentWriter({
               type="button"
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => formatDoc('undo')}
-              className="p-1.5 rounded hover:bg-[#282a2e] text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer shrink-0"
+              className="p-1.5 rounded hover:bg-zinc-800 text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer shrink-0"
               title="Undo (Ctrl+Z)"
             >
               <Undo2 className="h-4 w-4" />
@@ -1134,7 +1134,7 @@ export default function DocumentWriter({
               type="button"
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => formatDoc('redo')}
-              className="p-1.5 rounded hover:bg-[#282a2e] text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer shrink-0"
+              className="p-1.5 rounded hover:bg-zinc-800 text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer shrink-0"
               title="Redo (Ctrl+Y)"
             >
               <Redo2 className="h-4 w-4" />
@@ -1154,7 +1154,7 @@ export default function DocumentWriter({
                   setIsTableMenuOpen(false);
                   setIsExportMenuOpen(false);
                 }}
-                className="flex items-center gap-1 px-2 py-1 rounded hover:bg-[#282a2e] text-zinc-200 text-xs font-medium border border-transparent hover:border-zinc-700 transition-colors cursor-pointer"
+                className="flex items-center gap-1 px-2 py-1 rounded hover:bg-zinc-800 text-zinc-200 text-xs font-medium border border-transparent hover:border-zinc-700 transition-colors cursor-pointer"
                 title="Font Family"
               >
                 <span>{currentFontLabel}</span>
@@ -1191,7 +1191,7 @@ export default function DocumentWriter({
                   setIsTableMenuOpen(false);
                   setIsExportMenuOpen(false);
                 }}
-                className="flex items-center gap-1 px-2 py-1 rounded hover:bg-[#282a2e] text-zinc-200 text-xs font-medium border border-transparent hover:border-zinc-700 transition-colors cursor-pointer"
+                className="flex items-center gap-1 px-2 py-1 rounded hover:bg-zinc-800 text-zinc-200 text-xs font-medium border border-transparent hover:border-zinc-700 transition-colors cursor-pointer"
                 title="Font Size"
               >
                 <span>{currentFontSize}</span>
@@ -1227,7 +1227,7 @@ export default function DocumentWriter({
                   setIsTableMenuOpen(false);
                   setIsExportMenuOpen(false);
                 }}
-                className="flex items-center gap-1 px-2 py-1 rounded hover:bg-[#282a2e] text-zinc-200 text-xs font-medium border border-transparent hover:border-zinc-700 transition-colors cursor-pointer"
+                className="flex items-center gap-1 px-2 py-1 rounded hover:bg-zinc-800 text-zinc-200 text-xs font-medium border border-transparent hover:border-zinc-700 transition-colors cursor-pointer"
                 title="Styles"
               >
                 <span>{currentHeadingLabel}</span>
@@ -1258,7 +1258,7 @@ export default function DocumentWriter({
               type="button"
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => formatDoc('bold')}
-              className="p-1.5 rounded hover:bg-[#282a2e] text-zinc-300 hover:text-zinc-100 font-bold transition-colors cursor-pointer shrink-0"
+              className="p-1.5 rounded hover:bg-zinc-800 text-zinc-300 hover:text-zinc-100 font-bold transition-colors cursor-pointer shrink-0"
               title="Bold (Ctrl+B)"
             >
               <span className="font-bold text-xs">B</span>
@@ -1267,7 +1267,7 @@ export default function DocumentWriter({
               type="button"
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => formatDoc('italic')}
-              className="p-1.5 rounded hover:bg-[#282a2e] text-zinc-300 hover:text-zinc-100 italic transition-colors cursor-pointer shrink-0"
+              className="p-1.5 rounded hover:bg-zinc-800 text-zinc-300 hover:text-zinc-100 italic transition-colors cursor-pointer shrink-0"
               title="Italic (Ctrl+I)"
             >
               <span className="italic font-serif text-xs">I</span>
@@ -1276,7 +1276,7 @@ export default function DocumentWriter({
               type="button"
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => formatDoc('underline')}
-              className="p-1.5 rounded hover:bg-[#282a2e] text-zinc-300 hover:text-zinc-100 underline transition-colors cursor-pointer shrink-0"
+              className="p-1.5 rounded hover:bg-zinc-800 text-zinc-300 hover:text-zinc-100 underline transition-colors cursor-pointer shrink-0"
               title="Underline (Ctrl+U)"
             >
               <span className="underline text-xs">U</span>
@@ -1285,7 +1285,7 @@ export default function DocumentWriter({
               type="button"
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => formatDoc('strikeThrough')}
-              className="p-1.5 rounded hover:bg-[#282a2e] text-zinc-300 hover:text-zinc-100 line-through transition-colors cursor-pointer shrink-0"
+              className="p-1.5 rounded hover:bg-zinc-800 text-zinc-300 hover:text-zinc-100 line-through transition-colors cursor-pointer shrink-0"
               title="Strikethrough"
             >
               <span className="line-through text-xs">S</span>
@@ -1300,8 +1300,8 @@ export default function DocumentWriter({
               onClick={() => formatDoc('justifyLeft')}
               className={`p-1.5 rounded transition-colors cursor-pointer shrink-0 ${
                 activeAlign === 'justifyLeft'
-                  ? 'bg-teal-950/80 text-teal-400 border border-teal-500/30'
-                  : 'hover:bg-[#282a2e] text-zinc-400 hover:text-zinc-100'
+                  ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
+                  : 'hover:bg-zinc-800 text-zinc-400 hover:text-zinc-100'
               }`}
               title="Align Left"
             >
@@ -1313,8 +1313,8 @@ export default function DocumentWriter({
               onClick={() => formatDoc('justifyCenter')}
               className={`p-1.5 rounded transition-colors cursor-pointer shrink-0 ${
                 activeAlign === 'justifyCenter'
-                  ? 'bg-teal-950/80 text-teal-400 border border-teal-500/30'
-                  : 'hover:bg-[#282a2e] text-zinc-400 hover:text-zinc-100'
+                  ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
+                  : 'hover:bg-zinc-800 text-zinc-400 hover:text-zinc-100'
               }`}
               title="Align Center"
             >
@@ -1326,8 +1326,8 @@ export default function DocumentWriter({
               onClick={() => formatDoc('justifyRight')}
               className={`p-1.5 rounded transition-colors cursor-pointer shrink-0 ${
                 activeAlign === 'justifyRight'
-                  ? 'bg-teal-950/80 text-teal-400 border border-teal-500/30'
-                  : 'hover:bg-[#282a2e] text-zinc-400 hover:text-zinc-100'
+                  ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
+                  : 'hover:bg-zinc-800 text-zinc-400 hover:text-zinc-100'
               }`}
               title="Align Right"
             >
@@ -1339,8 +1339,8 @@ export default function DocumentWriter({
               onClick={() => formatDoc('justifyFull')}
               className={`p-1.5 rounded transition-colors cursor-pointer shrink-0 ${
                 activeAlign === 'justifyFull'
-                  ? 'bg-teal-950/80 text-teal-400 border border-teal-500/30'
-                  : 'hover:bg-[#282a2e] text-zinc-400 hover:text-zinc-100'
+                  ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
+                  : 'hover:bg-zinc-800 text-zinc-400 hover:text-zinc-100'
               }`}
               title="Justify"
             >
@@ -1354,7 +1354,7 @@ export default function DocumentWriter({
               type="button"
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => formatDoc('insertUnorderedList')}
-              className="p-1.5 rounded hover:bg-[#282a2e] text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer shrink-0"
+              className="p-1.5 rounded hover:bg-zinc-800 text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer shrink-0"
               title="Bullet Points List"
             >
               <List className="h-3.5 w-3.5" />
@@ -1363,7 +1363,7 @@ export default function DocumentWriter({
               type="button"
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => formatDoc('insertOrderedList')}
-              className="p-1.5 rounded hover:bg-[#282a2e] text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer shrink-0"
+              className="p-1.5 rounded hover:bg-zinc-800 text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer shrink-0"
               title="Numbered List"
             >
               <ListOrdered className="h-3.5 w-3.5" />
@@ -1372,7 +1372,7 @@ export default function DocumentWriter({
               type="button"
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => formatDoc('quote')}
-              className="p-1.5 rounded hover:bg-[#282a2e] text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer shrink-0"
+              className="p-1.5 rounded hover:bg-zinc-800 text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer shrink-0"
               title="Blockquote (Literature citation)"
             >
               <Quote className="h-3.5 w-3.5" />
@@ -1390,7 +1390,7 @@ export default function DocumentWriter({
                   setIsHeadingMenuOpen(false);
                   setIsExportMenuOpen(false);
                 }}
-                className="p-1.5 rounded hover:bg-[#282a2e] text-zinc-400 hover:text-amber-400 transition-colors cursor-pointer shrink-0"
+                className="p-1.5 rounded hover:bg-zinc-800 text-zinc-400 hover:text-amber-400 transition-colors cursor-pointer shrink-0"
                 title="Insert Table (Grid Selector)"
               >
                 <TableIcon className="h-3.5 w-3.5" />
@@ -1439,7 +1439,7 @@ export default function DocumentWriter({
               type="button"
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => formatDoc('insertHorizontalRule')}
-              className="p-1.5 rounded hover:bg-[#282a2e] text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer shrink-0"
+              className="p-1.5 rounded hover:bg-zinc-800 text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer shrink-0"
               title="Divider / Section Rule"
             >
               <Minus className="h-3.5 w-3.5" />
@@ -1450,7 +1450,7 @@ export default function DocumentWriter({
               type="button"
               onMouseDown={(e) => e.preventDefault()}
               onClick={handleInsertPageBreak}
-              className="p-1.5 rounded hover:bg-[#282a2e] text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer shrink-0"
+              className="p-1.5 rounded hover:bg-zinc-800 text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer shrink-0"
               title="Insert Page Break"
             >
               <FilePlus className="h-3.5 w-3.5" />
@@ -1463,7 +1463,7 @@ export default function DocumentWriter({
               type="button"
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => formatDoc('removeFormat')}
-              className="p-1.5 rounded hover:bg-[#282a2e] text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer shrink-0"
+              className="p-1.5 rounded hover:bg-zinc-800 text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer shrink-0"
               title="Clear Formatting"
             >
               <RemoveFormatting className="h-3.5 w-3.5" />
@@ -1490,7 +1490,7 @@ export default function DocumentWriter({
             <button
               type="button"
               onClick={handleCopyMarkdown}
-              className="flex items-center gap-1 text-xs text-zinc-300 hover:text-zinc-100 px-2 py-1 rounded hover:bg-[#282a2e] transition-colors cursor-pointer font-medium shrink-0"
+              className="flex items-center gap-1 text-xs text-zinc-300 hover:text-zinc-100 px-2 py-1 rounded hover:bg-zinc-800 transition-colors cursor-pointer font-medium shrink-0"
               title="Copy as Markdown"
             >
               {copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5 text-zinc-400" />}
@@ -1509,7 +1509,7 @@ export default function DocumentWriter({
                   setIsHeadingMenuOpen(false);
                   setIsTableMenuOpen(false);
                 }}
-                className="flex items-center gap-1.5 text-xs text-zinc-300 hover:text-zinc-100 px-2.5 py-1 rounded hover:bg-[#282a2e] transition-colors cursor-pointer font-medium shrink-0 bg-zinc-900 border border-zinc-700/60"
+                className="flex items-center gap-1.5 text-xs text-zinc-300 hover:text-zinc-100 px-2.5 py-1 rounded hover:bg-zinc-800 transition-colors cursor-pointer font-medium shrink-0 bg-zinc-900 border border-zinc-700/60"
                 title="Export Document"
               >
                 <Download className="h-3.5 w-3.5 text-amber-400" />
@@ -1566,7 +1566,7 @@ export default function DocumentWriter({
               <button
                 type="button"
                 onClick={onToggleFullscreen}
-                className="p-1.5 rounded hover:bg-[#282a2e] text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer shrink-0"
+                className="p-1.5 rounded hover:bg-zinc-800 text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer shrink-0"
                 title={isFullscreen ? 'Restore Split Screen' : 'Expand to Fullscreen'}
               >
                 {isFullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
@@ -1580,7 +1580,7 @@ export default function DocumentWriter({
       <button
         type="button"
         onClick={() => setIsToolbarCollapsed(!isToolbarCollapsed)}
-        className={`fixed left-1/2 -translate-x-1/2 bg-[#18191c] hover:bg-[#282a2e] border border-[#282a2e] border-t-0 rounded-b-md px-3.5 py-0.5 text-zinc-400 hover:text-zinc-200 shadow-xl cursor-pointer transition-all duration-300 z-50 ${
+        className={`fixed left-1/2 -translate-x-1/2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 border-t-0 rounded-b-md px-3.5 py-0.5 text-zinc-400 hover:text-zinc-200 shadow-xl cursor-pointer transition-all duration-300 z-50 ${
           isToolbarCollapsed ? 'top-0' : 'top-[41px]'
         }`}
         title={isToolbarCollapsed ? 'Show Toolbar' : 'Collapse Toolbar'}
@@ -1599,7 +1599,7 @@ export default function DocumentWriter({
         <button
           type="button"
           onClick={onToggleFullscreen}
-          className="fixed top-1/2 left-3 -translate-y-1/2 z-50 p-2 bg-[#1e2024]/90 hover:bg-[#282a2e] border border-zinc-700/60 rounded-full shadow-2xl text-zinc-400 hover:text-zinc-100 transition-all cursor-pointer group"
+          className="fixed top-1/2 left-3 -translate-y-1/2 z-50 p-2 bg-zinc-900/90 hover:bg-zinc-800 border border-zinc-700/60 rounded-full shadow-2xl text-zinc-400 hover:text-zinc-100 transition-all cursor-pointer group"
           title="Restore Split View (Collapse)"
         >
           <ChevronRight className="h-4 w-4 group-hover:scale-110 transition-transform" />
@@ -1610,7 +1610,7 @@ export default function DocumentWriter({
       {/* 3. SCROLLABLE DOCUMENT CANVAS CONTAINER (Light Paper Sheet)          */}
       {/* -------------------------------------------------------------------- */}
       <div
-        className={`flex-1 overflow-y-auto bg-[#121316] flex justify-center items-start pb-36 transition-all duration-300 ${
+        className={`flex-1 overflow-y-auto bg-zinc-950 flex justify-center items-start pb-36 transition-all duration-300 ${
           isToolbarCollapsed ? 'pt-4 sm:pt-6' : 'pt-2 sm:pt-4'
         } px-4`}
         onMouseUp={handleSelectionChange}
@@ -1648,7 +1648,7 @@ export default function DocumentWriter({
                   triggerAutoSave(editorRef.current?.innerHTML, e.target.value, citations);
                 }}
                 placeholder="Document Title"
-                className="w-full text-3xl sm:text-4xl font-bold text-zinc-900 placeholder-zinc-400 border-none outline-none mb-6 pb-2 transition-colors bg-transparent font-serif"
+                className="w-full text-3xl sm:text-4xl font-bold text-slate-900 placeholder-slate-400 border-none outline-none mb-6 pb-2 transition-colors bg-transparent font-serif"
               />
 
               {/* 2. Rich Contenteditable Manuscript Body */}
@@ -1661,15 +1661,15 @@ export default function DocumentWriter({
                   updateWordCount();
                   triggerAutoSave(editorRef.current?.innerHTML, title, citations);
                 }}
-                className="academic-editor prose prose-zinc max-w-none focus:outline-none min-h-[600px] leading-relaxed text-[#1a1a1a]"
+                className="academic-editor max-w-none focus:outline-none min-h-[600px] leading-relaxed text-slate-900"
               />
 
               {/* 3. References Section (Pinned at the bottom of the manuscript) */}
               {citations && citations.length > 0 && (
                 <div
-                  className="mt-20 pt-8 border-t-2 border-zinc-300 font-sans select-text not-prose"
+                  className="mt-20 pt-8 border-t-2 border-slate-300 font-sans select-text not-prose"
                 >
-                  <h2 className="text-xl font-bold text-zinc-900 font-serif tracking-tight mb-5">
+                  <h2 className="text-xl font-bold text-slate-900 font-serif tracking-tight mb-5">
                     References
                   </h2>
 
@@ -1678,24 +1678,24 @@ export default function DocumentWriter({
                       <li
                         key={item.doc_name}
                         id={`reference-${item.doc_index}`}
-                        className="flex items-baseline gap-3 text-sm text-zinc-800 leading-relaxed"
+                        className="flex items-baseline gap-3 text-sm text-slate-800 leading-relaxed"
                       >
-                        <span className="font-bold text-zinc-900 font-serif shrink-0 min-w-[2rem]">
+                        <span className="font-bold text-slate-900 font-serif shrink-0 min-w-[2rem]">
                           [{item.doc_index}]
                         </span>
                         <span className="flex-1">
                           {item.authors && (
-                            <span className="font-semibold text-zinc-900">{item.authors} </span>
+                            <span className="font-semibold text-slate-900">{item.authors} </span>
                           )}
                           {item.year && (
-                            <span className="text-zinc-700">({item.year}). </span>
+                            <span className="text-slate-700">({item.year}). </span>
                           )}
-                          <span className="italic font-serif text-zinc-900">"{item.title}"</span>
+                          <span className="italic font-serif text-slate-900">"{item.title}"</span>
                           {item.pagesStr && (
-                            <span className="text-zinc-600 text-xs font-mono ml-1.5">{item.pagesStr}</span>
+                            <span className="text-slate-600 text-xs font-mono ml-1.5">{item.pagesStr}</span>
                           )}
                           {item.doc_name && !item.title.toLowerCase().includes(item.doc_name.toLowerCase()) && (
-                            <span className="text-zinc-400 text-xs font-mono ml-2">({item.doc_name})</span>
+                            <span className="text-slate-400 text-xs font-mono ml-2">({item.doc_name})</span>
                           )}
                         </span>
                       </li>
@@ -1710,7 +1710,7 @@ export default function DocumentWriter({
       {/* -------------------------------------------------------------------- */}
       {/* 4. BOTTOM METRICS FOOTER (Matches Screenshot)                        */}
       {/* -------------------------------------------------------------------- */}
-      <div className="bg-[#121316] border-t border-[#24262b] px-6 py-2.5 flex items-center justify-between text-xs text-zinc-400 select-none shrink-0 fixed bottom-0 left-0 right-0 z-20">
+      <div className="bg-zinc-900 border-t border-zinc-800 px-6 py-2.5 flex items-center justify-between text-xs text-zinc-400 select-none shrink-0 fixed bottom-0 left-0 right-0 z-20">
         <div className="flex items-center gap-2">
           <FileText className="h-3.5 w-3.5 text-zinc-500" />
           <span>{wordCount} words · ~{Math.max(1, Math.ceil(wordCount / 200))} min read · {virtualPageCount} {virtualPageCount === 1 ? 'page' : 'pages'}</span>

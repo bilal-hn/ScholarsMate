@@ -185,4 +185,41 @@ class EditorAskAIResponse(BaseModel):
     instruction: str
     result: str
     thinking_process: Optional[str] = None
-    sources_used: List[SourceItem] = Field(default_factory=list)
+    sources_used: List[SourceItem] = Field(default_factory=list)
+
+
+# =============================================================================
+# BRAIN MEMORY SCHEMAS
+# =============================================================================
+
+class BrainMemoryResponse(BaseModel):
+    id: str
+    user_id: str
+    workspace_id: Optional[str] = None
+    scope: str = Field(default="global", description="'global' or 'workspace'")
+    category: str = Field(default="preference", description="'preference', 'profile', 'insight', 'milestone', 'directive'")
+    thought: str
+    is_active: bool = True
+    created_at: datetime
+    updated_at: datetime
+
+
+class CreateBrainMemoryRequest(BaseModel):
+    thought: str = Field(..., min_length=3, max_length=2000, json_schema_extra={"example": "Always format citations in IEEE style."})
+    scope: str = Field(default="global", json_schema_extra={"example": "global"})
+    category: str = Field(default="preference", json_schema_extra={"example": "preference"})
+    workspace_id: Optional[str] = Field(default=None, json_schema_extra={"example": "123e4567-e89b-12d3-a456-426614174000"})
+    is_active: bool = Field(default=True)
+
+
+class UpdateBrainMemoryRequest(BaseModel):
+    thought: Optional[str] = Field(default=None, min_length=3, max_length=2000)
+    category: Optional[str] = None
+    scope: Optional[str] = None
+    workspace_id: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+class BrainMemoriesListResponse(BaseModel):
+    memories: List[BrainMemoryResponse]
+    total: int

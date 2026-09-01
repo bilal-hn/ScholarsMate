@@ -11,17 +11,28 @@ from langchain_core.documents import Document
 DB_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../chroma_db"))
 EMBEDDING_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 
-embedding_fn = embedding_functions.SentenceTransformerEmbeddingFunction(
-    model_name=EMBEDDING_MODEL_NAME
-)
+_embedding_fn = None
+_chroma_client = None
 
-chroma_client = chromadb.PersistentClient(path=DB_DIR)
+def get_embedding_fn():
+    global _embedding_fn
+    if _embedding_fn is None:
+        _embedding_fn = embedding_functions.SentenceTransformerEmbeddingFunction(
+            model_name=EMBEDDING_MODEL_NAME
+        )
+    return _embedding_fn
 
+def get_chroma_client():
+    global _chroma_client
+    if _chroma_client is None:
+        _chroma_client = chromadb.PersistentClient(path=DB_DIR)
+    return _chroma_client
 
 def get_or_create_collection(collection_name: str = "scholarsmate_docs"):
-    return chroma_client.get_or_create_collection(
+    client = get_chroma_client()
+    return client.get_or_create_collection(
         name=collection_name,
-        embedding_function=embedding_fn,
+        embedding_function=get_embedding_fn(),
         metadata={"hnsw:space": "cosine"}
     )
 
@@ -40,8 +51,8 @@ def is_document_already_indexed(file_hash: str, collection_name: str = "scholars
         return False
 
 
-def store_chunks(chunks: list[Document], collection_name: str = "scholarsmate_docs"):
-    """Inserts or updates document chunks in ChromaDB with embeddings and metadata."""
+def store_chunks(chunks: list[Document], collection_name: str = "scholarsmate_docs", batch_size: int = 500):
+    """Inserts or updates document chunks in ChromaDB with safe batching for large books."""
     if not chunks:
         print("No new chunks to store.")
         return
@@ -52,13 +63,19 @@ def store_chunks(chunks: list[Document], collection_name: str = "scholarsmate_do
     metadatas = [c.metadata for c in chunks]
     ids = [c.metadata["chunk_id"] for c in chunks]
 
-    # Batch upsert to ChromaDB
-    collection.upsert(
-        ids=ids,
-        documents=documents,
-        metadatas=metadatas
-    )
-    print(f"Stored/Updated {len(chunks)} chunks in ChromaDB collection '{collection_name}'.")
+    # Safe batched upsert to prevent SQLite variable limits on massive books
+    total = len(chunks)
+    for i in range(0, total, batch_size):
+        end_idx = min(i + batch_size, total)
+        collection.upsert(
+            ids=ids[i:end_idx],
+            documents=documents[i:end_idx],
+            metadatas=metadatas[i:end_idx]
+        )
+        if total > batch_size:
+            print(f"ChromaDB batch indexed: {end_idx}/{total} chunks...")
+
+    print(f"Stored/Updated all {len(chunks)} chunks in ChromaDB collection '{collection_name}'.")
 
 
 def search_similar_chunks(

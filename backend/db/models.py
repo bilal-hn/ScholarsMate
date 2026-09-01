@@ -32,6 +32,11 @@ class User(Base):
         back_populates="user",
         cascade="all, delete-orphan"
     )
+    brain_memories: Mapped[List["BrainMemory"]] = relationship(
+        "BrainMemory",
+        back_populates="user",
+        cascade="all, delete-orphan"
+    )
 
 
 class UserDocument(Base):
@@ -102,7 +107,22 @@ class WorkspaceDraft(Base):
     title: Mapped[str] = mapped_column(String, default="Untitled Academic Draft")
     content_html: Mapped[str] = mapped_column(Text, default="")
     content_markdown: Mapped[str] = mapped_column(Text, default="")
-    citations_data: Mapped[Optional[list]] = mapped_column(JSON, default=list)  # List of inserted citation objects
+    session: Mapped["ChatSession"] = relationship("ChatSession", back_populates="draft")
+
+
+class BrainMemory(Base):
+    """Long-term learned research context, user preferences, and workspace knowledge."""
+    __tablename__ = "brain_memories"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=generate_uuid)
+    user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"), index=True)
+    workspace_id: Mapped[Optional[str]] = mapped_column(String, ForeignKey("chat_sessions.id"), nullable=True, index=True)
+    scope: Mapped[str] = mapped_column(String, default="global")  # "global" or "workspace"
+    category: Mapped[str] = mapped_column(String, default="preference")  # "preference", "profile", "insight", "milestone", "directive"
+    thought: Mapped[str] = mapped_column(Text)  # The extracted atomic fact/memory
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    session: Mapped["ChatSession"] = relationship("ChatSession", back_populates="draft")
+    user: Mapped["User"] = relationship("User", back_populates="brain_memories")
+    workspace: Mapped[Optional["ChatSession"]] = relationship("ChatSession")

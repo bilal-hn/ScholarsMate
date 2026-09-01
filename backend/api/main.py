@@ -7,7 +7,7 @@ import httpx
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, UploadFile, File, HTTPException, Depends
+from fastapi import FastAPI, UploadFile, File, HTTPException, Depends, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
@@ -38,6 +38,10 @@ from backend.api.schemas import (
     FindCitationsResponse,
     EditorAskAIRequest,
     EditorAskAIResponse,
+    BrainMemoryResponse,
+    CreateBrainMemoryRequest,
+    UpdateBrainMemoryRequest,
+    BrainMemoriesListResponse,
 )
 from backend.ingestion.pipeline import process_path
 from backend.ingestion.bibliographic_extractor import extract_bibliographic_metadata
@@ -47,6 +51,7 @@ from backend.rag.retriever import build_context_block
 from backend.rag.generator import generate_answer, _execute_completion_with_fallback
 from backend.rag.literature_review import generate_literature_review
 from backend.rag.runtime import normalize_litellm_model_id, extract_reasoning_and_content
+from backend.rag.brain import build_brain_context, extract_and_persist_memories_async
 
 # Import PDF streaming router
 from backend.api.documents import router as documents_router
@@ -364,12 +369,13 @@ async def delete_session_endpoint(
 @app.post("/api/query", response_model=QueryResponse)
 async def query_rag(
     request: QueryRequest, 
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """
     Executes grounded RAG pipeline across selected papers with dynamic model fallbacks,
-    active reasoning mode directives, and persists conversation turns to database.
+    active reasoning mode directives, Brain memory recall, and persists conversation turns to database.
     """
     try:
         # 1. Resolve target documents
@@ -382,7 +388,7 @@ async def query_rag(
         # 2. Manage Session Scope
         session_id = request.session_id
         session_exists = False
-        target_mode = getattr(request, "mode", None) or "research"
+        target_mode = getattr(request, "mode", None) or "assistant"
         
         if session_id:
             user_sessions = await crud.get_all_sessions(db, user_id=current_user.id)
@@ -416,7 +422,10 @@ async def query_rag(
                 for msg in (request.chat_history or [])
             ]
 
-        # 4. Generate answer via RAG Pipeline (with mode lens + FR-11 instant summary cache hit)
+        # 4. Fetch Brain Context (learned research preferences, profile & workspace findings)
+        brain_context = await build_brain_context(db, user_id=current_user.id, workspace_id=session_id)
+
+        # 5. Generate answer via RAG Pipeline (with mode lens + Brain context + FR-11 instant summary cache hit)
         start_time = time.perf_counter()
         result = generate_answer(
             query=request.query, 
@@ -426,7 +435,8 @@ async def query_rag(
             model_name=request.model_name,
             custom_keys=request.custom_keys or {},
             mode=target_mode,
-            custom_prompt_directive=getattr(request, "custom_prompt_directive", None)
+            custom_prompt_directive=getattr(request, "custom_prompt_directive", None),
+            brain_context=brain_context
         )
         duration_sec = round(time.perf_counter() - start_time, 2)
         prompt_words = len(request.query.split()) + (len(target_documents or []) * 120)
@@ -438,10 +448,11 @@ async def query_rag(
             "responseTime": f"{duration_sec}s",
             "tokens": total_tokens,
             "model": request.model_name,
-            "mode": applied_mode
+            "mode": applied_mode,
+            "brainApplied": bool(brain_context)
         }
 
-        # 5. Save User prompt & Bot answer (including thinking trace & telemetry) to Database
+        # 6. Save User prompt & Bot answer (including thinking trace & telemetry) to Database
         await crud.add_message(db, session_id=session_id, sender="user", text=request.query, mode_applied=applied_mode)
         await crud.add_message(
             db, 
@@ -453,6 +464,17 @@ async def query_rag(
             model_name=request.model_name,
             mode_applied=applied_mode,
             meta=telemetry_meta,
+        )
+
+        # 7. Trigger Background Brain Fact Extraction (learns from dialogue turn)
+        background_tasks.add_task(
+            extract_and_persist_memories_async,
+            user_id=current_user.id,
+            session_id=session_id,
+            user_message=request.query,
+            bot_answer=result["answer"],
+            model_name=request.model_name,
+            custom_keys=request.custom_keys
         )
 
         return QueryResponse(
@@ -904,6 +926,157 @@ User Instruction:
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"In-Editor AI execution failed: {str(e)}")
+
+
+# =============================================================================
+# BRAIN MEMORY REST API ENDPOINTS
+# =============================================================================
+
+@app.get("/api/brain/memories", response_model=BrainMemoriesListResponse)
+async def list_brain_memories(
+    workspace_id: Optional[str] = None,
+    scope: Optional[str] = None,
+    category: Optional[str] = None,
+    active_only: bool = False,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Retrieves all persistent memories, preferences, and workspace thoughts for the current user."""
+    try:
+        memories = await crud.get_brain_memories(
+            db=db,
+            user_id=current_user.id,
+            workspace_id=workspace_id,
+            scope=scope,
+            category=category,
+            active_only=active_only
+        )
+        items = [
+            BrainMemoryResponse(
+                id=m.id,
+                user_id=m.user_id,
+                workspace_id=m.workspace_id,
+                scope=m.scope,
+                category=m.category,
+                thought=m.thought,
+                is_active=m.is_active,
+                created_at=m.created_at,
+                updated_at=m.updated_at
+            )
+            for m in memories
+        ]
+        return BrainMemoriesListResponse(memories=items, total=len(items))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch brain memories: {str(e)}")
+
+
+@app.post("/api/brain/memories", response_model=BrainMemoryResponse)
+async def create_brain_memory(
+    request: CreateBrainMemoryRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Manually creates or teaches Brain a new thought, rule, or preference."""
+    try:
+        memory = await crud.add_brain_memory(
+            db=db,
+            user_id=current_user.id,
+            thought=request.thought,
+            scope=request.scope,
+            category=request.category,
+            workspace_id=request.workspace_id,
+            is_active=request.is_active
+        )
+        return BrainMemoryResponse(
+            id=memory.id,
+            user_id=memory.user_id,
+            workspace_id=memory.workspace_id,
+            scope=memory.scope,
+            category=memory.category,
+            thought=memory.thought,
+            is_active=memory.is_active,
+            created_at=memory.created_at,
+            updated_at=memory.updated_at
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to create brain memory: {str(e)}")
+
+
+@app.patch("/api/brain/memories/{memory_id}", response_model=BrainMemoryResponse)
+async def update_brain_memory(
+    memory_id: str,
+    request: UpdateBrainMemoryRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Edits or toggles an existing memory in Brain."""
+    try:
+        memory = await crud.update_brain_memory(
+            db=db,
+            memory_id=memory_id,
+            user_id=current_user.id,
+            thought=request.thought,
+            category=request.category,
+            scope=request.scope,
+            workspace_id=request.workspace_id,
+            is_active=request.is_active
+        )
+        if not memory:
+            raise HTTPException(status_code=404, detail="Brain memory record not found.")
+
+        return BrainMemoryResponse(
+            id=memory.id,
+            user_id=memory.user_id,
+            workspace_id=memory.workspace_id,
+            scope=memory.scope,
+            category=memory.category,
+            thought=memory.thought,
+            is_active=memory.is_active,
+            created_at=memory.created_at,
+            updated_at=memory.updated_at
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to update brain memory: {str(e)}")
+
+
+@app.delete("/api/brain/memories/{memory_id}")
+async def delete_brain_memory(
+    memory_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Erases a single memory record from Brain."""
+    try:
+        deleted = await crud.delete_brain_memory(db=db, memory_id=memory_id, user_id=current_user.id)
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Brain memory record not found.")
+        return {"status": "success", "message": "Memory erased from Brain.", "memory_id": memory_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to delete brain memory: {str(e)}")
+
+
+@app.delete("/api/brain/memories")
+async def clear_all_brain_memories(
+    scope: Optional[str] = None,
+    workspace_id: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Batch clears memories from Brain for current user."""
+    try:
+        cleared_count = await crud.clear_brain_memories(
+            db=db,
+            user_id=current_user.id,
+            scope=scope,
+            workspace_id=workspace_id
+        )
+        return {"status": "success", "cleared_count": cleared_count}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to clear brain memories: {str(e)}")
 
 
 if __name__ == "__main__":
