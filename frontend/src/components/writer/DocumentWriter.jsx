@@ -170,10 +170,10 @@ export default function DocumentWriter({
 }) {
   const editorRef = useRef(null);
   const canvasRef = useRef(null); // ref for the full document canvas (incl. references)
-  const [title, setTitle] = useState('Fyp');
+  const [title, setTitle] = useState('');
   const [citations, setCitations] = useState([]);
   const [saveStatus, setSaveStatus] = useState('saved'); // 'saved' | 'saving' | 'unsaved'
-  const [wordCount, setWordCount] = useState(82);
+  const [wordCount, setWordCount] = useState(0);
   const [pageCount, setPageCount] = useState(1);
   const [virtualPageCount, setVirtualPageCount] = useState(1); // visual page gap count
   const [copied, setCopied] = useState(false);
@@ -235,7 +235,7 @@ export default function DocumentWriter({
       try {
         const draft = await getDraftAPI(sessionId);
         if (draft && isMounted) {
-          setTitle(draft.title || 'Fyp');
+          setTitle(draft.title && draft.title !== 'Fyp' ? draft.title : '');
           setCitations(Array.isArray(draft.citations_data) ? draft.citations_data : []);
           if (editorRef.current) {
             let initialHtml = draft.content_html || '';
@@ -245,15 +245,7 @@ export default function DocumentWriter({
               .replace(/<div[^>]*id="reference-[^"]*"[^>]*>[\s\S]*?<\/div>/gi, '')
               .replace(/<h[1-6][^>]*>References\s*&\s*Bibliography<\/h[1-6]>/gi, '');
 
-            editorRef.current.innerHTML = initialHtml || `
-              <p class="section-tag" style="font-family: Inter, sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; color: #71717a; text-transform: uppercase; margin-top: 1.5rem; margin-bottom: 0.75rem;">RELATED WORK</p>
-              <ul>
-                <li><strong>Structure Extraction Complexities:</strong> Preserving complex document elements—such as embedded multi-column tables, mathematical formulas, and structural headers—during vector chunking remains technically non-trivial <span class="doc-badge" style="font-family: monospace; font-size: 11px; color: #4b5563; background: #f3f4f6; border: 1px solid #d1d5db; padding: 2px 6px; border-radius: 4px; display: inline-flex; align-items: center; gap: 3px;">📄 AAAAAAAA <strong>p.5</strong></span>.</li>
-                <li><strong>Context Scope Dependency:</strong> Retrieval performance is fundamentally bounded by the granularity of chunking algorithms and vector embedding quality <span class="doc-badge" style="font-family: monospace; font-size: 11px; color: #4b5563; background: #f3f4f6; border: 1px solid #d1d5db; padding: 2px 6px; border-radius: 4px; display: inline-flex; align-items: center; gap: 3px;">📄 AAAAAAAA <strong>p.5</strong></span> <span class="doc-badge" style="font-family: monospace; font-size: 11px; color: #4b5563; background: #f3f4f6; border: 1px solid #d1d5db; padding: 2px 6px; border-radius: 4px; display: inline-flex; align-items: center; gap: 3px;">📄 AAAAAAAA <strong>p.8</strong></span>.</li>
-              </ul>
-              <h2 style="font-family: 'Source Serif 4', Georgia, serif; font-size: 18px; font-weight: 700; margin-top: 2rem; margin-bottom: 0.75rem; color: #111827;">7. Main Conclusion & Future Directions</h2>
-              <p>The proposed ScholarsMate assistant offers a tailored framework for academic research synthesis by integrating structural parsing with modular Retrieval-Augmented Generation <span class="doc-badge" style="font-family: monospace; font-size: 11px; color: #4b5563; background: #f3f4f6; border: 1px solid #d1d5db; padding: 2px 6px; border-radius: 4px; display: inline-flex; align-items: center; gap: 3px;">📄 AAAAAAAA <strong>p.5</strong></span> <span class="doc-badge" style="font-family: monospace; font-size: 11px; color: #4b5563; background: #f3f4f6; border: 1px solid #d1d5db; padding: 2px 6px; border-radius: 4px; display: inline-flex; align-items: center; gap: 3px;">📄 AAAAAAAA <strong>p.8</strong></span>. Selecting a claim anywhere in this document surfaces a quiet inline prompt to cite it or ask the assistant — no separate panel required.</p>
-            `;
+            editorRef.current.innerHTML = initialHtml || '';
             updateWordCount();
           }
           setSaveStatus('saved');
@@ -1647,8 +1639,7 @@ export default function DocumentWriter({
                   setTitle(e.target.value);
                   triggerAutoSave(editorRef.current?.innerHTML, e.target.value, citations);
                 }}
-                placeholder="Document Title"
-                className="w-full text-3xl sm:text-4xl font-bold text-slate-900 placeholder-slate-400 border-none outline-none mb-6 pb-2 transition-colors bg-transparent font-serif"
+                className="w-full text-3xl sm:text-4xl font-bold text-slate-900 border-none outline-none mb-6 pb-2 transition-colors bg-transparent font-serif"
               />
 
               {/* 2. Rich Contenteditable Manuscript Body */}

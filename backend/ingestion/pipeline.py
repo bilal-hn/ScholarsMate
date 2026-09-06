@@ -149,3 +149,7 @@ def process_path(
         all_chunks.extend(doc_chunks)
 
     return all_chunks
+
+
+# Alias for backwards compatibility
+process_pdf = process_path
