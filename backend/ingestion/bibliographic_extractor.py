@@ -3,7 +3,7 @@ import re
 import unicodedata
 from pathlib import Path
 from typing import Optional, Dict, Any
-import fitz  # PyMuPDF
+import pymupdf
 
 # In-memory LRU-like cache for bibliographic metadata per file path
 _METADATA_CACHE: Dict[str, Dict[str, Any]] = {}
@@ -62,7 +62,7 @@ def extract_bibliographic_metadata(pdf_path: str) -> Dict[str, Any]:
         return result
 
     try:
-        doc = fitz.open(pdf_path)
+        doc = pymupdf.open(pdf_path)
     except Exception as e:
         print(f"[BibliographicExtractor] Failed to open PDF {pdf_path}: {e}")
         result = {

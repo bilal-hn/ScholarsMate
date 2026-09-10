@@ -1,11 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { GoogleLogin } from '@react-oauth/google';
-import { LogOut, User as UserIcon } from 'lucide-react';
-import { getCurrentUser, setGoogleAuthToken, logoutUser } from "../../services/api";
+import { LogOut, Key, User as UserIcon } from 'lucide-react';
+import { getCurrentUser, logoutUser } from "../../services/api";
 
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-
-export const AuthProfile = ({ onAuthChange }) => {
+export const AuthProfile = ({ onAuthChange, onOpenAuth, onOpenSettings }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -29,14 +26,6 @@ export const AuthProfile = ({ onAuthChange }) => {
     fetchUser();
   }, []);
 
-  const handleLoginSuccess = (credentialResponse) => {
-    if (credentialResponse.credential) {
-      setGoogleAuthToken(credentialResponse.credential);
-      fetchUser();
-      if (onAuthChange) onAuthChange();
-    }
-  };
-
   const handleLogout = () => {
     logoutUser();
     fetchUser();
@@ -48,7 +37,7 @@ export const AuthProfile = ({ onAuthChange }) => {
   }
 
   return (
-    <div className="flex items-center justify-between w-full select-none">
+    <div className="w-full select-none">
       {user && !user.is_guest ? (
         <div className="flex items-center justify-between w-full">
           <div className="flex items-center gap-2 overflow-hidden min-w-0 pr-1">
@@ -64,33 +53,56 @@ export const AuthProfile = ({ onAuthChange }) => {
               <p className="text-[10px] text-zinc-500 truncate mt-0.5 font-mono">{user.email}</p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={handleLogout}
-            title="Sign Out"
-            className="text-zinc-500 hover:text-rose-400 p-1 rounded-md transition-colors cursor-pointer shrink-0"
-          >
-            <LogOut className="h-3.5 w-3.5" />
-          </button>
+          <div className="flex items-center gap-0.5 shrink-0">
+            {onOpenSettings && (
+              <button
+                type="button"
+                onClick={onOpenSettings}
+                title="API Keys (BYOK)"
+                className="text-zinc-400 hover:text-amber-400 hover:bg-zinc-800/80 p-1.5 rounded-lg transition-colors cursor-pointer"
+              >
+                <Key className="h-3.5 w-3.5" />
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={handleLogout}
+              title="Sign Out"
+              className="text-zinc-500 hover:text-rose-400 hover:bg-zinc-800/80 p-1.5 rounded-lg transition-colors cursor-pointer"
+            >
+              <LogOut className="h-3.5 w-3.5" />
+            </button>
+          </div>
         </div>
       ) : (
-        <div className="w-full flex items-center justify-between gap-1.5">
-          <div className="flex items-center gap-1.5 min-w-0">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
-            <span className="text-[11.5px] text-zinc-400 truncate">Guest</span>
-          </div>
-          {GOOGLE_CLIENT_ID && (
-            <div className="shrink-0 scale-90 origin-right">
-              <GoogleLogin
-                onSuccess={handleLoginSuccess}
-                onError={() => console.warn('Google Sign In cancelled or failed')}
-                size="small"
-                theme="filled_black"
-                type="icon"
-                shape="circle"
-              />
+        <div className="w-full space-y-2">
+          <div className="flex items-center justify-between gap-1.5">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
+              <span className="text-xs font-medium text-zinc-300 truncate">Guest</span>
             </div>
-          )}
+            {onOpenSettings && (
+              <button
+                type="button"
+                onClick={onOpenSettings}
+                title="Custom LLM API Keys"
+                className="flex items-center gap-1 text-[11px] font-medium text-zinc-400 hover:text-amber-400 px-2 py-0.5 rounded-md hover:bg-zinc-800/70 transition-colors cursor-pointer"
+              >
+                <Key className="h-3 w-3" />
+                <span>API Key</span>
+              </button>
+            )}
+          </div>
+
+          <div className="pt-0.5">
+            <button
+              type="button"
+              onClick={() => onOpenAuth && onOpenAuth('login')}
+              className="w-full py-2.5 px-3 text-sm font-semibold text-zinc-950 bg-amber-500 hover:bg-amber-400 rounded-xl transition-all text-center cursor-pointer shadow-sm"
+            >
+              Log In
+            </button>
+          </div>
         </div>
       )}
     </div>

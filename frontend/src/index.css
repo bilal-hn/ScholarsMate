@@ -1,6 +1,11 @@
 @import "tailwindcss";
 
 @theme {
+  /* Font Family Tokens */
+  --font-sans: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-dm: 'DM Sans', sans-serif;
+  --font-raleway: 'Raleway', sans-serif;
+
   /* Dynamic Semantic Color Tokens linked to CSS Variables */
   --color-zinc-950: var(--theme-canvas, #131417);
   --color-zinc-900: var(--theme-surface, #1a1b20);
@@ -382,7 +387,7 @@ body,
   overflow: hidden !important;
   background-color: var(--color-zinc-950) !important;
   color: var(--color-zinc-200);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Inter', 'Helvetica Neue', sans-serif;
+  font-family: 'DM Sans', 'Raleway', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Inter', 'Helvetica Neue', sans-serif;
   text-align: left !important;
   border: none !important;
   -webkit-font-smoothing: antialiased;

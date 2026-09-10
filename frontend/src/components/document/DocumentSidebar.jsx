@@ -6,7 +6,6 @@ import {
   Trash2, 
   BookOpen, 
   PenTool,
-  Settings, 
   Compass, 
   Palette,
   Check, 
@@ -28,6 +27,7 @@ export default function DocumentSidebar({
   onToggleWriter,
   isWriterActive = false,
   onAuthChange,
+  onOpenAuth,
   onOpenSettings,
   onOpenThemeModal,
   onOpenSearchModal,
@@ -178,23 +178,13 @@ export default function DocumentSidebar({
         )}
       </div>
 
-      {/* Footer: User Profile & Settings */}
-      <div className="border-t border-zinc-800/80 bg-zinc-950/60 p-2 relative">
-        <div className="flex items-center justify-between gap-1.5">
-          <div className="min-w-0 flex-1">
-            <AuthProfile onAuthChange={onAuthChange} />
-          </div>
-
-          {/* BYOK & Model Settings */}
-          <button
-            type="button"
-            onClick={onOpenSettings}
-            title="BYOK & Model Settings"
-            className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800/70 transition-colors cursor-pointer shrink-0"
-          >
-            <Settings className="h-4 w-4" />
-          </button>
-        </div>
+      {/* Footer: User Profile & Actions */}
+      <div className="border-t border-zinc-800/80 bg-zinc-950/60 p-2.5 relative">
+        <AuthProfile 
+          onAuthChange={onAuthChange}
+          onOpenAuth={onOpenAuth}
+          onOpenSettings={onOpenSettings}
+        />
       </div>
     </aside>
   );

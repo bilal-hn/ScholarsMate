@@ -54,6 +54,8 @@ import InlineAskAIDrawer from './InlineAskAIDrawer';
 import { getDraftAPI, saveDraftAPI, findCitationsAPI, editorAskAIAPI } from '../../services/api';
 
 const FONT_FAMILIES = [
+  { label: 'DM Sans', value: "'DM Sans', sans-serif" },
+  { label: 'Raleway', value: "'Raleway', sans-serif" },
   { label: 'Source Serif', value: "'Source Serif 4', 'Source Serif Pro', Georgia, serif" },
   { label: 'Times New Roman', value: "'Times New Roman', Times, serif" },
   { label: 'Georgia', value: "Georgia, serif" },

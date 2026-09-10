@@ -5,10 +5,10 @@ from backend.ingestion.pipeline import process_pdf
 
 def test_chunking_and_metadata(tmp_path):
     # Create a temporary fake PDF text using PyMuPDF to test on the fly
-    import fitz
+    import pymupdf
 
     pdf_path = tmp_path / "test_paper.pdf"
-    doc = fitz.open()
+    doc = pymupdf.open()
 
     # Add Page 1
     page1 = doc.new_page()

@@ -19,7 +19,16 @@ from backend.db.session import init_db, get_db, engine, Base
 from backend.db import crud
 from backend.db.models import User, UserDocument
 from backend.db.document_service import update_schema_for_summary_cache
-from backend.api.auth import get_current_user, AuthResponse
+from backend.api.auth import (
+    get_current_user,
+    AuthResponse,
+    UserRegisterRequest,
+    UserLoginRequest,
+    TokenResponse,
+    hash_password,
+    verify_password,
+    create_access_token,
+)
 from backend.api.schemas import (
     QueryRequest,
     QueryResponse,
@@ -262,13 +271,93 @@ async def fetch_available_models(req: FetchModelsRequest):
 
 @app.get("/api/auth/me", response_model=AuthResponse)
 async def get_me(current_user: User = Depends(get_current_user)):
-    """Returns the authenticated Google user or active guest profile."""
+    """Returns the authenticated user or active guest profile."""
     return AuthResponse(
         user_id=current_user.id,
         name=current_user.name,
         email=current_user.email,
         avatar_url=current_user.avatar_url,
         is_guest=current_user.is_guest,
+    )
+
+
+@app.post("/api/auth/register", response_model=TokenResponse)
+async def register_user(req: UserRegisterRequest, db: AsyncSession = Depends(get_db)):
+    """Registers a new user with email and password."""
+    email_clean = req.email.strip().lower()
+    if not email_clean or "@" not in email_clean:
+        raise HTTPException(status_code=400, detail="A valid email address is required.")
+    if len(req.password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters long.")
+
+    # Check if user already exists
+    from sqlalchemy import select
+    stmt = select(User).where(User.email == email_clean)
+    result = await db.execute(stmt)
+    existing_user = result.scalar_one_or_none()
+
+    if existing_user:
+        if existing_user.password_hash:
+            raise HTTPException(status_code=400, detail="An account with this email already exists. Please log in.")
+        # Attach password to existing unauthenticated/guest/oauth profile
+        existing_user.password_hash = hash_password(req.password)
+        if req.name and req.name.strip():
+            existing_user.name = req.name.strip()
+        existing_user.is_guest = False
+        await db.commit()
+        await db.refresh(existing_user)
+        user = existing_user
+    else:
+        import uuid
+        user_name = req.name.strip() if req.name and req.name.strip() else email_clean.split("@")[0].capitalize()
+        user = User(
+            id=str(uuid.uuid4()),
+            email=email_clean,
+            name=user_name,
+            password_hash=hash_password(req.password),
+            is_guest=False
+        )
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
+
+    token = create_access_token({"sub": user.id, "email": user.email})
+    return TokenResponse(
+        access_token=token,
+        token_type="bearer",
+        user=AuthResponse(
+            user_id=user.id,
+            name=user.name,
+            email=user.email,
+            avatar_url=user.avatar_url,
+            is_guest=user.is_guest
+        )
+    )
+
+
+@app.post("/api/auth/login", response_model=TokenResponse)
+async def login_user(req: UserLoginRequest, db: AsyncSession = Depends(get_db)):
+    """Logs in an existing user with email and password."""
+    email_clean = req.email.strip().lower()
+    from sqlalchemy import select
+    stmt = select(User).where(User.email == email_clean)
+    result = await db.execute(stmt)
+    user = result.scalar_one_or_none()
+
+    if not user or not user.password_hash or not verify_password(req.password, user.password_hash):
+        raise HTTPException(status_code=401, detail="Invalid email or password.")
+
+    token = create_access_token({"sub": user.id, "email": user.email})
+    return TokenResponse(
+        access_token=token,
+        token_type="bearer",
+        user=AuthResponse(
+            user_id=user.id,
+            name=user.name,
+            email=user.email,
+            avatar_url=user.avatar_url,
+            is_guest=user.is_guest
+        )
     )
 
 

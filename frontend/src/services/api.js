@@ -140,14 +140,38 @@ export const getCurrentUser = async () => {
 };
 
 /**
- * Saves Google ID token upon successful sign-in.
+ * Saves Auth bearer token upon successful sign-in.
  */
 export const setGoogleAuthToken = (token) => {
   localStorage.setItem('scholarsmate_auth_token', token);
 };
 
+export const setAuthToken = setGoogleAuthToken;
+
 /**
- * Clears Google token and reverts to guest mode.
+ * Registers a new user with email and password.
+ */
+export const registerUserAPI = async ({ name, email, password }) => {
+  const response = await apiClient.post('/auth/register', { name, email, password });
+  if (response.data?.access_token) {
+    setAuthToken(response.data.access_token);
+  }
+  return response.data;
+};
+
+/**
+ * Logs in an existing user with email and password.
+ */
+export const loginUserAPI = async ({ email, password }) => {
+  const response = await apiClient.post('/auth/login', { email, password });
+  if (response.data?.access_token) {
+    setAuthToken(response.data.access_token);
+  }
+  return response.data;
+};
+
+/**
+ * Clears auth token and reverts to guest mode.
  */
 export const logoutUser = () => {
   localStorage.removeItem('scholarsmate_auth_token');

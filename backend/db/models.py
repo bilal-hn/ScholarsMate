@@ -18,6 +18,7 @@ class User(Base):
     google_id: Mapped[Optional[str]] = mapped_column(String, unique=True, nullable=True, index=True)
     name: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     avatar_url: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    password_hash: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     is_guest: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 

@@ -1,17 +1,51 @@
 import os
 import uuid
+import hashlib
+import secrets
+from datetime import datetime, timedelta
 from typing import Optional
 from fastapi import Header, HTTPException, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests
-from pydantic import BaseModel
+from jose import jwt, JWTError
+from pydantic import BaseModel, EmailStr
 
 from backend.db.session import get_db
 from backend.db.models import User
 
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
+JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "scholarsmate-secret-auth-key-2026")
+JWT_ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_DAYS = 30
+
+
+def hash_password(password: str) -> str:
+    """Generates a secure PBKDF2-HMAC-SHA256 hash with an independent random salt."""
+    salt = secrets.token_hex(16)
+    key = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("utf-8"), 100000)
+    return f"{salt}${key.hex()}"
+
+
+def verify_password(password: str, stored_hash: Optional[str]) -> bool:
+    """Verifies a plain-text password against a stored salt$hash string."""
+    if not stored_hash or "$" not in stored_hash:
+        return False
+    try:
+        salt, key_hex = stored_hash.split("$", 1)
+        test_key = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("utf-8"), 100000)
+        return secrets.compare_digest(test_key.hex(), key_hex)
+    except Exception:
+        return False
+
+
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+    """Signs a JWT bearer access token for email/password authenticated users."""
+    to_encode = data.copy()
+    expire = datetime.utcnow() + (expires_delta or timedelta(days=ACCESS_TOKEN_EXPIRE_DAYS))
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
 
 
 class AuthResponse(BaseModel):
@@ -24,6 +58,23 @@ class AuthResponse(BaseModel):
 
 class GoogleAuthRequest(BaseModel):
     credential: str  # Google ID Token from Google Identity Services
+
+
+class UserRegisterRequest(BaseModel):
+    name: Optional[str] = None
+    email: str
+    password: str
+
+
+class UserLoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: AuthResponse
 
 
 async def get_or_create_guest_user(guest_id: Optional[str], db: AsyncSession) -> User:
@@ -65,9 +116,23 @@ async def get_current_user(
     FastAPI dependency that extracts and validates the tenant identity.
     Checks Authorization: Bearer <Google_ID_Token> first, then falls back to X-Guest-ID.
     """
-    # 1. Check for Bearer Token (Google OAuth)
+    # 1. Check for Bearer Token
     if authorization and authorization.startswith("Bearer "):
-        token = authorization.split(" ")[1]
+        token = authorization.split(" ")[1].strip()
+
+        # 1A. Check if token is ScholarsMate local JWT token
+        try:
+            payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
+            user_id = payload.get("sub")
+            if user_id:
+                result = await db.execute(select(User).where(User.id == user_id))
+                user = result.scalar_one_or_none()
+                if user:
+                    return user
+        except JWTError:
+            pass  # Not a local JWT or expired, attempt Google validation next
+
+        # 1B. Check if token is Google OAuth ID Token
         try:
             id_info = id_token.verify_oauth2_token(
                 token, 

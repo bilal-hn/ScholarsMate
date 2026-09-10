@@ -5,10 +5,12 @@ import ChatInterface from './components/chat/ChatInterface';
 import DocumentWriter from './components/writer/DocumentWriter';
 import CreateWorkspaceModal from './components/document/CreateWorkspaceModal';
 import SettingsModal from './components/layout/SettingsModal';
+import TopNavbar from './components/layout/TopNavbar';
 import LiteratureReviewModal from './components/modals/LiteratureReviewModal';
 import ThemeModal from './components/modals/ThemeModal';
 import GlobalSearchModal from './components/modals/GlobalSearchModal';
 import BrainModal from './components/modals/BrainModal';
+import AuthModal from './components/modals/AuthModal';
 import PdfViewer from './components/viewer/PdfViewer';
 import { 
   getDocuments, 
@@ -34,6 +36,13 @@ export default function App() {
   const [isThemeModalOpen, setIsThemeModalOpen] = useState(false);
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [isBrainModalOpen, setIsBrainModalOpen] = useState(false);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authModalMode, setAuthModalMode] = useState('login');
+
+  const handleOpenAuth = (mode = 'login') => {
+    setAuthModalMode(mode);
+    setIsAuthModalOpen(true);
+  };
 
   // Active UI Theme
   const [currentTheme, setCurrentTheme] = useState(() => getSavedTheme());
@@ -357,6 +366,7 @@ export default function App() {
         onToggleWriter={handleToggleWriter}
         isWriterActive={isWriterOpen}
         onAuthChange={handleAuthChange}
+        onOpenAuth={handleOpenAuth}
         onOpenSettings={() => setIsSettingsOpen(true)}
         onOpenThemeModal={() => setIsThemeModalOpen(true)}
         onOpenSearchModal={() => setIsSearchModalOpen(true)}
@@ -366,17 +376,14 @@ export default function App() {
 
       {/* 2. Main Question / Research Interface Canvas */}
       <div className="flex-1 flex flex-col h-full overflow-hidden relative">
-        {/* Floating Expand Sidebar Button when collapsed */}
-        {isSidebarCollapsed && (
-          <button
-            type="button"
-            onClick={handleToggleSidebar}
-            title="Expand Sidebar"
-            className="absolute top-3 left-3 z-40 p-2 bg-zinc-900/90 hover:bg-zinc-800 border border-zinc-800 rounded-xl shadow-xl text-zinc-400 hover:text-zinc-100 transition-all cursor-pointer backdrop-blur-md hover:scale-105"
-          >
-            <PanelLeftOpen className="h-4 w-4" />
-          </button>
-        )}
+        {/* Top Navigation Bar */}
+        <TopNavbar
+          isSidebarCollapsed={isSidebarCollapsed}
+          onToggleSidebar={handleToggleSidebar}
+          currentUser={currentUser}
+          onOpenAuth={handleOpenAuth}
+          onAuthChange={handleAuthChange}
+        />
 
         {/* Subtle offline alert bar if backend is disconnected */}
         {backendStatus === 'offline' && (
@@ -504,6 +511,13 @@ export default function App() {
         onClose={() => setIsBrainModalOpen(false)}
         activeWorkspaceId={activeWorkspaceId}
         workspaces={workspaces}
+      />
+
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        initialMode={authModalMode}
+        onClose={() => setIsAuthModalOpen(false)}
+        onSuccess={handleAuthChange}
       />
     </div>
   );

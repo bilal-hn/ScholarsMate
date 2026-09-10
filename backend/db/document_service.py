@@ -55,6 +55,14 @@ def _get_connection():
             cursor.execute("ALTER TABLE chat_messages ADD COLUMN mode_applied VARCHAR(50) DEFAULT 'research';")
     except Exception:
         pass
+
+    try:
+        cursor.execute("PRAGMA table_info(users)")
+        u_columns = [row[1] for row in cursor.fetchall()]
+        if u_columns and "password_hash" not in u_columns:
+            cursor.execute("ALTER TABLE users ADD COLUMN password_hash TEXT;")
+    except Exception:
+        pass
         
     conn.commit()
     return conn

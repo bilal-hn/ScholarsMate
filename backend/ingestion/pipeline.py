@@ -1,7 +1,7 @@
 import os
 import hashlib
 from pathlib import Path
-import fitz  # PyMuPDF
+import pymupdf
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
@@ -20,7 +20,7 @@ from backend.ingestion.bibliographic_extractor import extract_bibliographic_meta
 
 def extract_pages_layout_aware(pdf_path: str, file_hash: str) -> tuple[list[Document], dict]:
     """Reads a PDF, extracts layout-aware text, and extracts bibliographic metadata."""
-    doc = fitz.open(pdf_path)
+    doc = pymupdf.open(pdf_path)
     clean_doc_name = os.path.basename(pdf_path)
     raw_pages = []
 
