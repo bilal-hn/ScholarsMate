@@ -214,15 +214,17 @@ export default function App() {
     return workspaces.find((ws) => ws.id === activeWorkspaceId) || null;
   }, [workspaces, activeWorkspaceId]);
 
-  // Strict Scoping: Return empty if no active workspace is selected
+  // Scoped documents: Workspace documents + any actively attached selectedDocs
   const scopedDocuments = useMemo(() => {
-    if (!activeWorkspace || !activeWorkspace.documents) {
-      return [];
-    }
-    return documents.filter((doc) =>
-      activeWorkspace.documents.includes(doc.doc_name)
+    const activeDocNames = activeWorkspace?.documents || [];
+    const combinedSet = new Set([...activeDocNames, ...selectedDocs]);
+    if (combinedSet.size === 0) return [];
+
+    const docMap = new Map(documents.map((d) => [d.doc_name, d]));
+    return Array.from(combinedSet).map((name) => 
+      docMap.get(name) || { doc_name: name, chunk_count: 0 }
     );
-  }, [documents, activeWorkspace]);
+  }, [documents, activeWorkspace, selectedDocs]);
 
   // Strict Selection: Clear selected docs if no active workspace is selected
   useEffect(() => {
@@ -232,6 +234,23 @@ export default function App() {
       setSelectedDocs([]);
     }
   }, [activeWorkspace]);
+
+  const handleDocumentUploaded = async (newDocNames) => {
+    await fetchDocs();
+    const namesArray = Array.isArray(newDocNames) ? newDocNames : [newDocNames];
+    if (activeWorkspaceId) {
+      setWorkspaces((prev) =>
+        prev.map((ws) =>
+          ws.id === activeWorkspaceId
+            ? {
+                ...ws,
+                documents: Array.from(new Set([...(ws.documents || []), ...namesArray])),
+              }
+            : ws
+        )
+      );
+    }
+  };
 
   const [targetMessageIndex, setTargetMessageIndex] = useState(null);
 
@@ -276,6 +295,33 @@ export default function App() {
     } catch {
       // Graceful error handling
     }
+  };
+
+  const handleDeleteCurrentChat = async () => {
+    if (activeWorkspaceId) {
+      if (window.confirm('Are you sure you want to delete this chat?')) {
+        await handleDeleteWorkspace(activeWorkspaceId);
+        window.dispatchEvent(new CustomEvent('scholarsmate:clear-chat'));
+      }
+    } else {
+      if (window.confirm('Clear all messages in this chat?')) {
+        window.dispatchEvent(new CustomEvent('scholarsmate:clear-chat'));
+      }
+    }
+  };
+
+  const handleNewChat = () => {
+    setActiveWorkspaceId(null);
+    setSelectedDocs([]);
+    setActivePdf(null);
+    setIsWriterOpen(false);
+    localStorage.removeItem('scholarsmate_active_id');
+    window.dispatchEvent(new CustomEvent('scholarsmate:clear-chat'));
+  };
+
+  const handleSessionCreated = async (newSessionId) => {
+    setActiveWorkspaceId(newSessionId);
+    await syncUserData();
   };
 
   const handleSelectCitation = (docName, pageNum) => {
@@ -356,11 +402,13 @@ export default function App() {
 
       {/* 1. Left Sidebar with Theme Switcher */}
       <DocumentSidebar
+        currentUser={currentUser}
         workspaces={workspaces}
         activeWorkspaceId={activeWorkspaceId}
         onSelectWorkspace={handleSelectWorkspace}
         onDeleteWorkspace={handleDeleteWorkspace}
         onOpenCreateModal={() => setIsModalOpen(true)}
+        onNewChat={handleNewChat}
         onOpenLitReview={() => setIsLitReviewOpen(true)}
         onOpenBrainModal={() => setIsBrainModalOpen(true)}
         onToggleWriter={handleToggleWriter}
@@ -382,7 +430,7 @@ export default function App() {
           onToggleSidebar={handleToggleSidebar}
           currentUser={currentUser}
           onOpenAuth={handleOpenAuth}
-          onAuthChange={handleAuthChange}
+          onDeleteChat={handleDeleteCurrentChat}
         />
 
         {/* Subtle offline alert bar if backend is disconnected */}
@@ -425,6 +473,8 @@ export default function App() {
               isSplitScreen={Boolean(activePdf || isWriterOpen)}
               targetMessageIndex={targetMessageIndex}
               onTargetMessageScrolled={() => setTargetMessageIndex(null)}
+              onSessionCreated={handleSessionCreated}
+              onDocumentUploaded={handleDocumentUploaded}
             />
           </div>
 

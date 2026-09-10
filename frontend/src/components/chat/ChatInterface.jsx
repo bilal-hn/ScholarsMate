@@ -113,6 +113,8 @@ export default function ChatInterface({
   isSplitScreen = false,
   targetMessageIndex = null,
   onTargetMessageScrolled,
+  onSessionCreated,
+  onDocumentUploaded,
   customKeys
 }) {
   const [messages, setMessages] = useState([]);
@@ -126,6 +128,7 @@ export default function ChatInterface({
   const [isCustomLensModalOpen, setIsCustomLensModalOpen] = useState(false);
 
   const [input, setInput] = useState('');
+  const [attachedDocs, setAttachedDocs] = useState([]);
   const [loading, setLoading] = useState(false);
   const [isLitReviewOpen, setIsLitReviewOpen] = useState(false);
   const [telemetry, setTelemetry] = useState(null); // { responseTime: '1.2s', tokenUsage: 280, docCount: 4 }
@@ -199,11 +202,22 @@ export default function ChatInterface({
         });
     } else {
       setMessages([]);
+      setAttachedDocs([]);
       setIsSessionLoading(false);
       const defaultGlobal = localStorage.getItem('scholarsmate_global_default_mode') || 'research';
       setCurrentMode(defaultGlobal);
     }
   }, [sessionId]);
+
+  // Listen for global clear chat request from top navbar
+  useEffect(() => {
+    const handleClearChat = () => {
+      setMessages([]);
+      setAttachedDocs([]);
+    };
+    window.addEventListener('scholarsmate:clear-chat', handleClearChat);
+    return () => window.removeEventListener('scholarsmate:clear-chat', handleClearChat);
+  }, []);
 
   // Scroll to targeted message from global search or query jump
   useEffect(() => {
@@ -302,7 +316,8 @@ export default function ChatInterface({
       sender: 'user', 
       text: userMessage, 
       mode_applied: currentMode,
-      timestamp: nowIso 
+      timestamp: nowIso,
+      attached_docs: attachedDocs.length > 0 ? [...attachedDocs] : []
     };
     const newMessages = [...messages, userMsgObj];
     setMessages(newMessages);
@@ -350,6 +365,9 @@ export default function ChatInterface({
 
       if (result.session_id && result.session_id !== activeSessionId) {
         setActiveSessionId(result.session_id);
+        if (onSessionCreated) {
+          onSessionCreated(result.session_id);
+        }
       }
 
       setMessages((prev) => [
@@ -510,6 +528,9 @@ export default function ChatInterface({
         hasWriterButton={hasWriterButton}
         onToggleWriter={onToggleWriter}
         onDismissWriterBadge={onDismissWriterBadge}
+        onDocumentUploaded={onDocumentUploaded}
+        attachedDocs={attachedDocs}
+        setAttachedDocs={setAttachedDocs}
       />
 
       {/* Literature Review Studio Modal */}

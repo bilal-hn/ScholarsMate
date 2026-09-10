@@ -21,8 +21,10 @@ import {
   Edit2,
   X,
   Info,
-  Sparkles
+  Sparkles,
+  Loader2
 } from 'lucide-react';
+import { uploadFile } from '../../services/api';
 
 export const LENS_GUIDES = {
   assistant: {
@@ -70,6 +72,9 @@ export default function ChatInput({
   hasWriterButton = false,
   onToggleWriter,
   onDismissWriterBadge,
+  onDocumentUploaded,
+  attachedDocs,
+  setAttachedDocs,
 }) {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isLensDropdownOpen, setIsLensDropdownOpen] = useState(false);
@@ -78,10 +83,88 @@ export default function ChatInput({
   const [expandedProvider, setExpandedProvider] = useState(null);
   const [isDeepSearchActive, setIsDeepSearchActive] = useState(false);
   
+  const [localAttachedDocs, setLocalAttachedDocs] = useState([]);
+  const effectiveAttachedDocs = attachedDocs !== undefined ? attachedDocs : localAttachedDocs;
+  const updateAttachedDocs = setAttachedDocs || setLocalAttachedDocs;
+
+  const [uploadingFiles, setUploadingFiles] = useState([]);
+  const [uploadError, setUploadError] = useState(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef(null);
+
   const dropdownRef = useRef(null);
   const lensDropdownRef = useRef(null);
   const matrixMenuRef = useRef(null);
   const textareaRef = useRef(null);
+
+  // Upload and attach research papers exclusively
+  const handleFileChange = async (e) => {
+    const rawFiles = Array.from(e.target.files || []);
+    const pdfFiles = rawFiles.filter((f) => f.name.toLowerCase().endsWith('.pdf'));
+
+    if (rawFiles.length > 0 && pdfFiles.length === 0) {
+      setUploadError('Only PDF research papers (.pdf) are supported.');
+      return;
+    }
+    if (pdfFiles.length === 0) return;
+
+    setUploadError(null);
+    const fileNames = pdfFiles.map((f) => f.name);
+    setUploadingFiles((prev) => [...prev, ...fileNames]);
+
+    const successfullyUploaded = [];
+    for (const file of pdfFiles) {
+      try {
+        await uploadFile(file);
+        successfullyUploaded.push(file.name);
+      } catch (err) {
+        console.error('Failed to upload paper:', err);
+        setUploadError(`Failed to upload ${file.name}: ${err.response?.data?.detail || err.message}`);
+      } finally {
+        setUploadingFiles((prev) => prev.filter((name) => name !== file.name));
+      }
+    }
+
+    if (successfullyUploaded.length > 0) {
+      // Exclusively track in attachedDocs so it displays in chat bar and stays after submit
+      updateAttachedDocs((prev) => Array.from(new Set([...(prev || []), ...successfullyUploaded])));
+
+      // Also ensure added to selectedDocs for retrieval scoping
+      if (setSelectedDocs) {
+        setSelectedDocs((prev) => Array.from(new Set([...(prev || []), ...successfullyUploaded])));
+      }
+      if (onDocumentUploaded) {
+        onDocumentUploaded(successfullyUploaded);
+      }
+    }
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleRemoveAttachedDoc = (docName) => {
+    updateAttachedDocs((prev) => (prev || []).filter((d) => d !== docName));
+    if (setSelectedDocs) {
+      setSelectedDocs((prev) => (prev || []).filter((d) => d !== docName));
+    }
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    if (e.dataTransfer?.files && e.dataTransfer.files.length > 0) {
+      handleFileChange({ target: { files: e.dataTransfer.files } });
+    }
+  };
+
+  const handleFormSubmit = (e) => {
+    e?.preventDefault();
+    if (!input.trim() || loading) return;
+    // Attached paper stays in chat bar after submit
+    onSubmit(e);
+  };
 
   // Combine default and custom slash commands
   const allSlashCommands = useMemo(() => {
@@ -251,6 +334,8 @@ export default function ChatInput({
       e.preventDefault();
       setShowMentionMenu(false);
       setShowSlashMenu(false);
+      if (!input.trim() || loading) return;
+      // Attached paper stays in chat bar after submit
       onSubmit(e);
     }
   };
@@ -430,8 +515,23 @@ export default function ChatInput({
       )}
 
       <form
-        onSubmit={onSubmit}
-        className="max-w-3xl mx-auto bg-zinc-900 hover:bg-zinc-900/95 border border-zinc-800 hover:border-zinc-700/80 focus-within:border-zinc-600 rounded-2xl p-3 flex flex-col gap-2 transition-all shadow-2xl relative"
+        onSubmit={handleFormSubmit}
+        onDragOver={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setIsDragging(true);
+        }}
+        onDragLeave={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setIsDragging(false);
+        }}
+        onDrop={handleDrop}
+        className={`max-w-3xl mx-auto bg-zinc-900 hover:bg-zinc-900/95 border ${
+          isDragging
+            ? 'border-amber-400 bg-amber-500/5 ring-2 ring-amber-400/20'
+            : 'border-zinc-800 hover:border-zinc-700/80 focus-within:border-zinc-600'
+        } rounded-2xl p-3 flex flex-col gap-2 transition-all shadow-2xl relative`}
       >
         {/* Slash Command Autocomplete Menu */}
         {showSlashMenu && matchingSlashCommands.length > 0 && (
@@ -501,6 +601,56 @@ export default function ChatInput({
                 );
               })}
             </div>
+          </div>
+        )}
+
+        {/* Attached Research Papers Preview Tray - exclusively explicitly attached papers */}
+        {((effectiveAttachedDocs && effectiveAttachedDocs.length > 0) || uploadingFiles.length > 0) && (
+          <div className="flex flex-wrap items-center gap-1.5 px-2 pb-1.5 border-b border-zinc-800/60 max-h-28 overflow-y-auto">
+            {/* Uploading File Chips */}
+            {uploadingFiles.map((name) => (
+              <div
+                key={`uploading-${name}`}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-mono animate-pulse"
+              >
+                <Loader2 className="h-3 w-3 animate-spin text-amber-400 shrink-0" />
+                <span className="truncate max-w-[180px]">{name}</span>
+                <span className="text-[10px] text-amber-400/80">indexing...</span>
+              </div>
+            ))}
+
+            {/* Attached Paper Chips */}
+            {effectiveAttachedDocs.map((docName) => (
+              <div
+                key={docName}
+                className="group flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-zinc-800/90 border border-zinc-700/60 text-zinc-200 text-xs font-sans hover:border-zinc-600 transition-colors shadow-sm"
+              >
+                <FileText className="h-3 w-3 text-amber-400 shrink-0" />
+                <span className="truncate max-w-[200px] text-[11.5px]" title={docName}>{docName}</span>
+                <button
+                  type="button"
+                  onClick={() => handleRemoveAttachedDoc(docName)}
+                  title="Remove attached paper"
+                  className="text-zinc-500 hover:text-rose-400 transition-colors p-0.5 rounded cursor-pointer"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Upload Error Banner */}
+        {uploadError && (
+          <div className="mx-2 px-2.5 py-1 rounded-md bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center justify-between">
+            <span className="truncate">{uploadError}</span>
+            <button
+              type="button"
+              onClick={() => setUploadError(null)}
+              className="text-rose-400 hover:text-white p-0.5 cursor-pointer"
+            >
+              <X className="h-3 w-3" />
+            </button>
           </div>
         )}
 
@@ -641,13 +791,33 @@ export default function ChatInput({
               <Search className="h-3.5 w-3.5" />
             </button>
 
-            {/* Attach File Button */}
+            {/* Hidden File Input for Paper Attachment */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf"
+              multiple
+              onChange={handleFileChange}
+              className="hidden"
+            />
+
+            {/* Attach Research Paper Button */}
             <button
               type="button"
-              className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/60 transition-colors cursor-pointer"
-              title="Attach Research Paper"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploadingFiles.length > 0}
+              className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                uploadingFiles.length > 0
+                  ? 'text-amber-400 bg-amber-500/10 animate-pulse'
+                  : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/60'
+              }`}
+              title="Attach Research Paper (.pdf)"
             >
-              <Plus className="h-3.5 w-3.5" />
+              {uploadingFiles.length > 0 ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-amber-400" />
+              ) : (
+                <Plus className="h-3.5 w-3.5" />
+              )}
             </button>
           </div>
 

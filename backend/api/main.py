@@ -490,6 +490,15 @@ async def query_rag(
                 elif not request.mode and getattr(current_session, "active_mode", None):
                     target_mode = current_session.active_mode
 
+                # Persist any newly attached papers to existing session
+                if target_documents:
+                    existing_docs = list(current_session.doc_names or [])
+                    merged_docs = list(dict.fromkeys(existing_docs + target_documents))
+                    if merged_docs != existing_docs:
+                        current_session.doc_names = merged_docs
+                        await db.commit()
+                        await db.refresh(current_session)
+
         # Fallback: create fresh session linked to user
         if not session_id or not session_exists:
             new_session = await crud.create_chat_session(

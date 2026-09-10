@@ -11,17 +11,23 @@ import {
   Check, 
   Sparkles,
   X,
-  PanelLeftClose
+  PanelLeftClose,
+  History,
+  ChevronDown,
+  ChevronRight,
+  MessageSquare,
 } from 'lucide-react';
 import { AuthProfile } from '../layout/AuthProfile';
 import { APP_CONFIG, THEMES } from '../../theme/constants';
 
 export default function DocumentSidebar({
+  currentUser,
   workspaces = [],
   activeWorkspaceId,
   onSelectWorkspace,
   onDeleteWorkspace,
   onOpenCreateModal,
+  onNewChat,
   onOpenLitReview,
   onOpenBrainModal,
   onToggleWriter,
@@ -34,6 +40,16 @@ export default function DocumentSidebar({
   isCollapsed = false,
   onToggleCollapse,
 }) {
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+
+  const workspaceList = useMemo(() => {
+    return (workspaces || []).filter((ws) => Array.isArray(ws.documents) && ws.documents.length > 0);
+  }, [workspaces]);
+
+  const conversationList = useMemo(() => {
+    return (workspaces || []).filter((ws) => !ws.documents || ws.documents.length === 0);
+  }, [workspaces]);
+
   return (
     <aside className={`bg-zinc-900/90 border-r border-zinc-800/80 flex flex-col h-full shrink-0 select-none text-zinc-300 font-sans transition-all duration-300 ${
       isCollapsed ? 'w-0 opacity-0 overflow-hidden border-r-0 pointer-events-none' : 'w-60 opacity-100'
@@ -63,14 +79,14 @@ export default function DocumentSidebar({
 
       {/* Primary Navigation Actions */}
       <div className="px-2 py-2 space-y-0.5 border-b border-zinc-800/40">
-        {/* Minimal "+ New Workspace" Action */}
+        {/* "+ New Chat" Action */}
         <button
           type="button"
-          onClick={onOpenCreateModal}
-          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium text-amber-400 hover:text-amber-300 hover:bg-zinc-800/50 transition-colors cursor-pointer group text-left"
+          onClick={onNewChat}
+          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold text-amber-400 hover:text-amber-300 hover:bg-zinc-800/50 transition-colors cursor-pointer group text-left"
         >
           <Plus className="h-4 w-4 stroke-[2.2] group-hover:scale-110 transition-transform" />
-          <span>New Workspace</span>
+          <span>New Chat</span>
         </button>
 
         {/* Global Search Modal Navigation Item */}
@@ -132,55 +148,136 @@ export default function DocumentSidebar({
         </button>
       </div>
 
-      {/* Workspaces List */}
-      <div className="flex-1 overflow-y-auto px-2 py-3 space-y-0.5">
-        <div className="px-3 py-1 text-[11px] font-medium tracking-wide text-zinc-500 flex items-center justify-between uppercase">
-          <span>Workspaces</span>
-          <span className="text-[10px] text-zinc-600 font-mono">{workspaces.length}</span>
+      {/* Workspaces & Conversation History */}
+      <div className="flex-1 overflow-y-auto px-2 py-3 space-y-4">
+        {/* Workspaces Section */}
+        <div className="space-y-1">
+          <div className="px-3 py-1 text-[11px] font-medium tracking-wide text-zinc-500 flex items-center justify-between uppercase">
+            <span>Workspaces</span>
+            <span className="text-[10px] text-zinc-600 font-mono">{workspaceList.length}</span>
+          </div>
+
+          {/* "+ New Workspace" Action Button moved below Workspaces heading */}
+          <button
+            type="button"
+            onClick={onOpenCreateModal}
+            className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs text-zinc-400 hover:text-amber-400 hover:bg-zinc-800/40 transition-colors cursor-pointer group text-left mb-1"
+          >
+            <Plus className="h-3.5 w-3.5 stroke-[2] group-hover:scale-110 transition-transform" />
+            <span>New Workspace</span>
+          </button>
+
+          {workspaceList.length === 0 ? (
+            <div className="px-3 py-4 text-center text-xs text-zinc-500 font-mono">
+              No workspaces yet
+            </div>
+          ) : (
+            workspaceList.map((ws) => {
+              const isActive = ws.id === activeWorkspaceId;
+              return (
+                <div
+                  key={ws.id}
+                  onClick={() => onSelectWorkspace(ws)}
+                  className={`group flex items-center justify-between px-3 py-2 rounded-lg text-xs cursor-pointer transition-colors ${
+                    isActive
+                      ? 'bg-zinc-800 text-zinc-100 font-medium'
+                      : 'text-zinc-400 hover:bg-zinc-800/40 hover:text-zinc-200'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5 truncate min-w-0 pr-2">
+                    <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${isActive ? 'bg-amber-400' : 'bg-transparent'}`} />
+                    <span className="truncate">{ws.name}</span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDeleteWorkspace(ws.id);
+                    }}
+                    title="Delete Workspace"
+                    className="opacity-0 group-hover:opacity-100 text-zinc-600 hover:text-rose-400 p-1 rounded transition-opacity cursor-pointer"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                </div>
+              );
+            })
+          )}
         </div>
 
-        {workspaces.length === 0 ? (
-          <div className="px-3 py-6 text-center text-xs text-zinc-500 font-mono">
-            No workspaces yet
-          </div>
-        ) : (
-          workspaces.map((ws) => {
-            const isActive = ws.id === activeWorkspaceId;
-            return (
-              <div
-                key={ws.id}
-                onClick={() => onSelectWorkspace(ws)}
-                className={`group flex items-center justify-between px-3 py-2 rounded-lg text-xs cursor-pointer transition-colors ${
-                  isActive
-                    ? 'bg-zinc-800 text-zinc-100 font-medium'
-                    : 'text-zinc-400 hover:bg-zinc-800/40 hover:text-zinc-200'
-                }`}
-              >
-                <div className="flex items-center gap-2.5 truncate min-w-0 pr-2">
-                  <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${isActive ? 'bg-amber-400' : 'bg-transparent'}`} />
-                  <span className="truncate">{ws.name}</span>
-                </div>
+        {/* Conversation History Collapsible Section */}
+        <div className="pt-3 border-t border-zinc-800/50 space-y-1">
+          <button
+            type="button"
+            onClick={() => setIsHistoryOpen((prev) => !prev)}
+            className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800/50 transition-colors cursor-pointer group text-left"
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              <History className="h-4 w-4 text-amber-400 group-hover:scale-105 transition-transform shrink-0" />
+              <span className="truncate">Conversation History</span>
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0 text-zinc-500">
+              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-zinc-800/60 text-zinc-400">
+                {conversationList.length}
+              </span>
+              {isHistoryOpen ? (
+                <ChevronDown className="h-3.5 w-3.5 text-zinc-400 group-hover:text-zinc-200" />
+              ) : (
+                <ChevronRight className="h-3.5 w-3.5 text-zinc-400 group-hover:text-zinc-200" />
+              )}
+            </div>
+          </button>
 
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onDeleteWorkspace(ws.id);
-                  }}
-                  title="Delete Workspace"
-                  className="opacity-0 group-hover:opacity-100 text-zinc-600 hover:text-rose-400 p-1 rounded transition-opacity cursor-pointer"
-                >
-                  <Trash2 className="h-3 w-3" />
-                </button>
-              </div>
-            );
-          })
-        )}
+          {/* History List: Shown when open, hidden when closed */}
+          {isHistoryOpen && (
+            <div className="space-y-0.5">
+              {conversationList.length === 0 ? (
+                <div className="px-3 py-4 text-center text-xs text-zinc-500 font-mono">
+                  No conversation history yet
+                </div>
+              ) : (
+                conversationList.map((chat) => {
+                  const isActive = chat.id === activeWorkspaceId;
+                  return (
+                    <div
+                      key={chat.id}
+                      onClick={() => onSelectWorkspace(chat)}
+                      className={`group flex items-center justify-between px-3 py-2 rounded-lg text-xs cursor-pointer transition-colors ${
+                        isActive
+                          ? 'bg-zinc-800 text-zinc-100 font-medium'
+                          : 'text-zinc-400 hover:bg-zinc-800/40 hover:text-zinc-200'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5 truncate min-w-0 pr-2">
+                        <MessageSquare className={`h-3.5 w-3.5 shrink-0 ${isActive ? 'text-amber-400' : 'text-zinc-500 group-hover:text-zinc-300'}`} />
+                        <span className="truncate">{chat.name || 'Chat Session'}</span>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDeleteWorkspace(chat.id);
+                        }}
+                        title="Delete Conversation"
+                        className="opacity-0 group-hover:opacity-100 text-zinc-600 hover:text-rose-400 p-1 rounded transition-opacity cursor-pointer shrink-0"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Footer: User Profile & Actions */}
-      <div className="border-t border-zinc-800/80 bg-zinc-950/60 p-2.5 relative">
+      <div className="border-t border-zinc-800/80 bg-zinc-950/60 py-4 px-3.5 relative">
         <AuthProfile 
+          currentUser={currentUser}
           onAuthChange={onAuthChange}
           onOpenAuth={onOpenAuth}
           onOpenSettings={onOpenSettings}

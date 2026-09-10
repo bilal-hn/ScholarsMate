@@ -705,6 +705,22 @@ export default function ChatMessage({ message, index, onSelectCitation }) {
 
             {/* Bubble Content */}
             <div className="bg-zinc-900 hover:bg-zinc-900/95 text-zinc-100 border border-zinc-800 font-normal px-4 py-3 rounded-2xl shadow-md text-[13.5px] whitespace-pre-wrap leading-relaxed select-text">
+              {/* Attached Paper Badges in User Bubble */}
+              {message.attached_docs && message.attached_docs.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mb-2.5 pb-2 border-b border-zinc-800/80">
+                  {message.attached_docs.map((doc) => (
+                    <div
+                      key={doc}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-zinc-800/90 border border-zinc-700/80 text-zinc-200 text-xs font-sans shadow-sm"
+                    >
+                      <FileText className="h-3 w-3 text-amber-400 shrink-0" />
+                      <span className="truncate max-w-[200px] text-[11.5px] font-medium" title={doc}>
+                        {doc}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
               {message.text}
             </div>
           </div>
