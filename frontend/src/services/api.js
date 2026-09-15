@@ -171,6 +171,17 @@ export const loginUserAPI = async ({ email, password }) => {
 };
 
 /**
+ * Exchanges Google token (ID token credential or OAuth access_token) with backend and sets auth token.
+ */
+export const googleLoginAPI = async (payload) => {
+  const response = await apiClient.post('/auth/google', payload);
+  if (response.data?.access_token) {
+    setAuthToken(response.data.access_token);
+  }
+  return response.data;
+};
+
+/**
  * Clears auth token and reverts to guest mode.
  */
 export const logoutUser = () => {

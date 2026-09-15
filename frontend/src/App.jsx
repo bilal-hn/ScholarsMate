@@ -431,6 +431,7 @@ export default function App() {
           currentUser={currentUser}
           onOpenAuth={handleOpenAuth}
           onDeleteChat={handleDeleteCurrentChat}
+          onOpenSettings={() => setIsSettingsOpen(true)}
         />
 
         {/* Subtle offline alert bar if backend is disconnected */}

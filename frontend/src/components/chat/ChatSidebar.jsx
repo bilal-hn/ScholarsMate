@@ -12,6 +12,7 @@ export default function ChatSidebar({
   onSelectSession,
   onNewChat,
   onAuthChange,
+  onOpenSettings,
 }) {
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -133,7 +134,7 @@ export default function ChatSidebar({
 
       {/* User Auth Profile Footer */}
       <div className="mt-auto pt-3 border-t border-zinc-800/80 -mx-4 -mb-4 px-4 bg-zinc-950/80">
-        <AuthProfile onAuthChange={handleAuthChange} />
+        <AuthProfile onAuthChange={handleAuthChange} onOpenSettings={onOpenSettings} />
       </div>
     </div>
   );

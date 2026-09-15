@@ -4,13 +4,17 @@ import time
 import shutil
 import hashlib
 import httpx
+import uuid
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, UploadFile, File, HTTPException, Depends, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
+from google.oauth2 import id_token
+from google.auth.transport import requests as google_requests
 
 # Ensure project root is added to sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
@@ -22,6 +26,8 @@ from backend.db.document_service import update_schema_for_summary_cache
 from backend.api.auth import (
     get_current_user,
     AuthResponse,
+    GoogleAuthRequest,
+    GOOGLE_CLIENT_ID,
     UserRegisterRequest,
     UserLoginRequest,
     TokenResponse,
@@ -157,6 +163,86 @@ ACTIVE_PRODUCTION_GEMINI = [
     {"id": "gemini/gemini-3.5-flash-lite", "name": "Gemini 3.5 Flash Lite", "provider": "gemini"},
 ]
 
+@app.post("/api/auth/google", response_model=TokenResponse)
+async def google_auth(req: GoogleAuthRequest, db: AsyncSession = Depends(get_db)):
+    """Verifies Google ID token or OAuth access token, provisions/links user account, and issues ScholarsMate JWT."""
+    google_id = None
+    email = None
+    name = None
+    avatar_url = None
+
+    if req.credential:
+        try:
+            id_info = id_token.verify_oauth2_token(
+                req.credential,
+                google_requests.Request(),
+                GOOGLE_CLIENT_ID if GOOGLE_CLIENT_ID else None
+            )
+            google_id = id_info.get("sub")
+            email = id_info.get("email")
+            name = id_info.get("name")
+            avatar_url = id_info.get("picture")
+        except Exception as e:
+            raise HTTPException(status_code=401, detail=f"Invalid Google ID token: {str(e)}")
+    elif req.access_token:
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                res = await client.get(
+                    "https://www.googleapis.com/oauth2/v3/userinfo",
+                    headers={"Authorization": f"Bearer {req.access_token}"}
+                )
+                if res.status_code != 200:
+                    raise HTTPException(status_code=401, detail="Invalid Google access token or failed to fetch user info.")
+                data = res.json()
+                google_id = data.get("sub")
+                email = data.get("email")
+                name = data.get("name")
+                avatar_url = data.get("picture")
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=401, detail=f"Failed to verify Google access token: {str(e)}")
+    else:
+        raise HTTPException(status_code=400, detail="Missing Google credential or access_token in request.")
+
+    if not email:
+        raise HTTPException(status_code=400, detail="Google account has no associated email.")
+    # Find user by google_id or email
+    stmt = select(User).where((User.google_id == google_id) | (User.email == email.lower()))
+    result = await db.execute(stmt)
+    user = result.scalar_one_or_none()
+    if not user:
+        user = User(
+            id=str(uuid.uuid4()),
+            google_id=google_id,
+            email=email.lower(),
+            name=name or email.split("@")[0],
+            avatar_url=avatar_url,
+            is_guest=False
+        )
+        db.add(user)
+    else:
+        user.google_id = google_id
+        if avatar_url:
+            user.avatar_url = avatar_url
+        if name and not user.name:
+            user.name = name
+        user.is_guest = False
+    await db.commit()
+    await db.refresh(user)
+    # Issue persistent 30-day ScholarsMate JWT
+    access_token = create_access_token({"sub": user.id, "email": user.email})
+    return TokenResponse(
+        access_token=access_token,
+        token_type="bearer",
+        user=AuthResponse(
+            user_id=user.id,
+            name=user.name,
+            email=user.email,
+            avatar_url=user.avatar_url,
+            is_guest=False
+        )
+    )
 
 @app.post("/api/byok/fetch-models", response_model=List[ModelItem])
 async def fetch_available_models(req: FetchModelsRequest):

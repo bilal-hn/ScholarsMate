@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { LogOut, User as UserIcon } from 'lucide-react';
+import { LogOut, Key, User as UserIcon } from 'lucide-react';
 import { getCurrentUser, logoutUser } from "../../services/api";
 
 export const AuthProfile = ({ currentUser, onAuthChange, onOpenAuth, onOpenSettings }) => {
@@ -60,7 +60,17 @@ export const AuthProfile = ({ currentUser, onAuthChange, onOpenAuth, onOpenSetti
               {user.name || 'User'}
             </span>
           </div>
-          <div className="flex items-center shrink-0">
+          <div className="flex items-center gap-1 shrink-0">
+            {onOpenSettings && (
+              <button
+                type="button"
+                onClick={onOpenSettings}
+                title="API Keys (BYOK)"
+                className="text-zinc-400 hover:text-amber-400 hover:bg-zinc-800/80 p-2 rounded-lg transition-colors cursor-pointer"
+              >
+                <Key className="h-4 w-4" />
+              </button>
+            )}
             <button
               type="button"
               onClick={handleLogout}
@@ -73,9 +83,22 @@ export const AuthProfile = ({ currentUser, onAuthChange, onOpenAuth, onOpenSetti
         </div>
       ) : (
         <div className="w-full space-y-2">
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
-            <span className="text-xs font-medium text-zinc-300 truncate">Guest</span>
+          <div className="flex items-center justify-between gap-1.5">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
+              <span className="text-xs font-medium text-zinc-300 truncate">Guest</span>
+            </div>
+            {onOpenSettings && (
+              <button
+                type="button"
+                onClick={onOpenSettings}
+                title="Custom LLM API Keys"
+                className="flex items-center gap-1.5 text-[11px] font-medium text-zinc-400 hover:text-amber-400 px-2 py-1 rounded-lg hover:bg-zinc-800/70 transition-colors cursor-pointer"
+              >
+                <Key className="h-3.5 w-3.5" />
+                <span>API Key</span>
+              </button>
+            )}
           </div>
 
           <div className="pt-0.5">

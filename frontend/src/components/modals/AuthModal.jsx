@@ -140,8 +140,8 @@ export default function AuthModal({
               <GoogleLogin
                 onSuccess={handleGoogleSuccess}
                 onError={() => setError('Google sign-in was cancelled or failed.')}
-                theme="filled_black"
-                shape="rectangular"
+                theme="transparent"
+                shape="pill"
                 size="large"
                 width="340"
                 text={mode === 'signup' ? 'signup_with' : 'signin_with'}

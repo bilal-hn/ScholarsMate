@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { PanelLeftOpen, MoreVertical, Trash2 } from 'lucide-react';
+import { PanelLeftOpen, MoreVertical, Trash2, Key } from 'lucide-react';
 
 export default function TopNavbar({
   isSidebarCollapsed,
@@ -7,6 +7,7 @@ export default function TopNavbar({
   currentUser,
   onOpenAuth,
   onDeleteChat,
+  onOpenSettings,
 }) {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef(null);
@@ -32,17 +33,6 @@ export default function TopNavbar({
     <header className="h-[75px] bg-zinc-950/80 backdrop-blur-md flex items-center justify-between px-6 shrink-0 z-30 select-none">
       {/* Top Left: Blank when logged in; shows ScholarsMate when logged out */}
       <div className="flex items-center gap-3">
-        {isSidebarCollapsed && (
-          <button
-            type="button"
-            onClick={onToggleSidebar}
-            title="Expand Sidebar"
-            className="p-2 bg-zinc-900/90 hover:bg-zinc-800 border border-zinc-800 rounded-xl shadow-md text-zinc-400 hover:text-zinc-100 transition-all cursor-pointer mr-1"
-          >
-            <PanelLeftOpen className="h-4 w-4" />
-          </button>
-        )}
-
         {!isAuthenticated && (
           <div className="flex items-center gap-3">
             <div>
@@ -73,6 +63,19 @@ export default function TopNavbar({
 
             {isMenuOpen && (
               <div className="absolute right-0 mt-2 w-44 bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl p-1.5 z-50 animate-in fade-in duration-150">
+                {onOpenSettings && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsMenuOpen(false);
+                      onOpenSettings();
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-zinc-300 hover:text-amber-400 hover:bg-zinc-800/60 rounded-lg transition-colors cursor-pointer text-left"
+                  >
+                    <Key className="h-4 w-4 shrink-0" />
+                    <span>API Keys</span>
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => {

@@ -15,7 +15,12 @@ from pydantic import BaseModel, EmailStr
 from backend.db.session import get_db
 from backend.db.models import User
 
-GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
+from dotenv import load_dotenv
+
+# Ensure environment variables are loaded
+load_dotenv(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.env")))
+
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID") or os.getenv("VITE_GOOGLE_CLIENT_ID", "")
 JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "scholarsmate-secret-auth-key-2026")
 JWT_ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_DAYS = 30
@@ -57,7 +62,8 @@ class AuthResponse(BaseModel):
 
 
 class GoogleAuthRequest(BaseModel):
-    credential: str  # Google ID Token from Google Identity Services
+    credential: Optional[str] = None  # Google ID Token from Google Identity Services
+    access_token: Optional[str] = None  # Google OAuth Access Token
 
 
 class UserRegisterRequest(BaseModel):
@@ -146,15 +152,18 @@ async def get_current_user(
             avatar_url = id_info.get("picture")
 
             # Look up or create authenticated user
-            result = await db.execute(select(User).where(User.google_id == google_id))
+            stmt = select(User).where(
+                (User.google_id == google_id) | (User.email == email.lower())
+            ) if email else select(User).where(User.google_id == google_id)
+            result = await db.execute(stmt)
             user = result.scalar_one_or_none()
 
             if not user:
                 user = User(
                     id=str(uuid.uuid4()),
                     google_id=google_id,
-                    email=email,
-                    name=name,
+                    email=email.lower() if email else None,
+                    name=name or (email.split("@")[0] if email else "User"),
                     avatar_url=avatar_url,
                     is_guest=False
                 )
@@ -162,9 +171,12 @@ async def get_current_user(
                 await db.commit()
                 await db.refresh(user)
             else:
-                user.name = name
-                user.email = email
-                user.avatar_url = avatar_url
+                user.google_id = google_id
+                if not user.name and name:
+                    user.name = name
+                if avatar_url:
+                    user.avatar_url = avatar_url
+                user.is_guest = False
                 await db.commit()
                 await db.refresh(user)
 
