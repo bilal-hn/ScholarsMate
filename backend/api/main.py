@@ -8,7 +8,7 @@ import uuid
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, UploadFile, File, HTTPException, Depends, BackgroundTasks
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -57,6 +57,7 @@ from backend.api.schemas import (
     CreateBrainMemoryRequest,
     UpdateBrainMemoryRequest,
     BrainMemoriesListResponse,
+    ImageExtractResponse,
 )
 from backend.ingestion.pipeline import process_path
 from backend.ingestion.bibliographic_extractor import extract_bibliographic_metadata
@@ -67,6 +68,7 @@ from backend.rag.generator import generate_answer, _execute_completion_with_fall
 from backend.rag.literature_review import generate_literature_review
 from backend.rag.runtime import normalize_litellm_model_id, extract_reasoning_and_content
 from backend.rag.brain import build_brain_context, extract_and_persist_memories_async
+from backend.rag.image_extractor import extract_image_data
 
 # Import PDF streaming router
 from backend.api.documents import router as documents_router
@@ -364,6 +366,40 @@ async def get_me(current_user: User = Depends(get_current_user)):
         email=current_user.email,
         avatar_url=current_user.avatar_url,
         is_guest=current_user.is_guest,
+        created_at=getattr(current_user, "created_at", None),
+    )
+
+
+class UpdateProfileRequest(BaseModel):
+    name: Optional[str] = None
+    avatar_url: Optional[str] = None
+
+
+@app.put("/api/auth/profile", response_model=AuthResponse)
+async def update_profile(
+    req: UpdateProfileRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Updates user profile display name or avatar."""
+    if not current_user.is_guest:
+        if req.name is not None and req.name.strip():
+            current_user.name = req.name.strip()
+        if req.avatar_url is not None:
+            current_user.avatar_url = req.avatar_url.strip()
+        await db.commit()
+        await db.refresh(current_user)
+    else:
+        if req.name is not None and req.name.strip():
+            current_user.name = req.name.strip()
+
+    return AuthResponse(
+        user_id=current_user.id,
+        name=current_user.name,
+        email=current_user.email,
+        avatar_url=current_user.avatar_url,
+        is_guest=current_user.is_guest,
+        created_at=getattr(current_user, "created_at", None),
     )
 
 
@@ -620,7 +656,8 @@ async def query_rag(
             custom_keys=request.custom_keys or {},
             mode=target_mode,
             custom_prompt_directive=getattr(request, "custom_prompt_directive", None),
-            brain_context=brain_context
+            brain_context=brain_context,
+            attached_images=getattr(request, "attached_images", None)
         )
         duration_sec = round(time.perf_counter() - start_time, 2)
         prompt_words = len(request.query.split()) + (len(target_documents or []) * 120)
@@ -633,11 +670,22 @@ async def query_rag(
             "tokens": total_tokens,
             "model": request.model_name,
             "mode": applied_mode,
-            "brainApplied": bool(brain_context)
+            "brainApplied": bool(brain_context),
+            "attachedImagesCount": len(request.attached_images) if getattr(request, "attached_images", None) else 0
         }
 
         # 6. Save User prompt & Bot answer (including thinking trace & telemetry) to Database
-        await crud.add_message(db, session_id=session_id, sender="user", text=request.query, mode_applied=applied_mode)
+        user_meta = None
+        if getattr(request, "attached_images", None):
+            user_meta = {"attached_images": request.attached_images}
+        await crud.add_message(
+            db, 
+            session_id=session_id, 
+            sender="user", 
+            text=request.query, 
+            mode_applied=applied_mode,
+            meta=user_meta
+        )
         await crud.add_message(
             db, 
             session_id=session_id, 
@@ -724,6 +772,62 @@ async def upload_pdf(
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Ingestion failed: {str(e)}")
+
+
+@app.post("/api/image/extract")
+async def extract_image_endpoint(
+    file: UploadFile = File(...),
+    custom_keys: Optional[str] = Form(None),
+    model_name: Optional[str] = Form(None),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Extracts text, formulas, questions, or supporting data from uploaded .png, .jpg, .jpeg, or .jfif images.
+    """
+    allowed_extensions = {".png", ".jpg", ".jpeg", ".jfif"}
+    ext = Path(file.filename or "").suffix.lower()
+    if ext not in allowed_extensions:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Unsupported image format '{ext}'. Only .png, .jpg, .jpeg, and .jfif are supported."
+        )
+
+    try:
+        content = await file.read()
+        if not content:
+            raise HTTPException(status_code=400, detail="Empty image file received.")
+
+        # Parse custom keys if passed as string/JSON
+        keys_dict = {}
+        if custom_keys:
+            import json
+            try:
+                keys_dict = json.loads(custom_keys)
+            except Exception:
+                keys_dict = {}
+
+        raw_mime = file.content_type
+        if ext in {".jpg", ".jpeg", ".jfif"}:
+            mime_type = "image/jpeg"
+        elif raw_mime and raw_mime.startswith("image/"):
+            mime_type = raw_mime
+        else:
+            mime_type = f"image/{ext.replace('.', '')}"
+
+        result = extract_image_data(
+            image_bytes=content,
+            filename=file.filename or "uploaded_image.png",
+            mime_type=mime_type,
+            custom_keys=keys_dict,
+            active_model=model_name
+        )
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Image data extraction failed: {str(e)}")
 
 
 @app.post("/api/workspace/create")

@@ -171,6 +171,41 @@ export const loginUserAPI = async ({ email, password }) => {
 };
 
 /**
+ * Updates user profile details (display name, avatar).
+ */
+export const updateUserProfileAPI = async ({ name, avatar_url }) => {
+  const response = await apiClient.put('/auth/profile', { name, avatar_url });
+  return response.data;
+};
+
+/**
+ * Gets saved academic profile preferences from localStorage.
+ */
+export const getSavedProfilePreferences = () => {
+  try {
+    const raw = localStorage.getItem('scholarsmate_profile_preferences');
+    return raw ? JSON.parse(raw) : {
+      citationStyle: 'APA 7th',
+      academicField: 'Computer Science & AI',
+      defaultLens: 'research',
+    };
+  } catch {
+    return {
+      citationStyle: 'APA 7th',
+      academicField: 'Computer Science & AI',
+      defaultLens: 'research',
+    };
+  }
+};
+
+/**
+ * Persists academic profile preferences in localStorage.
+ */
+export const saveProfilePreferences = (prefs) => {
+  localStorage.setItem('scholarsmate_profile_preferences', JSON.stringify(prefs));
+};
+
+/**
  * Exchanges Google token (ID token credential or OAuth access_token) with backend and sets auth token.
  */
 export const googleLoginAPI = async (payload) => {
@@ -456,6 +491,34 @@ export const deleteCustomLens = (lensId) => {
 };
 
 /**
+ * Uploads an image file (.png, .jpg, .jpeg) and extracts queries, equations, or supporting material.
+ * @param {File} file - The image file to analyze.
+ */
+export const extractImageDataAPI = async (file) => {
+  const { keys, activeModel } = getSavedBYOKConfig();
+  const formData = new FormData();
+  formData.append('file', file);
+  if (keys && Object.keys(keys).length > 0) {
+    formData.append('custom_keys', JSON.stringify(keys));
+  }
+  if (activeModel) {
+    formData.append('model_name', activeModel);
+  }
+
+  try {
+    const response = await apiClient.post('/image/extract', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Image data extraction failed:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+/**
  * Sends a research query to the ScholarsMate RAG pipeline with BYOK support and active reasoning mode.
  * @param {string} query - User question.
  * @param {Array<string>} [docNames=null] - Selected document filters.
@@ -465,6 +528,7 @@ export const deleteCustomLens = (lensId) => {
  * @param {string|null} [modelName=null] - Specific model ID to override active model.
  * @param {string} [mode="research"] - Active academic reasoning lens.
  * @param {string|null} [customPromptDirective=null] - Optional custom prompt directive.
+ * @param {Array<Object>|null} [attachedImages=null] - List of attached images with extracted data.
  */
 export const sendQuery = async (
   query,
@@ -474,7 +538,8 @@ export const sendQuery = async (
   topK = 10,
   modelName = null,
   mode = 'research',
-  customPromptDirective = null
+  customPromptDirective = null,
+  attachedImages = null
 ) => {
   const formattedHistory = Array.isArray(chatHistory)
     ? chatHistory.slice(-6).map((msg) => ({
@@ -501,6 +566,7 @@ export const sendQuery = async (
       custom_keys: keys,
       mode: mode || 'research',
       custom_prompt_directive: customPromptDirective || null,
+      attached_images: attachedImages && attachedImages.length > 0 ? attachedImages : null,
     });
     return response.data;
   } catch (error) {

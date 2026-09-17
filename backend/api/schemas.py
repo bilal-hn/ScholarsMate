@@ -33,6 +33,10 @@ class QueryRequest(BaseModel):
         default_factory=dict, 
         json_schema_extra={"example": {"gemini": "AIzaSy...", "groq": "gsk_..."}}
     )
+    attached_images: Optional[List[Dict[str, Any]]] = Field(
+        default=None,
+        json_schema_extra={"example": [{"name": "problem.png", "extracted_text": "Solve 2x+5=15"}]}
+    )
 
 
 class SourceItem(BaseModel):
@@ -222,4 +226,17 @@ class UpdateBrainMemoryRequest(BaseModel):
 
 class BrainMemoriesListResponse(BaseModel):
     memories: List[BrainMemoryResponse]
-    total: int
+    total: int
+
+
+# =============================================================================
+# MULTIMODAL IMAGE SCHEMAS
+# =============================================================================
+
+class ImageExtractResponse(BaseModel):
+    filename: str
+    extracted_text: str
+    is_query: bool = False
+    query_text: Optional[str] = None
+    structured_content: Optional[Dict[str, Any]] = None
+

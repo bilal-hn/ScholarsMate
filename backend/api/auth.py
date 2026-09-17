@@ -59,6 +59,7 @@ class AuthResponse(BaseModel):
     email: Optional[str] = None
     avatar_url: Optional[str] = None
     is_guest: bool
+    created_at: Optional[datetime] = None
 
 
 class GoogleAuthRequest(BaseModel):

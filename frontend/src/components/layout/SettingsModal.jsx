@@ -129,6 +129,23 @@ export default function SettingsModal({ isOpen, onClose, onConfigUpdated }) {
               <span>{error}</span>
             </div>
           )}
+
+          {/* Vision OCR Guide */}
+          <div className="flex items-start gap-2 p-2.5 rounded-xl bg-amber-500/5 border border-amber-500/15 text-[11px] text-zinc-400 mt-2">
+            <Sparkles className="h-3.5 w-3.5 text-amber-400 shrink-0 mt-0.5" />
+            <span>
+              <strong className="text-zinc-300">Vision & Formula OCR Tip:</strong> For extracting text, equations, and diagrams from uploaded images, add a free Google Gemini key from{' '}
+              <a
+                href="https://aistudio.google.com/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-amber-400 hover:underline font-medium"
+              >
+                aistudio.google.com
+              </a>{' '}
+              (Groq has decommissioned its Llama vision models).
+            </span>
+          </div>
         </div>
 
         {/* Configured Keys List */}

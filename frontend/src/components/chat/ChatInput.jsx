@@ -22,9 +22,10 @@ import {
   X,
   Info,
   Sparkles,
-  Loader2
+  Loader2,
+  Image
 } from 'lucide-react';
-import { uploadFile } from '../../services/api';
+import { uploadFile, extractImageDataAPI } from '../../services/api';
 
 export const LENS_GUIDES = {
   assistant: {
@@ -75,6 +76,8 @@ export default function ChatInput({
   onDocumentUploaded,
   attachedDocs,
   setAttachedDocs,
+  attachedImages,
+  setAttachedImages,
 }) {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isLensDropdownOpen, setIsLensDropdownOpen] = useState(false);
@@ -87,8 +90,17 @@ export default function ChatInput({
   const effectiveAttachedDocs = attachedDocs !== undefined ? attachedDocs : localAttachedDocs;
   const updateAttachedDocs = setAttachedDocs || setLocalAttachedDocs;
 
+  const [localAttachedImages, setLocalAttachedImages] = useState([]);
+  const effectiveAttachedImages = attachedImages !== undefined ? attachedImages : localAttachedImages;
+  const updateAttachedImages = setAttachedImages || setLocalAttachedImages;
+
+  const [isAttachMenuOpen, setIsAttachMenuOpen] = useState(false);
+  const attachMenuRef = useRef(null);
+  const imageInputRef = useRef(null);
+
   const [uploadingFiles, setUploadingFiles] = useState([]);
   const [uploadError, setUploadError] = useState(null);
+  const [visionNotice, setVisionNotice] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef(null);
 
@@ -150,20 +162,124 @@ export default function ChatInput({
     }
   };
 
+  // Upload image (.png, .jpg, .jpeg, .jfif) and extract data via LiteLLM vision
+  const handleImageChange = async (e) => {
+    const rawFiles = Array.from(e.target.files || []);
+    const validImages = rawFiles.filter((f) => {
+      const ext = f.name.toLowerCase().split('.').pop();
+      return ['png', 'jpg', 'jpeg', 'jfif'].includes(ext);
+    });
+
+    if (rawFiles.length > 0 && validImages.length === 0) {
+      setUploadError('Only .png, .jpg, .jpeg, and .jfif image formats are supported.');
+      return;
+    }
+    if (validImages.length === 0) return;
+
+    setUploadError(null);
+    for (const file of validImages) {
+      const imageId = `img_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      const previewUrl = URL.createObjectURL(file);
+
+      const newImageEntry = {
+        id: imageId,
+        name: file.name,
+        previewUrl,
+        extractedText: '',
+        suggestedQuery: '',
+        isExtracting: true,
+        error: null,
+      };
+
+      updateAttachedImages((prev) => [...(prev || []), newImageEntry]);
+
+      try {
+        const extractRes = await extractImageDataAPI(file);
+        updateAttachedImages((prev) =>
+          (prev || []).map((img) =>
+            img.id === imageId
+              ? {
+                  ...img,
+                  extractedText: extractRes.extracted_text || '',
+                  suggestedQuery: extractRes.suggested_query || '',
+                  warning: extractRes.warning || null,
+                  isExtracting: false,
+                }
+              : img
+          )
+        );
+
+        if (extractRes.warning) {
+          setVisionNotice(extractRes.warning);
+        } else {
+          setVisionNotice(null);
+        }
+
+        // If user input is currently empty and a query was extracted from image, populate it
+        if (extractRes.suggested_query && (!input || !input.trim())) {
+          setInput(extractRes.suggested_query);
+        }
+      } catch (err) {
+        console.error('Failed to extract data from image:', err);
+        updateAttachedImages((prev) =>
+          (prev || []).map((img) =>
+            img.id === imageId
+              ? {
+                  ...img,
+                  isExtracting: false,
+                  warning: 'Extraction skipped',
+                }
+              : img
+          )
+        );
+        const errMsg = err.response?.data?.detail || err.message || 'Image analysis unavailable';
+        setVisionNotice(`Image attached. (Note: ${errMsg}. You can add a free Google Gemini key in Settings for automatic OCR).`);
+      }
+    }
+
+    if (imageInputRef.current) {
+      imageInputRef.current.value = '';
+    }
+  };
+
+  const handleRemoveAttachedImage = (imageId) => {
+    updateAttachedImages((prev) => (prev || []).filter((img) => img.id !== imageId));
+  };
+
   const handleDrop = (e) => {
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
     if (e.dataTransfer?.files && e.dataTransfer.files.length > 0) {
-      handleFileChange({ target: { files: e.dataTransfer.files } });
+      const files = Array.from(e.dataTransfer.files);
+      const pdfs = files.filter((f) => f.name.toLowerCase().endsWith('.pdf'));
+      const imgs = files.filter((f) => {
+        const ext = f.name.toLowerCase().split('.').pop();
+        return ['png', 'jpg', 'jpeg', 'jfif'].includes(ext);
+      });
+
+      if (pdfs.length > 0) {
+        handleFileChange({ target: { files: pdfs } });
+      }
+      if (imgs.length > 0) {
+        handleImageChange({ target: { files: imgs } });
+      }
+      if (pdfs.length === 0 && imgs.length === 0) {
+        setUploadError('Please drop PDF papers (.pdf) or images (.png, .jpg, .jpeg, .jfif).');
+      }
     }
   };
 
   const handleFormSubmit = (e) => {
     e?.preventDefault();
-    if (!input.trim() || loading) return;
-    // Attached paper stays in chat bar after submit
-    onSubmit(e);
+    const hasImages = effectiveAttachedImages && effectiveAttachedImages.length > 0;
+    if ((!input.trim() && !hasImages) || loading) return;
+
+    if (!input.trim() && hasImages) {
+      setInput('Analyze the attached image and solve the query or explain the data.');
+    }
+
+    onSubmit(e, effectiveAttachedImages);
   };
 
   // Combine default and custom slash commands
@@ -334,9 +450,12 @@ export default function ChatInput({
       e.preventDefault();
       setShowMentionMenu(false);
       setShowSlashMenu(false);
-      if (!input.trim() || loading) return;
-      // Attached paper stays in chat bar after submit
-      onSubmit(e);
+      const hasImages = effectiveAttachedImages && effectiveAttachedImages.length > 0;
+      if ((!input.trim() && !hasImages) || loading) return;
+      if (!input.trim() && hasImages) {
+        setInput('Analyze the attached image and solve the query or explain the data.');
+      }
+      onSubmit(e, effectiveAttachedImages);
     }
   };
 
@@ -443,6 +562,9 @@ export default function ChatInput({
       }
       if (slashMenuRef.current && !slashMenuRef.current.contains(event.target)) {
         setShowSlashMenu(false);
+      }
+      if (attachMenuRef.current && !attachMenuRef.current.contains(event.target)) {
+        setIsAttachMenuOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -604,10 +726,12 @@ export default function ChatInput({
           </div>
         )}
 
-        {/* Attached Research Papers Preview Tray - exclusively explicitly attached papers */}
-        {((effectiveAttachedDocs && effectiveAttachedDocs.length > 0) || uploadingFiles.length > 0) && (
-          <div className="flex flex-wrap items-center gap-1.5 px-2 pb-1.5 border-b border-zinc-800/60 max-h-28 overflow-y-auto">
-            {/* Uploading File Chips */}
+        {/* Attached Research Papers & Images Preview Tray */}
+        {((effectiveAttachedDocs && effectiveAttachedDocs.length > 0) || 
+          (effectiveAttachedImages && effectiveAttachedImages.length > 0) || 
+          uploadingFiles.length > 0) && (
+          <div className="flex flex-wrap items-center gap-1.5 px-2 pb-1.5 border-b border-zinc-800/60 max-h-32 overflow-y-auto">
+            {/* Uploading Paper Chips */}
             {uploadingFiles.map((name) => (
               <div
                 key={`uploading-${name}`}
@@ -637,6 +761,81 @@ export default function ChatInput({
                 </button>
               </div>
             ))}
+
+            {/* Attached Image Chips with Extraction Status */}
+            {effectiveAttachedImages.map((img) => (
+              <div
+                key={img.id}
+                className="group flex items-center gap-2 px-2.5 py-1 rounded-md bg-zinc-800/90 border border-zinc-700/60 text-zinc-200 text-xs font-sans hover:border-zinc-600 transition-colors shadow-sm"
+              >
+                {img.previewUrl ? (
+                  <img
+                    src={img.previewUrl}
+                    alt={img.name}
+                    className="h-4 w-4 rounded object-cover border border-zinc-700 shrink-0"
+                  />
+                ) : (
+                  <Image className="h-3.5 w-3.5 text-sky-400 shrink-0" />
+                )}
+                <span className="truncate max-w-[150px] text-[11.5px] font-medium" title={img.name}>
+                  {img.name}
+                </span>
+
+                {img.isExtracting ? (
+                  <div className="flex items-center gap-1 text-[10px] text-sky-400 font-mono animate-pulse">
+                    <Loader2 className="h-2.5 w-2.5 animate-spin shrink-0" />
+                    <span>extracting...</span>
+                  </div>
+                ) : img.error ? (
+                  <span className="text-[10px] text-rose-400 font-mono" title={img.error}>
+                    error
+                  </span>
+                ) : img.warning ? (
+                  <span className="text-[9.5px] font-mono text-amber-400 bg-amber-500/10 px-1.5 py-0.2 rounded border border-amber-500/20" title={img.warning}>
+                    attached
+                  </span>
+                ) : (
+                  <span className="text-[9.5px] font-mono text-emerald-400 bg-emerald-500/10 px-1.5 py-0.2 rounded border border-emerald-500/20">
+                    extracted
+                  </span>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => handleRemoveAttachedImage(img.id)}
+                  title="Remove attached image"
+                  className="text-zinc-500 hover:text-rose-400 transition-colors p-0.5 rounded cursor-pointer ml-0.5"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Vision Notice / Tip Banner */}
+        {visionNotice && (
+          <div className="mx-2 px-3 py-1.5 rounded-md bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex items-center justify-between gap-2 shadow-sm">
+            <div className="flex items-center gap-1.5 truncate">
+              <Sparkles className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+              <span className="truncate">{visionNotice}</span>
+              {onOpenSettings && (
+                <button
+                  type="button"
+                  onClick={onOpenSettings}
+                  className="underline font-semibold text-amber-200 hover:text-white shrink-0 cursor-pointer ml-1"
+                >
+                  Settings
+                </button>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => setVisionNotice(null)}
+              className="text-amber-400 hover:text-white p-0.5 cursor-pointer shrink-0"
+            >
+              <X className="h-3 w-3" />
+            </button>
           </div>
         )}
 
@@ -791,7 +990,7 @@ export default function ChatInput({
               <Search className="h-3.5 w-3.5" />
             </button>
 
-            {/* Hidden File Input for Paper Attachment */}
+            {/* Hidden File Input for Paper Attachment (.pdf) */}
             <input
               ref={fileInputRef}
               type="file"
@@ -801,24 +1000,83 @@ export default function ChatInput({
               className="hidden"
             />
 
-            {/* Attach Research Paper Button */}
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploadingFiles.length > 0}
-              className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-                uploadingFiles.length > 0
-                  ? 'text-amber-400 bg-amber-500/10 animate-pulse'
-                  : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/60'
-              }`}
-              title="Attach Research Paper (.pdf)"
-            >
-              {uploadingFiles.length > 0 ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin text-amber-400" />
-              ) : (
-                <Plus className="h-3.5 w-3.5" />
+            {/* Hidden File Input for Image Upload (.png, .jpg, .jpeg, .jfif) */}
+            <input
+              ref={imageInputRef}
+              type="file"
+              accept=".png,.jpg,.jpeg,.jfif,image/png,image/jpeg"
+              multiple
+              onChange={handleImageChange}
+              className="hidden"
+            />
+
+            {/* Attachment Options Popover Menu */}
+            <div className="relative" ref={attachMenuRef}>
+              <button
+                type="button"
+                onClick={() => setIsAttachMenuOpen((prev) => !prev)}
+                disabled={uploadingFiles.length > 0}
+                className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                  isAttachMenuOpen
+                    ? 'text-amber-400 bg-zinc-800'
+                    : uploadingFiles.length > 0
+                    ? 'text-amber-400 bg-amber-500/10 animate-pulse'
+                    : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/60'
+                }`}
+                title="Add attachment"
+              >
+                {uploadingFiles.length > 0 ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-amber-400" />
+                ) : (
+                  <Plus className={`h-3.5 w-3.5 transition-transform duration-150 ${isAttachMenuOpen ? 'rotate-45 text-amber-400' : ''}`} />
+                )}
+              </button>
+
+              {/* Popover Menu with the 2 Requested Options */}
+              {isAttachMenuOpen && (
+                <div className="absolute bottom-full left-0 mb-2.5 w-56 bg-zinc-900 border border-zinc-800 rounded-xl p-1.5 shadow-2xl backdrop-blur-xl z-50 text-zinc-200 animate-in fade-in zoom-in-95 duration-100">
+                  <div className="text-[10px] font-semibold text-zinc-500 uppercase px-2 py-1 tracking-wider border-b border-zinc-800/80 mb-1 font-mono">
+                    Add Attachment
+                  </div>
+
+                  {/* Option 1: Attach paper (.pdf) */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsAttachMenuOpen(false);
+                      fileInputRef.current?.click();
+                    }}
+                    className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800/80 transition-colors cursor-pointer text-left group"
+                  >
+                    <div className="p-1 rounded-md bg-amber-500/10 text-amber-400 group-hover:bg-amber-500/20 shrink-0">
+                      <FileText className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="font-medium text-zinc-200">Attach paper (.pdf)</div>
+                      <div className="text-[10.5px] text-zinc-500 truncate">Index research paper</div>
+                    </div>
+                  </button>
+
+                  {/* Option 2: Upload image (.png, .jpg, .jpeg, .jfif) */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsAttachMenuOpen(false);
+                      imageInputRef.current?.click();
+                    }}
+                    className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800/80 transition-colors cursor-pointer text-left group"
+                  >
+                    <div className="p-1 rounded-md bg-sky-500/10 text-sky-400 group-hover:bg-sky-500/20 shrink-0">
+                      <Image className="h-4 w-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="font-medium text-zinc-200">Upload image</div>
+                      <div className="text-[10.5px] text-zinc-500 truncate">.png, .jpg, .jpeg, .jfif with data/query</div>
+                    </div>
+                  </button>
+                </div>
               )}
-            </button>
+            </div>
           </div>
 
           {/* Right Controls: Academic Lens Selector, Model Pill, Submit */}
@@ -1065,7 +1323,7 @@ export default function ChatInput({
             {/* Submit Button */}
             <button
               type="submit"
-              disabled={loading || !input.trim()}
+              disabled={loading || (!input.trim() && (!effectiveAttachedImages || effectiveAttachedImages.length === 0))}
               className="h-7 w-7 rounded-full bg-amber-500 hover:bg-amber-400 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-950 flex items-center justify-center transition-all cursor-pointer shadow-md active:scale-95 shrink-0"
               title="Send Message"
             >

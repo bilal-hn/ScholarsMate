@@ -12,6 +12,7 @@ import GlobalSearchModal from './components/modals/GlobalSearchModal';
 import BrainModal from './components/modals/BrainModal';
 import AuthModal from './components/modals/AuthModal';
 import PdfViewer from './components/viewer/PdfViewer';
+import ProfileSettingsModal from './components/layout/ProfileSettingsModal';
 import { 
   getDocuments, 
   checkHealth, 
@@ -32,6 +33,7 @@ export default function App() {
   const [backendStatus, setBackendStatus] = useState('checking');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isProfileSettingsOpen, setIsProfileSettingsOpen] = useState(false);
   const [isLitReviewOpen, setIsLitReviewOpen] = useState(false);
   const [isThemeModalOpen, setIsThemeModalOpen] = useState(false);
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
@@ -416,6 +418,7 @@ export default function App() {
         onAuthChange={handleAuthChange}
         onOpenAuth={handleOpenAuth}
         onOpenSettings={() => setIsSettingsOpen(true)}
+        onOpenProfileSettings={() => setIsProfileSettingsOpen(true)}
         onOpenThemeModal={() => setIsThemeModalOpen(true)}
         onOpenSearchModal={() => setIsSearchModalOpen(true)}
         isCollapsed={isSidebarCollapsed}
@@ -423,7 +426,7 @@ export default function App() {
       />
 
       {/* 2. Main Question / Research Interface Canvas */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden relative">
+      <div className="flex-1 flex flex-col h-full overflow-hidden relative z-0">
         {/* Top Navigation Bar */}
         <TopNavbar
           isSidebarCollapsed={isSidebarCollapsed}
@@ -532,6 +535,14 @@ export default function App() {
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         onConfigUpdated={handleConfigUpdated}
+      />
+
+      <ProfileSettingsModal
+        isOpen={isProfileSettingsOpen}
+        onClose={() => setIsProfileSettingsOpen(false)}
+        currentUser={currentUser}
+        onProfileUpdated={handleAuthChange}
+        onLogout={handleAuthChange}
       />
 
       <LiteratureReviewModal

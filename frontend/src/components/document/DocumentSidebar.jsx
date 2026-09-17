@@ -18,22 +18,9 @@ import {
   ChevronDown, 
   ChevronRight, 
   MessageSquare, 
-  User as UserIcon, 
-  Key,
-  LogOut,
 } from 'lucide-react';
 import { AuthProfile } from '../layout/AuthProfile';
 import { APP_CONFIG, THEMES } from '../../theme/constants';
-import { logoutUser } from '../../services/api';
-
-function getUserInitials(name) {
-  if (!name) return 'U';
-  const parts = name.trim().split(/\s+/);
-  if (parts.length >= 2) {
-    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-  }
-  return name.slice(0, 2).toUpperCase();
-}
 
 export default function DocumentSidebar({
   currentUser,
@@ -50,34 +37,13 @@ export default function DocumentSidebar({
   onAuthChange,
   onOpenAuth,
   onOpenSettings,
+  onOpenProfileSettings,
   onOpenThemeModal,
   onOpenSearchModal,
   isCollapsed = false,
   onToggleCollapse,
 }) {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
-  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
-  const profileMenuRef = useRef(null);
-
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (profileMenuRef.current && !profileMenuRef.current.contains(event.target)) {
-        setIsProfileMenuOpen(false);
-      }
-    };
-    if (isProfileMenuOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [isProfileMenuOpen]);
-
-  const handleLogout = () => {
-    logoutUser();
-    setIsProfileMenuOpen(false);
-    if (onAuthChange) onAuthChange();
-  };
 
   const workspaceList = useMemo(() => {
     return (workspaces || []).filter((ws) => Array.isArray(ws.documents) && ws.documents.length > 0);
@@ -88,8 +54,8 @@ export default function DocumentSidebar({
   }, [workspaces]);
 
   return (
-    <aside className={`bg-zinc-900/90 border-r border-zinc-800/80 flex flex-col h-full shrink-0 select-none text-zinc-300 font-sans transition-[width] duration-200 relative z-30 ${
-      isCollapsed ? 'w-16 overflow-visible' : 'w-60 overflow-hidden'
+    <aside className={`bg-zinc-900/90 border-r border-zinc-800/80 flex flex-col h-full shrink-0 select-none text-zinc-300 font-sans transition-[width] duration-200 relative z-40 overflow-visible ${
+      isCollapsed ? 'w-16' : 'w-60'
     }`}>
       {isCollapsed ? (
         /* Collapsed Rail View */
@@ -218,85 +184,16 @@ export default function DocumentSidebar({
             </div>
           </div>
 
-          {/* Bottom Section: API Key + User Profile Avatar */}
-          <div className="flex flex-col items-center gap-2 w-full px-2 pt-3 border-t border-zinc-800/50 relative" ref={profileMenuRef}>
-            {/* API Key Button (Shifted above bottom profile avatar) */}
-            {onOpenSettings && (
-              <button
-                type="button"
-                onClick={onOpenSettings}
-                className="relative group p-2.5 rounded-xl text-zinc-400 hover:text-amber-400 hover:bg-zinc-800/70 transition-all cursor-pointer flex items-center justify-center"
-                aria-label="API Keys"
-              >
-                <Key className="h-4.5 w-4.5" />
-                <span className="pointer-events-none absolute left-full top-1/2 -translate-y-1/2 ml-3 px-2.5 py-1.5 bg-zinc-900 border border-zinc-700/80 text-zinc-100 text-xs font-medium rounded-lg shadow-2xl whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50">
-                  API Keys
-                </span>
-              </button>
-            )}
-
-            {/* Profile Avatar Button */}
-            {currentUser && !currentUser.is_guest ? (
-              <div className="relative flex items-center justify-center">
-                <button
-                  type="button"
-                  onClick={() => setIsProfileMenuOpen((prev) => !prev)}
-                  className="relative group p-1 rounded-full cursor-pointer focus:outline-none flex items-center justify-center"
-                  aria-label={currentUser.name || 'User Profile'}
-                >
-                  {currentUser.avatar_url ? (
-                    <img
-                      src={currentUser.avatar_url}
-                      alt={currentUser.name || 'User'}
-                      className="w-8 h-8 rounded-full object-cover border border-zinc-700 group-hover:border-amber-500/60 transition-colors"
-                    />
-                  ) : (
-                    <div
-                      className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold text-white shadow-sm group-hover:brightness-110 transition-all"
-                      style={{ backgroundColor: '#c34e00' }}
-                    >
-                      {getUserInitials(currentUser.name)}
-                    </div>
-                  )}
-
-                  {/* Hover tooltip: shows user's name */}
-                  <span className={`pointer-events-none absolute left-full top-1/2 -translate-y-1/2 ml-3 px-2.5 py-1.5 bg-zinc-900 border border-zinc-700/80 text-zinc-100 text-xs font-medium rounded-lg shadow-2xl whitespace-nowrap transition-opacity duration-150 z-50 ${
-                    isProfileMenuOpen ? 'opacity-0' : 'opacity-0 group-hover:opacity-100'
-                  }`}>
-                    {currentUser.name || 'User'}
-                  </span>
-                </button>
-
-                {/* Pop-up Log Out Button Menu */}
-                {isProfileMenuOpen && (
-                  <div className="absolute left-full top-1/2 -translate-y-1/2 ml-3 z-50 bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl p-1 whitespace-nowrap animate-in fade-in zoom-in-95 duration-150">
-                    <button
-                      type="button"
-                      onClick={handleLogout}
-                      className="flex items-center gap-2.5 px-3.5 py-2 text-xs font-semibold text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 rounded-lg transition-colors cursor-pointer group"
-                    >
-                      <LogOut className="h-4 w-4 text-rose-500 group-hover:scale-105 transition-transform shrink-0" />
-                      <span>Log Out</span>
-                    </button>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => onOpenAuth && onOpenAuth('login')}
-                className="relative group p-2 rounded-xl text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/70 transition-all cursor-pointer flex items-center justify-center"
-                aria-label="Log In"
-              >
-                <div className="relative">
-                  <UserIcon className="h-5 w-5" />
-                  <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-zinc-900" />
-                </div>
-                <span className="pointer-events-none absolute left-full top-1/2 -translate-y-1/2 ml-3 px-2.5 py-1.5 bg-zinc-900 border border-zinc-700/80 text-zinc-100 text-xs font-medium rounded-lg shadow-2xl whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50">
-                  Log In / Sign Up
-                </span>
-              </button>
-            )}
+          {/* Bottom Section: User Profile Avatar (Shares exact same AuthProfile pop-up) */}
+          <div className="flex flex-col items-center w-full px-2 pt-3 border-t border-zinc-800/50 relative">
+            <AuthProfile
+              isCollapsed={true}
+              currentUser={currentUser}
+              onAuthChange={onAuthChange}
+              onOpenAuth={onOpenAuth}
+              onOpenSettings={onOpenSettings}
+              onOpenProfileSettings={onOpenProfileSettings}
+            />
           </div>
         </div>
       ) : (
@@ -425,37 +322,29 @@ export default function DocumentSidebar({
                   No workspaces yet
                 </div>
               ) : (
-                workspaceList.map((ws) => {
-                  const isActive = ws.id === activeWorkspaceId;
-                  return (
-                    <div
-                      key={ws.id}
-                      onClick={() => onSelectWorkspace(ws)}
-                      className={`group flex items-center justify-between px-3 py-2 rounded-lg text-xs cursor-pointer transition-colors ${
-                        isActive
-                          ? 'bg-zinc-800 text-zinc-100 font-medium'
-                          : 'text-zinc-400 hover:bg-zinc-800/40 hover:text-zinc-200'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2.5 truncate min-w-0 pr-2">
-                        <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${isActive ? 'bg-amber-400' : 'bg-transparent'}`} />
-                        <span className="truncate">{ws.name}</span>
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onDeleteWorkspace(ws.id);
-                        }}
-                        title="Delete Workspace"
-                        className="opacity-0 group-hover:opacity-100 text-zinc-600 hover:text-rose-400 p-1 rounded transition-opacity cursor-pointer"
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </button>
+                workspaceList.map((ws) => (
+                  <div
+                    key={ws.id}
+                    className="group flex items-center justify-between px-3 py-2 rounded-lg text-xs text-zinc-300 transition-colors hover:bg-zinc-800/30 select-none"
+                  >
+                    <div className="flex items-center gap-2.5 truncate min-w-0 pr-2">
+                      <span className="h-1.5 w-1.5 rounded-full shrink-0 bg-amber-400/80" />
+                      <span className="truncate text-zinc-300">{ws.name}</span>
                     </div>
-                  );
-                })
+
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDeleteWorkspace(ws.id);
+                      }}
+                      title="Delete Workspace"
+                      className="opacity-0 group-hover:opacity-100 text-zinc-500 hover:text-rose-400 p-1 rounded transition-opacity cursor-pointer shrink-0"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))
               )}
             </div>
 
@@ -534,6 +423,7 @@ export default function DocumentSidebar({
               onAuthChange={onAuthChange}
               onOpenAuth={onOpenAuth}
               onOpenSettings={onOpenSettings}
+              onOpenProfileSettings={onOpenProfileSettings}
             />
           </div>
         </>

@@ -305,7 +305,8 @@ def generate_answer(
     custom_keys: dict | None = None,
     mode: str = "research",
     custom_prompt_directive: str | None = None,
-    brain_context: str | None = None
+    brain_context: str | None = None,
+    attached_images: list[dict] | None = None,
 ) -> dict:
     """Universal RAG inference across any model provider with dynamic key resolution, mode directives & fallback."""
     # Detect inline slash commands (e.g. '/socratic Explain attention')
@@ -315,6 +316,16 @@ def generate_answer(
         clean_query = stripped_query.strip()
     else:
         clean_query = query.strip()
+
+    # Format attached image content if present
+    image_context_blocks = []
+    if attached_images:
+        for idx, img in enumerate(attached_images, 1):
+            img_name = img.get("name") or img.get("filename") or f"Image_{idx}"
+            img_text = img.get("extracted_text") or img.get("text") or ""
+            if img_text.strip():
+                image_context_blocks.append(f"### [ATTACHED IMAGE CONTENT: {img_name}]\n{img_text.strip()}")
+    attached_images_text = "\n\n".join(image_context_blocks)
 
     mode_cfg = get_mode_config(mode)
     mode_temp = mode_cfg.get("temperature", 0.0)
@@ -374,7 +385,7 @@ def generate_answer(
         }
 
     # Branch B: CONVERSATIONAL & GENERAL KNOWLEDGE Intents
-    if intent in {"CONVERSATIONAL", "GENERAL_KNOWLEDGE"}:
+    if intent in {"CONVERSATIONAL", "GENERAL_KNOWLEDGE"} and not attached_images_text:
         if intent == "CONVERSATIONAL":
             conv_sys = "You are ScholarsMate, a collegiate, intelligent AI research assistant. The user is chatting casually, thinking out loud, or sharing project context/goals (e.g. 'I am working on my bachelor's FYP'). Reply naturally, warmly, and concisely like a brilliant human research colleague. If they share an open-ended goal or context, acknowledge it enthusiastically and ask a natural, relevant clarifying question (e.g. what specific topic, domain, or model they are building) to help them plan. Do not dump unprompted dissertations, tables, or robotic headers."
         else:
@@ -427,7 +438,7 @@ def generate_answer(
         }
 
     # Early exit safeguard if workspace has no documents
-    if explicit_docs is not None and len(explicit_docs) == 0:
+    if explicit_docs is not None and len(explicit_docs) == 0 and not attached_images_text:
         return {
             "query": query,
             "answer": "There are no documents uploaded in this workspace. Please upload research papers to begin.",
@@ -460,6 +471,12 @@ def generate_answer(
     else:
         # Branch E: Standard Multi-Turn Synthesis
         context_block = build_context_block(retrieved_chunks)
+        if attached_images_text:
+            if context_block.strip():
+                context_block = f"{attached_images_text}\n\n---\n\n{context_block}"
+            else:
+                context_block = attached_images_text
+
         messages_payload = build_conversation_messages(
             query=clean_query,
             context_block=context_block,
@@ -499,6 +516,20 @@ def generate_answer(
         if key not in seen:
             seen.add(key)
             unique_sources.append(src)
+
+    # Include attached images in sources
+    if attached_images:
+        for img in attached_images:
+            name = img.get("name") or img.get("filename")
+            if name:
+                img_key = (f"[Image] {name}", 1)
+                if img_key not in seen:
+                    seen.add(img_key)
+                    unique_sources.append({
+                        "chunk_id": f"img_{name}",
+                        "doc_name": f"[Image] {name}",
+                        "page_number": 1
+                    })
 
     # Merge any explicit citations found directly in the answer text
     text_sources = extract_sources_from_text(answer_text)

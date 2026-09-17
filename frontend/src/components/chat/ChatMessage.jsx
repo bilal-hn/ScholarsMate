@@ -18,6 +18,7 @@ import {
   Sparkles,
   Zap,
   ExternalLink,
+  Image,
 } from 'lucide-react';
 
 /**
@@ -717,6 +718,35 @@ export default function ChatMessage({ message, index, onSelectCitation }) {
                       <span className="truncate max-w-[200px] text-[11.5px] font-medium" title={doc}>
                         {doc}
                       </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Attached Image Badges in User Bubble */}
+              {((message.attached_images && message.attached_images.length > 0) ||
+                (message.meta?.attached_images && message.meta.attached_images.length > 0)) && (
+                <div className="flex flex-wrap gap-2 mb-2.5 pb-2 border-b border-zinc-800/80">
+                  {(message.attached_images || message.meta.attached_images).map((img, i) => (
+                    <div
+                      key={i}
+                      className="inline-flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-zinc-800/90 border border-zinc-700/80 text-zinc-200 text-xs font-sans shadow-sm"
+                    >
+                      {img.previewUrl ? (
+                        <img
+                          src={img.previewUrl}
+                          alt={img.name || 'Image'}
+                          className="h-6 w-6 rounded object-cover border border-zinc-700 shrink-0"
+                        />
+                      ) : (
+                        <Image className="h-3.5 w-3.5 text-sky-400 shrink-0" />
+                      )}
+                      <div className="flex flex-col">
+                        <span className="truncate max-w-[160px] text-[11.5px] font-medium leading-tight" title={img.name}>
+                          {img.name || 'Image'}
+                        </span>
+                        <span className="text-[9.5px] text-zinc-400 font-mono">Image attached</span>
+                      </div>
                     </div>
                   ))}
                 </div>

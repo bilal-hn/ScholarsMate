@@ -129,6 +129,7 @@ export default function ChatInterface({
 
   const [input, setInput] = useState('');
   const [attachedDocs, setAttachedDocs] = useState([]);
+  const [attachedImages, setAttachedImages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [isLitReviewOpen, setIsLitReviewOpen] = useState(false);
   const [telemetry, setTelemetry] = useState(null); // { responseTime: '1.2s', tokenUsage: 280, docCount: 4 }
@@ -170,6 +171,7 @@ export default function ChatInterface({
               model_name: m.model_name || null,
               mode_applied: m.mode_applied || (m.meta && m.meta.mode) || 'research',
               meta: m.meta || null,
+              attached_images: m.meta?.attached_images || [],
               timestamp: m.timestamp || null,
             }));
             setMessages(mapped);
@@ -203,6 +205,7 @@ export default function ChatInterface({
     } else {
       setMessages([]);
       setAttachedDocs([]);
+      setAttachedImages([]);
       setIsSessionLoading(false);
       const defaultGlobal = localStorage.getItem('scholarsmate_global_default_mode') || 'research';
       setCurrentMode(defaultGlobal);
@@ -214,6 +217,7 @@ export default function ChatInterface({
     const handleClearChat = () => {
       setMessages([]);
       setAttachedDocs([]);
+      setAttachedImages([]);
     };
     window.addEventListener('scholarsmate:clear-chat', handleClearChat);
     return () => window.removeEventListener('scholarsmate:clear-chat', handleClearChat);
@@ -304,12 +308,28 @@ export default function ChatInterface({
   const activeModeObj = allAvailableModes.find((m) => m.id === currentMode) || allAvailableModes[0];
   const ActiveModeIcon = activeModeObj.icon;
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e, submittedImages = null) => {
     e?.preventDefault();
-    if (!input.trim() || loading) return;
+    const imgsToUse = submittedImages || attachedImages || [];
+    const hasImages = imgsToUse.length > 0;
+    if ((!input.trim() && !hasImages) || loading) return;
 
-    const userMessage = input.trim();
+    let userMessage = input.trim();
+    if (!userMessage && hasImages) {
+      userMessage = 'Analyze the attached image and solve the query or explain the data.';
+    }
     setInput('');
+
+    // Format clean image objects for RAG backend and user chat bubble
+    const imagesPayload = imgsToUse.map((img) => ({
+      name: img.name,
+      previewUrl: img.previewUrl,
+      extracted_text: img.extractedText || '',
+      suggested_query: img.suggestedQuery || '',
+    }));
+
+    // Reset attached images in active input tray
+    setAttachedImages([]);
     
     const nowIso = new Date().toISOString();
     const userMsgObj = { 
@@ -317,7 +337,8 @@ export default function ChatInterface({
       text: userMessage, 
       mode_applied: currentMode,
       timestamp: nowIso,
-      attached_docs: attachedDocs.length > 0 ? [...attachedDocs] : []
+      attached_docs: attachedDocs.length > 0 ? [...attachedDocs] : [],
+      attached_images: imagesPayload.length > 0 ? imagesPayload : []
     };
     const newMessages = [...messages, userMsgObj];
     setMessages(newMessages);
@@ -336,7 +357,8 @@ export default function ChatInterface({
         10,
         currentModel,
         currentMode,
-        customDirectiveToSend
+        customDirectiveToSend,
+        imagesPayload
       );
 
       const endTime = performance.now();
@@ -531,6 +553,8 @@ export default function ChatInterface({
         onDocumentUploaded={onDocumentUploaded}
         attachedDocs={attachedDocs}
         setAttachedDocs={setAttachedDocs}
+        attachedImages={attachedImages}
+        setAttachedImages={setAttachedImages}
       />
 
       {/* Literature Review Studio Modal */}
