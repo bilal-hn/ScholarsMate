@@ -58,6 +58,7 @@ from backend.api.schemas import (
     UpdateBrainMemoryRequest,
     BrainMemoriesListResponse,
     ImageExtractResponse,
+    RenameSessionRequest,
 )
 from backend.ingestion.pipeline import process_path
 from backend.ingestion.bibliographic_extractor import extract_bibliographic_metadata
@@ -919,6 +920,171 @@ async def create_workspace(
         "title": new_session.title,
         "doc_names": target_docs_sorted,
     }
+
+
+# =============================================================================
+# WORKSPACE PAPERS & MANAGEMENT ENDPOINTS
+# =============================================================================
+
+@app.post("/api/workspace/{session_id}/papers")
+async def add_papers_to_workspace(
+    session_id: str,
+    files: List[UploadFile] = File(...),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Adds and indexes additional PDF research papers into an existing workspace."""
+    user_sessions = await crud.get_all_sessions(db, user_id=current_user.id)
+    session = next((s for s in user_sessions if s.id == session_id), None)
+    if not session:
+        raise HTTPException(status_code=404, detail="Workspace not found or unauthorized.")
+
+    total_chunks = 0
+    processed_files = []
+
+    for file in files:
+        filename = Path(file.filename).name
+        if not filename.lower().endswith(".pdf"):
+            continue
+
+        file_path = UPLOADS_DIR / filename
+        try:
+            with file_path.open("wb") as buffer:
+                shutil.copyfileobj(file.file, buffer)
+
+            chunks = process_path(str(file_path))
+            if chunks:
+                store_chunks(chunks)
+                total_chunks += len(chunks)
+
+            file_hash = calculate_sha256(file_path)
+            doc_entry = UserDocument(
+                user_id=current_user.id,
+                doc_name=filename,
+                file_hash=file_hash,
+            )
+            db.add(doc_entry)
+
+            await trigger_async_summary_generation(doc_name=filename)
+            processed_files.append(filename)
+        except Exception as e:
+            print(f"Failed to process file {filename}: {str(e)}")
+
+    if not processed_files:
+        raise HTTPException(status_code=400, detail="No valid readable PDF files were processed.")
+
+    await db.commit()
+    updated_session = await crud.add_documents_to_session(db, session_id, processed_files, user_id=current_user.id)
+    
+    return {
+        "message": f"Added {len(processed_files)} document(s) to workspace.",
+        "session_id": session_id,
+        "title": updated_session.title if updated_session else session.title,
+        "doc_names": updated_session.doc_names if updated_session else [],
+        "chunks_processed": total_chunks,
+    }
+
+
+@app.delete("/api/workspace/{session_id}/papers/{doc_name}")
+async def remove_paper_from_workspace(
+    session_id: str,
+    doc_name: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Removes a single document from an existing workspace."""
+    updated_session = await crud.remove_document_from_session(db, session_id, doc_name, user_id=current_user.id)
+    if not updated_session:
+        raise HTTPException(status_code=404, detail="Workspace not found or document not in workspace.")
+
+    return {
+        "message": f"Document '{doc_name}' removed from workspace.",
+        "session_id": session_id,
+        "doc_names": updated_session.doc_names,
+    }
+
+
+@app.patch("/api/workspace/{session_id}/rename")
+async def rename_workspace_endpoint(
+    session_id: str,
+    req: RenameSessionRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Renames an existing workspace title."""
+    if not req.title.strip():
+        raise HTTPException(status_code=400, detail="Title cannot be empty.")
+
+    updated_session = await crud.rename_session(db, session_id, req.title.strip(), user_id=current_user.id)
+    if not updated_session:
+        raise HTTPException(status_code=404, detail="Workspace not found or unauthorized.")
+
+    return {
+        "message": "Workspace renamed successfully.",
+        "session_id": session_id,
+        "title": updated_session.title,
+    }
+
+
+@app.get("/api/workspace/{session_id}/papers")
+async def get_workspace_papers_endpoint(
+    session_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Retrieves full paper catalog and bibliographic metadata for a specific workspace."""
+    user_sessions = await crud.get_all_sessions(db, user_id=current_user.id)
+    session = next((s for s in user_sessions if s.id == session_id), None)
+    if not session:
+        raise HTTPException(status_code=404, detail="Workspace not found or unauthorized.")
+
+    doc_names = list(session.doc_names or [])
+    papers = []
+
+    for name in doc_names:
+        file_path = UPLOADS_DIR / name
+        meta = {}
+        if file_path.exists():
+            try:
+                meta = extract_bibliographic_metadata(str(file_path))
+            except Exception:
+                meta = {}
+
+        raw_title = meta.get("title") or name.replace(".pdf", "").replace("_", " ").title()
+        raw_authors = meta.get("authors")
+        
+        if raw_authors and raw_title:
+            import re
+            norm_a = re.sub(r'[^a-z0-9]', '', raw_authors.lower())
+            norm_t = re.sub(r'[^a-z0-9]', '', raw_title.lower())
+            norm_name = re.sub(r'[^a-z0-9]', '', name.replace(".pdf", "").lower())
+            if (
+                norm_a == norm_t 
+                or norm_a in norm_t 
+                or norm_t in norm_a 
+                or norm_a == norm_name 
+                or norm_a in norm_name
+            ):
+                if len(norm_t) <= 6 and len(norm_a) > 8:
+                    raw_title = raw_authors
+                raw_authors = None
+
+        papers.append({
+            "doc_name": name,
+            "title": raw_title,
+            "authors": raw_authors,
+            "year": meta.get("year"),
+            "formatted_citation": meta.get("formatted_citation"),
+            "tier": meta.get("tier", 3)
+        })
+
+    return {
+        "session_id": session.id,
+        "title": session.title,
+        "papers": papers,
+        "total_papers": len(papers),
+    }
+
 
 
 # =============================================================================

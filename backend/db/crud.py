@@ -257,6 +257,80 @@ async def delete_session(
     return False
 
 
+async def add_documents_to_session(
+    db: AsyncSession,
+    session_id: str,
+    doc_names: List[str],
+    user_id: Optional[str] = None
+) -> Optional[ChatSession]:
+    """Appends and deduplicates document filenames to a chat session/workspace."""
+    stmt = select(ChatSession).where(ChatSession.id == session_id)
+    if user_id:
+        stmt = stmt.where(ChatSession.user_id == user_id)
+    result = await db.execute(stmt)
+    session = result.scalar_one_or_none()
+    if not session:
+        return None
+
+    existing = list(session.doc_names or [])
+    updated = list(dict.fromkeys(existing + doc_names))
+    session.doc_names = updated
+    session.updated_at = datetime.utcnow()
+    await db.commit()
+    await db.refresh(session)
+    session.doc_names = _normalize_json_list(session.doc_names)
+    return session
+
+
+async def remove_document_from_session(
+    db: AsyncSession,
+    session_id: str,
+    doc_name: str,
+    user_id: Optional[str] = None
+) -> Optional[ChatSession]:
+    """Removes a single document from a chat session/workspace."""
+    stmt = select(ChatSession).where(ChatSession.id == session_id)
+    if user_id:
+        stmt = stmt.where(ChatSession.user_id == user_id)
+    result = await db.execute(stmt)
+    session = result.scalar_one_or_none()
+    if not session:
+        return None
+
+    existing = list(session.doc_names or [])
+    updated = [d for d in existing if d != doc_name]
+    session.doc_names = updated
+    session.updated_at = datetime.utcnow()
+    await db.commit()
+    await db.refresh(session)
+    session.doc_names = _normalize_json_list(session.doc_names)
+    return session
+
+
+async def rename_session(
+    db: AsyncSession,
+    session_id: str,
+    new_title: str,
+    user_id: Optional[str] = None
+) -> Optional[ChatSession]:
+    """Renames the title of a chat session/workspace."""
+    stmt = select(ChatSession).where(ChatSession.id == session_id)
+    if user_id:
+        stmt = stmt.where(ChatSession.user_id == user_id)
+    result = await db.execute(stmt)
+    session = result.scalar_one_or_none()
+    if not session:
+        return None
+
+    session.title = new_title.strip()
+    session.updated_at = datetime.utcnow()
+    await db.commit()
+    await db.refresh(session)
+    session.doc_names = _normalize_json_list(session.doc_names)
+    return session
+
+
+
 # =============================================================================
 # WORKSPACE DRAFT CRUD (FR-13)
 # =============================================================================

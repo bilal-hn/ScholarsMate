@@ -11,6 +11,7 @@ import ThemeModal from './components/modals/ThemeModal';
 import GlobalSearchModal from './components/modals/GlobalSearchModal';
 import BrainModal from './components/modals/BrainModal';
 import AuthModal from './components/modals/AuthModal';
+import WorkspaceLibraryModal from './components/modals/WorkspaceLibraryModal';
 import PdfViewer from './components/viewer/PdfViewer';
 import ProfileSettingsModal from './components/layout/ProfileSettingsModal';
 import { 
@@ -38,6 +39,7 @@ export default function App() {
   const [isThemeModalOpen, setIsThemeModalOpen] = useState(false);
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [isBrainModalOpen, setIsBrainModalOpen] = useState(false);
+  const [isWorkspaceLibraryOpen, setIsWorkspaceLibraryOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authModalMode, setAuthModalMode] = useState('login');
 
@@ -421,6 +423,7 @@ export default function App() {
         onOpenProfileSettings={() => setIsProfileSettingsOpen(true)}
         onOpenThemeModal={() => setIsThemeModalOpen(true)}
         onOpenSearchModal={() => setIsSearchModalOpen(true)}
+        onOpenWorkspaceLibrary={() => setIsWorkspaceLibraryOpen(true)}
         isCollapsed={isSidebarCollapsed}
         onToggleCollapse={handleToggleSidebar}
       />
@@ -573,6 +576,25 @@ export default function App() {
         onClose={() => setIsBrainModalOpen(false)}
         activeWorkspaceId={activeWorkspaceId}
         workspaces={workspaces}
+      />
+
+      <WorkspaceLibraryModal
+        isOpen={isWorkspaceLibraryOpen}
+        onClose={() => setIsWorkspaceLibraryOpen(false)}
+        workspaces={workspaces}
+        activeWorkspaceId={activeWorkspaceId}
+        onSelectWorkspace={handleSelectWorkspace}
+        onDeleteWorkspace={handleDeleteWorkspace}
+        onOpenCreateModal={() => setIsModalOpen(true)}
+        onRefreshWorkspaces={async () => {
+          await syncUserData();
+          await fetchDocs();
+        }}
+        onOpenPdfViewer={(docName, pageNum = 1) => {
+          setActivePdf(docName);
+          setTargetPage(pageNum);
+        }}
+        onToggleWriter={handleToggleWriter}
       />
 
       <AuthModal

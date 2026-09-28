@@ -297,6 +297,77 @@ export const createWorkspace = async (files) => {
 };
 
 /**
+ * Adds and indexes additional PDF files into an existing workspace session.
+ * @param {string} sessionId
+ * @param {FileList|Array<File>} files
+ */
+export const addPapersToWorkspace = async (sessionId, files) => {
+  const formData = new FormData();
+  Array.from(files).forEach((file) => {
+    formData.append('files', file);
+  });
+
+  try {
+    const response = await apiClient.post(`/workspace/${sessionId}/papers`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Failed to add papers to workspace:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+/**
+ * Removes a single document from an existing workspace.
+ * @param {string} sessionId
+ * @param {string} docName
+ */
+export const removePaperFromWorkspace = async (sessionId, docName) => {
+  try {
+    const response = await apiClient.delete(`/workspace/${sessionId}/papers/${encodeURIComponent(docName)}`);
+    return response.data;
+  } catch (error) {
+    console.error(`Failed to remove paper '${docName}':`, error.response?.data || error.message);
+    throw error;
+  }
+};
+
+/**
+ * Renames an existing workspace title.
+ * @param {string} sessionId
+ * @param {string} newTitle
+ */
+export const renameWorkspace = async (sessionId, newTitle) => {
+  try {
+    const response = await apiClient.patch(`/workspace/${sessionId}/rename`, {
+      title: newTitle,
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Failed to rename workspace:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+/**
+ * Fetches the paper catalog and extracted metadata for a specific workspace.
+ * @param {string} sessionId
+ */
+export const getWorkspacePapers = async (sessionId) => {
+  try {
+    const response = await apiClient.get(`/workspace/${sessionId}/papers`);
+    return response.data;
+  } catch (error) {
+    console.error('Failed to get workspace papers:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+
+/**
  * Generates a structured multi-paper literature review using active keys and user filters.
  * @param {Array<string>} [docNames=[]] - Selected document filters.
  */

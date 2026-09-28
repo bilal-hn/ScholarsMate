@@ -79,6 +79,11 @@ class UpdateModeRequest(BaseModel):
     mode: str = Field(..., json_schema_extra={"example": "socratic"})
 
 
+class RenameSessionRequest(BaseModel):
+    title: str = Field(..., json_schema_extra={"example": "Deep Learning Survey"})
+
+
+
 class ChatMessageResponse(BaseModel):
     id: str
     session_id: str

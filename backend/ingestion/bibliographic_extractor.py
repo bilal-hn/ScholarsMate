@@ -165,6 +165,24 @@ def extract_bibliographic_metadata(pdf_path: str) -> Dict[str, Any]:
     if not title:
         title = fallback_title
 
+    # De-duplicate authors when identical to or overlapping with title or filename
+    if authors and title:
+        norm_authors = re.sub(r'[^a-z0-9]', '', authors.lower())
+        norm_title = re.sub(r'[^a-z0-9]', '', title.lower())
+        norm_fallback = re.sub(r'[^a-z0-9]', '', fallback_title.lower())
+        
+        if (
+            norm_authors == norm_title 
+            or norm_authors in norm_title 
+            or norm_title in norm_authors 
+            or norm_authors == norm_fallback 
+            or norm_authors in norm_fallback
+        ):
+            # If the title was an acronym or short journal (e.g. IJSER) and authors was the real title
+            if len(norm_title) <= 6 and len(norm_authors) > 8:
+                title = authors
+            authors = None
+
     tier = 3
     if authors and year:
         tier = 1

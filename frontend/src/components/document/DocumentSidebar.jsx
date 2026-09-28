@@ -1,6 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { 
-  Plus, 
   Search, 
   Brain, 
   Trash2, 
@@ -18,6 +17,8 @@ import {
   ChevronDown, 
   ChevronRight, 
   MessageSquare, 
+  Library,
+  Layers,
 } from 'lucide-react';
 import { AuthProfile } from '../layout/AuthProfile';
 import { APP_CONFIG, THEMES } from '../../theme/constants';
@@ -40,6 +41,7 @@ export default function DocumentSidebar({
   onOpenProfileSettings,
   onOpenThemeModal,
   onOpenSearchModal,
+  onOpenWorkspaceLibrary,
   isCollapsed = false,
   onToggleCollapse,
 }) {
@@ -303,19 +305,30 @@ export default function DocumentSidebar({
             {/* Workspaces Section */}
             <div className="space-y-1">
               <div className="px-3 py-1 text-xs font-semibold tracking-wider text-zinc-500 flex items-center justify-between uppercase">
-                <span>Workspaces</span>
-                <span className="text-[11px] text-zinc-500 font-mono">{workspaceList.length}</span>
+                <button
+                  type="button"
+                  onClick={onOpenWorkspaceLibrary}
+                  className="hover:text-amber-400 transition-colors cursor-pointer flex items-center gap-1.5"
+                  title="Open Workspace Library"
+                >
+                  <span>Workspaces</span>
+                </button>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] text-zinc-500 font-mono">{workspaceList.length}</span>
+                  {onOpenWorkspaceLibrary && (
+                    <button
+                      type="button"
+                      onClick={onOpenWorkspaceLibrary}
+                      className="text-zinc-500 hover:text-amber-400 p-0.5 rounded transition-colors cursor-pointer"
+                      title="Open Workspace Library Popup"
+                    >
+                      <Layers className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
               </div>
 
-              {/* "+ New Workspace" Action Button moved below Workspaces heading */}
-              <button
-                type="button"
-                onClick={onOpenCreateModal}
-                className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-[13px] text-zinc-400 hover:text-amber-400 hover:bg-zinc-800/40 transition-colors cursor-pointer group text-left mb-1"
-              >
-                <Plus className="h-3.5 w-3.5 stroke-[2] group-hover:scale-110 transition-transform" />
-                <span>New Workspace</span>
-              </button>
+
 
               {workspaceList.length === 0 ? (
                 <div className="px-3 py-4 text-center text-xs text-zinc-500 font-mono">
