@@ -87,5 +87,18 @@ async def init_db():
                     print("\n[DB Migration] Adding missing 'meta' column to chat_messages...")
                     await conn.execute(text("ALTER TABLE chat_messages ADD COLUMN meta JSON;"))
                     print("[DB Migration] Column 'meta' added successfully.")
+
+            # Automated migrations for workspace_drafts table
+            result_drafts = await conn.execute(text("PRAGMA table_info(workspace_drafts);"))
+            draft_columns = [row[1] for row in result_drafts.fetchall()]
+            if draft_columns:
+                if "citations_data" not in draft_columns:
+                    print("\n[DB Migration] Adding missing 'citations_data' column to workspace_drafts...")
+                    await conn.execute(text("ALTER TABLE workspace_drafts ADD COLUMN citations_data JSON;"))
+                    print("[DB Migration] Column 'citations_data' added successfully.")
+                if "updated_at" not in draft_columns:
+                    print("\n[DB Migration] Adding missing 'updated_at' column to workspace_drafts...")
+                    await conn.execute(text("ALTER TABLE workspace_drafts ADD COLUMN updated_at DATETIME;"))
+                    print("[DB Migration] Column 'updated_at' added successfully.")
         except Exception as e:
             print(f"[DB Migration Warning] Column verification skipped: {e}")

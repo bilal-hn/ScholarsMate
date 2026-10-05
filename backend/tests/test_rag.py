@@ -1,7 +1,7 @@
 from unittest.mock import patch
 
 import pytest
-from backend.rag.prompt_templates import construct_prompt, SOURCE_LOCKED_SYSTEM_PROMPT
+from backend.rag.prompt_templates import construct_prompt, MAIN_RAG_PROMPT, SOURCE_LOCKED_SYSTEM_PROMPT
 from backend.rag.retriever import build_context_block, retrieve_context
 
 
@@ -32,6 +32,7 @@ def test_construct_prompt_source_locking():
     context = "RAG stands for Retrieval-Augmented Generation."
     prompt = construct_prompt(query, context)
 
+    assert MAIN_RAG_PROMPT in prompt
     assert SOURCE_LOCKED_SYSTEM_PROMPT in prompt
     assert "### USER QUESTION:\nWhat is RAG?" in prompt
     assert "### RETRIEVED CONTEXT FROM PAPERS:\nRAG stands for Retrieval-Augmented Generation." in prompt

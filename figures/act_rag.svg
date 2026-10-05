@@ -1,0 +1,149 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 920" width="800" height="920" style="background:#ffffff; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+  <style>
+    .start-node { fill: #0f172a; stroke: none; }
+    .end-node-outer { fill: none; stroke: #0f172a; stroke-width: 2; }
+    .end-node-inner { fill: #0f172a; stroke: none; }
+    .act-box { fill: #f8fafc; stroke: #64748b; stroke-width: 1.5; rx: 8; }
+    .act-box-accent { fill: #eff6ff; stroke: #3b82f6; stroke-width: 1.5; rx: 8; }
+    .act-box-warn { fill: #fef2f2; stroke: #ef4444; stroke-width: 1.5; rx: 8; }
+    .dec-node { fill: #fef9c3; stroke: #ca8a04; stroke-width: 1.5; }
+    .flow-line { fill: none; stroke: #334155; stroke-width: 1.6; }
+    .txt-title { font-size: 11px; font-weight: 600; fill: #0f172a; text-anchor: middle; }
+    .txt-sub { font-size: 9.5px; fill: #64748b; text-anchor: middle; }
+    .txt-dec { font-size: 10px; font-weight: 600; fill: #854d0e; text-anchor: middle; }
+    .txt-branch { font-size: 9px; font-weight: 600; fill: #475569; }
+  </style>
+  <defs>
+    <marker id="ar2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1.5 L 9 5 L 0 8.5 z" fill="#334155"/>
+    </marker>
+  </defs>
+
+  <!-- Title -->
+  <text x="400" y="24" text-anchor="middle" font-size="15" font-weight="700" fill="#0f172a">Conversational Research Synthesis Activity Diagram</text>
+  <text x="400" y="42" text-anchor="middle" font-size="11" fill="#64748b">3-Gate Intent Routing, Quality Thresholding, and SSE Token Streaming</text>
+
+  <!-- Start Node -->
+  <circle cx="400" cy="70" r="10" class="start-node"/>
+  <line x1="400" y1="80" x2="400" y2="105" class="flow-line" marker-end="url(#ar2)"/>
+
+  <!-- Input Prompt -->
+  <g transform="translate(270, 105)">
+    <rect width="260" height="40" class="act-box"/>
+    <text x="130" y="19" class="txt-title">Capture User Research Query</text>
+    <text x="130" y="31" class="txt-sub">POST /api/chat/stream from React SPA</text>
+  </g>
+  <line x1="400" y1="145" x2="400" y2="175" class="flow-line" marker-end="url(#ar2)"/>
+
+  <!-- Gate 1: Intent Routing -->
+  <polygon points="400,175 485,205 400,235 315,205" class="dec-node"/>
+  <text x="400" y="202" class="txt-dec">Gate 1: Intent</text>
+  <text x="400" y="214" class="txt-dec">Classification</text>
+
+  <!-- Fast-Path Left: Conversational / Metadata -->
+  <line x1="315" y1="205" x2="160" y2="205" class="flow-line" marker-end="url(#ar2)"/>
+  <text x="210" y="198" class="txt-branch">[Conversational / Meta]</text>
+  <g transform="translate(60, 230)">
+    <rect width="200" height="42" class="act-box"/>
+    <text x="100" y="19" class="txt-title">Direct Heuristic Response</text>
+    <text x="100" y="32" class="txt-sub">0 LLM tokens / SQLite stats</text>
+  </g>
+  <line x1="160" y1="272" x2="160" y2="760 L 320 760" class="flow-line" marker-end="url(#ar2)"/>
+
+  <!-- Fast-Path Right: Summary Cache -->
+  <line x1="485" y1="205" x2="640" y2="205" class="flow-line" marker-end="url(#ar2)"/>
+  <text x="500" y="198" class="txt-branch">[Summary Request]</text>
+  <g transform="translate(540, 230)">
+    <rect width="200" height="42" class="act-box-accent"/>
+    <text x="100" y="19" class="txt-title" fill="#1e40af">Pre-Computed Summary Cache</text>
+    <text x="100" y="32" class="txt-sub">Retrieve instant summary (&lt; 20ms)</text>
+  </g>
+  <line x1="640" y1="272" x2="640" y2="760 L 480 760" class="flow-line" marker-end="url(#ar2)"/>
+
+  <!-- Center Branch: Academic Research Query -->
+  <line x1="400" y1="235" x2="400" y2="280" class="flow-line" marker-end="url(#ar2)"/>
+  <text x="410" y="255" class="txt-branch">[Academic RAG]</text>
+
+  <!-- Follow-up check -->
+  <polygon points="400,280 475,310 400,340 325,310" class="dec-node"/>
+  <text x="400" y="307" class="txt-dec">Follow-Up</text>
+  <text x="400" y="319" class="txt-dec">Pronoun?</text>
+
+  <!-- Branch: Yes Rewrite -->
+  <line x1="475" y1="310" x2="520" y2="310 L 520 370 L 450 370" class="flow-line" marker-end="url(#ar2)"/>
+  <text x="485" y="303" class="txt-branch">[Yes]</text>
+  <g transform="translate(270, 350)">
+    <rect width="260" height="38" class="act-box"/>
+    <text x="130" y="18" class="txt-title">Query Rewriter (F-05)</text>
+    <text x="130" y="30" class="txt-sub">Resolve pronouns using conversation history</text>
+  </g>
+
+  <!-- Branch: No Rewrite -->
+  <line x1="325" y1="310" x2="280" y2="310 L 280 410 L 390 410" class="flow-line" marker-end="url(#ar2)"/>
+  <text x="290" y="303" class="txt-branch">[No]</text>
+
+  <line x1="400" y1="388" x2="400" y2="425" class="flow-line" marker-end="url(#ar2)"/>
+
+  <!-- Step: Vector Retrieval -->
+  <g transform="translate(260, 425)">
+    <rect width="280" height="42" class="act-box"/>
+    <text x="140" y="19" class="txt-title">ChromaDB Vector Retrieval</text>
+    <text x="140" y="32" class="txt-sub">HNSW cosine similarity search: top_k=10</text>
+  </g>
+  <line x1="400" y1="467" x2="400" y2="495" class="flow-line" marker-end="url(#ar2)"/>
+
+  <!-- Gate 2: Distance Filter -->
+  <polygon points="400,495 480,525 400,555 320,525" class="dec-node"/>
+  <text x="400" y="522" class="txt-dec">Gate 2: Cosine Dist</text>
+  <text x="400" y="534" class="txt-dec">d ≤ 0.75?</text>
+
+  <!-- Distance Failed -->
+  <line x1="480" y1="525" x2="560" y2="525" class="flow-line" marker-end="url(#ar2)"/>
+  <text x="495" y="518" class="txt-branch">[d &gt; 0.75]</text>
+  <g transform="translate(560, 505)">
+    <rect width="180" height="40" class="act-box-warn"/>
+    <text x="90" y="19" class="txt-title" fill="#b91c1c">Context Filter Fallback</text>
+    <text x="90" y="31" class="txt-sub">"Not found in ingested papers"</text>
+  </g>
+  <line x1="650" y1="545" x2="650" y2="740 L 450 740" class="flow-line" marker-end="url(#ar2)"/>
+
+  <!-- Distance Passed -->
+  <line x1="400" y1="555" x2="400" y2="585" class="flow-line" marker-end="url(#ar2)"/>
+  <text x="410" y="572" class="txt-branch">[d ≤ 0.75 (Surviving Chunks)]</text>
+
+  <!-- Gate 3: Prompt Packing -->
+  <g transform="translate(250, 585)">
+    <rect width="300" height="42" class="act-box"/>
+    <text x="150" y="19" class="txt-title">Gate 3: Source-Locked Context Packing</text>
+    <text x="150" y="32" class="txt-sub">Token budget ≤ 4200 tokens + [DocID, Page P_k]</text>
+  </g>
+  <line x1="400" y1="627" x2="400" y2="655" class="flow-line" marker-end="url(#ar2)"/>
+
+  <!-- LLM Streaming Call -->
+  <g transform="translate(250, 655)">
+    <rect width="300" height="42" class="act-box"/>
+    <text x="150" y="19" class="txt-title">LiteLLM Multi-Model Inference</text>
+    <text x="150" y="32" class="txt-sub">Stream completion with BYOK key</text>
+  </g>
+  <line x1="400" y1="697" x2="400" y2="735" class="flow-line" marker-end="url(#ar2)"/>
+
+  <!-- SSE Streaming Node -->
+  <g transform="translate(240, 735)">
+    <rect width="320" height="44" class="act-box-accent"/>
+    <text x="160" y="20" class="txt-title" fill="#1e40af">SSE Real-Time Token Streaming</text>
+    <text x="160" y="34" class="txt-sub">Live markdown render + interactive citation pills</text>
+  </g>
+  <line x1="400" y1="779" x2="400" y2="810" class="flow-line" marker-end="url(#ar2)"/>
+
+  <!-- Background Brain Memory -->
+  <g transform="translate(255, 810)">
+    <rect width="290" height="40" class="act-box"/>
+    <text x="145" y="19" class="txt-title">Async Background Brain Daemon</text>
+    <text x="145" y="31" class="txt-sub">Extract durable facts into brain_memories</text>
+  </g>
+  <line x1="400" y1="850" x2="400" y2="875" class="flow-line" marker-end="url(#ar2)"/>
+
+  <!-- End Node -->
+  <circle cx="400" cy="890" r="14" class="end-node-outer"/>
+  <circle cx="400" cy="890" r="8" class="end-node-inner"/>
+</svg>

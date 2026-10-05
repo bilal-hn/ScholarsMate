@@ -15,35 +15,16 @@ from backend.rag.runtime import (
     normalize_litellm_model_id,
     parse_json_object,
     provider_from_model,
+    resolve_api_key,
+    resolve_model_and_key,
 )
 
-
-def _resolve_router_api_key(provider: str, custom_keys: dict) -> str | None:
-    """Finds the provider's custom key or falls back to server environment variables."""
-    prov = provider.lower()
-    if custom_keys:
-        if custom_keys.get(prov):
-            return custom_keys[prov]
-        for k, v in custom_keys.items():
-            if v and v.strip():
-                return v.strip()
-
-    env_map = {
-        "groq": "GROQ_API_KEY",
-        "gemini": "GEMINI_API_KEY",
-        "google": "GEMINI_API_KEY",
-        "openai": "OPENAI_API_KEY",
-        "anthropic": "ANTHROPIC_API_KEY",
-        "deepseek": "DEEPSEEK_API_KEY",
-        "openrouter": "OPENROUTER_API_KEY",
-    }
-    env_var = env_map.get(prov, f"{prov.upper()}_API_KEY")
-    return os.getenv(env_var)
+# Alias for backward compatibility
+_resolve_router_api_key = resolve_api_key
 
 
 def resolve_target_documents(query: str, available_docs: List[str], cutoff: float = 0.6) -> List[str]:
     """
-    Deterministic & Fuzzy Entity Resolution:
     Matches target filenames against @ mentions, exact word tokens, and fuzzy typos
     while preventing substring collisions (e.g. 'sample' matching inside 'sample2').
     """
@@ -53,7 +34,7 @@ def resolve_target_documents(query: str, available_docs: List[str], cutoff: floa
     matched = set()
     query_lower = query.lower()
 
-    # 1. Check for explicit @mentions (e.g., @sample2.pdf, @sample2)
+    # 1. Check for explicit @mentions (e.g., @paper2.pdf, @paper2)
     at_mentions = re.findall(r"@([a-zA-Z0-9_\-\.]+)", query)
     if at_mentions:
         for mention in at_mentions:
@@ -177,7 +158,13 @@ def sanitize_plan(plan: dict, query: str, available_docs: list[str]) -> dict:
     # Single-document summary cache check
     if len(target_docs) == 1:
         target_doc = target_docs[0]
-        summary_keywords = [r"\b(summarise|summarize|summary|overview|breakdown|brief)\b"]
+        summary_keywords = [
+            r"\b(summarise|summarize|summary|overview|breakdown|brief)\b",
+            r"\b(tldr|tl;dr|tl dr)\b",
+            r"\bwhat.{0,15}(paper|document|doc|article|study|research).{0,15}about\b",
+            r"\b(explain|describe|tell me about)\s+(this|the)\s+(paper|document|doc|article|study)\b",
+            r"\b(give me|what.{0,5}(the|a)).{0,10}(gist|essence|key points|main points|highlights)\b",
+        ]
         is_summary_query = any(re.search(kw, query.lower()) for kw in summary_keywords)
         
         if is_summary_query or retrieval_mode == "full_text":
@@ -239,7 +226,13 @@ def classify_query_intent(
 
     # Fast-Path 2: Deterministic Target + Summary Cache Check (Bypasses LLM Router entirely)
     resolved_targets = resolve_target_documents(clean_query, available_docs)
-    summary_keywords = [r"\b(summarise|summarize|summary|overview|breakdown|brief)\b"]
+    summary_keywords = [
+        r"\b(summarise|summarize|summary|overview|breakdown|brief)\b",
+        r"\b(tldr|tl;dr|tl dr)\b",
+        r"\bwhat.{0,15}(paper|document|doc|article|study|research).{0,15}about\b",
+        r"\b(explain|describe|tell me about)\s+(this|the)\s+(paper|document|doc|article|study)\b",
+        r"\b(give me|what.{0,5}(the|a)).{0,10}(gist|essence|key points|main points|highlights)\b",
+    ]
     is_summary = any(re.search(kw, lowered) for kw in summary_keywords)
 
     if len(resolved_targets) == 1 and is_summary:
@@ -275,9 +268,7 @@ def classify_query_intent(
     )
 
     keys = custom_keys or {}
-    model_name = normalize_litellm_model_id(model_name)
-    provider = provider_from_model(model_name)
-    active_key = _resolve_router_api_key(provider, keys)
+    model_name, active_key = resolve_model_and_key(model_name, keys)
 
     from backend.embeddings.vector_store import get_indexed_document_catalog
     full_catalog = get_indexed_document_catalog()

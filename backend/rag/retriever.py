@@ -15,31 +15,13 @@ from backend.rag.runtime import (
     extract_reasoning_and_content,
     normalize_litellm_model_id,
     pack_chunks,
+    resolve_api_key,
+    resolve_model_and_key,
     REWRITE_MAX_TOKENS,
 )
 
-
-def _resolve_retriever_key(provider: str, custom_keys: dict | None = None) -> str | None:
-    """Resolves provider key from custom_keys or environment variables."""
-    prov = provider.lower()
-    keys = custom_keys or {}
-    if keys:
-        if keys.get(prov):
-            return keys[prov]
-        for k, v in keys.items():
-            if v and v.strip():
-                return v.strip()
-
-    env_map = {
-        "groq": "GROQ_API_KEY",
-        "gemini": "GEMINI_API_KEY",
-        "google": "GEMINI_API_KEY",
-        "openai": "OPENAI_API_KEY",
-        "anthropic": "ANTHROPIC_API_KEY",
-        "deepseek": "DEEPSEEK_API_KEY",
-        "openrouter": "OPENROUTER_API_KEY",
-    }
-    return os.getenv(env_map.get(prov, f"{prov.upper()}_API_KEY"))
+# Alias for backward compatibility
+_resolve_retriever_key = resolve_api_key
 
 
 def rewrite_query_with_history(
@@ -94,11 +76,10 @@ Standalone Search Query:
 """.strip()
 
     try:
-        provider = model_name.split("/")[0] if "/" in model_name else "gemini"
-        active_key = _resolve_retriever_key(provider, custom_keys)
+        target_model, active_key = resolve_model_and_key(model_name, custom_keys)
 
         res = completion(
-            model=normalize_litellm_model_id(model_name),
+            model=target_model,
             messages=[
                 {
                     "role": "system",
@@ -141,11 +122,10 @@ Return ONLY the queries, one per line. No numbering, no comments.
 """.strip()
 
     try:
-        provider = model_name.split("/")[0] if "/" in model_name else "gemini"
-        active_key = _resolve_retriever_key(provider, custom_keys)
+        target_model, active_key = resolve_model_and_key(model_name, custom_keys)
 
         res = completion(
-            model=normalize_litellm_model_id(model_name),
+            model=target_model,
             messages=[
                 {
                     "role": "system",
@@ -282,7 +262,7 @@ def retrieve_context(
 
 
 def build_context_block(chunks: list[dict], max_context_tokens: int = 4200) -> str:
-    """Formats retrieved chunks into a standard source-locked prompt context block with token budgeting."""
+    """Formats retrieved document chunks into a structured prompt context block with token budgeting."""
     if not chunks:
         return "No relevant document context found."
 

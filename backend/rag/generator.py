@@ -12,7 +12,7 @@ from backend.rag.prompt_templates import (
     construct_prompt, 
     construct_system_prompt,
     build_conversation_messages,
-    SOURCE_LOCKED_SYSTEM_PROMPT
+    MAIN_RAG_PROMPT,
 )
 from backend.embeddings.vector_store import list_indexed_documents
 from backend.rag.router import classify_query_intent
@@ -21,32 +21,14 @@ from backend.rag.runtime import (
     normalize_litellm_model_id,
     provider_from_model,
     build_fallback_chain,
+    resolve_api_key,
+    resolve_model_and_key,
     CONV_MAX_TOKENS,
     RAG_MAX_TOKENS,
 )
 
-
-def _resolve_api_key(provider: str, custom_keys: dict) -> str | None:
-    """Finds the provider's custom key, falls back to first available, or reads environment."""
-    prov = provider.lower()
-    if custom_keys:
-        if custom_keys.get(prov):
-            return custom_keys[prov]
-        for k, v in custom_keys.items():
-            if v and v.strip():
-                return v.strip()
-
-    env_map = {
-        "groq": "GROQ_API_KEY",
-        "gemini": "GEMINI_API_KEY",
-        "google": "GEMINI_API_KEY",
-        "openai": "OPENAI_API_KEY",
-        "anthropic": "ANTHROPIC_API_KEY",
-        "deepseek": "DEEPSEEK_API_KEY",
-        "openrouter": "OPENROUTER_API_KEY",
-    }
-    env_var = env_map.get(prov, f"{prov.upper()}_API_KEY")
-    return os.getenv(env_var)
+# Alias for backward compatibility within generator.py
+_resolve_api_key = resolve_api_key
 
 
 def _execute_completion_with_fallback(
@@ -191,7 +173,7 @@ You are a research analyst. Provide a detailed, structured technical summary of 
 
     combined_summaries = "\n\n".join(paper_summaries)
     reduce_prompt = f"""
-{SOURCE_LOCKED_SYSTEM_PROMPT}
+{MAIN_RAG_PROMPT}
 
 ### INDIVIDUAL PAPER EXTRACTIONS:
 {combined_summaries}
@@ -333,20 +315,7 @@ def generate_answer(
     keys = custom_keys or {}
 
     # 1. Resolve Target Model
-    target_model = normalize_litellm_model_id(model_name)
-    if not target_model or "llama" in target_model:
-        if "gemini" in keys or "google" in keys:
-            target_model = "gemini/gemini-3.6-flash"
-        elif "openai" in keys:
-            target_model = "openai/gpt-4o-mini"
-        elif "anthropic" in keys:
-            target_model = "anthropic/claude-3-5-haiku-20241022"
-        elif "openrouter" in keys:
-            target_model = "openrouter/auto"
-        elif "groq" in keys:
-            target_model = "groq/llama-3.3-70b-versatile"
-        else:
-            target_model = "gemini/gemini-3.6-flash"
+    target_model, _ = resolve_model_and_key(model_name, keys)
 
     # 2. Scope to Active Workspace
     active_workspace_docs = explicit_docs if (explicit_docs is not None and len(explicit_docs) > 0) else list_indexed_documents()

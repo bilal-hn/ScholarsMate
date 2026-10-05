@@ -2,7 +2,8 @@ import sys
 import os
 import json
 import re
-from typing import List, Dict, Any, Tuple
+from datetime import datetime
+from typing import List, Dict, Any, Tuple, Optional
 from litellm import completion
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
@@ -20,9 +21,10 @@ from backend.rag.runtime import (
     build_fallback_chain,
     pack_chunks,
     parse_json_object,
+    pick_best_model_from_keys,
     RAG_MAX_TOKENS,
 )
-from backend.rag.prompt_templates import SOURCE_LOCKED_SYSTEM_PROMPT
+from backend.rag.prompt_templates import MAIN_RAG_PROMPT
 
 
 def _resolve_key(provider: str, custom_keys: dict | None = None) -> str | None:
@@ -244,7 +246,7 @@ def _draft_section(
     context_block = build_context_block(packed_chunks)
 
     draft_prompt = f"""
-{SOURCE_LOCKED_SYSTEM_PROMPT}
+{MAIN_RAG_PROMPT}
 
 You are writing Section {section_meta.get('section_number', 1)}: "{section_meta.get('title', '')}" of a publication-grade Academic Literature Review Monograph.
 
@@ -362,7 +364,7 @@ def generate_literature_review(
     doc_names: List[str] | None = None,
     research_focus: str = "",
     depth: str = "detailed",
-    model_name: str = "openai/gpt-4o-mini",
+    model_name: Optional[str] = None,
     custom_keys: dict | None = None
 ) -> Dict[str, Any]:
     available_docs = list_indexed_documents()
@@ -375,7 +377,10 @@ def generate_literature_review(
         }
 
     keys = custom_keys or {}
-    target_model = normalize_litellm_model_id(model_name)
+    if not model_name:
+        target_model, _ = pick_best_model_from_keys(keys)
+    else:
+        target_model = normalize_litellm_model_id(model_name)
 
     print(f"\n[Literature Review Studio] Synthesizing Monograph across {len(target_docs)} papers using {target_model}...")
 
@@ -439,5 +444,5 @@ def generate_literature_review(
         "matrix_table": matrix_table,
         "conclusion": conclusion_text,
         "sources_used": unique_sources,
-        "generated_at": "2026-08-25"
+        "generated_at": datetime.utcnow().isoformat()
     }

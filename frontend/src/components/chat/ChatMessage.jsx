@@ -191,7 +191,7 @@ const transformCitations = (rawText) => {
   return formatted;
 };
 
-export default function ChatMessage({ message, index, onSelectCitation }) {
+function ChatMessage({ message, index, onSelectCitation }) {
   const [showThinking, setShowThinking] = useState(false);
   const [showSources, setShowSources] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -759,3 +759,5 @@ export default function ChatMessage({ message, index, onSelectCitation }) {
     </div>
   );
 }
+
+export default React.memo(ChatMessage);

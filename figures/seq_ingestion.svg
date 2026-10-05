@@ -1,0 +1,97 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 620" width="880" height="620" style="background:#ffffff; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+  <style>
+    .actor-box { fill: #f8fafc; stroke: #64748b; stroke-width: 1.5; rx: 6; }
+    .actor-title { font-size: 12px; font-weight: 700; fill: #0f172a; text-anchor: middle; }
+    .actor-sub { font-size: 10px; fill: #64748b; text-anchor: middle; }
+    .lifeline { stroke: #cbd5e1; stroke-width: 1.5; stroke-dasharray: 4,4; }
+    .act-box { fill: #e2e8f0; stroke: #94a3b8; stroke-width: 1; rx: 2; }
+    .msg-line { stroke: #334155; stroke-width: 1.5; fill: none; }
+    .ret-line { stroke: #64748b; stroke-width: 1.5; stroke-dasharray: 4,3; fill: none; }
+    .msg-text { font-size: 11px; fill: #1e293b; font-weight: 500; }
+    .note-box { fill: #f0fdf4; stroke: #16a34a; stroke-width: 1; rx: 4; }
+    .note-text { font-size: 10px; fill: #14532d; }
+    .group-box { fill: #f8fafc; stroke: #94a3b8; stroke-width: 1; stroke-dasharray: 5,3; rx: 6; }
+    .group-label { font-size: 10px; font-weight: 700; fill: #475569; }
+  </style>
+  <defs>
+    <marker id="arr2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1.5 L 9 5 L 0 8.5 z" fill="#334155"/>
+    </marker>
+    <marker id="arr-gray2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1.5 L 9 5 L 0 8.5 z" fill="#64748b"/>
+    </marker>
+  </defs>
+
+  <!-- Title -->
+  <text x="440" y="24" text-anchor="middle" font-size="15" font-weight="700" fill="#0f172a">Document Ingestion &amp; Citation Metadata Indexing Sequence</text>
+  <text x="440" y="42" text-anchor="middle" font-size="11" fill="#64748b">Layout-Aware Chunking, Sentence-Transformers Embedding, and Dual Persistence</text>
+
+  <!-- Lifelines (x: User=60, UI=190, API=330, Parser=470, Chunker=600, Chroma=740, DB=830) -->
+  <line x1="60" y1="85" x2="60" y2="590" class="lifeline"/>
+  <line x1="190" y1="85" x2="190" y2="590" class="lifeline"/>
+  <line x1="330" y1="85" x2="330" y2="590" class="lifeline"/>
+  <line x1="470" y1="85" x2="470" y2="590" class="lifeline"/>
+  <line x1="600" y1="85" x2="600" y2="590" class="lifeline"/>
+  <line x1="730" y1="85" x2="730" y2="590" class="lifeline"/>
+  <line x1="830" y1="85" x2="830" y2="590" class="lifeline"/>
+
+  <!-- Actor Boxes Top -->
+  <g transform="translate(10, 50)"><rect width="100" height="35" class="actor-box"/><text x="50" y="16" class="actor-title">Researcher</text><text x="50" y="28" class="actor-sub">User Actor</text></g>
+  <g transform="translate(140, 50)"><rect width="100" height="35" class="actor-box"/><text x="50" y="16" class="actor-title">React UI</text><text x="50" y="28" class="actor-sub">Upload Dropzone</text></g>
+  <g transform="translate(280, 50)"><rect width="100" height="35" class="actor-box"/><text x="50" y="16" class="actor-title">FastAPI Gateway</text><text x="50" y="28" class="actor-sub">/documents/upload</text></g>
+  <g transform="translate(420, 50)"><rect width="100" height="35" class="actor-box"/><text x="50" y="16" class="actor-title">PyPDFLoader</text><text x="50" y="28" class="actor-sub">Layout Parser</text></g>
+  <g transform="translate(550, 50)"><rect width="100" height="35" class="actor-box"/><text x="50" y="16" class="actor-title">Chunker + Embed</text><text x="50" y="28" class="actor-sub">MiniLM-L6-v2</text></g>
+  <g transform="translate(680, 50)"><rect width="100" height="35" class="actor-box"/><text x="50" y="16" class="actor-title">ChromaDB</text><text x="50" y="28" class="actor-sub">HNSW Index</text></g>
+  <g transform="translate(790, 50)"><rect width="80" height="35" class="actor-box"/><text x="40" y="16" class="actor-title">SQLite</text><text x="40" y="28" class="actor-sub">Metadata DB</text></g>
+
+  <!-- Step 1: User uploads PDF -->
+  <line x1="60" y1="115" x2="182" y2="115" class="msg-line" marker-end="url(#arr2)"/>
+  <text x="68" y="108" class="msg-text">1: Drag &amp; drop research paper (PDF)</text>
+  <rect x="185" y="115" width="10" height="440" class="act-box"/>
+
+  <!-- Step 2: UI sends stream -->
+  <line x1="195" y1="140" x2="322" y2="140" class="msg-line" marker-end="url(#arr2)"/>
+  <text x="202" y="133" class="msg-text">2: POST /api/documents/upload (multipart binary)</text>
+  <rect x="325" y="140" width="10" height="400" class="act-box"/>
+
+  <!-- Step 3: API calls PyPDFLoader -->
+  <line x1="335" y1="170" x2="462" y2="170" class="msg-line" marker-end="url(#arr2)"/>
+  <text x="342" y="163" class="msg-text">3: load(pdf_path)</text>
+  <rect x="465" y="170" width="10" height="50" class="act-box"/>
+
+  <line x1="465" y1="215" x2="335" y2="215" class="ret-line" marker-end="url(#arr-gray2)"/>
+  <text x="348" y="208" class="msg-text">4: Extracted pages P_1 ... P_N</text>
+
+  <!-- Step 5: Chunking & Embedding -->
+  <line x1="335" y1="250" x2="592" y2="250" class="msg-line" marker-end="url(#arr2)"/>
+  <text x="342" y="243" class="msg-text">5: chunk_documents(W=1000, overlap=100)</text>
+  <rect x="595" y="250" width="10" height="110" class="act-box"/>
+
+  <g transform="translate(510, 275)">
+    <rect width="200" height="35" class="note-box"/>
+    <text x="8" y="15" class="note-text" font-weight="bold">Tag: ChunkID = Doc::p{P}::{idx}</text>
+    <text x="8" y="28" class="note-text">Embed: f_embed(text) → R^384</text>
+  </g>
+
+  <line x1="595" y1="355" x2="335" y2="355" class="ret-line" marker-end="url(#arr-gray2)"/>
+  <text x="348" y="348" class="msg-text">6: Enriched chunk tuples &amp; dense vectors</text>
+
+  <!-- Step 7: Dual persistence (PAR) -->
+  <rect x="310" y="380" width="550" height="95" class="group-box"/>
+  <text x="320" y="396" class="group-label">PAR [Atomic Dual Persistence]</text>
+
+  <line x1="335" y1="420" x2="722" y2="420" class="msg-line" marker-end="url(#arr2)"/>
+  <text x="348" y="413" class="msg-text">7a: ChromaDB.upsert(ids, embeddings, metadatas)</text>
+  <rect x="725" y="420" width="10" height="30" class="act-box"/>
+
+  <line x1="335" y1="455" x2="822" y2="455" class="msg-line" marker-end="url(#arr2)"/>
+  <text x="348" y="448" class="msg-text">7b: SQLite.execute("INSERT INTO user_documents...")</text>
+  <rect x="825" y="455" width="10" height="20" class="act-box"/>
+
+  <!-- Return ACK -->
+  <line x1="325" y1="500" x2="195" y2="500" class="ret-line" marker-end="url(#arr-gray2)"/>
+  <text x="202" y="493" class="msg-text">8: 200 OK {doc_id, total_chunks, pages}</text>
+
+  <line x1="185" y1="540" x2="60" y2="540" class="msg-line" marker-end="url(#arr2)"/>
+  <text x="68" y="533" class="msg-text">9: Display green success badge &amp; activate doc</text>
+</svg>

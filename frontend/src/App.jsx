@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import 'katex/dist/katex.min.css';
 import DocumentSidebar from './components/document/DocumentSidebar';
 import ChatInterface from './components/chat/ChatInterface';
@@ -187,12 +187,6 @@ export default function App() {
     checkStatus();
     fetchDocs();
     syncUserData();
-
-    // Prompt user to configure API key on first visit if no models exist
-    const cfg = getSavedBYOKConfig();
-    if (!cfg.discoveredModels || cfg.discoveredModels.length === 0) {
-      setIsSettingsOpen(true);
-    }
   }, []);
 
   useEffect(() => {
@@ -328,10 +322,10 @@ export default function App() {
     await syncUserData();
   };
 
-  const handleSelectCitation = (docName, pageNum) => {
+  const handleSelectCitation = useCallback((docName, pageNum) => {
     setActivePdf(docName);
     setTargetPage(pageNum || 1);
-  };
+  }, []);
 
   // --------------------------------------------------------------------------
   // BYOK & MODEL SELECTION HANDLERS

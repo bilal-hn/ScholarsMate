@@ -44,10 +44,114 @@ def estimate_tokens(text: str | None) -> int:
     return max(1, len(text) // 4)
 
 
+# Provider priority order: best capability / free-tier friendliness first.
+_PROVIDER_PRIORITY = [
+    ("gemini",     ["gemini", "google"],    "gemini/gemini-2.5-flash",                  "GEMINI_API_KEY"),
+    ("openai",     ["openai"],              "openai/gpt-4o-mini",                        "OPENAI_API_KEY"),
+    ("anthropic",  ["anthropic"],           "anthropic/claude-3-5-haiku-20241022",       "ANTHROPIC_API_KEY"),
+    ("openrouter", ["openrouter"],          "openrouter/auto",                           "OPENROUTER_API_KEY"),
+    ("groq",       ["groq"],               "groq/llama-3.3-70b-versatile",              "GROQ_API_KEY"),
+    ("deepseek",   ["deepseek"],           "deepseek/deepseek-chat",                    "DEEPSEEK_API_KEY"),
+]
+
+
+def pick_best_model_from_keys(custom_keys: dict | None = None) -> tuple[str, str | None]:
+    """
+    Returns (model_id, api_key) for the best available provider given the
+    user's BYOK custom_keys.  Falls back to env-var keys if custom_keys has
+    nothing, then to the Gemini env key as the final default.
+
+    Priority order: Gemini > OpenAI > Anthropic > OpenRouter > Groq > DeepSeek
+
+    Usage:
+        model_id, api_key = pick_best_model_from_keys(custom_keys)
+        completion(model=model_id, api_key=api_key, ...)
+    """
+    import os
+    keys = custom_keys or {}
+
+    # 1. Check BYOK custom_keys first
+    for _name, aliases, default_model, env_var in _PROVIDER_PRIORITY:
+        for alias in aliases:
+            if alias in keys and keys[alias]:
+                return default_model, keys[alias]
+
+    # 2. Fall back to .env keys in the same priority order
+    for _name, _aliases, default_model, env_var in _PROVIDER_PRIORITY:
+        env_key = os.getenv(env_var)
+        if env_key:
+            return default_model, env_key
+
+    # 3. Absolute fallback — return Gemini model with no key; LiteLLM will raise
+    #    a clear AuthenticationError rather than silently doing nothing.
+    return "gemini/gemini-2.5-flash", None
+
+
 def provider_from_model(model_name: str | None) -> str:
     if not model_name or "/" not in model_name:
         return "gemini"
     return model_name.split("/", 1)[0].lower()
+
+
+def resolve_api_key(provider: str, custom_keys: dict | None = None) -> str | None:
+    """
+    Universal API key resolver: finds the key for a specific provider.
+    Checks custom_keys (exact match or alias), then falls back to server environment variables.
+    Guarantees that a key from Provider A is NEVER returned to call Provider B.
+    """
+    if not provider:
+        return None
+    import os
+    prov = provider.lower().strip()
+    keys = custom_keys or {}
+
+    # Check custom_keys (with alias support for google/gemini)
+    if prov in ("gemini", "google"):
+        for alias in ("gemini", "google"):
+            if keys.get(alias) and str(keys[alias]).strip():
+                return str(keys[alias]).strip()
+    elif keys.get(prov) and str(keys[prov]).strip():
+        return str(keys[prov]).strip()
+
+    # Fall back to server environment variables
+    env_map = {
+        "groq": "GROQ_API_KEY",
+        "gemini": "GEMINI_API_KEY",
+        "google": "GEMINI_API_KEY",
+        "openai": "OPENAI_API_KEY",
+        "anthropic": "ANTHROPIC_API_KEY",
+        "deepseek": "DEEPSEEK_API_KEY",
+        "openrouter": "OPENROUTER_API_KEY",
+    }
+    env_var = env_map.get(prov, f"{prov.upper()}_API_KEY")
+    return os.getenv(env_var)
+
+
+def resolve_model_and_key(
+    requested_model: str | None = None,
+    custom_keys: dict | None = None
+) -> tuple[str, str | None]:
+    """
+    Universal model & key resolution across ScholarsMate.
+
+    1. If the user explicitly provided a model (e.g. 'groq/llama-3.3-70b-versatile'),
+       we normalize it and find its matching API key. If that provider has a valid key,
+       we return (model, key).
+    2. If no model was requested, or if the requested model has no key available,
+       we pick the best supported model from the user's available BYOK keys
+       in priority order: Gemini > OpenAI > Anthropic > OpenRouter > Groq > DeepSeek.
+    """
+    keys = custom_keys or {}
+    norm_model = normalize_litellm_model_id(requested_model) if requested_model else None
+
+    if norm_model:
+        provider = provider_from_model(norm_model)
+        key = resolve_api_key(provider, keys)
+        if key:
+            return norm_model, key
+
+    # Either no model requested, or requested model has no key -> pick best available from keys
+    return pick_best_model_from_keys(keys)
 
 
 def normalize_litellm_model_id(raw_id: str | None, provider: str | None = None) -> str:

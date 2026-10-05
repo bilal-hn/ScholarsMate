@@ -2,29 +2,13 @@
 
 import os
 import asyncio
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from backend.embeddings.vector_store import get_all_chunks_for_doc, search_similar_chunks
 from backend.db.document_service import save_cached_document_summary
-from backend.rag.runtime import extract_reasoning_and_content, normalize_litellm_model_id
+from backend.rag.runtime import extract_reasoning_and_content, pick_best_model_from_keys
 from backend.rag.retriever import build_context_block
-from backend.rag.prompt_templates import SOURCE_LOCKED_SYSTEM_PROMPT
+from backend.rag.prompt_templates import MAIN_RAG_PROMPT
 from litellm import completion
-
-
-def _resolve_worker_api_key(model_name: str) -> str | None:
-    """Resolves the proper API key for the background worker based on model provider."""
-    model_lower = model_name.lower()
-    if "gemini" in model_lower or "google" in model_lower:
-        return os.getenv("GEMINI_API_KEY")
-    if "groq" in model_lower:
-        return os.getenv("GROQ_API_KEY")
-    if "openai" in model_lower:
-        return os.getenv("OPENAI_API_KEY")
-    if "anthropic" in model_lower:
-        return os.getenv("ANTHROPIC_API_KEY")
-    if "deepseek" in model_lower:
-        return os.getenv("DEEPSEEK_API_KEY")
-    return os.getenv("OPENROUTER_API_KEY")
 
 
 def _extract_landmark_chunks(doc_name: str) -> List[Dict[str, Any]]:
@@ -66,9 +50,16 @@ def _extract_landmark_chunks(doc_name: str) -> List[Dict[str, Any]]:
     return sampled_chunks
 
 
-def generate_and_cache_summary_sync(doc_name: str, model_name: str = "gemini/gemini-3.6-flash"):
-    """Synchronous background generation of structured document summary."""
-    print(f"[Summary Worker] Generating background landmark summary for '{doc_name}' using {model_name}...")
+def generate_and_cache_summary_sync(doc_name: str, custom_keys: Optional[dict] = None):
+    """
+    Synchronous background generation of structured document summary.
+    Uses pick_best_model_from_keys() to select the best available provider
+    from the user's BYOK keys, falling back to .env keys, then Gemini default.
+    Works for any provider: Gemini, OpenAI, Anthropic, Groq, OpenRouter, DeepSeek.
+    """
+    model_name, api_key = pick_best_model_from_keys(custom_keys)
+    print(f"[Summary Worker] Generating background summary for '{doc_name}' using {model_name}...")
+
     sampled_chunks = _extract_landmark_chunks(doc_name)
     if not sampled_chunks:
         print(f"[Summary Worker] No chunks found for '{doc_name}'. Aborting.")
@@ -77,7 +68,7 @@ def generate_and_cache_summary_sync(doc_name: str, model_name: str = "gemini/gem
     context_block = build_context_block(sampled_chunks)
 
     prompt = f"""
-{SOURCE_LOCKED_SYSTEM_PROMPT}
+{MAIN_RAG_PROMPT}
 
 You are creating a comprehensive, clear, and well-structured summary for the document: "{doc_name}".
 
@@ -102,28 +93,24 @@ INSTRUCTIONS FOR ADAPTIVE SUMMARY:
    - Support factual statements, quotes, and specific concepts with inline page citations: `[{doc_name}, p.X]`.
    - For empirical research papers that include real formulas or benchmark data in the text, present them cleanly with math notation or tables. For non-mathematical texts, explain the concepts purely in articulate, natural prose.
 """.strip()
+
     try:
-        norm_model = normalize_litellm_model_id(model_name)
-        active_key = _resolve_worker_api_key(norm_model)
-
-        call_kwargs = {
-            "model": norm_model,
-            "messages": [{"role": "user", "content": prompt}],
-            "api_key": active_key,
-            "max_tokens": 2500,
-            "drop_params": True,
-            "reasoning_effort": "none"  # Disables thinking token overhead for fast ~2s caching
-        }
-
-        res = completion(**call_kwargs)
+        res = completion(
+            model=model_name,
+            messages=[{"role": "user", "content": prompt}],
+            api_key=api_key,
+            max_tokens=2500,
+            drop_params=True,
+            reasoning_effort="none",  # Disables thinking token overhead for fast ~2s caching
+        )
         summary_content = extract_reasoning_and_content(res).answer
         save_cached_document_summary(doc_name, summary_content)
-        print(f"[Summary Worker] Successfully generated and cached summary for '{doc_name}'.")
+        print(f"[Summary Worker] Successfully cached summary for '{doc_name}' via {model_name}.")
     except Exception as e:
-        print(f"[Summary Worker Error] Failed to generate summary for '{doc_name}': {e}")
+        print(f"[Summary Worker Error] Failed to generate summary for '{doc_name}' via {model_name}: {e}")
 
 
-async def trigger_async_summary_generation(doc_name: str, model_name: str = "gemini/gemini-3.6-flash"):
-    """Dispatches background task to event loop without blocking upload."""
-    loop = asyncio.get_event_loop()
-    loop.run_in_executor(None, generate_and_cache_summary_sync, doc_name, model_name)
+async def trigger_async_summary_generation(doc_name: str, custom_keys: Optional[dict] = None):
+    """Dispatches background summary task to the thread executor without blocking the upload response."""
+    loop = asyncio.get_running_loop()
+    loop.run_in_executor(None, generate_and_cache_summary_sync, doc_name, custom_keys)

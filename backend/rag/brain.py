@@ -13,6 +13,7 @@ from backend.rag.runtime import (
     normalize_litellm_model_id,
     extract_reasoning_and_content,
     provider_from_model,
+    pick_best_model_from_keys,
 )
 
 logger = logging.getLogger("scholarsmate.brain")
@@ -76,8 +77,9 @@ async def build_brain_context(
     if not memories:
         return ""
 
-    global_memories = [m for m in memories if m.scope == "global"]
-    workspace_memories = [m for m in memories if m.scope == "workspace" and m.workspace_id == workspace_id]
+    # Cap injected memories to 10 global + 10 workspace to prevent token budget explosion
+    global_memories = [m for m in memories if m.scope == "global"][:10]
+    workspace_memories = [m for m in memories if m.scope == "workspace" and m.workspace_id == workspace_id][:10]
 
     sections = []
 
@@ -150,7 +152,10 @@ async def extract_and_persist_memories_async(
             {"role": "user", "content": formatted_prompt}
         ]
 
-        target_model = model_name or "gemini/gemini-3.6-flash"
+        if not model_name:
+            target_model, _ = pick_best_model_from_keys(custom_keys)
+        else:
+            target_model = normalize_litellm_model_id(model_name)
         raw_response = _execute_completion_with_fallback(
             model_name=target_model,
             messages=messages,

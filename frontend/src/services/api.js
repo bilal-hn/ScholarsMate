@@ -259,6 +259,10 @@ export const getDocuments = async () => {
 export const uploadFile = async (file) => {
   const formData = new FormData();
   formData.append('file', file);
+  const { keys } = getSavedBYOKConfig();
+  if (keys && Object.keys(keys).length > 0) {
+    formData.append('custom_keys', JSON.stringify(keys));
+  }
 
   try {
     const response = await apiClient.post('/upload', formData, {
@@ -282,6 +286,10 @@ export const createWorkspace = async (files) => {
   Array.from(files).forEach((file) => {
     formData.append('files', file);
   });
+  const { keys } = getSavedBYOKConfig();
+  if (keys && Object.keys(keys).length > 0) {
+    formData.append('custom_keys', JSON.stringify(keys));
+  }
 
   try {
     const response = await apiClient.post('/workspace/create', formData, {
@@ -306,6 +314,10 @@ export const addPapersToWorkspace = async (sessionId, files) => {
   Array.from(files).forEach((file) => {
     formData.append('files', file);
   });
+  const { keys } = getSavedBYOKConfig();
+  if (keys && Object.keys(keys).length > 0) {
+    formData.append('custom_keys', JSON.stringify(keys));
+  }
 
   try {
     const response = await apiClient.post(`/workspace/${sessionId}/papers`, formData, {

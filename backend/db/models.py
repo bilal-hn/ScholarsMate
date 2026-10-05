@@ -108,6 +108,8 @@ class WorkspaceDraft(Base):
     title: Mapped[str] = mapped_column(String, default="Untitled Academic Draft")
     content_html: Mapped[str] = mapped_column(Text, default="")
     content_markdown: Mapped[str] = mapped_column(Text, default="")
+    citations_data: Mapped[Optional[list]] = mapped_column(JSON, default=list, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     session: Mapped["ChatSession"] = relationship("ChatSession", back_populates="draft")
 
 

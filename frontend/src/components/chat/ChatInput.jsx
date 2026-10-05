@@ -94,6 +94,10 @@ export default function ChatInput({
   const effectiveAttachedImages = attachedImages !== undefined ? attachedImages : localAttachedImages;
   const updateAttachedImages = setAttachedImages || setLocalAttachedImages;
 
+  const [localInput, setLocalInput] = useState('');
+  const effectiveInput = input !== undefined ? input : localInput;
+  const updateInput = setInput || setLocalInput;
+
   const [isAttachMenuOpen, setIsAttachMenuOpen] = useState(false);
   const attachMenuRef = useRef(null);
   const imageInputRef = useRef(null);
@@ -216,8 +220,8 @@ export default function ChatInput({
         }
 
         // If user input is currently empty and a query was extracted from image, populate it
-        if (extractRes.suggested_query && (!input || !input.trim())) {
-          setInput(extractRes.suggested_query);
+        if (extractRes.suggested_query && (!effectiveInput || !effectiveInput.trim())) {
+          updateInput(extractRes.suggested_query);
         }
       } catch (err) {
         console.error('Failed to extract data from image:', err);
@@ -273,13 +277,17 @@ export default function ChatInput({
   const handleFormSubmit = (e) => {
     e?.preventDefault();
     const hasImages = effectiveAttachedImages && effectiveAttachedImages.length > 0;
-    if ((!input.trim() && !hasImages) || loading) return;
+    if ((!effectiveInput.trim() && !hasImages) || loading) return;
 
-    if (!input.trim() && hasImages) {
-      setInput('Analyze the attached image and solve the query or explain the data.');
+    let textToSend = effectiveInput.trim();
+    if (!textToSend && hasImages) {
+      textToSend = 'Analyze the attached image and solve the query or explain the data.';
     }
 
-    onSubmit(e, effectiveAttachedImages);
+    if (onSubmit) {
+      onSubmit(e, effectiveAttachedImages, textToSend);
+    }
+    updateInput('');
   };
 
   // Combine default and custom slash commands
@@ -332,7 +340,7 @@ export default function ChatInput({
   const handleInputChange = (e) => {
     const value = e.target.value;
     const cursorPos = e.target.selectionStart;
-    setInput(value);
+    updateInput(value);
 
     // Look at the text before the current cursor
     const textBeforeCursor = value.slice(0, cursorPos);
@@ -364,14 +372,14 @@ export default function ChatInput({
   const selectDocumentTag = (docName) => {
     if (!textareaRef.current) return;
     const cursorPos = textareaRef.current.selectionStart;
-    const textBeforeCursor = input.slice(0, cursorPos);
-    const textAfterCursor = input.slice(cursorPos);
+    const textBeforeCursor = effectiveInput.slice(0, cursorPos);
+    const textAfterCursor = effectiveInput.slice(cursorPos);
 
     // Replace the trailing '@query' with '@docName '
     const updatedBefore = textBeforeCursor.replace(/@([^\s]*)$/, `@${docName} `);
     const fullNewText = updatedBefore + textAfterCursor;
 
-    setInput(fullNewText);
+    updateInput(fullNewText);
     setShowMentionMenu(false);
 
     setTimeout(() => {
@@ -386,7 +394,7 @@ export default function ChatInput({
   const selectSlashCommand = (item) => {
     if (!textareaRef.current) return;
     const fullNewText = `${item.cmd} `;
-    setInput(fullNewText);
+    updateInput(fullNewText);
     setShowSlashMenu(false);
 
     setTimeout(() => {
@@ -451,11 +459,17 @@ export default function ChatInput({
       setShowMentionMenu(false);
       setShowSlashMenu(false);
       const hasImages = effectiveAttachedImages && effectiveAttachedImages.length > 0;
-      if ((!input.trim() && !hasImages) || loading) return;
-      if (!input.trim() && hasImages) {
-        setInput('Analyze the attached image and solve the query or explain the data.');
+      if ((!effectiveInput.trim() && !hasImages) || loading) return;
+
+      let textToSend = effectiveInput.trim();
+      if (!textToSend && hasImages) {
+        textToSend = 'Analyze the attached image and solve the query or explain the data.';
       }
-      onSubmit(e, effectiveAttachedImages);
+
+      if (onSubmit) {
+        onSubmit(e, effectiveAttachedImages, textToSend);
+      }
+      updateInput('');
     }
   };
 
@@ -857,8 +871,12 @@ export default function ChatInput({
         <textarea
           ref={textareaRef}
           rows={2}
-          placeholder="Message ScholarsMate or type @ to tag a file..."
-          value={input}
+          placeholder={
+            !availableModels || availableModels.length === 0
+              ? 'Add an API key to start research chat, or type @ to tag a paper...'
+              : 'Message ScholarsMate or type @ to tag a file...'
+          }
+          value={effectiveInput}
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
           className="w-full bg-transparent text-[13.5px] text-zinc-100 placeholder-zinc-500 focus:outline-none resize-none px-2 pt-1 font-sans leading-relaxed"
@@ -1313,17 +1331,17 @@ export default function ChatInput({
               <button
                 type="button"
                 onClick={onOpenSettings}
-                className="flex items-center gap-1 text-xs text-amber-400 hover:text-amber-300 font-medium px-2.5 py-1 rounded-lg hover:bg-zinc-800/40 transition-colors"
+                className="flex items-center gap-1.5 text-xs text-amber-400 hover:text-amber-300 font-medium px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 transition-colors cursor-pointer"
               >
                 <Key className="h-3 w-3" />
-                <span>Add Key</span>
+                <span>Add API Key</span>
               </button>
             )}
 
             {/* Submit Button */}
             <button
               type="submit"
-              disabled={loading || (!input.trim() && (!effectiveAttachedImages || effectiveAttachedImages.length === 0))}
+              disabled={loading || (!effectiveInput.trim() && (!effectiveAttachedImages || effectiveAttachedImages.length === 0))}
               className="h-7 w-7 rounded-full bg-amber-500 hover:bg-amber-400 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-950 flex items-center justify-center transition-all cursor-pointer shadow-md active:scale-95 shrink-0"
               title="Send Message"
             >

@@ -5,6 +5,7 @@ import shutil
 import hashlib
 import httpx
 import uuid
+import json
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 from contextlib import asynccontextmanager
@@ -97,7 +98,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="ScholarsMate API",
-    description="Source-Locked Retrieval-Augmented Generation REST API",
+    description="ScholarsMate Academic Research & Document Retrieval REST API",
     version="1.0.0",
     lifespan=lifespan,
 )
@@ -733,12 +734,21 @@ async def query_rag(
 @app.post("/api/upload", response_model=UploadResponse)
 async def upload_pdf(
     file: UploadFile = File(...),
+    custom_keys: Optional[str] = Form(None),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Uploads single PDF file, processes it, registers ownership, and triggers summary caching."""
     if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF documents are supported.")
+
+    # Parse BYOK custom_keys if provided as JSON string
+    keys_dict = {}
+    if custom_keys:
+        try:
+            keys_dict = json.loads(custom_keys)
+        except Exception:
+            keys_dict = {}
 
     file_path = UPLOADS_DIR / file.filename
 
@@ -763,8 +773,8 @@ async def upload_pdf(
         db.add(doc_entry)
         await db.commit()
 
-        # Trigger background summary worker for instant caching
-        await trigger_async_summary_generation(doc_name=file.filename)
+        # Trigger background summary worker using user's BYOK keys
+        await trigger_async_summary_generation(doc_name=file.filename, custom_keys=keys_dict)
 
         return UploadResponse(
             message="Document successfully processed and indexed.",
@@ -834,6 +844,7 @@ async def extract_image_endpoint(
 @app.post("/api/workspace/create")
 async def create_workspace(
     files: List[UploadFile] = File(...),
+    custom_keys: Optional[str] = Form(None),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
@@ -841,6 +852,14 @@ async def create_workspace(
     Uploads a batch of PDF papers, applies deduplication, registers documents in DB,
     and triggers parallel background summary caching.
     """
+    # Parse BYOK custom_keys once for all files in this batch
+    keys_dict = {}
+    if custom_keys:
+        try:
+            keys_dict = json.loads(custom_keys)
+        except Exception:
+            keys_dict = {}
+
     total_chunks = 0
     processed_files = []
 
@@ -868,8 +887,8 @@ async def create_workspace(
             )
             db.add(doc_entry)
 
-            # Dispatch non-blocking background summary worker for this paper
-            await trigger_async_summary_generation(doc_name=filename)
+            # Dispatch non-blocking background summary worker using user's BYOK keys
+            await trigger_async_summary_generation(doc_name=filename, custom_keys=keys_dict)
 
             processed_files.append(filename)
         except Exception as e:
@@ -877,7 +896,7 @@ async def create_workspace(
 
     if not processed_files:
         raise HTTPException(
-            status_code=400, 
+            status_code=400,
             detail="No valid readable PDF files were processed.",
         )
 
@@ -930,6 +949,7 @@ async def create_workspace(
 async def add_papers_to_workspace(
     session_id: str,
     files: List[UploadFile] = File(...),
+    custom_keys: Optional[str] = Form(None),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
@@ -938,6 +958,14 @@ async def add_papers_to_workspace(
     session = next((s for s in user_sessions if s.id == session_id), None)
     if not session:
         raise HTTPException(status_code=404, detail="Workspace not found or unauthorized.")
+
+    # Parse BYOK custom_keys once for all files in this batch
+    keys_dict = {}
+    if custom_keys:
+        try:
+            keys_dict = json.loads(custom_keys)
+        except Exception:
+            keys_dict = {}
 
     total_chunks = 0
     processed_files = []
@@ -965,7 +993,7 @@ async def add_papers_to_workspace(
             )
             db.add(doc_entry)
 
-            await trigger_async_summary_generation(doc_name=filename)
+            await trigger_async_summary_generation(doc_name=filename, custom_keys=keys_dict)
             processed_files.append(filename)
         except Exception as e:
             print(f"Failed to process file {filename}: {str(e)}")

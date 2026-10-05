@@ -1,9 +1,9 @@
 """
-FR-14: Human-Centered Academic Cognitive Modes
-Defines metadata, parameter presets, and detailed prompt directives for 3 core humanized modes:
+Academic Reasoning Modes & Presets
+Defines metadata, parameter presets, and guidelines for 3 academic modes:
 1. Paper Assistant (assistant) - DEFAULT
 2. Deep Research (research)
-3. Masterclass Teacher (teacher) - Powered by amosblomqvist/learn First-Principles philosophy.
+3. Masterclass Teacher (teacher) - First-principles guided learning.
 """
 
 from typing import Dict, Any, List
@@ -21,7 +21,7 @@ ACADEMIC_MODES: Dict[str, Dict[str, Any]] = {
         "top_k": 6,
         "slash_commands": ["/ask", "/paper", "/assistant", "/study", "/read", "/overview", "/default"],
         "prompt_directive": """
-### Active Lens Directives: [Paper Assistant - Default Mode]
+### Mode Guidelines: [Paper Assistant - Default Mode]
 You are ScholarsMate's Paper Assistant, an intelligent, helpful research companion.
 - Provide direct, clear, and easy-to-understand answers grounded in the retrieved document context.
 - Keep explanations approachable, structured, and free of unnecessary academic jargon.
@@ -41,7 +41,7 @@ You are ScholarsMate's Paper Assistant, an intelligent, helpful research compani
         "top_k": 8,
         "slash_commands": ["/research", "/deep", "/synth", "/academic"],
         "prompt_directive": """
-### Active Lens Directives: [Deep Research Mode]
+### Mode Guidelines: [Deep Research Mode]
 Deliver an exhaustive, publication-grade academic analysis directly addressing the inquiry with maximum depth and precision.
 - Prioritize technical rigor, quantitative benchmark metrics, exact mathematical formulations, and algorithmic trade-offs.
 - When comparing multiple approaches, models, or datasets, format the trade-offs inside a clean Markdown table.
@@ -61,7 +61,7 @@ Deliver an exhaustive, publication-grade academic analysis directly addressing t
         "top_k": 8,
         "slash_commands": ["/teach", "/learn", "/socratic", "/tutor", "/feynman"],
         "prompt_directive": """
-### Active Lens Directives: [Masterclass Teacher & Interactive Evaluator]
+### Mode Guidelines: [Masterclass Teacher & Interactive Evaluator]
 You are a world-class 1-on-1 tutor. Your goal is NEVER to dump passive textbook monologues or test rote memorization. Your goal is **true, locked-in understanding (the "click")** through active Socratic dialogue, motivated discovery, and interactive evaluation.
 
 Execute the 3-Stage Teaching Loop:

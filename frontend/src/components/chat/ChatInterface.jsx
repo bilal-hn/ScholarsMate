@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { 
   Compass, 
   Loader2, 
@@ -8,7 +8,9 @@ import {
   Edit2, 
   Trash2, 
   Sparkles,
-  PenTool
+  PenTool,
+  Key,
+  ArrowRight
 } from 'lucide-react';
 import ChatMessage from './ChatMessage';
 import ChatInput from './ChatInput';
@@ -127,7 +129,6 @@ export default function ChatInterface({
   const [editingLens, setEditingLens] = useState(null);
   const [isCustomLensModalOpen, setIsCustomLensModalOpen] = useState(false);
 
-  const [input, setInput] = useState('');
   const [attachedDocs, setAttachedDocs] = useState([]);
   const [attachedImages, setAttachedImages] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -141,7 +142,7 @@ export default function ChatInterface({
   }, []);
 
   // Merge core modes and custom lenses
-  const allAvailableModes = React.useMemo(() => {
+  const allAvailableModes = useMemo(() => {
     const formattedCustom = (customLenses || []).map((c) => ({
       ...c,
       isCustom: true,
@@ -150,9 +151,11 @@ export default function ChatInterface({
   }, [customLenses]);
 
   // Extract raw string document names for @ mention autocomplete
-  const availableDocNames = (documents || [])
-    .map((d) => (typeof d === 'string' ? d : d?.doc_name || d?.name || d?.filename || ''))
-    .filter(Boolean);
+  const availableDocNames = useMemo(() => {
+    return (documents || [])
+      .map((d) => (typeof d === 'string' ? d : d?.doc_name || d?.name || d?.filename || ''))
+      .filter(Boolean);
+  }, [documents]);
 
   // Fetch session messages and active mode when session changes
   useEffect(() => {
@@ -308,17 +311,20 @@ export default function ChatInterface({
   const activeModeObj = allAvailableModes.find((m) => m.id === currentMode) || allAvailableModes[0];
   const ActiveModeIcon = activeModeObj.icon;
 
-  const handleSubmit = async (e, submittedImages = null) => {
+  const handleSubmit = async (e, submittedImages = null, submittedText = '') => {
     e?.preventDefault();
+    if (!availableModels || availableModels.length === 0) {
+      if (onOpenSettings) onOpenSettings();
+      return;
+    }
     const imgsToUse = submittedImages || attachedImages || [];
     const hasImages = imgsToUse.length > 0;
-    if ((!input.trim() && !hasImages) || loading) return;
+    let userMessage = (submittedText || '').trim();
+    if ((!userMessage && !hasImages) || loading) return;
 
-    let userMessage = input.trim();
     if (!userMessage && hasImages) {
       userMessage = 'Analyze the attached image and solve the query or explain the data.';
     }
-    setInput('');
 
     // Format clean image objects for RAG backend and user chat bubble
     const imagesPayload = imgsToUse.map((img) => ({
@@ -487,9 +493,32 @@ export default function ChatInterface({
               {APP_CONFIG.tagline}
             </p>
 
-            <p className="text-[11px] text-zinc-500 max-w-xs leading-relaxed font-mono">
-              Tip: Drag and drop files onto the chat, or type <span className="text-amber-400">@</span> to tag a paper.
-            </p>
+            {(!availableModels || availableModels.length === 0) ? (
+              <div className="mt-2 w-full max-w-sm rounded-2xl border border-amber-500/30 bg-gradient-to-b from-amber-500/10 via-zinc-900/80 to-zinc-950 p-5 shadow-2xl backdrop-blur-md text-center flex flex-col items-center animate-in fade-in zoom-in-95 duration-200">
+                <div className="mb-2.5 flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400 shadow-inner">
+                  <Key className="h-5 w-5 stroke-[2]" />
+                </div>
+                <h2 className="text-sm font-semibold text-zinc-100 tracking-tight">
+                  Add an API key to start
+                </h2>
+                <p className="mt-1 text-xs text-zinc-400 leading-relaxed max-w-xs">
+                  Connect a free or BYOK model (Google Gemini, Groq, OpenAI, Anthropic, or Ollama) to begin research chat and synthesis.
+                </p>
+                <button
+                  type="button"
+                  onClick={onOpenSettings}
+                  className="mt-4 inline-flex items-center justify-center gap-1.5 rounded-lg bg-amber-500 px-4 py-2 text-xs font-semibold text-zinc-950 hover:bg-amber-400 transition-all shadow-md active:scale-95 cursor-pointer"
+                >
+                  <Plus className="h-3.5 w-3.5 stroke-[2.5]" />
+                  <span>Configure API Key</span>
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ) : (
+              <p className="text-[11px] text-zinc-500 max-w-xs leading-relaxed font-mono">
+                Tip: Drag and drop files onto the chat, or type <span className="text-amber-400">@</span> to tag a paper.
+              </p>
+            )}
           </div>
         </div>
       ) : (
@@ -526,8 +555,6 @@ export default function ChatInterface({
 
       {/* Floating Chat Input with 9-Dots Matrix Menu, Scoped Docs, and Minimal Lens Selector */}
       <ChatInput
-        input={input}
-        setInput={setInput}
         onSubmit={handleSubmit}
         loading={loading}
         availableModels={availableModels}

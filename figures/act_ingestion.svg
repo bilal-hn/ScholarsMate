@@ -1,0 +1,149 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 880" width="760" height="880" style="background:#ffffff; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+  <style>
+    .start-node { fill: #0f172a; stroke: none; }
+    .end-node-outer { fill: none; stroke: #0f172a; stroke-width: 2; }
+    .end-node-inner { fill: #0f172a; stroke: none; }
+    .act-box { fill: #f8fafc; stroke: #64748b; stroke-width: 1.5; rx: 8; }
+    .act-box-accent { fill: #f0fdf4; stroke: #16a34a; stroke-width: 1.5; rx: 8; }
+    .act-box-warn { fill: #fef2f2; stroke: #ef4444; stroke-width: 1.5; rx: 8; }
+    .dec-node { fill: #fef9c3; stroke: #ca8a04; stroke-width: 1.5; }
+    .fork-bar { fill: #1e293b; stroke: none; rx: 2; }
+    .flow-line { fill: none; stroke: #334155; stroke-width: 1.6; }
+    .txt-title { font-size: 11.5px; font-weight: 600; fill: #0f172a; text-anchor: middle; }
+    .txt-sub { font-size: 9.5px; fill: #64748b; text-anchor: middle; }
+    .txt-dec { font-size: 10px; font-weight: 600; fill: #854d0e; text-anchor: middle; }
+    .txt-branch { font-size: 9.5px; font-weight: 600; fill: #475569; }
+  </style>
+  <defs>
+    <marker id="ar1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1.5 L 9 5 L 0 8.5 z" fill="#334155"/>
+    </marker>
+  </defs>
+
+  <!-- Title -->
+  <text x="380" y="24" text-anchor="middle" font-size="15" font-weight="700" fill="#0f172a">Document Ingestion &amp; Vector Indexing Activity Diagram</text>
+  <text x="380" y="42" text-anchor="middle" font-size="11" fill="#64748b">Procedural Extraction, Layout-Aware Coordinate Chunking, and Dual Persistence</text>
+
+  <!-- Start Node -->
+  <circle cx="380" cy="70" r="10" class="start-node"/>
+  <line x1="380" y1="80" x2="380" y2="105" class="flow-line" marker-end="url(#ar1)"/>
+
+  <!-- Step 1: Upload PDF -->
+  <g transform="translate(255, 105)">
+    <rect width="250" height="42" class="act-box"/>
+    <text x="125" y="20" class="txt-title">Upload Academic Publication (PDF)</text>
+    <text x="125" y="33" class="txt-sub">Client streams multipart/form-data</text>
+  </g>
+  <line x1="380" y1="147" x2="380" y2="175" class="flow-line" marker-end="url(#ar1)"/>
+
+  <!-- Decision 1: Valid Format -->
+  <polygon points="380,175 455,205 380,235 305,205" class="dec-node"/>
+  <text x="380" y="202" class="txt-dec">Valid PDF</text>
+  <text x="380" y="214" class="txt-dec">Binary?</text>
+
+  <!-- Branch: Invalid -->
+  <line x1="455" y1="205" x2="550" y2="205" class="flow-line" marker-end="url(#ar1)"/>
+  <text x="475" y="198" class="txt-branch">[No]</text>
+  <g transform="translate(550, 185)">
+    <rect width="170" height="40" class="act-box-warn"/>
+    <text x="85" y="19" class="txt-title" fill="#b91c1c">Emit 400 Bad Request</text>
+    <text x="85" y="31" class="txt-sub">Unsupported MIME type</text>
+  </g>
+  <line x1="635" y1="225" x2="635" y2="265" class="flow-line" marker-end="url(#ar1)"/>
+  <circle cx="635" cy="280" r="14" class="end-node-outer"/>
+  <circle cx="635" cy="280" r="8" class="end-node-inner"/>
+
+  <!-- Branch: Valid -->
+  <line x1="380" y1="235" x2="380" y2="265" class="flow-line" marker-end="url(#ar1)"/>
+  <text x="390" y="252" class="txt-branch">[Yes]</text>
+
+  <!-- Step 2: PyPDFLoader -->
+  <g transform="translate(245, 265)">
+    <rect width="270" height="42" class="act-box"/>
+    <text x="135" y="20" class="txt-title">Parse Layout via PyPDFLoader</text>
+    <text x="135" y="33" class="txt-sub">Extract pages P_1 to P_N with physical indices</text>
+  </g>
+  <line x1="380" y1="307" x2="380" y2="335" class="flow-line" marker-end="url(#ar1)"/>
+
+  <!-- Decision 2: Text Extracted? -->
+  <polygon points="380,335 455,365 380,395 305,365" class="dec-node"/>
+  <text x="380" y="362" class="txt-dec">Text Content</text>
+  <text x="380" y="374" class="txt-dec">Present?</text>
+
+  <!-- Branch: Scanned/Empty -->
+  <line x1="455" y1="365" x2="550" y2="365" class="flow-line" marker-end="url(#ar1)"/>
+  <text x="475" y="358" class="txt-branch">[Empty/Scanned]</text>
+  <g transform="translate(550, 345)">
+    <rect width="170" height="40" class="act-box-warn"/>
+    <text x="85" y="19" class="txt-title" fill="#b91c1c">Emit OCR Warning</text>
+    <text x="85" y="31" class="txt-sub">Document has no selectable text</text>
+  </g>
+  <line x1="635" y1="385" x2="635" y2="425" class="flow-line" marker-end="url(#ar1)"/>
+  <circle cx="635" cy="440" r="14" class="end-node-outer"/>
+  <circle cx="635" cy="440" r="8" class="end-node-inner"/>
+
+  <!-- Branch: Text Found -->
+  <line x1="380" y1="395" x2="380" y2="425" class="flow-line" marker-end="url(#ar1)"/>
+  <text x="390" y="412" class="txt-branch">[Yes]</text>
+
+  <!-- Step 3: Recursive Chunking -->
+  <g transform="translate(235, 425)">
+    <rect width="290" height="44" class="act-box"/>
+    <text x="145" y="20" class="txt-title">Recursive Character Chunking</text>
+    <text x="145" y="34" class="txt-sub">Sliding window: W=1000 chars, Overlap=100 chars</text>
+  </g>
+  <line x1="380" y1="469" x2="380" y2="495" class="flow-line" marker-end="url(#ar1)"/>
+
+  <!-- Step 4: Tag Metadata -->
+  <g transform="translate(235, 495)">
+    <rect width="290" height="44" class="act-box"/>
+    <text x="145" y="20" class="txt-title">Bind Immutable Citation Metadata</text>
+    <text x="145" y="34" class="txt-sub">ChunkID = DocName::p{Page}::{Index}</text>
+  </g>
+  <line x1="380" y1="539" x2="380" y2="565" class="flow-line" marker-end="url(#ar1)"/>
+
+  <!-- Step 5: Embeddings -->
+  <g transform="translate(235, 565)">
+    <rect width="290" height="44" class="act-box"/>
+    <text x="145" y="20" class="txt-title">Batch Dense Vector Embedding</text>
+    <text x="145" y="34" class="txt-sub">all-MiniLM-L6-v2 produces normalized R^384</text>
+  </g>
+  <line x1="380" y1="609" x2="380" y2="635" class="flow-line" marker-end="url(#ar1)"/>
+
+  <!-- Fork Bar -->
+  <rect x="230" y="635" width="300" height="6" class="fork-bar"/>
+  <line x1="290" y1="641" x2="290" y2="665" class="flow-line" marker-end="url(#ar1)"/>
+  <line x1="470" y1="641" x2="470" y2="665" class="flow-line" marker-end="url(#ar1)"/>
+
+  <!-- Parallel Branch Left: ChromaDB -->
+  <g transform="translate(180, 665)">
+    <rect width="210" height="40" class="act-box"/>
+    <text x="105" y="19" class="txt-title">ChromaDB Upsert</text>
+    <text x="105" y="31" class="txt-sub">Commit vectors &amp; HNSW index</text>
+  </g>
+
+  <!-- Parallel Branch Right: SQLite -->
+  <g transform="translate(410, 665)">
+    <rect width="210" height="40" class="act-box"/>
+    <text x="105" y="19" class="txt-title">SQLite Record Commit</text>
+    <text x="105" y="31" class="txt-sub">Persist user ownership &amp; hash</text>
+  </g>
+
+  <!-- Join Bar -->
+  <line x1="285" y1="705" x2="285" y2="730" class="flow-line"/>
+  <line x1="515" y1="705" x2="515" y2="730" class="flow-line"/>
+  <rect x="230" y="730" width="300" height="6" class="fork-bar"/>
+  <line x1="380" y1="736" x2="380" y2="760" class="flow-line" marker-end="url(#ar1)"/>
+
+  <!-- Background Summary Cache -->
+  <g transform="translate(245, 760)">
+    <rect width="270" height="42" class="act-box-accent"/>
+    <text x="135" y="20" class="txt-title" fill="#14532d">Generate Abstractive Summary Cache</text>
+    <text x="135" y="33" class="txt-sub">Background worker caches overview in SQLite</text>
+  </g>
+  <line x1="380" y1="802" x2="380" y2="830" class="flow-line" marker-end="url(#ar1)"/>
+
+  <!-- End Node -->
+  <circle cx="380" cy="845" r="14" class="end-node-outer"/>
+  <circle cx="380" cy="845" r="8" class="end-node-inner"/>
+</svg>
