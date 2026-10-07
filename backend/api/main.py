@@ -69,7 +69,7 @@ from backend.rag.retriever import build_context_block
 from backend.rag.generator import generate_answer, _execute_completion_with_fallback
 from backend.rag.literature_review import generate_literature_review
 from backend.rag.runtime import normalize_litellm_model_id, extract_reasoning_and_content
-from backend.rag.brain import build_brain_context, extract_and_persist_memories_async
+from backend.rag.brain import build_brain_context, consolidate_batch_memories_async
 from backend.rag.image_extractor import extract_image_data
 
 # Import PDF streaming router
@@ -700,16 +700,34 @@ async def query_rag(
             meta=telemetry_meta,
         )
 
-        # 7. Trigger Background Brain Fact Extraction (learns from dialogue turn)
-        background_tasks.add_task(
-            extract_and_persist_memories_async,
-            user_id=current_user.id,
-            session_id=session_id,
-            user_message=request.query,
-            bot_answer=result["answer"],
-            model_name=request.model_name,
-            custom_keys=request.custom_keys
+        # 7. Periodic Brain Memory Consolidation
+        # db_messages was fetched BEFORE saving this turn, so +2 accounts for
+        # the user message and bot message just committed above.
+        # Turn number = (total messages) / 2, 1-indexed.
+        # Fire at turn 3 (first onboarding sync), then every 5 turns (8, 13, 18 …)
+        total_messages_after = len(db_messages) + 2
+        turn_number = total_messages_after // 2  # integer division: 2 msgs = turn 1
+        is_brain_sync_turn = (turn_number == 3) or (
+            turn_number > 3 and (turn_number - 3) % 5 == 0
         )
+        if is_brain_sync_turn:
+            # Pass the last 10 raw messages (5 turns) as the consolidation window
+            recent_window_msgs = db_messages[-8:]  # fetch before-save slice
+            # Append the current turn manually since it's already committed
+            recent_window_msgs_dicts = [
+                {"sender": m.sender, "text": m.text} for m in recent_window_msgs
+            ] + [
+                {"sender": "user", "text": request.query},
+                {"sender": "bot",  "text": result["answer"]},
+            ]
+            background_tasks.add_task(
+                consolidate_batch_memories_async,
+                user_id=current_user.id,
+                session_id=session_id,
+                dialogue_window=recent_window_msgs_dicts,
+                model_name=request.model_name,
+                custom_keys=request.custom_keys,
+            )
 
         return QueryResponse(
             query=result["query"],

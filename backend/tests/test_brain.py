@@ -77,7 +77,7 @@ def test_brain_crud_and_scoping():
 
             # 7. Build Brain Context Block
             context = await build_brain_context(async_db, user_id=user.id, workspace_id=session.id)
-            assert "<scholarsmate_brain>" in context
+            assert "<ctx>" in context
             assert "APA 7th" in context
             assert "topological surface codes" in context
             assert "rotated surface code" in context

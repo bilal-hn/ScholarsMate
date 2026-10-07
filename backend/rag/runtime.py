@@ -54,6 +54,16 @@ _PROVIDER_PRIORITY = [
     ("deepseek",   ["deepseek"],           "deepseek/deepseek-chat",                    "DEEPSEEK_API_KEY"),
 ]
 
+# Background brain extraction priority: always prefer fast/cheap models.
+# Memory extraction only produces simple JSON — heavy models waste credits and
+# burn Groq's TPM quota immediately after the main RAG call.
+_BRAIN_EXTRACTION_PRIORITY = [
+    ("gemini",   ["gemini", "google"], "gemini/gemini-2.5-flash",   "GEMINI_API_KEY"),
+    ("groq",     ["groq"],             "groq/llama-3.1-8b-instant", "GROQ_API_KEY"),
+    ("openai",   ["openai"],           "openai/gpt-4o-mini",        "OPENAI_API_KEY"),
+    ("deepseek", ["deepseek"],         "deepseek/deepseek-chat",    "DEEPSEEK_API_KEY"),
+]
+
 
 def pick_best_model_from_keys(custom_keys: dict | None = None) -> tuple[str, str | None]:
     """
@@ -84,6 +94,33 @@ def pick_best_model_from_keys(custom_keys: dict | None = None) -> tuple[str, str
 
     # 3. Absolute fallback — return Gemini model with no key; LiteLLM will raise
     #    a clear AuthenticationError rather than silently doing nothing.
+    return "gemini/gemini-2.5-flash", None
+
+
+def pick_brain_extraction_model(custom_keys: dict | None = None) -> tuple[str, str | None]:
+    """
+    Returns the cheapest/fastest (model_id, api_key) available for background
+    brain memory extraction tasks. Ignores the user's selected main-query model —
+    extraction only needs to produce simple JSON and should never burn heavy credits
+    or push Groq's TPM over the limit immediately after the main RAG call.
+
+    Priority order: Gemini Flash > Groq 8B-instant > GPT-4o-mini > DeepSeek
+    """
+    import os
+    keys = custom_keys or {}
+
+    # 1. Check BYOK custom_keys against brain-priority list
+    for _name, aliases, default_model, env_var in _BRAIN_EXTRACTION_PRIORITY:
+        for alias in aliases:
+            if alias in keys and keys[alias]:
+                return default_model, keys[alias]
+
+    # 2. Fall back to .env keys
+    for _name, _aliases, default_model, env_var in _BRAIN_EXTRACTION_PRIORITY:
+        env_key = os.getenv(env_var)
+        if env_key:
+            return default_model, env_key
+
     return "gemini/gemini-2.5-flash", None
 
 

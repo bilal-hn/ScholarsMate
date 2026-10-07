@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime
 from typing import List, Optional, Any
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, delete as sql_delete
 from backend.db.models import ChatSession, ChatMessage, User, WorkspaceDraft, BrainMemory
 
 
@@ -513,19 +513,14 @@ async def clear_brain_memories(
     scope: Optional[str] = None,
     workspace_id: Optional[str] = None
 ) -> int:
-    """Batch clears brain memories for a user."""
-    stmt = select(BrainMemory).where(BrainMemory.user_id == user_id)
+    """Atomically clears brain memories for a user via a single bulk SQL DELETE."""
+    stmt = sql_delete(BrainMemory).where(BrainMemory.user_id == user_id)
     if scope:
         stmt = stmt.where(BrainMemory.scope == scope)
     if workspace_id:
         stmt = stmt.where(BrainMemory.workspace_id == workspace_id)
 
     result = await db.execute(stmt)
-    memories = list(result.scalars().all())
-    count = len(memories)
-
-    for m in memories:
-        await db.delete(m)
-
     await db.commit()
-    return count
+    return result.rowcount
+
