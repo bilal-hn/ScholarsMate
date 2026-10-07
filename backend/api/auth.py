@@ -20,8 +20,24 @@ from dotenv import load_dotenv
 # Ensure environment variables are loaded
 load_dotenv(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.env")))
 
+import logging as _logging
+
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID") or os.getenv("VITE_GOOGLE_CLIENT_ID", "")
-JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "scholarsmate-secret-auth-key-2026")
+
+_jwt_key_from_env = os.getenv("JWT_SECRET_KEY", "").strip()
+if _jwt_key_from_env:
+    JWT_SECRET_KEY = _jwt_key_from_env
+else:
+    # No key configured — generate a cryptographically secure random key for
+    # this process lifetime. Sessions will be invalidated on every server restart.
+    # To persist sessions across restarts, set JWT_SECRET_KEY in your .env file.
+    JWT_SECRET_KEY = secrets.token_hex(32)
+    _logging.getLogger("scholarsmate.auth").warning(
+        "JWT_SECRET_KEY is not set in .env — using a randomly generated key. "
+        "All user sessions will be invalidated on server restart. "
+        "Set JWT_SECRET_KEY in your .env file for stable sessions."
+    )
+
 JWT_ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_DAYS = 30
 

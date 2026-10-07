@@ -1138,15 +1138,25 @@ async def get_workspace_papers_endpoint(
 # =============================================================================
 
 @app.post("/api/workspace/literature-review")
-def create_literature_review(request: ReviewRequest):
-    """Generates structured academic literature review across workspace documents."""
+async def create_literature_review(
+    request: ReviewRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Generates a structured academic literature review across workspace documents.
+    Requires authentication to prevent unauthenticated API quota burn.
+    Runs the synchronous generator in a thread-pool executor so the FastAPI
+    event loop is never blocked during the multi-stage LLM pipeline.
+    """
+    import asyncio
     try:
-        result = generate_literature_review(
+        result = await asyncio.to_thread(
+            generate_literature_review,
             doc_names=request.doc_names,
             research_focus=request.research_focus or "",
             depth=request.depth or "detailed",
             model_name=request.model_name or "gemini/gemini-3.7-flash",
-            custom_keys=request.custom_keys or {}
+            custom_keys=request.custom_keys or {},
         )
         if "error" in result and not result.get("content"):
             raise HTTPException(status_code=400, detail=result["error"])

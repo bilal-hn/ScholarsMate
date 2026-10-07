@@ -447,3 +447,149 @@ These are the fixes that will most improve your FYP demo — in order of priorit
 | 12 | Fix `asyncio.get_event_loop()` in `summary_worker.py` | `summary_worker.py:128` | 5 min | 🟡 Python 3.10+ compat |
 | 13 | Add integration test tags to `test_pipeline.py`, `test_extract_fyp.py` | test files | 5 min | 🟢 Test hygiene |
 | 14 | Fix `document_service.py` to use SQLAlchemy async | `document_service.py` | 45 min | 🟢 Long-term stability |
+
+
+
+ ## ✅ What Has Been Implemented
+
+  1. [Quick Fix #1 / M1] WorkspaceDraft ORM Missing Columns Fixed
+      • File: models.py:111-112
+      • citations_data: Mapped[Optional[list]] and updated_at: Mapped[datetime]
+      have been added to the WorkspaceDraft ORM class, preventing runtime
+      attribute crashes.
+  2. [Quick Fix #2 / Silent Model Swap] Resolved Model and Key Resolution
+      • Files: runtime.py:130-190, generator.py:315
+      • Replaced the hardcoded "llama" in target_model fallback with
+      resolve_model_and_key(). User-selected models (such as groq/llama-3.3-70b-
+      versatile) are now properly respected with full unit tests in
+      test_model_resolution.py.
+  3. [Quick Fix #5 / H7] Literature Review Hardcoded Timestamp Fixed
+      • File: literature_review.py:447
+      • Hardcoded "2026-08-25" was replaced with dynamic datetime.utcnow().
+      isoformat().
+  4. [Quick Fix #6 / M8] Brain Memory Token Explosion Capped
+      • File: brain.py:80-83
+      • build_brain_context() now caps injected memories to 10 global + 10
+      workspace memories (maximum 20 total) instead of injecting all unbounded
+      memories.
+  5. [Quick Fix #12 / H6] Fragile Event Loop & BYOK in Summary Worker Fixed
+      • File: summary_worker.py:113-116
+      • Replaced deprecated asyncio.get_event_loop() with asyncio.
+      get_running_loop().
+      • Also integrated pick_best_model_from_keys(), allowing background summary
+      caching to use any user BYOK provider instead of failing when Gemini is
+      absent.
+  6. [C1 (Partial) & L6] Dead Prompts & Stale Comments Removed
+      • File: prompt_templates.py
+      • Dead QUERY_REWRITE_PROMPT and ROUTER_CLASSIFICATION_PROMPT definitions and
+      stale comments were cleaned up.
+
+  ──────
+  ## ⚠ What Was Partially Addressed
+
+  1. [Quick Fix #9 / C4] Consolidate _resolve_api_key() into runtime.py
+      • Status: resolve_api_key was centralized in runtime.py and imported into
+      generator.py, router.py, and retriever.py.
+      • Remaining: literature_review.py:30 still keeps its own duplicate
+      _resolve_key() function (~40 lines).
+  2. [Quick Fix #14 / H5] Database Concurrency in document_service.py
+      • Status: Added SQLite PRAGMA journal_mode=WAL; and PRAGMA busy_timeout=5000;
+      to alleviate table locks.
+      • Remaining: Still creates raw, synchronous sqlite3 connections rather than
+      migrating to async SQLAlchemy sessions used across the rest of the
+      application.
+  3. [L1] Gemini Key Prefix Detection
+      • Status: Added standard Google API key prefix AIzaSy in main.py:124, but
+      left the legacy "AQ." / "AQ" checks intact.
+
+  ──────
+  ## ❌ What Is Remaining to be Implemented
+
+  ### 🔴 Critical & Security
+
+  1. [Quick Fix #3 / M5] Literature Review Endpoint Has No Authentication
+      • File: main.py:1122-1124
+      • /api/workspace/literature-review does not declare current_user: User =
+      Depends(get_current_user). Any unauthenticated client can trigger heavy
+      multi-stage LLM generation and consume backend API quota.
+  2. [Quick Fix #11 / Bug 322] Literature Review Blocks FastAPI Event Loop
+      • File: main.py:1123
+      • Endpoint is defined as synchronous def create_literature_review(...)
+      rather than running asynchronously or dispatching to an executor thread,
+      stalling all concurrent HTTP traffic for the entire duration of the review.
+  3. [Quick Fix #4 / H8] Path Traversal Vulnerability in Document Viewer
+      • File: documents.py:16
+      • file_path = DOCUMENTS_DIR / filename directly serves the requested path
+      without sanitization (Path(filename).name or checking .
+      is_relative_to(DOCUMENTS_DIR)).
+  4. [M2] Weak Hardcoded JWT Secret Default
+      • File: auth.py:24
+      • Falls back to "scholarsmate-secret-auth-key-2026" if JWT_SECRET_KEY is
+      omitted from .env.
+
+  ──────
+  ### 🟠 Performance & Logic Bugs
+
+  5. [Quick Fix #10 / H1] O(N) Session Lookup Scan
+      • File: main.py:548-549 and main.py:1064-1065
+      • Fetches all sessions belonging to a user (crud.get_all_sessions(...)) and
+      performs an in-memory python loop next(s for s in sessions if s.id ==
+      session_id) instead of a direct WHERE id = :id AND user_id = :user_id query.
+  6. [H2] Redundant PDF Reading on /api/workspace/{session_id}/papers
+      • File: main.py:1072-1079
+      • Re-opens every PDF from disk synchronously with PyMuPDF on every call to
+      fetch workspace papers rather than reading existing metadata from ChromaDB
+      chunks.
+  7. [H3] Duplicated PDF Ingestion Code
+      • File: Duplicated across /api/upload, /api/workspace/create, and
+      /api/workspace/{session_id}/papers. Should be unified into a single helper
+      _process_and_register_pdf().
+  8. [H4] Workspace Duplicate Check Occurs AFTER ChromaDB Ingestion
+      • File: main.py:866-923
+      • PDF files are parsed, chunked, and written to ChromaDB before checking if
+      the user already has 3 identical workspaces. If the check triggers 400,
+      orphaned chunks remain in the vector index.
+  9. [M4] Uncached 10,000-Record ChromaDB Scan Per Query Turn
+      • File: vector_store.py:143
+      • list_indexed_documents() and get_indexed_document_catalog() execute
+      collection.get(include=["metadatas"], limit=10000) on every user query.
+  10. [M6] Document Catalog Endpoint is Not User-Scoped
+      • File: main.py:1144-1160
+      • /api/documents exposes every indexed document across all users without
+      isolation.
+
+  ──────
+  ### 🟡 Dead Code & Cleanliness
+
+  11. [Quick Fix #8 / C2 & C3] Dead Ingestion Files Still Present
+      • indexer.py (empty stub) and text_chunker.py (broken/superseded chunker)
+      are still in the repository and not deleted.
+      • construct_prompt() is still defined and imported in generator.py despite
+      build_conversation_messages() being the active pipeline.
+      • crud.get_or_create_google_user() is defined but never called (L2).
+  12. [C5] Duplicate Imports & In-Loop Import in main.py
+      • from sqlalchemy import select re-imported at main.py:418 and main.py:466.
+      • import re inside a for loop at main.py:1085.
+  13. [M9] Duplicate Schema Fields in QueryRequest
+      • schemas.py:14-15 still defines both doc_names and selected_docs.
+  14. [L3] Brain Memory Clear Deletes Row-by-Row in Python Loop
+      • crud.py:527-528 runs await db.delete(m) sequentially inside a loop rather
+      than an atomic SQL bulk delete().
+  ──────
+  ### 🟢 Token Management & Groq Free Tier Feasibility
+
+  15. [Section 2 Item 4] Chunk Packing Budget Mismatch
+      • MAX_CONTEXT_TOKENS in runtime.py:29 is 6,000 tokens, but
+      build_context_block() truncates at 4,200 tokens. Packed chunks between 4,200
+      and 6,000 tokens are discarded.
+  16. [Section 2 Item 6] Inaccurate Token Telemetry
+      • main.py:665-667 estimates prompt tokens using len(query.split()) +
+      (len(target_documents or []) * 120), ignoring the actual retrieved chunks,
+      system prompt, and brain context.
+  17. [Quick Fix #7 / Section 4] Groq Adaptive Throughput Modes
+      • No provider-adaptive token throttling exists yet: when Groq is used,
+      queries still execute query expansion and default top_k=10, which risks
+      exceeding Groq's 6,000 TPM limit.
+  18. [Quick Fix #13] Integration Test Tags
+      • Test files test_pipeline.py and test_extract_fyp.py still execute against
+      live disk/API without @pytest.mark.integration decorators./
