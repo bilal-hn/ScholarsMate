@@ -82,6 +82,47 @@ export default function DocumentSidebar({
     }
   }, [workspaces]);
 
+  // Aggregate top 3–5 most active chats across all workspaces and standalone chats
+  const recentActivityChats = useMemo(() => {
+    const all = [];
+    (workspaces || []).forEach((ws) => {
+      (ws.chats || []).forEach((chat) => {
+        all.push({
+          ...chat,
+          workspaceId: ws.id,
+          workspaceName: ws.name,
+        });
+      });
+    });
+    (standaloneChats || []).forEach((s) => {
+      all.push({
+        ...s,
+        workspaceId: null,
+        workspaceName: null,
+      });
+    });
+    return all
+      .sort((a, b) => {
+        const timeA = new Date(a.updated_at || a.created_at || 0).getTime();
+        const timeB = new Date(b.updated_at || b.created_at || 0).getTime();
+        return timeB - timeA;
+      })
+      .slice(0, 5);
+  }, [workspaces, standaloneChats]);
+
+  const handleSelectRecentChat = (chat) => {
+    if (chat.workspaceId) {
+      setExpandedWorkspaces((prev) => {
+        const next = new Set(prev);
+        next.add(chat.workspaceId);
+        return next;
+      });
+      onSelectWorkspaceChat?.(chat.workspaceId, chat.id);
+    } else {
+      onSelectStandaloneChat?.(chat.id);
+    }
+  };
+
   // Close floating context menu on click outside or escape key
   useEffect(() => {
     if (!menuState) return;
@@ -266,7 +307,10 @@ export default function DocumentSidebar({
                   } else {
                     foundChat = standaloneChats.find((s) => s.id === menuState.id);
                   }
-                  if (foundChat) startChatRename(foundChat, menuState.parentId);
+                  if (!foundChat) {
+                    foundChat = recentActivityChats.find((c) => c.id === menuState.id);
+                  }
+                  if (foundChat) startChatRename(foundChat, menuState.parentId || foundChat.workspaceId);
                 }}
                 className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800/70 transition-colors cursor-pointer text-left"
               >
@@ -280,7 +324,7 @@ export default function DocumentSidebar({
                 type="button"
                 onClick={() => {
                   const chatId = menuState.id;
-                  const parentId = menuState.parentId;
+                  const parentId = menuState.parentId || recentActivityChats.find((c) => c.id === chatId)?.workspaceId || null;
                   setMenuState(null);
                   onDeleteChat?.(chatId, parentId);
                 }}
@@ -404,7 +448,7 @@ export default function DocumentSidebar({
               </button>
 
               {/* History shortcut */}
-              {standaloneChats.length > 0 && (
+              {recentActivityChats.length > 0 && (
                 <button
                   type="button"
                   onClick={() => {
@@ -412,11 +456,11 @@ export default function DocumentSidebar({
                     setIsRecentOpen(true);
                   }}
                   className="relative group p-2.5 rounded-xl text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/70 transition-all cursor-pointer flex items-center justify-center"
-                  aria-label="Recent Chats"
+                  aria-label="Recent Activity"
                 >
                   <History className="h-4.5 w-4.5" />
                   <span className="pointer-events-none absolute left-full top-1/2 -translate-y-1/2 ml-3 px-2.5 py-1.5 bg-zinc-900 border border-zinc-700/80 text-zinc-100 text-[12.5px] font-medium rounded-lg shadow-2xl whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50">
-                    Recent Chats
+                    Recent Activity
                   </span>
                 </button>
               )}
@@ -537,8 +581,119 @@ export default function DocumentSidebar({
             </button>
           </div>
 
-          {/* Workspaces & Recent Chats Tree */}
+          {/* Workspaces & Recent Activity Tree */}
           <div className="flex-1 overflow-y-auto px-2 py-3 space-y-4">
+            {/* RECENT ACTIVITY SECTION (Top 3-5 Active Chats Across All Workspaces) */}
+            {recentActivityChats.length > 0 && (
+              <div className="space-y-1.5">
+                <button
+                  type="button"
+                  onClick={() => setIsRecentOpen((prev) => !prev)}
+                  className="w-full flex items-center justify-between px-2 py-1 text-xs font-semibold tracking-wider text-zinc-500 hover:text-zinc-300 transition-colors uppercase cursor-pointer text-left"
+                >
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <History className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                    <span className="truncate">Recent Activity</span>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0 text-zinc-500">
+                    <span className="text-[10px] font-mono font-normal text-zinc-400 bg-zinc-800/70 px-1.5 py-0.5 rounded-full">
+                      {recentActivityChats.length}
+                    </span>
+                    {isRecentOpen ? (
+                      <ChevronDown className="h-3 w-3 text-zinc-400" />
+                    ) : (
+                      <ChevronRight className="h-3 w-3 text-zinc-400" />
+                    )}
+                  </div>
+                </button>
+
+                {isRecentOpen && (
+                  <div className="space-y-0.5">
+                    {recentActivityChats.map((chat) => {
+                      const isActive = activeSessionId === chat.id;
+                      const isEditingThisChat = editingChatId === chat.id;
+
+                      return (
+                        <div
+                          key={chat.id}
+                          onClick={() => handleSelectRecentChat(chat)}
+                          onContextMenu={(e) => handleContextMenu(e, 'chat', chat.id, chat.workspaceId)}
+                          className={`group flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs cursor-pointer transition-colors relative border-l-2 ${
+                            isActive
+                              ? 'bg-amber-500/15 text-amber-300 font-medium border-amber-400'
+                              : 'border-transparent hover:border-zinc-700 text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800/40'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 truncate min-w-0 pr-1 flex-1">
+                            <MessageSquare
+                              className={`h-3.5 w-3.5 shrink-0 ${
+                                isActive ? 'text-amber-400' : 'text-zinc-500 group-hover:text-zinc-300'
+                              }`}
+                            />
+
+                            {isEditingThisChat ? (
+                              <div className="flex items-center gap-1 flex-1 min-w-0" onClick={(e) => e.stopPropagation()}>
+                                <input
+                                  ref={renameInputRef}
+                                  type="text"
+                                  value={editChatTitle}
+                                  onChange={(e) => setEditChatTitle(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') handleSaveChatRename(chat.id, chat.workspaceId);
+                                    if (e.key === 'Escape') setEditingChatId(null);
+                                  }}
+                                  onBlur={() => handleSaveChatRename(chat.id, chat.workspaceId)}
+                                  className="w-full bg-zinc-950 border border-amber-500/80 rounded px-1.5 py-0.5 text-xs text-zinc-100 focus:outline-none"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => handleSaveChatRename(chat.id, chat.workspaceId)}
+                                  className="p-0.5 text-emerald-400 hover:text-emerald-300"
+                                >
+                                  <Check className="h-3 w-3" />
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="flex flex-col min-w-0 flex-1 truncate">
+                                <span
+                                  onDoubleClick={(e) => {
+                                    e.stopPropagation();
+                                    startChatRename(chat, chat.workspaceId);
+                                  }}
+                                  className="truncate text-[12.5px] select-none"
+                                  title={chat.title || 'Chat'}
+                                >
+                                  {chat.title || 'Chat'}
+                                </span>
+                                {chat.workspaceName && (
+                                  <span className="text-[10px] text-zinc-500 truncate leading-tight mt-0.5 flex items-center gap-1">
+                                    <Folder className="h-2.5 w-2.5 text-amber-400/60 shrink-0" />
+                                    <span className="truncate">{chat.workspaceName}</span>
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Chat Row Actions: Three Dots Menu */}
+                          <div className="flex items-center shrink-0" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              type="button"
+                              onClick={(e) => handleOpenThreeDots(e, 'chat', chat.id, chat.workspaceId)}
+                              title="Chat options"
+                              className="opacity-0 group-hover:opacity-100 p-1 rounded text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-opacity cursor-pointer"
+                            >
+                              <MoreVertical className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* WORKSPACES SECTION */}
             <div className="space-y-1.5">
               <div className="px-2 py-1 text-xs font-semibold tracking-wider text-zinc-500 flex items-center justify-between uppercase">
@@ -557,15 +712,16 @@ export default function DocumentSidebar({
               </div>
 
               {workspaces.length === 0 ? (
-                <div className="px-3 py-3 rounded-xl border border-dashed border-zinc-800/80 text-center">
-                  <p className="text-xs text-zinc-500 mb-1.5">No workspaces yet</p>
+                <div className="px-3 py-6 rounded-xl border border-dashed border-zinc-800/80 text-center flex flex-col items-center justify-center bg-zinc-950/20">
+                  <p className="text-xs text-zinc-400 mb-2.5">No workspaces yet</p>
                   {onOpenCreateModal && (
                     <button
                       type="button"
                       onClick={onOpenCreateModal}
-                      className="text-[11.5px] font-medium text-amber-400 hover:text-amber-300 underline cursor-pointer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-400 hover:bg-amber-300 text-zinc-950 font-semibold text-xs shadow-md shadow-amber-950/30 transition-all cursor-pointer"
                     >
-                      + Create Workspace
+                      <Plus className="h-3.5 w-3.5 stroke-[2.5]" />
+                      <span>Create Workspace</span>
                     </button>
                   )}
                 </div>
@@ -758,106 +914,6 @@ export default function DocumentSidebar({
                 </div>
               )}
             </div>
-
-            {/* RECENT CHATS (STANDALONE) SECTION - Only displayed if standalone chats exist */}
-            {standaloneChats.length > 0 && (
-              <div className="pt-2 border-t border-zinc-800/50 space-y-1">
-                <button
-                  type="button"
-                  onClick={() => setIsRecentOpen((prev) => !prev)}
-                  className="w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-[13px] font-semibold text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/40 transition-colors cursor-pointer group text-left"
-                >
-                  <div className="flex items-center gap-2 min-w-0">
-                    <History className="h-3.5 w-3.5 text-amber-400 group-hover:scale-105 transition-transform shrink-0" />
-                    <span className="truncate">Recent Standalone Chats</span>
-                  </div>
-                  <div className="flex items-center gap-1.5 shrink-0 text-zinc-500">
-                    {isRecentOpen ? (
-                      <ChevronDown className="h-3.5 w-3.5 text-zinc-400 group-hover:text-zinc-200" />
-                    ) : (
-                      <ChevronRight className="h-3.5 w-3.5 text-zinc-400 group-hover:text-zinc-200" />
-                    )}
-                  </div>
-                </button>
-
-                {/* Standalone Chats List */}
-                {isRecentOpen && (
-                  <div className="space-y-0.5 pt-0.5">
-                    {standaloneChats.map((chat) => {
-                      const isActive = !activeWorkspaceId && chat.id === activeSessionId;
-                      const isEditingThisChat = editingChatId === chat.id;
-
-                      return (
-                        <div
-                          key={chat.id}
-                          onClick={() => onSelectStandaloneChat(chat.id)}
-                          onContextMenu={(e) => handleContextMenu(e, 'chat', chat.id, null)}
-                          className={`group flex items-center justify-between px-3 py-2 rounded-lg text-[13px] cursor-pointer transition-colors relative ${
-                            isActive
-                              ? 'bg-zinc-800 text-zinc-100 font-medium'
-                              : 'text-zinc-400 hover:bg-zinc-800/40 hover:text-zinc-200'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2.5 truncate min-w-0 pr-2 flex-1">
-                            <MessageSquare
-                              className={`h-3.5 w-3.5 shrink-0 ${
-                                isActive ? 'text-amber-400' : 'text-zinc-500 group-hover:text-zinc-300'
-                              }`}
-                            />
-
-                            {isEditingThisChat ? (
-                              <div className="flex items-center gap-1 flex-1 min-w-0" onClick={(e) => e.stopPropagation()}>
-                                <input
-                                  ref={renameInputRef}
-                                  type="text"
-                                  value={editChatTitle}
-                                  onChange={(e) => setEditChatTitle(e.target.value)}
-                                  onKeyDown={(e) => {
-                                    if (e.key === 'Enter') handleSaveChatRename(chat.id, null);
-                                    if (e.key === 'Escape') setEditingChatId(null);
-                                  }}
-                                  onBlur={() => handleSaveChatRename(chat.id, null)}
-                                  className="w-full bg-zinc-950 border border-amber-500/80 rounded px-1.5 py-0.5 text-xs text-zinc-100 focus:outline-none"
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => handleSaveChatRename(chat.id, null)}
-                                  className="p-0.5 text-emerald-400 hover:text-emerald-300"
-                                >
-                                  <Check className="h-3 w-3" />
-                                </button>
-                              </div>
-                            ) : (
-                              <span
-                                onDoubleClick={(e) => {
-                                  e.stopPropagation();
-                                  startChatRename(chat, null);
-                                }}
-                                className="truncate select-none"
-                                title={chat.title || 'Chat Session'}
-                              >
-                                {chat.title || 'Chat Session'}
-                              </span>
-                            )}
-                          </div>
-
-                          <div className="flex items-center shrink-0" onClick={(e) => e.stopPropagation()}>
-                            <button
-                              type="button"
-                              onClick={(e) => handleOpenThreeDots(e, 'chat', chat.id, null)}
-                              title="Chat options"
-                              className="opacity-0 group-hover:opacity-100 p-1 rounded text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-opacity cursor-pointer"
-                            >
-                              <MoreVertical className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            )}
           </div>
 
           {/* Footer: User Profile & Actions */}
