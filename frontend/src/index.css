@@ -8,286 +8,63 @@
   --font-raleway: 'Raleway', sans-serif;
 
   /* Dynamic Semantic Color Tokens linked to CSS Variables */
-  --color-zinc-950: var(--theme-canvas, #131417);
-  --color-zinc-900: var(--theme-surface, #1a1b20);
-  --color-zinc-800: var(--theme-elevated, #23252c);
-  --color-zinc-700: var(--theme-border-hover, #2f323c);
-  --color-zinc-600: var(--theme-subtle, #484b55);
-  --color-zinc-500: var(--theme-muted, #6b6f7a);
-  --color-zinc-400: var(--theme-text-muted, #8e929c);
-  --color-zinc-300: var(--theme-text-body, #b8bac2);
-  --color-zinc-200: var(--theme-text-light, #dcdee3);
-  --color-zinc-100: var(--theme-text-bold, #f4f5f7);
+  --color-zinc-950: var(--theme-canvas, #292c33);
+  --color-zinc-900: var(--theme-surface, #111216);
+  --color-zinc-800: var(--theme-elevated, #1b1e25);
+  --color-zinc-700: var(--theme-border-hover, #393e4a);
+  --color-zinc-600: var(--theme-subtle, #4d5464);
+  --color-zinc-500: var(--theme-muted, #727a8c);
+  --color-zinc-400: var(--theme-text-muted, #9aa3b2);
+  --color-zinc-300: var(--theme-text-body, #c5cdd8);
+  --color-zinc-200: var(--theme-text-light, #e9ecf2);
+  --color-zinc-100: var(--theme-text-bold, #ffffff);
 
-  --color-amber-300: var(--theme-accent-light, #fda4af);
-  --color-amber-400: var(--theme-accent-hover, #f87171);
-  --color-amber-500: var(--theme-accent-primary, #e05d65);
-  --color-amber-600: var(--theme-accent-dark, #c8434b);
+  --color-amber-300: var(--theme-accent-light, #fed7d7);
+  --color-amber-400: var(--theme-accent-hover, #ea8282);
+  --color-amber-500: var(--theme-accent-primary, #e06c67);
+  --color-amber-600: var(--theme-accent-dark, #c44e49);
 }
 
 /* =============================================================================
-   THEME DEFINITIONS
+   THEME DEFINITIONS (Original + Nexus + Parchment + Clarity)
    ============================================================================= */
 
-/* 1. Original (Default Obsidian & Coral) */
+/* 1. Original (Signature Odysseus Slate & Coral Terracotta - Dark Mode) */
 :root,
 [data-theme="original"],
-[data-theme="odysseus"] {
-  --theme-canvas: #131417;
-  --theme-surface: #1a1b20;
-  --theme-elevated: #23252c;
-  --theme-border-hover: #2f323c;
-  --theme-subtle: #484b55;
-  --theme-muted: #6b6f7a;
-  --theme-text-muted: #8e929c;
-  --theme-text-body: #b8bac2;
-  --theme-text-light: #dcdee3;
-  --theme-text-bold: #f4f5f7;
-
-  --theme-accent-light: #fda4af;
-  --theme-accent-hover: #f87171;
-  --theme-accent-primary: #e05d65;
-  --theme-accent-dark: #c8434b;
-}
-
-/* 2. Light Theme */
-[data-theme="light"] {
-  --theme-canvas: #ffffff;
-  --theme-surface: #f4f4f5;
-  --theme-elevated: #e4e4e7;
-  --theme-border-hover: #d4d4d8;
-  --theme-subtle: #a1a1aa;
-  --theme-muted: #71717a;
-  --theme-text-muted: #52525b;
-  --theme-text-body: #3f3f46;
-  --theme-text-light: #27272a;
-  --theme-text-bold: #09090b;
-
-  --theme-accent-light: #fda4af;
-  --theme-accent-hover: #f87171;
-  --theme-accent-primary: #e05d65;
-  --theme-accent-dark: #c8434b;
-}
-
-/* 3. Midnight Theme */
+[data-theme="odysseus"],
 [data-theme="midnight"],
-[data-theme="gemini"] {
-  --theme-canvas: #131314;
-  --theme-surface: #1e1f20;
-  --theme-elevated: #282a2c;
-  --theme-border-hover: #37393b;
-  --theme-subtle: #56595e;
-  --theme-muted: #80868b;
-  --theme-text-muted: #9aa0a6;
-  --theme-text-body: #bdc1c6;
-  --theme-text-light: #e8eaed;
+[data-theme="blaze"],
+[data-theme="crimson"] {
+  --theme-canvas: #292c33;
+  --theme-surface: #111216;
+  --theme-elevated: #1b1e25;
+  --theme-border-hover: #393e4a;
+  --theme-subtle: #4d5464;
+  --theme-muted: #727a8c;
+  --theme-text-muted: #9aa3b2;
+  --theme-text-body: #c5cdd8;
+  --theme-text-light: #e9ecf2;
   --theme-text-bold: #ffffff;
 
-  --theme-accent-light: #fca5a5;
-  --theme-accent-hover: #f87171;
-  --theme-accent-primary: #ef4444;
-  --theme-accent-dark: #dc2626;
+  --theme-accent-light: #fed7d7;
+  --theme-accent-hover: #ea8282;
+  --theme-accent-primary: #e06c67;
+  --theme-accent-dark: #c44e49;
 }
 
-/* 4. Paper Theme */
-[data-theme="paper"] {
-  --theme-canvas: #ffffff;
-  --theme-surface: #f8fafc;
-  --theme-elevated: #f1f5f9;
-  --theme-border-hover: #e2e8f0;
-  --theme-subtle: #cbd5e1;
-  --theme-muted: #94a3b8;
-  --theme-text-muted: #64748b;
-  --theme-text-body: #334155;
-  --theme-text-light: #1e293b;
-  --theme-text-bold: #0f172a;
-
-  --theme-accent-light: #fef08a;
-  --theme-accent-hover: #fde047;
-  --theme-accent-primary: #eab308;
-  --theme-accent-dark: #ca8a04;
-}
-
-/* 5. Cyberpunk Theme */
-[data-theme="cyberpunk"] {
-  --theme-canvas: #120824;
-  --theme-surface: #1e0d3a;
-  --theme-elevated: #29124e;
-  --theme-border-hover: #3e1b75;
-  --theme-subtle: #5a27aa;
-  --theme-muted: #8b4ddb;
-  --theme-text-muted: #b886fc;
-  --theme-text-body: #d8b4fe;
-  --theme-text-light: #f3e8ff;
-  --theme-text-bold: #ffffff;
-
-  --theme-accent-light: #f5d0fe;
-  --theme-accent-hover: #f0abfc;
-  --theme-accent-primary: #d946ef;
-  --theme-accent-dark: #c026d3;
-}
-
-/* 6. Retrowave Theme */
-[data-theme="retrowave"] {
-  --theme-canvas: #140924;
-  --theme-surface: #261042;
-  --theme-elevated: #35165c;
-  --theme-border-hover: #4e2187;
-  --theme-subtle: #6c2ebc;
-  --theme-muted: #9a4fe8;
-  --theme-text-muted: #c084fc;
-  --theme-text-body: #e9d5ff;
-  --theme-text-light: #faf5ff;
-  --theme-text-bold: #ffffff;
-
-  --theme-accent-light: #fecdd3;
-  --theme-accent-hover: #fda4af;
-  --theme-accent-primary: #f43f5e;
-  --theme-accent-dark: #e11d48;
-}
-
-/* 7. Forest Theme */
-[data-theme="forest"] {
-  --theme-canvas: #0b140e;
-  --theme-surface: #122418;
-  --theme-elevated: #1a3322;
-  --theme-border-hover: #264a32;
-  --theme-subtle: #376a47;
-  --theme-muted: #549468;
-  --theme-text-muted: #7dbf91;
-  --theme-text-body: #a7e0b8;
-  --theme-text-light: #dcfce7;
-  --theme-text-bold: #ffffff;
-
-  --theme-accent-light: #bbf7d0;
-  --theme-accent-hover: #86efac;
-  --theme-accent-primary: #22c55e;
-  --theme-accent-dark: #16a34a;
-}
-
-/* 8. Ocean Theme */
-[data-theme="ocean"] {
-  --theme-canvas: #08131d;
-  --theme-surface: #0f2233;
-  --theme-elevated: #16324b;
-  --theme-border-hover: #1f4769;
-  --theme-subtle: #2d6694;
-  --theme-muted: #438fc9;
-  --theme-text-muted: #72b3e8;
-  --theme-text-body: #a5d4f8;
-  --theme-text-light: #e0f2fe;
-  --theme-text-bold: #ffffff;
-
-  --theme-accent-light: #bae6fd;
-  --theme-accent-hover: #7dd3fc;
-  --theme-accent-primary: #0ea5e9;
-  --theme-accent-dark: #0284c7;
-}
-
-/* 9. Ume Theme */
-[data-theme="ume"] {
-  --theme-canvas: #140a12;
-  --theme-surface: #261121;
-  --theme-elevated: #36172f;
-  --theme-border-hover: #4e2144;
-  --theme-subtle: #6f2e60;
-  --theme-muted: #9e468b;
-  --theme-text-muted: #c96cb3;
-  --theme-text-body: #e8a5d7;
-  --theme-text-light: #fdf2f8;
-  --theme-text-bold: #ffffff;
-
-  --theme-accent-light: #fbcfe8;
-  --theme-accent-hover: #f472b6;
-  --theme-accent-primary: #ec4899;
-  --theme-accent-dark: #db2777;
-}
-
-/* 10. Copper Theme */
-[data-theme="copper"] {
-  --theme-canvas: #140c08;
-  --theme-surface: #26160f;
-  --theme-elevated: #361f15;
-  --theme-border-hover: #4e2d1f;
-  --theme-subtle: #70402c;
-  --theme-muted: #9e5d42;
-  --theme-text-muted: #c88366;
-  --theme-text-body: #e8b19a;
-  --theme-text-light: #ffedd5;
-  --theme-text-bold: #ffffff;
-
-  --theme-accent-light: #fed7aa;
-  --theme-accent-hover: #fb923c;
-  --theme-accent-primary: #f97316;
-  --theme-accent-dark: #ea580c;
-}
-
-/* 11. Terminal Theme */
-[data-theme="terminal"] {
-  --theme-canvas: #060d08;
-  --theme-surface: #0c1a10;
-  --theme-elevated: #122617;
-  --theme-border-hover: #1c3b24;
-  --theme-subtle: #295735;
-  --theme-muted: #3f8251;
-  --theme-text-muted: #64b87c;
-  --theme-text-body: #96e0a9;
-  --theme-text-light: #dcfce7;
-  --theme-text-bold: #ffffff;
-
-  --theme-accent-light: #bbf7d0;
-  --theme-accent-hover: #86efac;
-  --theme-accent-primary: #22c55e;
-  --theme-accent-dark: #16a34a;
-}
-
-/* 12. Origins Theme */
-[data-theme="origins"] {
-  --theme-canvas: #121214;
-  --theme-surface: #1d1e22;
-  --theme-elevated: #282a30;
-  --theme-border-hover: #373a43;
-  --theme-subtle: #4e525f;
-  --theme-muted: #747a8d;
-  --theme-text-muted: #9fa6bc;
-  --theme-text-body: #cacedb;
-  --theme-text-light: #f1f2f6;
-  --theme-text-bold: #ffffff;
-
-  --theme-accent-light: #fef3c7;
-  --theme-accent-hover: #fde68a;
-  --theme-accent-primary: #e2b36f;
-  --theme-accent-dark: #d99a44;
-}
-
-/* 13. Lavender Theme */
-[data-theme="lavender"],
-[data-theme="discord"] {
-  --theme-canvas: #100d18;
-  --theme-surface: #1e192c;
-  --theme-elevated: #2b233e;
-  --theme-border-hover: #3c3257;
-  --theme-subtle: #56487d;
-  --theme-muted: #7e6bb2;
-  --theme-text-muted: #a695d6;
-  --theme-text-body: #ccc3eb;
-  --theme-text-light: #f3f0fa;
-  --theme-text-bold: #ffffff;
-
-  --theme-accent-light: #e9d5ff;
-  --theme-accent-hover: #c084fc;
-  --theme-accent-primary: #a855f7;
-  --theme-accent-dark: #9333ea;
-}
-
-/* 14. GPT Theme */
+/* 2. Nexus (Minimalist Carbon Charcoal & OpenAI-Inspired Mint Teal - Dark Mode) */
+[data-theme="nexus"],
 [data-theme="gpt"],
-[data-theme="chatgpt"] {
+[data-theme="chatgpt"],
+[data-theme="emerald"],
+[data-theme="forest"],
+[data-theme="terminal"] {
   --theme-canvas: #212121;
   --theme-surface: #171717;
   --theme-elevated: #2f2f2f;
   --theme-border-hover: #424242;
-  --theme-subtle: #5d5d5d;
+  --theme-subtle: #565656;
   --theme-muted: #8e8e8e;
   --theme-text-muted: #b4b4b4;
   --theme-text-body: #cdcdcd;
@@ -300,80 +77,115 @@
   --theme-accent-dark: #059669;
 }
 
-/* 15. Claude Theme */
+/* 3. Ocean (Nordic Slate Abyss & Electric Sky Azure - Dark Mode) */
+[data-theme="ocean"],
+[data-theme="nordic"] {
+  --theme-canvas: #1c232d;
+  --theme-surface: #10141a;
+  --theme-elevated: #242d3a;
+  --theme-border-hover: #354254;
+  --theme-subtle: #4a5c74;
+  --theme-muted: #6c7f99;
+  --theme-text-muted: #94a5bd;
+  --theme-text-body: #c2cfdf;
+  --theme-text-light: #e6edf5;
+  --theme-text-bold: #ffffff;
+
+  --theme-accent-light: #bae6fd;
+  --theme-accent-hover: #38bdf8;
+  --theme-accent-primary: #0ea5e9;
+  --theme-accent-dark: #0284c7;
+}
+
+/* 4. Parchment (Soothing Archival Manuscript Paper & Tuscan Terracotta - Light Mode) */
+[data-theme="parchment"],
+[data-theme="paper"],
+[data-theme="copper"],
+[data-theme="solar"],
+[data-theme="origins"],
 [data-theme="claude"] {
-  --theme-canvas: #1d1c1a;
-  --theme-surface: #262522;
-  --theme-elevated: #33312c;
-  --theme-border-hover: #43403a;
-  --theme-subtle: #615c54;
-  --theme-muted: #8a8378;
-  --theme-text-muted: #b0a89c;
-  --theme-text-body: #cbbfb0;
-  --theme-text-light: #e8ded1;
-  --theme-text-bold: #faf7f2;
+  --theme-canvas: #fbf8f2;
+  --theme-surface: #f1ede4;
+  --theme-elevated: #e5ded2;
+  --theme-border-hover: #d5cbba;
+  --theme-subtle: #a89b87;
+  --theme-muted: #756956;
+  --theme-text-muted: #5c5141;
+  --theme-text-body: #3a3124;
+  --theme-text-light: #231d15;
+  --theme-text-bold: #120e0a;
 
-  --theme-accent-light: #fbd38d;
-  --theme-accent-hover: #e5957d;
-  --theme-accent-primary: #cc785c;
-  --theme-accent-dark: #b25e43;
+  --theme-accent-light: #5a2107;
+  --theme-accent-hover: #b44f1e;
+  --theme-accent-primary: #943d14;
+  --theme-accent-dark: #6e2a0b;
 }
 
-/* 16. Cute Theme */
-[data-theme="cute"] {
-  --theme-canvas: #ffffff;
-  --theme-surface: #fdf2f4;
-  --theme-elevated: #fce7eb;
-  --theme-border-hover: #f9cbd4;
-  --theme-subtle: #f497a9;
-  --theme-muted: #e75874;
-  --theme-text-muted: #be2e4b;
-  --theme-text-body: #881a30;
-  --theme-text-light: #4c0d1b;
-  --theme-text-bold: #2b050d;
+/* 5. Clarity (Clean Daylight Studio Porcelain & Deep Sapphire Slate - Light Mode) */
+[data-theme="clarity"],
+[data-theme="light"],
+[data-theme="cute"],
+[data-theme="celestial"],
+[data-theme="gemini"],
+[data-theme="aurora"],
+[data-theme="amethyst"],
+[data-theme="cyberpunk"],
+[data-theme="lavender"],
+[data-theme="discord"],
+[data-theme="retrowave"],
+[data-theme="ume"] {
+  --theme-canvas: #f8f9fb;
+  --theme-surface: #eef1f5;
+  --theme-elevated: #e0e5ed;
+  --theme-border-hover: #ccd4e0;
+  --theme-subtle: #91a0b5;
+  --theme-muted: #627289;
+  --theme-text-muted: #47566d;
+  --theme-text-body: #1e293b;
+  --theme-text-light: #0f172a;
+  --theme-text-bold: #020617;
 
-  --theme-accent-light: #fbcfe8;
-  --theme-accent-hover: #f472b6;
-  --theme-accent-primary: #ec4899;
-  --theme-accent-dark: #db2777;
+  --theme-accent-light: #172554;
+  --theme-accent-hover: #2563eb;
+  --theme-accent-primary: #1d4ed8;
+  --theme-accent-dark: #1e3a8a;
 }
 
-/* 17. Blaze Animated Theme (Carbon Black & Crimson Embers) */
-[data-theme="blaze"] {
-  --theme-canvas: #090404;
-  --theme-surface: #120707;
-  --theme-elevated: #1b0c0c;
-  --theme-border-hover: #2e1414;
-  --theme-subtle: #4a2121;
-  --theme-muted: #783838;
-  --theme-text-muted: #a65a5a;
-  --theme-text-body: #d49898;
-  --theme-text-light: #f5d3d3;
-  --theme-text-bold: #ffffff;
+/* =============================================================================
+   TEXT SELECTION & LIGHT MODE CONTRAST SAFEGUARDS
+   ============================================================================= */
 
-  --theme-accent-light: #fca5a5;
-  --theme-accent-hover: #f87171;
-  --theme-accent-primary: #ef4444;
-  --theme-accent-dark: #dc2626;
+::selection {
+  background-color: var(--color-amber-500);
+  color: #ffffff;
 }
 
-/* 18. Cosmic Aurora Animated Theme (Abyss & Nebula Starlight) */
-[data-theme="aurora"] {
-  --theme-canvas: #080911;
-  --theme-surface: #10111f;
-  --theme-elevated: #17192d;
-  --theme-border-hover: #252845;
-  --theme-subtle: #3a3f6b;
-  --theme-muted: #666fa8;
-  --theme-text-muted: #8d97d4;
-  --theme-text-body: #b8c0f0;
-  --theme-text-light: #e4e7ff;
-  --theme-text-bold: #ffffff;
+[data-theme="parchment"] ::selection {
+  background-color: #d8cebf;
+  color: #120e0a;
+}
 
-  --theme-accent-light: #c7d2fe;
-  --theme-accent-hover: #a5b4fc;
-  --theme-accent-primary: #818cf8;
-  --theme-accent-dark: #6366f1;
+[data-theme="clarity"] ::selection {
+  background-color: #cdd9e8;
+  color: #020617;
+}
+
+/* Active chat & hover text protection in light mode */
+[data-theme="parchment"] .bg-amber-500\/15,
+[data-theme="clarity"] .bg-amber-500\/15 {
+  background-color: rgba(0, 0, 0, 0.05) !important;
+  color: var(--theme-accent-light) !important;
+  font-weight: 600 !important;
+}
+
+[data-theme="parchment"] .text-amber-300,
+[data-theme="clarity"] .text-amber-300 {
+  color: var(--theme-accent-light) !important;
+}
+
+[data-theme="parchment"] .hover\:text-amber-300:hover,
+[data-theme="clarity"] .hover\:text-amber-300:hover {
+  color: var(--theme-accent-hover) !important;
 }
 
 /* Base styling & bounds */

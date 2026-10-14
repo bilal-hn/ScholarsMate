@@ -627,7 +627,7 @@ export default function DocumentSidebar({
                           <div className="flex items-center gap-2 truncate min-w-0 pr-1 flex-1">
                             <MessageSquare
                               className={`h-3.5 w-3.5 shrink-0 ${
-                                isActive ? 'text-amber-400' : 'text-zinc-500 group-hover:text-zinc-300'
+                                isActive ? 'text-amber-400' : 'text-zinc-500 group-hover:text-zinc-100'
                               }`}
                             />
 
@@ -843,14 +843,14 @@ export default function DocumentSidebar({
                                     className={`group/chat flex items-center justify-between pl-3 pr-1.5 py-1.5 rounded-lg text-[12.5px] cursor-pointer transition-colors relative border-l-2 ${
                                       isActive
                                         ? 'bg-amber-500/15 text-amber-300 font-medium border-amber-400'
-                                        : 'border-zinc-800 hover:border-zinc-600 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/40'
+                                        : 'border-transparent hover:border-zinc-600 text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800/40'
                                     }`}
                                   >
                                     <div className="flex items-center gap-2 truncate min-w-0 pr-1 flex-1">
                                       <span className="text-zinc-600 font-mono text-[11px] select-none">|_</span>
                                       <MessageSquare
                                         className={`h-3 w-3 shrink-0 ${
-                                          isActive ? 'text-amber-400' : 'text-zinc-500 group-hover/chat:text-zinc-300'
+                                          isActive ? 'text-amber-400' : 'text-zinc-500 group-hover/chat:text-zinc-100'
                                         }`}
                                       />
 

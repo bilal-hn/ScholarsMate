@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { Palette, X, Minus, Sparkles, Check } from 'lucide-react';
+import { Palette, X, Minus } from 'lucide-react';
 import { THEMES } from '../../theme/constants';
 
 export default function ThemeModal({ isOpen, onClose, currentTheme, onThemeChange }) {
@@ -65,17 +65,6 @@ export default function ThemeModal({ isOpen, onClose, currentTheme, onThemeChang
           </div>
         </div>
 
-        {/* Navigation Tab Bar (Single 'Themes' tab matching user request) */}
-        <div className="px-4 pt-2.5 pb-1 border-b border-zinc-800/60 flex items-center gap-4 text-xs">
-          <button
-            type="button"
-            className="flex items-center gap-1.5 pb-2 border-b-2 border-red-500 text-red-400 font-medium cursor-pointer"
-          >
-            <Palette className="h-3.5 w-3.5" />
-            <span>Themes</span>
-          </button>
-        </div>
-
         {/* Themes Grid Body */}
         <div className="p-4 sm:p-5 max-h-[70vh] overflow-y-auto space-y-4">
           <div>
@@ -83,8 +72,8 @@ export default function ThemeModal({ isOpen, onClose, currentTheme, onThemeChang
               Available Themes
             </div>
 
-            {/* 5-Column Interlocking Swatch Grid */}
-            <div className="grid grid-cols-3 sm:grid-cols-5 gap-2.5">
+            {/* Curated Theme Swatch Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               {THEMES.map((theme) => {
                 const isSelected = theme.id === currentTheme;
                 return (
@@ -92,44 +81,39 @@ export default function ThemeModal({ isOpen, onClose, currentTheme, onThemeChang
                     key={theme.id}
                     type="button"
                     onClick={() => onThemeChange(theme.id)}
-                    className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all cursor-pointer group relative ${
+                    className={`flex flex-col items-center justify-center p-3.5 rounded-xl border transition-all cursor-pointer group relative ${
                       isSelected
                         ? 'border-red-500 bg-red-500/10 shadow-lg shadow-red-500/5 ring-1 ring-red-500/50'
                         : 'border-zinc-800/80 bg-zinc-900/50 hover:bg-zinc-800/60 hover:border-zinc-700'
                     }`}
                   >
                     {/* Interlocking 3-Circle Theme Swatches */}
-                    <div className="flex -space-x-1.5 items-center justify-center mb-2">
+                    <div className="flex -space-x-1.5 items-center justify-center mb-2.5">
                       <div
-                        className="w-3.5 h-3.5 rounded-full border border-black/40 shadow-xs"
+                        className="w-4 h-4 rounded-full border border-black/40 shadow-xs"
                         style={{ backgroundColor: theme.canvasPreview || '#131417' }}
                       />
                       <div
-                        className="w-3.5 h-3.5 rounded-full border border-black/40 shadow-xs"
+                        className="w-4 h-4 rounded-full border border-black/40 shadow-xs"
                         style={{ backgroundColor: theme.surfacePreview || '#23252c' }}
                       />
                       <div
-                        className="w-3.5 h-3.5 rounded-full border border-black/40 shadow-xs ring-1 ring-white/10"
+                        className="w-4 h-4 rounded-full border border-black/40 shadow-xs ring-1 ring-white/10"
                         style={{ backgroundColor: theme.accentColor }}
                       />
                     </div>
 
-                    {/* Theme Name */}
+                    {/* Theme Name & Mode */}
                     <span
-                      className={`text-[11px] font-mono lowercase tracking-tight truncate max-w-full ${
-                        isSelected ? 'text-zinc-100 font-semibold' : 'text-zinc-400 group-hover:text-zinc-200'
+                      className={`text-xs font-mono tracking-tight capitalize ${
+                        isSelected ? 'text-zinc-100 font-semibold' : 'text-zinc-300 group-hover:text-zinc-100'
                       }`}
                     >
-                      {theme.shortId || theme.id}
+                      {theme.name}
                     </span>
-
-                    {/* Animated Badge if animated theme */}
-                    {theme.mode === 'animated' && (
-                      <span className="absolute top-1 right-1 flex h-1.5 w-1.5">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-amber-500"></span>
-                      </span>
-                    )}
+                    <span className="text-[10px] text-zinc-500 capitalize mt-0.5">
+                      {theme.mode} mode
+                    </span>
                   </button>
                 );
               })}
