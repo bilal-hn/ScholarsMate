@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { 
-  Compass, 
   Loader2, 
   Check, 
   Eye, 
@@ -13,6 +12,7 @@ import {
   ArrowRight,
   X
 } from 'lucide-react';
+import AppLogo from '../common/AppLogo';
 import ChatMessage from './ChatMessage';
 import ChatInput from './ChatInput';
 import LiteratureReviewModal from '../modals/LiteratureReviewModal';
@@ -571,16 +571,20 @@ export default function ChatInterface({
         /* Minimalist Hero Empty State */
         <div className="flex-1 flex flex-col items-center justify-center p-6 text-center select-none relative">
           <div className="max-w-md w-full flex flex-col items-center animate-in fade-in duration-300 -mt-16">
-            {/* Logo Crest */}
-            <div className="h-10 w-10 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500 mb-3 shadow-inner">
-              <Compass className="h-6 w-6 stroke-[1.8]" />
+            {/* Odysseus-Style Brand Header: Logo + Title inline */}
+            <div className="flex items-center justify-center gap-3 mb-2">
+              <AppLogo className="h-7 w-7 text-amber-500" />
+              <h1 className="text-3xl font-bold text-zinc-100 tracking-tight font-sans">
+                {APP_CONFIG.name}
+              </h1>
             </div>
 
-            <h1 className="text-2xl font-bold text-zinc-100 tracking-tight mb-1 font-serif">
-              {APP_CONFIG.name}
-            </h1>
-            <p className="text-xs text-zinc-400 font-medium mb-5">
-              {APP_CONFIG.tagline}
+            <p className="text-[13px] text-zinc-300 font-mono mb-2">
+              Type <span className="text-amber-400 font-medium">/action</span> or <span className="text-amber-400 font-medium">@</span> to get started.
+            </p>
+
+            <p className="text-[11.5px] text-zinc-500 max-w-sm text-center leading-relaxed mb-6 font-mono">
+              welcome to ScholarsMate! From setting up your context, to search to generation, may this voyage be easy.
             </p>
 
             {(!availableModels || availableModels.length === 0) ? (
@@ -626,7 +630,7 @@ export default function ChatInterface({
           {loading && (
             <div className="flex gap-3.5 items-start animate-in fade-in duration-200">
               <div className="h-7 w-7 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 shrink-0 mt-0.5 animate-float-orb">
-                <Compass className="h-4 w-4" />
+                <AppLogo className="h-4 w-4" />
               </div>
               <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl px-4 py-3 text-zinc-300 text-xs shadow-xl space-y-2.5 max-w-md w-full">
                 <div className="flex items-center gap-2">

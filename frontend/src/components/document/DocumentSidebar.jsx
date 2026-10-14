@@ -5,7 +5,6 @@ import {
   Trash2, 
   BookOpen, 
   PenTool, 
-  Compass, 
   Palette, 
   PanelLeftClose, 
   PanelLeftOpen, 
@@ -23,6 +22,7 @@ import {
   Check,
   X,
 } from 'lucide-react';
+import AppLogo from '../common/AppLogo';
 import { AuthProfile } from '../layout/AuthProfile';
 import { APP_CONFIG } from '../../theme/constants';
 
@@ -343,7 +343,7 @@ export default function DocumentSidebar({
         <div className="flex flex-col items-center justify-between h-full py-3.5 w-full">
           {/* Top Section: System Logo + Feature Navigation Icons */}
           <div className="flex flex-col items-center w-full">
-            {/* Top Brand / Sidebar Toggle: Compass changes to PanelLeftOpen on hover */}
+            {/* Top Brand / Sidebar Toggle: Logo changes to PanelLeftOpen on hover */}
             <button
               type="button"
               onClick={onToggleCollapse}
@@ -351,7 +351,7 @@ export default function DocumentSidebar({
               aria-label="Open sidebar"
             >
               <div className="h-8 w-8 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center group-hover:bg-amber-500/20 group-hover:border-amber-500/40 transition-all">
-                <Compass className="h-4.5 w-4.5 block group-hover:hidden transition-all text-amber-500" />
+                <AppLogo className="h-4.5 w-4.5 block group-hover:hidden transition-all text-amber-500" />
                 <PanelLeftOpen className="h-4.5 w-4.5 hidden group-hover:block transition-all text-zinc-200" />
               </div>
               <span className="pointer-events-none absolute left-full top-1/2 -translate-y-1/2 ml-3 px-2.5 py-1.5 bg-zinc-900 border border-zinc-700/80 text-zinc-100 text-[12.5px] font-medium rounded-lg shadow-2xl whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50">
@@ -490,7 +490,7 @@ export default function DocumentSidebar({
               className="flex items-center gap-2.5 cursor-pointer group"
             >
               <div className="h-6 w-6 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500 group-hover:bg-amber-500/20 transition-colors">
-                <Compass className="h-4 w-4 block group-hover:hidden transition-all" />
+                <AppLogo className="h-4 w-4 block group-hover:hidden transition-all text-amber-500" />
                 <PanelLeftClose className="h-4 w-4 hidden group-hover:block transition-all text-zinc-200" />
               </div>
               <span className="font-semibold text-zinc-100 text-sm tracking-tight group-hover:text-amber-400 transition-colors">

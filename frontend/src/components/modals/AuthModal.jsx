@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { X, Mail, Lock, User, AlertCircle, Loader2, Compass, Eye, EyeOff } from 'lucide-react';
+import { X, Mail, Lock, User, AlertCircle, Loader2, Eye, EyeOff } from 'lucide-react';
+import AppLogo from '../common/AppLogo';
 import { GoogleLogin } from '@react-oauth/google';
 import { loginUserAPI, registerUserAPI, setAuthToken } from '../../services/api';
 
@@ -95,7 +96,7 @@ export default function AuthModal({
         {/* Brand header */}
         <div className="text-center space-y-1.5 pt-1">
           <div className="h-10 w-10 mx-auto rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500 shadow-inner">
-            <Compass className="h-5 w-5" />
+            <AppLogo className="h-5 w-5" />
           </div>
           <h2 className="text-lg font-bold text-zinc-100 tracking-tight">
             {mode === 'signup' ? 'Create ScholarsMate Account' : 'Welcome to ScholarsMate'}

@@ -12,7 +12,7 @@ export const BRAND_CONFIG = {
   subtitle: "Yours for the voyage of research.",
   tagline: "Source-Locked Research Intelligence",
   logo: {
-    icon: "Compass",
+    icon: "Sailboat",
     primaryColor: "#e06c67",
   },
 };

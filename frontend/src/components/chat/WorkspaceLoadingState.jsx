@@ -1,5 +1,5 @@
 import React from 'react';
-import { Compass } from 'lucide-react';
+import AppLogo from '../common/AppLogo';
 
 export default function WorkspaceLoadingState() {
   return (
@@ -23,7 +23,7 @@ export default function WorkspaceLoadingState() {
 
           {/* Center Pulsing Icon Badge */}
           <div className="relative z-10 h-12 w-12 rounded-2xl bg-zinc-900 border border-zinc-700/80 shadow-2xl flex items-center justify-center text-amber-400 animate-float-orb">
-            <Compass className="h-6 w-6 stroke-[1.8]" />
+            <AppLogo className="h-6 w-6 text-amber-400" />
           </div>
         </div>
 
