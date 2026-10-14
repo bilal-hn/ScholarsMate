@@ -40,7 +40,7 @@ async def get_db():
 async def init_db():
     """Initializes tables and performs automated schema migrations for missing tables/columns."""
     # Ensure all models are registered on Base.metadata before creating tables
-    from backend.db.models import User, ChatSession, ChatMessage, UserDocument, WorkspaceDraft, BrainMemory  # noqa
+    from backend.db.models import User, Workspace, ChatSession, ChatMessage, UserDocument, WorkspaceDraft, BrainMemory  # noqa
 
     async with engine.begin() as conn:
         # Create all registered tables if they do not exist
@@ -61,6 +61,20 @@ async def init_db():
                     print("\n[DB Migration] Adding missing 'user_id' column to chat_sessions...")
                     await conn.execute(text("ALTER TABLE chat_sessions ADD COLUMN user_id VARCHAR;"))
                     print("[DB Migration] Column 'user_id' added successfully.")
+
+                if "workspace_id" not in columns:
+                    print("\n[DB Migration] Adding missing 'workspace_id' column to chat_sessions...")
+                    await conn.execute(text("ALTER TABLE chat_sessions ADD COLUMN workspace_id VARCHAR;"))
+                    print("[DB Migration] Column 'workspace_id' added successfully.")
+
+            # Automated migrations for brain_memories table
+            result_memories = await conn.execute(text("PRAGMA table_info(brain_memories);"))
+            mem_columns = [row[1] for row in result_memories.fetchall()]
+            if mem_columns:
+                if "session_id" not in mem_columns:
+                    print("\n[DB Migration] Adding missing 'session_id' column to brain_memories...")
+                    await conn.execute(text("ALTER TABLE brain_memories ADD COLUMN session_id VARCHAR;"))
+                    print("[DB Migration] Column 'session_id' added successfully.")
 
             # Automated migrations for user_documents table
             result_docs = await conn.execute(text("PRAGMA table_info(user_documents);"))

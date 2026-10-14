@@ -37,6 +37,14 @@ class QueryRequest(BaseModel):
         default=None,
         json_schema_extra={"example": [{"name": "problem.png", "extracted_text": "Solve 2x+5=15"}]}
     )
+    brain_enabled: Optional[bool] = Field(
+        default=True,
+        json_schema_extra={"example": True}
+    )
+    workspace_id: Optional[str] = Field(
+        default=None,
+        json_schema_extra={"example": "123e4567-e89b-12d3-a456-426614174000"}
+    )
 
 
 class SourceItem(BaseModel):
@@ -72,8 +80,58 @@ class ModelItem(BaseModel):
 
 
 # =============================================================================
-# CHAT SESSION & DB PERSISTENCE SCHEMAS
+# WORKSPACE & CHAT SESSION SCHEMAS
 # =============================================================================
+
+class CreateWorkspaceRequest(BaseModel):
+    name: str = Field(default="New Workspace", json_schema_extra={"example": "Sonar Survey"})
+    doc_names: Optional[List[str]] = Field(default_factory=list)
+
+
+class RenameWorkspaceRequest(BaseModel):
+    name: str = Field(..., json_schema_extra={"example": "Renamed Survey Workspace"})
+
+
+class CreateWorkspaceChatRequest(BaseModel):
+    title: Optional[str] = Field(default=None, json_schema_extra={"example": "Chat 2"})
+
+
+class WorkspaceChatSummary(BaseModel):
+    id: str
+    workspace_id: Optional[str] = None
+    title: str
+    active_mode: Optional[str] = "research"
+    created_at: datetime
+    updated_at: datetime
+
+
+class WorkspaceResponse(BaseModel):
+    id: str
+    name: str
+    doc_names: List[str] = Field(default_factory=list)
+    chats: List[WorkspaceChatSummary] = Field(default_factory=list)
+    created_at: datetime
+    updated_at: datetime
+
+
+class ContextPointItem(BaseModel):
+    id: str
+    thought: str
+    category: str
+    scope: str
+    session_id: Optional[str] = None
+    session_title: Optional[str] = None
+    created_at: Optional[str] = None
+
+
+class ContextPointsResponse(BaseModel):
+    workspace_id: str
+    context_points: List[ContextPointItem] = Field(default_factory=list)
+
+
+class ImportContextRequest(BaseModel):
+    memory_ids: List[str] = Field(..., min_length=1)
+
 
 class UpdateModeRequest(BaseModel):
     mode: str = Field(..., json_schema_extra={"example": "socratic"})
@@ -99,6 +157,7 @@ class ChatMessageResponse(BaseModel):
 
 class ChatSessionResponse(BaseModel):
     id: str
+    workspace_id: Optional[str] = None
     title: str
     doc_names: Optional[List[str]] = None
     active_mode: Optional[str] = "research"
@@ -108,6 +167,7 @@ class ChatSessionResponse(BaseModel):
 
 class ChatSessionDetailResponse(BaseModel):
     id: str
+    workspace_id: Optional[str] = None
     title: str
     active_mode: Optional[str] = "research"
     created_at: datetime

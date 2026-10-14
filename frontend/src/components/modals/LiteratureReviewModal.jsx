@@ -1,27 +1,35 @@
 import React, { useState, useMemo, useRef } from 'react';
-import { 
-  BookOpen, 
-  X, 
-  Sparkles, 
-  CheckSquare, 
-  Square, 
-  Download, 
+import {
+  BookOpen,
+  X,
+  Sparkles,
+  CheckSquare,
+  Square,
+  Download,
   Loader2,
-  ListTree,
-  FileCheck2
+  FileCheck2,
+  GripVertical,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import html2pdf from 'html2pdf.js';
 
-export default function LiteratureReviewModal({ 
-  isOpen, 
-  onClose, 
-  documents = [], 
+const DEFAULT_HEADINGS = [
+  'Introduction & Background',
+  'Methodological Comparison',
+  'Key Findings & Analysis',
+  'Critical Gaps & Limitations',
+  'Conclusion & Future Directions',
+];
+
+export default function LiteratureReviewModal({
+  isOpen,
+  onClose,
+  documents = [],
   selectedDocs = [],
   currentModel,
   customKeys,
-  onGenerateReview 
+  onGenerateReview,
 }) {
   const printDocumentRef = useRef(null);
 
@@ -33,16 +41,17 @@ export default function LiteratureReviewModal({
     return (selectedDocs || []).map((d) => (typeof d === 'string' ? d : d?.doc_name || '')).filter(Boolean);
   }, [selectedDocs]);
 
-  const [activePapers, setActivePapers] = useState(() => 
+  const [activePapers, setActivePapers] = useState(() =>
     normalizedSelected.length > 0 ? normalizedSelected : normalizedDocList
   );
   const [researchFocus, setResearchFocus] = useState('');
+  const [customHeadings, setCustomHeadings] = useState([...DEFAULT_HEADINGS]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [currentStage, setCurrentStage] = useState('');
   const [monograph, setMonograph] = useState(null);
 
-  // Markdown table preprocessor to convert text pipes to structured HTML
+  // ── Table preprocessor ──────────────────────────────────────────────────────
   const preprocessTables = (content) => {
     if (!content || !content.includes('|')) return content;
 
@@ -54,7 +63,7 @@ export default function LiteratureReviewModal({
     lines.forEach((line) => {
       const trimmed = line.trim();
       if (trimmed.startsWith('|') && trimmed.endsWith('|')) {
-        if (/^\|[\s\-:]+(\|[\s\-:]+)*\|$/.test(trimmed)) {
+        if (/^\|[\s\-:]+([\|\s\-:]+)*\|$/.test(trimmed)) {
           return;
         }
         inTable = true;
@@ -98,50 +107,16 @@ export default function LiteratureReviewModal({
     return `<div class="pdf-table-wrap" style="overflow-x: auto; margin: 16px 0; page-break-inside: auto !important; break-inside: auto !important;"><table style="width: 100%; border-collapse: collapse; border: 1px solid #cbd5e1; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">${headerHtml}${bodyHtml}</table></div>`;
   };
 
-  if (!isOpen) return null;
-
-  const togglePaper = (docName) => {
-    setActivePapers((prev) => 
-      prev.includes(docName) 
-        ? prev.filter((d) => d !== docName) 
-        : [...prev, docName]
-    );
-  };
-
-  const handleStartSynthesis = async () => {
-    if (activePapers.length === 0 || isGenerating) return;
-    setIsGenerating(true);
-    setCurrentStage('Constructing thematic taxonomy and section-level queries...');
-
-    try {
-      const payload = {
-        doc_names: activePapers,
-        research_focus: researchFocus.trim(),
-        depth: 'detailed',
-        model_name: currentModel,
-        custom_keys: customKeys
-      };
-
-      const data = await onGenerateReview(payload);
-      setMonograph(data);
-    } catch (err) {
-      alert(`Synthesis Failed: ${err.message || 'Error generating review.'}`);
-    } finally {
-      setIsGenerating(false);
-      setCurrentStage('');
-    }
-  };
-
+  // ── PDF export ───────────────────────────────────────────────────────────────
   const handleDownloadPDF = async () => {
     if (!printDocumentRef.current || isExporting) return;
     setIsExporting(true);
 
     const filename = `${(monograph?.title || 'Literature_Review').replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
-    
-    // Create an isolated printable clone with strict dimensions
+
     const element = printDocumentRef.current;
     const clonedElement = element.cloneNode(true);
-    
+
     clonedElement.style.width = '680px';
     clonedElement.style.margin = '0 auto';
     clonedElement.style.padding = '0';
@@ -149,7 +124,6 @@ export default function LiteratureReviewModal({
     clonedElement.style.color = '#0f172a';
     clonedElement.style.boxSizing = 'border-box';
 
-    // Inject print layout rules
     const printStyles = document.createElement('style');
     printStyles.innerHTML = `
       * {
@@ -252,29 +226,28 @@ export default function LiteratureReviewModal({
       margin: [12, 12, 12, 12],
       filename: filename,
       image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { 
-        scale: 2, 
-        useCORS: true, 
+      html2canvas: {
+        scale: 2,
+        useCORS: true,
         backgroundColor: '#ffffff',
         scrollY: 0,
         scrollX: 0,
         windowWidth: 680,
         ignoreElements: (node) => node.tagName === 'BUTTON',
         onclone: (clonedDoc) => {
-          // Remove global modern CSS stylesheets that use oklch to prevent canvas crashes
           const styles = clonedDoc.querySelectorAll('style, link[rel="stylesheet"]');
           styles.forEach((s) => {
             if (s.innerHTML && s.innerHTML.includes('oklch')) {
               s.remove();
             }
           });
-        }
+        },
       },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-      pagebreak: { 
+      pagebreak: {
         mode: ['css', 'legacy'],
-        avoid: ['h1', 'h2', 'h3', 'tr', 'blockquote', '.avoid-break', 'li'] 
-      }
+        avoid: ['h1', 'h2', 'h3', 'tr', 'blockquote', '.avoid-break', 'li'],
+      },
     };
 
     try {
@@ -287,51 +260,79 @@ export default function LiteratureReviewModal({
     }
   };
 
+  // ── Handlers ─────────────────────────────────────────────────────────────────
+  if (!isOpen) return null;
+
+  const togglePaper = (docName) => {
+    setActivePapers((prev) =>
+      prev.includes(docName) ? prev.filter((d) => d !== docName) : [...prev, docName]
+    );
+  };
+
+  const handleStartSynthesis = async () => {
+    if (activePapers.length === 0 || isGenerating) return;
+    setIsGenerating(true);
+    setCurrentStage('Constructing thematic taxonomy and section-level queries...');
+
+    try {
+      const payload = {
+        doc_names: activePapers,
+        research_focus: researchFocus.trim(),
+        depth: 'detailed',
+        model_name: currentModel,
+        custom_keys: customKeys,
+        custom_headings: customHeadings,
+      };
+
+      const data = await onGenerateReview(payload);
+      setMonograph(data);
+    } catch (err) {
+      alert(`Synthesis Failed: ${err.message || 'Error generating review.'}`);
+    } finally {
+      setIsGenerating(false);
+      setCurrentStage('');
+    }
+  };
+
+  const synthesizedDate = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+  // ── Render ───────────────────────────────────────────────────────────────────
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="bg-zinc-950 border border-zinc-800 rounded-2xl w-full max-w-6xl h-[90vh] flex flex-col shadow-2xl overflow-hidden">
-        
-        {/* Top App Header */}
-        <div className="px-6 py-3.5 border-b border-zinc-800 flex items-center justify-between bg-zinc-900/40 shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="h-8 w-8 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
-              <BookOpen className="h-4 w-4" />
-            </div>
-            <div>
-              <h2 className="text-sm font-semibold text-zinc-100 flex items-center gap-2">
-                Literature Review Studio
-                <span className="text-[10px] font-mono bg-amber-400/10 text-amber-300 border border-amber-400/20 px-2 py-0.5 rounded-full">
-                  Monograph Generator
-                </span>
-              </h2>
-              <p className="text-xs text-zinc-400">
-                Multi-document synthesis, comparative matrices, and formal academic PDF monographs
-              </p>
-            </div>
+      <div className="bg-zinc-950 border border-zinc-800 rounded-2xl w-full max-w-5xl h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+
+        {/* ── Header ── */}
+        <div className="px-5 py-3 border-b border-zinc-800 flex items-center justify-between bg-zinc-900/40 shrink-0">
+          <div className="flex items-center gap-2.5">
+            <BookOpen className="h-4 w-4 text-amber-400" />
+            <span className="text-sm font-semibold text-zinc-100">Literature Review</span>
           </div>
           <button
             onClick={onClose}
-            className="h-8 w-8 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60 flex items-center justify-center transition-colors cursor-pointer"
+            className="h-7 w-7 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60 flex items-center justify-center transition-colors cursor-pointer"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        {/* Studio Workspace */}
+        {/* ── Body ── */}
         <div className="flex-1 flex overflow-hidden">
-          
-          {/* Left Side: Controls & Document Selection */}
-          <div className="w-80 border-r border-zinc-800/80 p-5 flex flex-col justify-between bg-zinc-900/20 overflow-y-auto shrink-0">
-            <div className="space-y-5">
-              
-              {/* Scope Selection */}
+
+          {/* ── LEFT PANEL ── */}
+          <div className="w-72 shrink-0 border-r border-zinc-800 overflow-y-auto flex flex-col">
+            <div className="space-y-5 p-4 flex-1">
+
+              {/* A. Papers */}
               <div>
-                <label className="text-xs font-semibold text-zinc-300 uppercase tracking-wider block mb-2">
-                  1. Workspace Scope ({activePapers.length}/{normalizedDocList.length})
-                </label>
-                <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                <div className="flex items-center gap-1.5 mb-2">
+                  <span className="text-xs font-semibold text-zinc-300">Papers</span>
+                  <span className="text-[10px] text-zinc-500 bg-zinc-900 border border-zinc-800 rounded-full px-1.5 py-0.5 leading-none">
+                    {activePapers.length} selected
+                  </span>
+                </div>
+                <div className="space-y-1">
                   {normalizedDocList.length === 0 ? (
-                    <p className="text-xs text-zinc-500 italic">No papers found in active workspace.</p>
+                    <p className="text-xs text-zinc-500 italic">No papers in workspace.</p>
                   ) : (
                     normalizedDocList.map((docName, idx) => {
                       const selected = activePapers.includes(docName);
@@ -341,12 +342,14 @@ export default function LiteratureReviewModal({
                           type="button"
                           onClick={() => togglePaper(docName)}
                           className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-left transition-colors cursor-pointer ${
-                            selected 
-                              ? 'bg-amber-400/10 border border-amber-400/30 text-amber-200' 
+                            selected
+                              ? 'bg-amber-400/10 border border-amber-400/30 text-amber-200'
                               : 'bg-zinc-900/60 border border-zinc-800 text-zinc-400 hover:text-zinc-300'
                           }`}
                         >
-                          {selected ? <CheckSquare className="h-3.5 w-3.5 text-amber-400 shrink-0" /> : <Square className="h-3.5 w-3.5 text-zinc-500 shrink-0" />}
+                          {selected
+                            ? <CheckSquare className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                            : <Square className="h-3.5 w-3.5 text-zinc-500 shrink-0" />}
                           <span className="truncate">{docName}</span>
                         </button>
                       );
@@ -355,95 +358,109 @@ export default function LiteratureReviewModal({
                 </div>
               </div>
 
-              {/* Research Focus */}
+              {/* B. Research Focus */}
               <div>
-                <label className="text-xs font-semibold text-zinc-300 uppercase tracking-wider block mb-2">
-                  2. Research Directive (Optional)
+                <label className="text-xs font-semibold text-zinc-300 block mb-2">
+                  Focus <span className="text-zinc-500 font-normal">(optional)</span>
                 </label>
                 <textarea
+                  rows={3}
                   value={researchFocus}
                   onChange={(e) => setResearchFocus(e.target.value)}
-                  placeholder="e.g. Focus on accuracy trade-offs, retrieval latency, and experimental benchmark datasets."
-                  className="w-full h-24 bg-zinc-900/80 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-amber-400/50 resize-none"
+                  placeholder="e.g. Compare retrieval strategies and accuracy trade-offs."
+                  className="w-full bg-zinc-900/80 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-amber-400/50 resize-none"
                 />
               </div>
 
-              {/* Monograph Structure Spec */}
-              <div className="p-3.5 bg-zinc-950 border border-zinc-800 rounded-xl space-y-1 text-[11px] text-zinc-400">
-                <div className="text-zinc-200 font-semibold mb-1 flex items-center gap-1.5">
-                  <ListTree className="h-3.5 w-3.5 text-amber-400" /> Monograph Outline:
+              {/* C. Section Headings */}
+              <div>
+                <div className="flex items-center gap-1.5 mb-2">
+                  <span className="text-xs font-semibold text-zinc-300">Headings</span>
+                  <span className="text-[10px] text-zinc-500">(editable)</span>
                 </div>
-                <div>• Title Header & Metadata</div>
-                <div>• Table of Contents Page</div>
-                <div>• Executive Abstract & Foundations</div>
-                <div>• Methodological Comparison Matrix</div>
-                <div>• Thematic Synthesis & Benchmarks</div>
-                <div>• Critical Gaps & Open Trajectories</div>
-                <div>• Integrative Conclusion</div>
-                <div>• Complete Bibliography Catalog</div>
+                <div className="space-y-1.5">
+                  {customHeadings.map((heading, idx) => (
+                    <div key={idx} className="flex items-center gap-1.5">
+                      <GripVertical className="h-3.5 w-3.5 text-zinc-600 shrink-0" />
+                      <span className="text-[10px] text-zinc-600 w-3.5 shrink-0">{idx + 1}.</span>
+                      <input
+                        type="text"
+                        value={heading}
+                        onChange={(e) => {
+                          const updated = [...customHeadings];
+                          updated[idx] = e.target.value;
+                          setCustomHeadings(updated);
+                        }}
+                        className="flex-1 text-xs bg-zinc-950 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-amber-400/40"
+                      />
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[10px] text-zinc-600 mt-2">These become the main sections of your review.</p>
               </div>
 
             </div>
 
-            {/* Generate Action Button */}
-            <button
-              type="button"
-              onClick={handleStartSynthesis}
-              disabled={isGenerating || activePapers.length === 0}
-              className={`w-full py-3 rounded-xl font-medium text-xs flex items-center justify-center gap-2 transition-all mt-4 ${
-                isGenerating || activePapers.length === 0
-                  ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
-                  : 'bg-amber-400 hover:bg-amber-300 text-zinc-950 shadow-lg hover:shadow-amber-400/10 cursor-pointer font-semibold'
-              }`}
-            >
-              {isGenerating ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin text-zinc-950" />
-                  <span>Synthesizing Monograph...</span>
-                </>
-              ) : (
-                <>
-                  <Sparkles className="h-4 w-4" />
-                  <span>Synthesize Monograph</span>
-                </>
-              )}
-            </button>
+            {/* Generate button */}
+            <div className="p-4 shrink-0">
+              <button
+                type="button"
+                onClick={handleStartSynthesis}
+                disabled={isGenerating || activePapers.length === 0}
+                className={`w-full py-2.5 rounded-xl font-semibold text-xs flex items-center justify-center gap-2 transition-all ${
+                  isGenerating || activePapers.length === 0
+                    ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
+                    : 'bg-amber-400 hover:bg-amber-300 text-zinc-950 cursor-pointer'
+                }`}
+              >
+                {isGenerating ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    <span>Generating…</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-3.5 w-3.5" />
+                    <span>Generate Review</span>
+                  </>
+                )}
+              </button>
+            </div>
           </div>
 
-          {/* Right Side: Document Reader & PDF Export Hub */}
-          <div className="flex-1 flex flex-col bg-zinc-900/30 overflow-hidden">
-            
-            {/* Top Action Bar */}
+          {/* ── RIGHT PANEL ── */}
+          <div className="flex-1 flex flex-col overflow-hidden bg-zinc-900/30">
+
+            {/* Minimal top bar when monograph is ready */}
             {monograph && (
-              <div className="px-6 py-3 border-b border-zinc-800 flex items-center justify-between bg-zinc-950/80 shrink-0">
+              <div className="px-5 py-2.5 border-b border-zinc-800 flex items-center justify-between bg-zinc-950/80 shrink-0">
                 <div className="flex items-center gap-2">
                   <FileCheck2 className="h-4 w-4 text-emerald-400" />
                   <span className="text-xs text-zinc-300 font-medium">
-                    Publication-Grade Monograph Ready ({monograph.doc_names?.length || activePapers.length} Papers)
+                    Review ready · {monograph.doc_names?.length || activePapers.length} papers
                   </span>
                 </div>
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={handleDownloadPDF}
-                    disabled={isExporting}
-                    className="flex items-center gap-2 px-4 py-1.5 bg-amber-400 hover:bg-amber-300 text-zinc-950 font-semibold text-xs rounded-xl transition-colors cursor-pointer shadow-md disabled:opacity-50"
-                  >
-                    {isExporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-                    <span>{isExporting ? 'Compiling PDF...' : 'Download PDF Monograph'}</span>
-                  </button>
-                </div>
+                <button
+                  onClick={handleDownloadPDF}
+                  disabled={isExporting}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-400 hover:bg-amber-300 text-zinc-950 font-semibold text-xs rounded-xl transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  {isExporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                  <span>{isExporting ? 'Exporting…' : 'Download PDF'}</span>
+                </button>
               </div>
             )}
 
-            {/* Document Reader Container (A4 Paper View) */}
-            <div className="flex-1 overflow-y-auto p-8 flex justify-center bg-zinc-900/50">
+            {/* Content area */}
+            <div className="flex-1 overflow-y-auto p-8 flex justify-center">
               {isGenerating ? (
+                /* Generating state */
                 <div className="h-full flex flex-col items-center justify-center text-center max-w-md mx-auto space-y-4">
                   <div className="h-14 w-14 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 animate-pulse">
                     <Loader2 className="h-7 w-7 animate-spin" />
                   </div>
                   <div>
-                    <h3 className="text-sm font-semibold text-zinc-200">Synthesizing Literature Monograph</h3>
+                    <h3 className="text-sm font-semibold text-zinc-200">Synthesizing Literature Review</h3>
                     <p className="text-xs text-zinc-400 font-mono mt-2">{currentStage}</p>
                   </div>
                   <div className="w-full bg-zinc-900 rounded-full h-1.5 overflow-hidden">
@@ -451,14 +468,13 @@ export default function LiteratureReviewModal({
                   </div>
                 </div>
               ) : monograph ? (
-                
-                /* Rendered A4 Publication Document */
-                <div 
+                /* Rendered document */
+                <div
                   ref={printDocumentRef}
-                  className="w-full max-w-3xl bg-white text-zinc-900 p-12 shadow-2xl rounded-sm font-serif leading-relaxed text-[11pt]"
+                  className="w-full max-w-2xl bg-white text-zinc-900 p-10 shadow-xl rounded-sm font-serif leading-relaxed text-[11pt]"
                   style={{ minHeight: '1100px' }}
                 >
-                  {/* Formal Academic Header */}
+                  {/* Formal header */}
                   <div className="pdf-section border-b-2 border-zinc-900 pb-6 mb-8 text-center font-sans">
                     <span className="text-[10px] tracking-widest uppercase text-zinc-500 font-semibold block mb-2">
                       ScholarsMate Academic Monograph Series
@@ -469,7 +485,7 @@ export default function LiteratureReviewModal({
                     <div className="text-xs text-zinc-600 flex items-center justify-center gap-4 mt-2">
                       <span><strong>Scope:</strong> {monograph.doc_names?.length} Research Papers</span>
                       <span>•</span>
-                      <span><strong>Synthesized:</strong> August 2026</span>
+                      <span><strong>Synthesized:</strong> {synthesizedDate}</span>
                     </div>
                     {monograph.research_focus && (
                       <div className="mt-4 p-3 bg-zinc-50 border border-zinc-200 rounded text-left text-xs italic text-zinc-700 avoid-break">
@@ -486,32 +502,35 @@ export default function LiteratureReviewModal({
                     <div className="space-y-1.5 text-xs text-zinc-800">
                       {monograph.sections?.map((sec, i) => (
                         <div key={i} className="flex justify-between items-center py-0.5">
-                          <span><strong>Section {sec.section_number}:</strong> {sec.title}</span>
-                          <span className="text-zinc-400">....................................................................</span>
+                          <span>
+                            <strong>Section {sec.section_number}:</strong>{' '}
+                            {customHeadings[i] || sec.title}
+                          </span>
+                          <span className="text-zinc-400">................................................................</span>
                         </div>
                       ))}
                       <div className="flex justify-between items-center py-0.5">
                         <span><strong>Methodological Comparison Matrix</strong></span>
-                        <span className="text-zinc-400">....................................................................</span>
+                        <span className="text-zinc-400">................................................................</span>
                       </div>
                       <div className="flex justify-between items-center py-0.5">
-                        <span><strong>Integrative Conclusion & Future Roadmap</strong></span>
-                        <span className="text-zinc-400">....................................................................</span>
+                        <span><strong>Integrative Conclusion &amp; Future Roadmap</strong></span>
+                        <span className="text-zinc-400">................................................................</span>
                       </div>
                       <div className="flex justify-between items-center py-0.5">
-                        <span><strong>References & Document Catalog</strong></span>
-                        <span className="text-zinc-400">....................................................................</span>
+                        <span><strong>References &amp; Document Catalog</strong></span>
+                        <span className="text-zinc-400">................................................................</span>
                       </div>
                     </div>
                   </div>
 
                   <hr className="my-8 border-zinc-200" />
 
-                  {/* Core Monograph Sections */}
+                  {/* Core sections */}
                   {monograph.sections?.map((sec, idx) => (
                     <div key={idx} className="pdf-section my-8">
                       <h2 className="text-base font-bold text-amber-900 font-sans tracking-tight border-b border-zinc-200 pb-1.5 mb-4">
-                        Section {sec.section_number}: {sec.title}
+                        Section {sec.section_number}: {customHeadings[idx] || sec.title}
                       </h2>
                       <div className="text-justify leading-relaxed text-zinc-800 space-y-3">
                         <ReactMarkdown
@@ -519,14 +538,16 @@ export default function LiteratureReviewModal({
                           components={{
                             h3: ({ children }) => <h3 className="text-sm font-bold text-zinc-900 mt-4 mb-2 font-sans">{children}</h3>,
                             p: ({ children }) => <p className="mb-3 text-justify leading-relaxed">{children}</p>,
-                            blockquote: ({ children }) => <blockquote className="border-l-2 border-amber-600 pl-3 italic text-zinc-600 my-2">{children}</blockquote>,
+                            blockquote: ({ children }) => (
+                              <blockquote className="border-l-2 border-amber-600 pl-3 italic text-zinc-600 my-2">{children}</blockquote>
+                            ),
                           }}
                         >
                           {preprocessTables(sec.content)}
                         </ReactMarkdown>
                       </div>
 
-                      {/* Methodological Matrix inserted after Section 2 */}
+                      {/* Methodological matrix after section 2 */}
                       {idx === 1 && monograph.matrix_table && (
                         <div className="pdf-section my-8">
                           <h3 className="text-sm font-bold text-zinc-900 font-sans mb-3 uppercase tracking-wider avoid-break">
@@ -540,11 +561,11 @@ export default function LiteratureReviewModal({
 
                   <hr className="my-8 border-zinc-200" />
 
-                  {/* Section 6: Integrative Conclusion */}
+                  {/* Conclusion */}
                   {monograph.conclusion && (
                     <div className="pdf-section my-8">
                       <h2 className="text-base font-bold text-amber-900 font-sans tracking-tight border-b border-zinc-200 pb-1.5 mb-4">
-                        Section 6: Integrative Conclusion & Future Roadmap
+                        Section 6: Integrative Conclusion &amp; Future Roadmap
                       </h2>
                       <div className="text-justify leading-relaxed text-zinc-800 space-y-3">
                         <ReactMarkdown
@@ -560,39 +581,36 @@ export default function LiteratureReviewModal({
 
                   <hr className="my-8 border-zinc-200" />
 
-                  {/* References & Document Catalog */}
+                  {/* References */}
                   <div className="pdf-section my-8 font-sans avoid-break">
                     <h2 className="text-base font-bold text-zinc-900 tracking-tight border-b border-zinc-200 pb-1.5 mb-4">
-                      References & Primary Document Catalog
+                      References &amp; Primary Document Catalog
                     </h2>
                     <ul className="text-xs text-zinc-700 space-y-2 list-disc pl-5">
-                      {monograph.doc_names?.map((doc, idx) => (
-                        <li key={idx} className="leading-relaxed">
-                          <strong className="text-zinc-900">[{idx + 1}]</strong> {doc} — Indexed & verified in ScholarsMate Knowledge Base.
+                      {monograph.doc_names?.map((doc, i) => (
+                        <li key={i} className="leading-relaxed">
+                          <strong className="text-zinc-900">[{i + 1}]</strong> {doc} — Indexed &amp; verified in ScholarsMate Knowledge Base.
                         </li>
                       ))}
                     </ul>
                   </div>
-
                 </div>
-
               ) : (
+                /* Empty state */
                 <div className="h-full flex flex-col items-center justify-center text-center max-w-sm mx-auto text-zinc-500 space-y-3">
                   <BookOpen className="h-10 w-10 text-zinc-700 stroke-[1.5]" />
                   <div>
-                    <p className="text-sm font-medium text-zinc-300">Ready to synthesize your monograph</p>
+                    <p className="text-sm font-medium text-zinc-300">Configure on the left and generate your review</p>
                     <p className="text-xs text-zinc-500 mt-1">
-                      Select your target papers on the left and click Synthesize to generate a publication-ready literature review PDF.
+                      Select papers, set a focus, customise headings, then hit Generate.
                     </p>
                   </div>
                 </div>
               )}
             </div>
-
           </div>
 
         </div>
-
       </div>
     </div>
   );

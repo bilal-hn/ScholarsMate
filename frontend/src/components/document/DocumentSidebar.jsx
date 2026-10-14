@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
   Search, 
   Brain, 
@@ -7,9 +7,6 @@ import {
   PenTool, 
   Compass, 
   Palette, 
-  Check, 
-  Sparkles, 
-  X, 
   PanelLeftClose, 
   PanelLeftOpen, 
   SquarePen, 
@@ -17,18 +14,32 @@ import {
   ChevronDown, 
   ChevronRight, 
   MessageSquare, 
-  Library,
-  Layers,
+  Plus,
+  Folder,
+  FolderOpen,
+  MoreVertical,
+  FileUp,
+  Edit3,
+  Check,
+  X,
 } from 'lucide-react';
 import { AuthProfile } from '../layout/AuthProfile';
-import { APP_CONFIG, THEMES } from '../../theme/constants';
+import { APP_CONFIG } from '../../theme/constants';
 
 export default function DocumentSidebar({
   currentUser,
   workspaces = [],
+  standaloneChats = [],
   activeWorkspaceId,
-  onSelectWorkspace,
+  activeSessionId,
+  onSelectWorkspaceChat,
+  onSelectStandaloneChat,
+  onAddWorkspaceChat,
   onDeleteWorkspace,
+  onDeleteChat,
+  onRenameWorkspace,
+  onRenameChat,
+  onAddPapersToWorkspace,
   onOpenCreateModal,
   onNewChat,
   onOpenLitReview,
@@ -41,24 +52,248 @@ export default function DocumentSidebar({
   onOpenProfileSettings,
   onOpenThemeModal,
   onOpenSearchModal,
-  onOpenWorkspaceLibrary,
   isCollapsed = false,
   onToggleCollapse,
 }) {
-  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [isRecentOpen, setIsRecentOpen] = useState(true);
+  const [expandedWorkspaces, setExpandedWorkspaces] = useState(() => new Set());
 
-  const workspaceList = useMemo(() => {
-    return (workspaces || []).filter((ws) => Array.isArray(ws.documents) && ws.documents.length > 0);
+  // Inline rename state
+  const [editingWorkspaceId, setEditingWorkspaceId] = useState(null);
+  const [editWorkspaceName, setEditWorkspaceName] = useState('');
+  const [editingChatId, setEditingChatId] = useState(null);
+  const [editChatTitle, setEditChatTitle] = useState('');
+
+  // Floating Context Menu state: { type: 'workspace' | 'chat', id, parentId, x, y }
+  const [menuState, setMenuState] = useState(null);
+  const [targetWorkspaceForUpload, setTargetWorkspaceForUpload] = useState(null);
+
+  const fileInputRef = useRef(null);
+  const renameInputRef = useRef(null);
+
+  // Auto-expand all workspaces on load and when new workspaces are added
+  useEffect(() => {
+    if (workspaces && workspaces.length > 0) {
+      setExpandedWorkspaces((prev) => {
+        const next = new Set(prev);
+        workspaces.forEach((w) => next.add(w.id));
+        return next;
+      });
+    }
   }, [workspaces]);
 
-  const conversationList = useMemo(() => {
-    return (workspaces || []).filter((ws) => !ws.documents || ws.documents.length === 0);
-  }, [workspaces]);
+  // Close floating context menu on click outside or escape key
+  useEffect(() => {
+    if (!menuState) return;
+
+    const handleClickOutside = () => setMenuState(null);
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') setMenuState(null);
+    };
+
+    window.addEventListener('mousedown', handleClickOutside);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('mousedown', handleClickOutside);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [menuState]);
+
+  // Focus rename input on start
+  useEffect(() => {
+    if (editingWorkspaceId || editingChatId) {
+      setTimeout(() => renameInputRef.current?.select(), 40);
+    }
+  }, [editingWorkspaceId, editingChatId]);
+
+  const toggleWorkspaceExpanded = (wsId) => {
+    setExpandedWorkspaces((prev) => {
+      const next = new Set(prev);
+      if (next.has(wsId)) {
+        next.delete(wsId);
+      } else {
+        next.add(wsId);
+      }
+      return next;
+    });
+  };
+
+  // Open 3-dots menu
+  const handleOpenThreeDots = (e, type, id, parentId = null) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const rect = e.currentTarget.getBoundingClientRect();
+    setMenuState({
+      type,
+      id,
+      parentId,
+      x: Math.max(10, Math.min(rect.right - 160, window.innerWidth - 175)),
+      y: Math.min(rect.bottom + 4, window.innerHeight - 150),
+    });
+  };
+
+  // Open right-click context menu
+  const handleContextMenu = (e, type, id, parentId = null) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setMenuState({
+      type,
+      id,
+      parentId,
+      x: Math.max(10, Math.min(e.clientX, window.innerWidth - 175)),
+      y: Math.min(e.clientY, window.innerHeight - 150),
+    });
+  };
+
+  // Trigger file upload for workspace
+  const handleTriggerAddPaper = (wsId) => {
+    setTargetWorkspaceForUpload(wsId);
+    setMenuState(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+      fileInputRef.current.click();
+    }
+  };
+
+  const handleFilesSelected = (e) => {
+    if (e.target.files && e.target.files.length > 0 && targetWorkspaceForUpload) {
+      onAddPapersToWorkspace?.(targetWorkspaceForUpload, e.target.files);
+    }
+    setTargetWorkspaceForUpload(null);
+  };
+
+  // Start inline rename
+  const startWorkspaceRename = (ws) => {
+    setMenuState(null);
+    setEditingChatId(null);
+    setEditingWorkspaceId(ws.id);
+    setEditWorkspaceName(ws.name);
+  };
+
+  const handleSaveWorkspaceRename = (wsId) => {
+    const trimmed = editWorkspaceName.trim();
+    if (trimmed && trimmed !== workspaces.find((w) => w.id === wsId)?.name) {
+      onRenameWorkspace?.(wsId, trimmed);
+    }
+    setEditingWorkspaceId(null);
+  };
+
+  const startChatRename = (chat, workspaceId = null) => {
+    setMenuState(null);
+    setEditingWorkspaceId(null);
+    setEditingChatId(chat.id);
+    setEditChatTitle(chat.title || 'Chat');
+  };
+
+  const handleSaveChatRename = (chatId, workspaceId = null) => {
+    const trimmed = editChatTitle.trim();
+    if (trimmed) {
+      onRenameChat?.(chatId, trimmed, workspaceId);
+    }
+    setEditingChatId(null);
+  };
 
   return (
     <aside className={`bg-zinc-900/90 border-r border-zinc-800/80 flex flex-col h-full shrink-0 select-none text-zinc-300 font-sans transition-[width] duration-200 relative z-40 overflow-visible ${
-      isCollapsed ? 'w-16' : 'w-60'
+      isCollapsed ? 'w-16' : 'w-64'
     }`}>
+      {/* Hidden File Input for Workspace Paper Addition */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        accept=".pdf"
+        className="hidden"
+        onChange={handleFilesSelected}
+      />
+
+      {/* Floating Three-Dots & Right-Click Context Menu (Fixed to avoid overflow clipping) */}
+      {menuState && (
+        <div
+          onMouseDown={(e) => e.stopPropagation()}
+          style={{ top: menuState.y, left: menuState.x }}
+          className="fixed z-50 w-44 bg-zinc-900/95 border border-zinc-800 rounded-xl shadow-2xl p-1 backdrop-blur-xl animate-in fade-in zoom-in-95 duration-100 text-xs font-medium text-zinc-300"
+        >
+          {menuState.type === 'workspace' && (
+            <>
+              <button
+                type="button"
+                onClick={() => handleTriggerAddPaper(menuState.id)}
+                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-zinc-300 hover:text-amber-300 hover:bg-zinc-800/70 transition-colors cursor-pointer text-left"
+              >
+                <FileUp className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                <span>Add Papers</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const ws = workspaces.find((w) => w.id === menuState.id);
+                  if (ws) startWorkspaceRename(ws);
+                }}
+                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800/70 transition-colors cursor-pointer text-left"
+              >
+                <Edit3 className="h-3.5 w-3.5 text-zinc-400 shrink-0" />
+                <span>Rename Workspace</span>
+              </button>
+
+              <div className="h-px bg-zinc-800/80 my-1" />
+
+              <button
+                type="button"
+                onClick={() => {
+                  const wsId = menuState.id;
+                  setMenuState(null);
+                  onDeleteWorkspace?.(wsId);
+                }}
+                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-rose-400 hover:text-rose-300 hover:bg-rose-950/40 transition-colors cursor-pointer text-left"
+              >
+                <Trash2 className="h-3.5 w-3.5 shrink-0" />
+                <span>Delete Workspace</span>
+              </button>
+            </>
+          )}
+
+          {menuState.type === 'chat' && (
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  let foundChat = null;
+                  if (menuState.parentId) {
+                    const ws = workspaces.find((w) => w.id === menuState.parentId);
+                    foundChat = (ws?.chats || []).find((c) => c.id === menuState.id);
+                  } else {
+                    foundChat = standaloneChats.find((s) => s.id === menuState.id);
+                  }
+                  if (foundChat) startChatRename(foundChat, menuState.parentId);
+                }}
+                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800/70 transition-colors cursor-pointer text-left"
+              >
+                <Edit3 className="h-3.5 w-3.5 text-zinc-400 shrink-0" />
+                <span>Rename Chat</span>
+              </button>
+
+              <div className="h-px bg-zinc-800/80 my-1" />
+
+              <button
+                type="button"
+                onClick={() => {
+                  const chatId = menuState.id;
+                  const parentId = menuState.parentId;
+                  setMenuState(null);
+                  onDeleteChat?.(chatId, parentId);
+                }}
+                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-rose-400 hover:text-rose-300 hover:bg-rose-950/40 transition-colors cursor-pointer text-left"
+              >
+                <Trash2 className="h-3.5 w-3.5 shrink-0" />
+                <span>Delete Chat</span>
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
       {isCollapsed ? (
         /* Collapsed Rail View */
         <div className="flex flex-col items-center justify-between h-full py-3.5 w-full">
@@ -168,25 +403,27 @@ export default function DocumentSidebar({
                 </span>
               </button>
 
-              {/* Conversation History */}
-              <button
-                type="button"
-                onClick={() => {
-                  onToggleCollapse();
-                  setIsHistoryOpen(true);
-                }}
-                className="relative group p-2.5 rounded-xl text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/70 transition-all cursor-pointer flex items-center justify-center"
-                aria-label="Conversation History"
-              >
-                <History className="h-4.5 w-4.5" />
-                <span className="pointer-events-none absolute left-full top-1/2 -translate-y-1/2 ml-3 px-2.5 py-1.5 bg-zinc-900 border border-zinc-700/80 text-zinc-100 text-[12.5px] font-medium rounded-lg shadow-2xl whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50">
-                  Conversation History
-                </span>
-              </button>
+              {/* History shortcut */}
+              {standaloneChats.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onToggleCollapse();
+                    setIsRecentOpen(true);
+                  }}
+                  className="relative group p-2.5 rounded-xl text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/70 transition-all cursor-pointer flex items-center justify-center"
+                  aria-label="Recent Chats"
+                >
+                  <History className="h-4.5 w-4.5" />
+                  <span className="pointer-events-none absolute left-full top-1/2 -translate-y-1/2 ml-3 px-2.5 py-1.5 bg-zinc-900 border border-zinc-700/80 text-zinc-100 text-[12.5px] font-medium rounded-lg shadow-2xl whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50">
+                    Recent Chats
+                  </span>
+                </button>
+              )}
             </div>
           </div>
 
-          {/* Bottom Section: User Profile Avatar (Shares exact same AuthProfile pop-up) */}
+          {/* Bottom Section: User Profile Avatar */}
           <div className="flex flex-col items-center w-full px-2 pt-3 border-t border-zinc-800/50 relative">
             <AuthProfile
               isCollapsed={true}
@@ -289,7 +526,7 @@ export default function DocumentSidebar({
               </button>
             )}
 
-            {/* Theme Selector Navigation Item (Opens Theme Window Modal) */}
+            {/* Theme Selector Navigation Item */}
             <button
               type="button"
               onClick={onOpenThemeModal}
@@ -300,137 +537,331 @@ export default function DocumentSidebar({
             </button>
           </div>
 
-          {/* Workspaces & Conversation History */}
+          {/* Workspaces & Recent Chats Tree */}
           <div className="flex-1 overflow-y-auto px-2 py-3 space-y-4">
-            {/* Workspaces Section */}
-            <div className="space-y-1">
-              <div className="px-3 py-1 text-xs font-semibold tracking-wider text-zinc-500 flex items-center justify-between uppercase">
-                <button
-                  type="button"
-                  onClick={onOpenWorkspaceLibrary}
-                  className="hover:text-amber-400 transition-colors cursor-pointer flex items-center gap-1.5"
-                  title="Open Workspace Library"
-                >
-                  <span>Workspaces</span>
-                </button>
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[11px] text-zinc-500 font-mono">{workspaceList.length}</span>
-                  {onOpenWorkspaceLibrary && (
+            {/* WORKSPACES SECTION */}
+            <div className="space-y-1.5">
+              <div className="px-2 py-1 text-xs font-semibold tracking-wider text-zinc-500 flex items-center justify-between uppercase">
+                <span>Workspaces</span>
+                {onOpenCreateModal && (
+                  <button
+                    type="button"
+                    onClick={onOpenCreateModal}
+                    title="Create New Workspace"
+                    className="text-zinc-400 hover:text-amber-400 px-1.5 py-0.5 rounded transition-colors cursor-pointer flex items-center gap-1 text-[11px] font-medium"
+                  >
+                    <Plus className="h-3.5 w-3.5 stroke-[2.5]" />
+                    <span>New</span>
+                  </button>
+                )}
+              </div>
+
+              {workspaces.length === 0 ? (
+                <div className="px-3 py-3 rounded-xl border border-dashed border-zinc-800/80 text-center">
+                  <p className="text-xs text-zinc-500 mb-1.5">No workspaces yet</p>
+                  {onOpenCreateModal && (
                     <button
                       type="button"
-                      onClick={onOpenWorkspaceLibrary}
-                      className="text-zinc-500 hover:text-amber-400 p-0.5 rounded transition-colors cursor-pointer"
-                      title="Open Workspace Library Popup"
+                      onClick={onOpenCreateModal}
+                      className="text-[11.5px] font-medium text-amber-400 hover:text-amber-300 underline cursor-pointer"
                     >
-                      <Layers className="h-3.5 w-3.5" />
+                      + Create Workspace
                     </button>
                   )}
                 </div>
-              </div>
-
-
-
-              {workspaceList.length === 0 ? (
-                <div className="px-3 py-4 text-center text-xs text-zinc-500 font-mono">
-                  No workspaces yet
-                </div>
               ) : (
-                workspaceList.map((ws) => (
-                  <div
-                    key={ws.id}
-                    className="group flex items-center justify-between px-3 py-2 rounded-lg text-[13px] text-zinc-300 transition-colors hover:bg-zinc-800/30 select-none"
-                  >
-                    <div className="flex items-center gap-2.5 truncate min-w-0 pr-2">
-                      <span className="h-1.5 w-1.5 rounded-full shrink-0 bg-amber-400/80" />
-                      <span className="truncate text-zinc-300">{ws.name}</span>
-                    </div>
+                <div className="space-y-2">
+                  {workspaces.map((ws) => {
+                    const isExpanded = expandedWorkspaces.has(ws.id);
+                    const chats = ws.chats || [];
+                    const chatCount = chats.length;
+                    const isCurrentWorkspace = ws.id === activeWorkspaceId;
+                    const isEditingThisWs = editingWorkspaceId === ws.id;
 
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onDeleteWorkspace(ws.id);
-                      }}
-                      title="Delete Workspace"
-                      className="opacity-0 group-hover:opacity-100 text-zinc-500 hover:text-rose-400 p-1 rounded transition-opacity cursor-pointer shrink-0"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </button>
-                  </div>
-                ))
+                    return (
+                      <div key={ws.id} className="rounded-xl overflow-hidden bg-zinc-950/40 border border-zinc-800/60">
+                        {/* Workspace Root Header Row */}
+                        <div
+                          onClick={() => toggleWorkspaceExpanded(ws.id)}
+                          onContextMenu={(e) => handleContextMenu(e, 'workspace', ws.id)}
+                          className={`group flex items-center justify-between px-2.5 py-2 cursor-pointer transition-colors relative ${
+                            isCurrentWorkspace
+                              ? 'bg-zinc-800/50 text-zinc-100 font-medium'
+                              : 'text-zinc-300 hover:bg-zinc-800/30 hover:text-zinc-100'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 truncate min-w-0 pr-1 flex-1">
+                            <span className="text-zinc-500 hover:text-zinc-300 transition-colors shrink-0">
+                              {isExpanded ? (
+                                <ChevronDown className="h-3.5 w-3.5" />
+                              ) : (
+                                <ChevronRight className="h-3.5 w-3.5" />
+                              )}
+                            </span>
+                            {isExpanded ? (
+                              <FolderOpen className="h-4 w-4 text-amber-400/90 shrink-0" />
+                            ) : (
+                              <Folder className="h-4 w-4 text-amber-400/70 shrink-0" />
+                            )}
+
+                            {/* Workspace Title: Inline Edit or Text */}
+                            {isEditingThisWs ? (
+                              <div className="flex items-center gap-1 flex-1 min-w-0" onClick={(e) => e.stopPropagation()}>
+                                <input
+                                  ref={renameInputRef}
+                                  type="text"
+                                  value={editWorkspaceName}
+                                  onChange={(e) => setEditWorkspaceName(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') handleSaveWorkspaceRename(ws.id);
+                                    if (e.key === 'Escape') setEditingWorkspaceId(null);
+                                  }}
+                                  onBlur={() => handleSaveWorkspaceRename(ws.id)}
+                                  className="w-full bg-zinc-950 border border-amber-500/80 rounded px-1.5 py-0.5 text-xs text-zinc-100 focus:outline-none"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => handleSaveWorkspaceRename(ws.id)}
+                                  className="p-1 text-emerald-400 hover:text-emerald-300"
+                                >
+                                  <Check className="h-3 w-3" />
+                                </button>
+                              </div>
+                            ) : (
+                              <span
+                                onDoubleClick={(e) => {
+                                  e.stopPropagation();
+                                  startWorkspaceRename(ws);
+                                }}
+                                className="truncate text-[13px] font-medium select-none"
+                                title={ws.name}
+                              >
+                                {ws.name}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Workspace Actions: Add Chat (if <3) + Three Dots Menu */}
+                          <div className="flex items-center gap-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
+                            {/* Add Chat to Workspace (hidden if 3/3 reached) */}
+                            {chatCount < 3 && onAddWorkspaceChat && (
+                              <button
+                                type="button"
+                                onClick={() => onAddWorkspaceChat(ws.id)}
+                                title={`Add Chat (${chatCount}/3)`}
+                                className="p-1 rounded text-zinc-400 hover:text-amber-400 hover:bg-zinc-800 transition-colors cursor-pointer"
+                              >
+                                <Plus className="h-3.5 w-3.5 stroke-[2.2]" />
+                              </button>
+                            )}
+
+                            {/* Three Dots Menu Button */}
+                            <button
+                              type="button"
+                              onClick={(e) => handleOpenThreeDots(e, 'workspace', ws.id)}
+                              title="Workspace options"
+                              className="opacity-0 group-hover:opacity-100 p-1 rounded text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-all cursor-pointer"
+                            >
+                              <MoreVertical className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Indented Child Chats List */}
+                        {isExpanded && (
+                          <div className="pl-3 pr-1.5 pb-1 pt-0.5 space-y-0.5">
+                            {chats.length === 0 ? (
+                              <div className="text-[11.5px] text-zinc-500 italic py-1 px-3">
+                                No chats yet. Click + to add.
+                              </div>
+                            ) : (
+                              chats.map((chat) => {
+                                const isActive = activeSessionId === chat.id;
+                                const isEditingThisChat = editingChatId === chat.id;
+
+                                return (
+                                  <div
+                                    key={chat.id}
+                                    onClick={() => onSelectWorkspaceChat(ws.id, chat.id)}
+                                    onContextMenu={(e) => handleContextMenu(e, 'chat', chat.id, ws.id)}
+                                    className={`group/chat flex items-center justify-between pl-3 pr-1.5 py-1.5 rounded-lg text-[12.5px] cursor-pointer transition-colors relative border-l-2 ${
+                                      isActive
+                                        ? 'bg-amber-500/15 text-amber-300 font-medium border-amber-400'
+                                        : 'border-zinc-800 hover:border-zinc-600 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/40'
+                                    }`}
+                                  >
+                                    <div className="flex items-center gap-2 truncate min-w-0 pr-1 flex-1">
+                                      <span className="text-zinc-600 font-mono text-[11px] select-none">|_</span>
+                                      <MessageSquare
+                                        className={`h-3 w-3 shrink-0 ${
+                                          isActive ? 'text-amber-400' : 'text-zinc-500 group-hover/chat:text-zinc-300'
+                                        }`}
+                                      />
+
+                                      {/* Chat Title: Inline Edit or Text */}
+                                      {isEditingThisChat ? (
+                                        <div className="flex items-center gap-1 flex-1 min-w-0" onClick={(e) => e.stopPropagation()}>
+                                          <input
+                                            ref={renameInputRef}
+                                            type="text"
+                                            value={editChatTitle}
+                                            onChange={(e) => setEditChatTitle(e.target.value)}
+                                            onKeyDown={(e) => {
+                                              if (e.key === 'Enter') handleSaveChatRename(chat.id, ws.id);
+                                              if (e.key === 'Escape') setEditingChatId(null);
+                                            }}
+                                            onBlur={() => handleSaveChatRename(chat.id, ws.id)}
+                                            className="w-full bg-zinc-950 border border-amber-500/80 rounded px-1.5 py-0.5 text-xs text-zinc-100 focus:outline-none"
+                                          />
+                                          <button
+                                            type="button"
+                                            onClick={() => handleSaveChatRename(chat.id, ws.id)}
+                                            className="p-0.5 text-emerald-400 hover:text-emerald-300"
+                                          >
+                                            <Check className="h-3 w-3" />
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <span
+                                          onDoubleClick={(e) => {
+                                            e.stopPropagation();
+                                            startChatRename(chat, ws.id);
+                                          }}
+                                          className="truncate select-none"
+                                          title={chat.title || 'Chat'}
+                                        >
+                                          {chat.title || 'Chat'}
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    {/* Chat Row Actions: Three Dots Menu */}
+                                    <div className="flex items-center shrink-0" onClick={(e) => e.stopPropagation()}>
+                                      <button
+                                        type="button"
+                                        onClick={(e) => handleOpenThreeDots(e, 'chat', chat.id, ws.id)}
+                                        title="Chat options"
+                                        className="opacity-0 group-hover/chat:opacity-100 p-0.5 rounded text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-opacity cursor-pointer"
+                                      >
+                                        <MoreVertical className="h-3.5 w-3.5" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              })
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               )}
             </div>
 
-            {/* Conversation History Collapsible Section */}
-            <div className="pt-3 border-t border-zinc-800/50 space-y-1">
-              <button
-                type="button"
-                onClick={() => setIsHistoryOpen((prev) => !prev)}
-                className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-[13.5px] font-semibold text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800/50 transition-colors cursor-pointer group text-left"
-              >
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <History className="h-4 w-4 text-amber-400 group-hover:scale-105 transition-transform shrink-0" />
-                  <span className="truncate">Conversation History</span>
-                </div>
-                <div className="flex items-center gap-1.5 shrink-0 text-zinc-500">
-                  <span className="text-[11px] font-mono px-1.5 py-0.5 rounded bg-zinc-800/60 text-zinc-400">
-                    {conversationList.length}
-                  </span>
-                  {isHistoryOpen ? (
-                    <ChevronDown className="h-3.5 w-3.5 text-zinc-400 group-hover:text-zinc-200" />
-                  ) : (
-                    <ChevronRight className="h-3.5 w-3.5 text-zinc-400 group-hover:text-zinc-200" />
-                  )}
-                </div>
-              </button>
+            {/* RECENT CHATS (STANDALONE) SECTION - Only displayed if standalone chats exist */}
+            {standaloneChats.length > 0 && (
+              <div className="pt-2 border-t border-zinc-800/50 space-y-1">
+                <button
+                  type="button"
+                  onClick={() => setIsRecentOpen((prev) => !prev)}
+                  className="w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-[13px] font-semibold text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/40 transition-colors cursor-pointer group text-left"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <History className="h-3.5 w-3.5 text-amber-400 group-hover:scale-105 transition-transform shrink-0" />
+                    <span className="truncate">Recent Standalone Chats</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0 text-zinc-500">
+                    {isRecentOpen ? (
+                      <ChevronDown className="h-3.5 w-3.5 text-zinc-400 group-hover:text-zinc-200" />
+                    ) : (
+                      <ChevronRight className="h-3.5 w-3.5 text-zinc-400 group-hover:text-zinc-200" />
+                    )}
+                  </div>
+                </button>
 
-              {/* History List: Shown when open, hidden when closed */}
-              {isHistoryOpen && (
-                <div className="space-y-0.5">
-                  {conversationList.length === 0 ? (
-                    <div className="px-3 py-4 text-center text-xs text-zinc-500 font-mono">
-                      No conversation history yet
-                    </div>
-                  ) : (
-                    conversationList.map((chat) => {
-                      const isActive = chat.id === activeWorkspaceId;
+                {/* Standalone Chats List */}
+                {isRecentOpen && (
+                  <div className="space-y-0.5 pt-0.5">
+                    {standaloneChats.map((chat) => {
+                      const isActive = !activeWorkspaceId && chat.id === activeSessionId;
+                      const isEditingThisChat = editingChatId === chat.id;
+
                       return (
                         <div
                           key={chat.id}
-                          onClick={() => onSelectWorkspace(chat)}
-                          className={`group flex items-center justify-between px-3 py-2 rounded-lg text-[13px] cursor-pointer transition-colors ${
+                          onClick={() => onSelectStandaloneChat(chat.id)}
+                          onContextMenu={(e) => handleContextMenu(e, 'chat', chat.id, null)}
+                          className={`group flex items-center justify-between px-3 py-2 rounded-lg text-[13px] cursor-pointer transition-colors relative ${
                             isActive
                               ? 'bg-zinc-800 text-zinc-100 font-medium'
                               : 'text-zinc-400 hover:bg-zinc-800/40 hover:text-zinc-200'
                           }`}
                         >
-                          <div className="flex items-center gap-2.5 truncate min-w-0 pr-2">
-                            <MessageSquare className={`h-3.5 w-3.5 shrink-0 ${isActive ? 'text-amber-400' : 'text-zinc-500 group-hover:text-zinc-300'}`} />
-                            <span className="truncate">{chat.name || 'Chat Session'}</span>
+                          <div className="flex items-center gap-2.5 truncate min-w-0 pr-2 flex-1">
+                            <MessageSquare
+                              className={`h-3.5 w-3.5 shrink-0 ${
+                                isActive ? 'text-amber-400' : 'text-zinc-500 group-hover:text-zinc-300'
+                              }`}
+                            />
+
+                            {isEditingThisChat ? (
+                              <div className="flex items-center gap-1 flex-1 min-w-0" onClick={(e) => e.stopPropagation()}>
+                                <input
+                                  ref={renameInputRef}
+                                  type="text"
+                                  value={editChatTitle}
+                                  onChange={(e) => setEditChatTitle(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') handleSaveChatRename(chat.id, null);
+                                    if (e.key === 'Escape') setEditingChatId(null);
+                                  }}
+                                  onBlur={() => handleSaveChatRename(chat.id, null)}
+                                  className="w-full bg-zinc-950 border border-amber-500/80 rounded px-1.5 py-0.5 text-xs text-zinc-100 focus:outline-none"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => handleSaveChatRename(chat.id, null)}
+                                  className="p-0.5 text-emerald-400 hover:text-emerald-300"
+                                >
+                                  <Check className="h-3 w-3" />
+                                </button>
+                              </div>
+                            ) : (
+                              <span
+                                onDoubleClick={(e) => {
+                                  e.stopPropagation();
+                                  startChatRename(chat, null);
+                                }}
+                                className="truncate select-none"
+                                title={chat.title || 'Chat Session'}
+                              >
+                                {chat.title || 'Chat Session'}
+                              </span>
+                            )}
                           </div>
 
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onDeleteWorkspace(chat.id);
-                            }}
-                            title="Delete Conversation"
-                            className="opacity-0 group-hover:opacity-100 text-zinc-600 hover:text-rose-400 p-1 rounded transition-opacity cursor-pointer shrink-0"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </button>
+                          <div className="flex items-center shrink-0" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              type="button"
+                              onClick={(e) => handleOpenThreeDots(e, 'chat', chat.id, null)}
+                              title="Chat options"
+                              className="opacity-0 group-hover:opacity-100 p-1 rounded text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-opacity cursor-pointer"
+                            >
+                              <MoreVertical className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
                         </div>
                       );
-                    })
-                  )}
-                </div>
-              )}
-            </div>
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Footer: User Profile & Actions */}
-          <div className="border-t border-zinc-800/80 bg-zinc-950/60 py-4 px-3.5 relative">
+          <div className="border-t border-zinc-800/80 bg-zinc-950/60 py-3.5 px-3 relative">
             <AuthProfile 
               currentUser={currentUser}
               onAuthChange={onAuthChange}

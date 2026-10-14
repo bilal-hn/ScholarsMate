@@ -10,7 +10,8 @@ import {
   Sparkles,
   PenTool,
   Key,
-  ArrowRight
+  ArrowRight,
+  X
 } from 'lucide-react';
 import ChatMessage from './ChatMessage';
 import ChatInput from './ChatInput';
@@ -25,7 +26,9 @@ import {
   updateSessionModeAPI, 
   getCustomLenses,
   saveCustomLens,
-  deleteCustomLens
+  deleteCustomLens,
+  getWorkspaceContextPointsAPI,
+  importContextPointsAPI
 } from '../../services/api';
 import { APP_CONFIG } from '../../theme/constants';
 
@@ -105,6 +108,7 @@ export default function ChatInterface({
   onSelectCitation, 
   incomingMessage,
   sessionId,
+  workspaceId = null,
   availableModels = [],
   currentModel,
   onModelChange,
@@ -135,6 +139,54 @@ export default function ChatInterface({
   const [isLitReviewOpen, setIsLitReviewOpen] = useState(false);
   const [telemetry, setTelemetry] = useState(null); // { responseTime: '1.2s', tokenUsage: 280, docCount: 4 }
   const messagesEndRef = useRef(null);
+
+  // Context points from sister chats in the same workspace (cheap, 0 LLM token cost)
+  const [availableContextPoints, setAvailableContextPoints] = useState([]);
+  const [isContextModalOpen, setIsContextModalOpen] = useState(false);
+  const [selectedContextIds, setSelectedContextIds] = useState(new Set());
+  const [isImportingContext, setIsImportingContext] = useState(false);
+  const [dismissedSessionId, setDismissedSessionId] = useState(null);
+  const [contextToast, setContextToast] = useState(null);
+
+  // Fetch available context points from other chats in the same workspace
+  useEffect(() => {
+    if (workspaceId && activeSessionId) {
+      getWorkspaceContextPointsAPI(workspaceId, activeSessionId)
+        .then((points) => {
+          if (Array.isArray(points) && points.length > 0) {
+            setAvailableContextPoints(points);
+            setSelectedContextIds(new Set(points.map((p) => p.id)));
+          } else {
+            setAvailableContextPoints([]);
+            setSelectedContextIds(new Set());
+          }
+        })
+        .catch(() => {
+          setAvailableContextPoints([]);
+          setSelectedContextIds(new Set());
+        });
+    } else {
+      setAvailableContextPoints([]);
+      setSelectedContextIds(new Set());
+    }
+  }, [workspaceId, activeSessionId]);
+
+  const handleImportContextPoints = async () => {
+    if (!activeSessionId || selectedContextIds.size === 0) return;
+    try {
+      setIsImportingContext(true);
+      await importContextPointsAPI(activeSessionId, Array.from(selectedContextIds));
+      setAvailableContextPoints((prev) => prev.filter((p) => !selectedContextIds.has(p.id)));
+      setDismissedSessionId(activeSessionId);
+      setIsContextModalOpen(false);
+      setContextToast(`Imported ${selectedContextIds.size} context point(s) into this chat.`);
+      setTimeout(() => setContextToast(null), 3500);
+    } catch (err) {
+      console.error('Failed to import context points:', err);
+    } finally {
+      setIsImportingContext(false);
+    }
+  };
 
   // Load custom lenses from localStorage on mount
   useEffect(() => {
@@ -364,7 +416,8 @@ export default function ChatInterface({
         currentModel,
         currentMode,
         customDirectiveToSend,
-        imagesPayload
+        imagesPayload,
+        workspaceId
       );
 
       const endTime = performance.now();
@@ -467,6 +520,43 @@ export default function ChatInterface({
 
   return (
     <main className="flex-1 flex flex-col bg-zinc-950 h-full relative overflow-hidden text-zinc-200 font-sans transition-colors">
+      {/* Workspace Sister Chats Context Points Banner */}
+      {workspaceId && availableContextPoints.length > 0 && dismissedSessionId !== activeSessionId && (
+        <div className="mx-6 mt-3 mb-1 px-4 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/25 flex items-center justify-between text-xs text-amber-200 animate-in fade-in duration-200 shrink-0 select-none">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <Sparkles className="h-4 w-4 text-amber-400 shrink-0" />
+            <span className="truncate">
+              Found <strong>{availableContextPoints.length}</strong> context point{availableContextPoints.length > 1 ? 's' : ''} from sister chats in this workspace.
+            </span>
+          </div>
+          <div className="flex items-center gap-2 shrink-0 ml-3">
+            <button
+              type="button"
+              onClick={() => setIsContextModalOpen(true)}
+              className="px-3 py-1 rounded-lg bg-amber-400 hover:bg-amber-300 text-zinc-950 font-semibold transition-colors cursor-pointer text-[11.5px]"
+            >
+              Review & Pull
+            </button>
+            <button
+              type="button"
+              onClick={() => setDismissedSessionId(activeSessionId)}
+              className="text-zinc-400 hover:text-zinc-200 p-1 transition-colors cursor-pointer"
+              title="Dismiss"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Context Import Success Toast */}
+      {contextToast && (
+        <div className="mx-6 mt-2 mb-1 px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-center gap-2 animate-in fade-in duration-150 shrink-0">
+          <Check className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+          <span>{contextToast}</span>
+        </div>
+      )}
+
       {/* Far Right Vertically-Centered Query Navigator */}
       {!isSessionLoading && !isSplitScreen && messages.length > 0 && (
         <div className="absolute right-3.5 top-1/2 -translate-y-1/2 z-40 flex flex-col items-center gap-2.5">
@@ -603,6 +693,113 @@ export default function ChatInterface({
         onDelete={handleDeleteCustomLens}
         initialLens={editingLens}
       />
+
+      {/* Workspace Sister Chats Context Points Pull Modal */}
+      {isContextModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl max-w-lg w-full p-5 shadow-2xl relative text-zinc-100 flex flex-col max-h-[85vh]">
+            <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-amber-400" />
+                <h3 className="text-sm font-bold text-zinc-100">
+                  Pull Context Points from Sister Chats
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsContextModalOpen(false)}
+                className="text-zinc-500 hover:text-zinc-200 cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <p className="text-xs text-zinc-400 mt-2 mb-3">
+              Select verified insights and user preferences discovered in other chats of this workspace to pull into this conversation. (Zero token cost)
+            </p>
+
+            <div className="flex items-center justify-between text-xs text-zinc-400 mb-2 px-1">
+              <span>{selectedContextIds.size} of {availableContextPoints.length} selected</span>
+              <button
+                type="button"
+                onClick={() => {
+                  if (selectedContextIds.size === availableContextPoints.length) {
+                    setSelectedContextIds(new Set());
+                  } else {
+                    setSelectedContextIds(new Set(availableContextPoints.map((p) => p.id)));
+                  }
+                }}
+                className="text-amber-400 hover:text-amber-300 font-medium text-[11.5px] cursor-pointer"
+              >
+                {selectedContextIds.size === availableContextPoints.length ? 'Deselect All' : 'Select All'}
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-2 pr-1 max-h-[45vh]">
+              {availableContextPoints.map((pt) => {
+                const isSelected = selectedContextIds.has(pt.id);
+                return (
+                  <div
+                    key={pt.id}
+                    onClick={() => {
+                      const next = new Set(selectedContextIds);
+                      if (next.has(pt.id)) next.delete(pt.id);
+                      else next.add(pt.id);
+                      setSelectedContextIds(next);
+                    }}
+                    className={`p-2.5 rounded-xl border text-xs cursor-pointer transition-all flex items-start gap-2.5 ${
+                      isSelected
+                        ? 'bg-amber-500/10 border-amber-500/30 text-zinc-200'
+                        : 'bg-zinc-950/60 border-zinc-800 text-zinc-400 hover:border-zinc-700'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => {}}
+                      className="mt-0.5 accent-amber-500 rounded cursor-pointer"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-[10px] font-semibold uppercase px-1.5 py-0.2 rounded bg-zinc-800 text-zinc-400">
+                          {pt.category || 'INSIGHT'}
+                        </span>
+                        {pt.session_title && (
+                          <span className="text-[10px] text-zinc-500 truncate">
+                            from {pt.session_title}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[12.5px] text-zinc-200 leading-relaxed select-text">
+                        {pt.thought}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-4 mt-3 border-t border-zinc-800">
+              <button
+                type="button"
+                onClick={() => setIsContextModalOpen(false)}
+                className="px-3 py-1.5 rounded-xl border border-zinc-700 text-xs text-zinc-300 hover:bg-zinc-800 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isImportingContext || selectedContextIds.size === 0}
+                onClick={handleImportContextPoints}
+                className="px-4 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-950 font-semibold text-xs flex items-center gap-1.5 cursor-pointer"
+              >
+                {isImportingContext && <Loader2 className="h-3 w-3 animate-spin" />}
+                <span>Pull Selected ({selectedContextIds.size})</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

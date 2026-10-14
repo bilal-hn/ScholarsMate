@@ -23,6 +23,11 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     # Relationships
+    workspaces: Mapped[List["Workspace"]] = relationship(
+        "Workspace",
+        back_populates="user",
+        cascade="all, delete-orphan"
+    )
     sessions: Mapped[List["ChatSession"]] = relationship(
         "ChatSession",
         back_populates="user",
@@ -37,6 +42,27 @@ class User(Base):
         "BrainMemory",
         back_populates="user",
         cascade="all, delete-orphan"
+    )
+
+
+class Workspace(Base):
+    """Workspace container that holds attached research papers and up to 3 chat sessions."""
+    __tablename__ = "workspaces"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=generate_uuid)
+    user_id: Mapped[Optional[str]] = mapped_column(String, ForeignKey("users.id"), nullable=True, index=True)
+    name: Mapped[str] = mapped_column(String, default="New Workspace")
+    doc_names: Mapped[list[str]] = mapped_column(JSON, default=list)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    user: Mapped[Optional["User"]] = relationship("User", back_populates="workspaces")
+    sessions: Mapped[List["ChatSession"]] = relationship(
+        "ChatSession",
+        back_populates="workspace",
+        cascade="all, delete-orphan",
+        order_by="ChatSession.created_at.asc()"
     )
 
 
@@ -60,6 +86,7 @@ class ChatSession(Base):
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=generate_uuid)
     user_id: Mapped[Optional[str]] = mapped_column(String, ForeignKey("users.id"), nullable=True, index=True)
+    workspace_id: Mapped[Optional[str]] = mapped_column(String, ForeignKey("workspaces.id"), nullable=True, index=True)
     title: Mapped[str] = mapped_column(String, default="New Research Chat")
     doc_names: Mapped[list[str]] = mapped_column(JSON, default=list)
     active_mode: Mapped[str] = mapped_column(String, default="research")
@@ -68,6 +95,7 @@ class ChatSession(Base):
 
     # Relationships
     user: Mapped[Optional["User"]] = relationship("User", back_populates="sessions")
+    workspace: Mapped[Optional["Workspace"]] = relationship("Workspace", back_populates="sessions")
     messages: Mapped[List["ChatMessage"]] = relationship(
         "ChatMessage", 
         back_populates="session", 
@@ -119,8 +147,9 @@ class BrainMemory(Base):
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=generate_uuid)
     user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"), index=True)
-    workspace_id: Mapped[Optional[str]] = mapped_column(String, ForeignKey("chat_sessions.id"), nullable=True, index=True)
-    scope: Mapped[str] = mapped_column(String, default="global")  # "global" or "workspace"
+    workspace_id: Mapped[Optional[str]] = mapped_column(String, nullable=True, index=True)
+    session_id: Mapped[Optional[str]] = mapped_column(String, ForeignKey("chat_sessions.id"), nullable=True, index=True)
+    scope: Mapped[str] = mapped_column(String, default="global")  # "global", "workspace", or "chat"
     category: Mapped[str] = mapped_column(String, default="preference")  # "preference", "profile", "insight", "milestone", "directive"
     thought: Mapped[str] = mapped_column(Text)  # The extracted atomic fact/memory
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
@@ -128,4 +157,4 @@ class BrainMemory(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     user: Mapped["User"] = relationship("User", back_populates="brain_memories")
-    workspace: Mapped[Optional["ChatSession"]] = relationship("ChatSession")
+    session: Mapped[Optional["ChatSession"]] = relationship("ChatSession")

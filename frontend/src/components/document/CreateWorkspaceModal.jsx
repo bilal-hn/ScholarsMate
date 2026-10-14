@@ -39,11 +39,13 @@ export default function CreateWorkspaceModal({ isOpen, onClose, onWorkspaceCreat
     setError(null);
 
     try {
-      const response = await createWorkspace(files);
+      const response = await createWorkspace(files, workspaceName.trim() || null);
 
       if (onWorkspaceCreated) {
         await onWorkspaceCreated({
-          id: response.session_id,
+          workspace_id: response.workspace_id,
+          session_id: response.session_id,
+          id: response.workspace_id,
           name: workspaceName.trim() || response.title,
           documents: response.doc_names || files.map((f) => f.name),
           createdAt: new Date().toISOString(),

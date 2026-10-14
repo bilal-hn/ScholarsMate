@@ -11,7 +11,6 @@ import ThemeModal from './components/modals/ThemeModal';
 import GlobalSearchModal from './components/modals/GlobalSearchModal';
 import BrainModal from './components/modals/BrainModal';
 import AuthModal from './components/modals/AuthModal';
-import WorkspaceLibraryModal from './components/modals/WorkspaceLibraryModal';
 import PdfViewer from './components/viewer/PdfViewer';
 import ProfileSettingsModal from './components/layout/ProfileSettingsModal';
 import { 
@@ -20,13 +19,19 @@ import {
   generateLiteratureReviewAPI, 
   getChatSessions, 
   deleteChatSession,
+  getWorkspacesAPI,
+  createWorkspaceChatAPI,
+  deleteWorkspaceAPI,
+  renameWorkspaceAPI,
+  renameChatSessionAPI,
+  addPapersToWorkspace,
   getCurrentUser,
   getSavedBYOKConfig,
   saveBYOKConfig
 } from './services/api';
 import { getSavedTheme, saveTheme } from './theme/constants';
 import AnimatedThemeCanvas from './components/theme/AnimatedThemeCanvas';
-import { AlertCircle, RefreshCw, ChevronLeft, PanelLeftOpen } from 'lucide-react';
+import { AlertCircle, RefreshCw, ChevronLeft } from 'lucide-react';
 
 export default function App() {
   const [documents, setDocuments] = useState([]);
@@ -39,7 +44,6 @@ export default function App() {
   const [isThemeModalOpen, setIsThemeModalOpen] = useState(false);
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [isBrainModalOpen, setIsBrainModalOpen] = useState(false);
-  const [isWorkspaceLibraryOpen, setIsWorkspaceLibraryOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authModalMode, setAuthModalMode] = useState('login');
 
@@ -90,9 +94,11 @@ export default function App() {
   // Literature review generated content handler
   const [reviewTriggerMessage, setReviewTriggerMessage] = useState(null);
 
-  // Workspaces state synced from backend & fallback to localStorage
+  // Workspaces & Sessions state
   const [workspaces, setWorkspaces] = useState([]);
+  const [standaloneChats, setStandaloneChats] = useState([]);
   const [activeWorkspaceId, setActiveWorkspaceId] = useState(null);
+  const [activeSessionId, setActiveSessionId] = useState(null);
 
   // Assisted Academic Document Writer State (FR-13)
   const [isWriterOpen, setIsWriterOpen] = useState(false);
@@ -114,8 +120,8 @@ export default function App() {
       setIsWriterOpen(true);
       setIsWriterFullscreen(false);
       setActivePdf(null);
-      if (activeWorkspaceId) {
-        setOpenedWriterSessions((prev) => new Set(prev).add(activeWorkspaceId));
+      if (activeSessionId) {
+        setOpenedWriterSessions((prev) => new Set(prev).add(activeSessionId));
       }
     } else {
       setIsWriterOpen(false);
@@ -124,10 +130,10 @@ export default function App() {
   };
 
   const handleDismissWriterBadge = () => {
-    if (activeWorkspaceId) {
+    if (activeSessionId) {
       setOpenedWriterSessions((prev) => {
         const next = new Set(prev);
-        next.delete(activeWorkspaceId);
+        next.delete(activeSessionId);
         return next;
       });
     }
@@ -141,24 +147,48 @@ export default function App() {
       const user = await getCurrentUser();
       setCurrentUser(user);
 
-      const backendSessions = await getChatSessions();
-      
-      const mappedWorkspaces = (backendSessions || []).map((session) => ({
-        id: session.id,
-        name: session.title,
-        documents: Array.isArray(session.doc_names) ? session.doc_names : [],
-        createdAt: session.created_at,
-      }));
+      const [fetchedWorkspaces, fetchedStandalone] = await Promise.all([
+        getWorkspacesAPI(),
+        getChatSessions(true),
+      ]);
 
-      setWorkspaces(mappedWorkspaces);
+      const wsList = fetchedWorkspaces || [];
+      const standList = fetchedStandalone || [];
 
-      if (mappedWorkspaces.length > 0) {
-        const savedId = localStorage.getItem('scholarsmate_active_id');
-        const activeExists = mappedWorkspaces.some((ws) => ws.id === savedId);
-        const selectedId = activeExists ? savedId : mappedWorkspaces[0].id;
-        setActiveWorkspaceId(selectedId);
+      setWorkspaces(wsList);
+      setStandaloneChats(standList);
+
+      // Reconcile saved active workspace & chat session
+      const savedWsId = localStorage.getItem('scholarsmate_active_workspace_id');
+      const savedSessionId = localStorage.getItem('scholarsmate_active_session_id');
+
+      const matchedWs = wsList.find((w) => w.id === savedWsId);
+      if (matchedWs) {
+        setActiveWorkspaceId(matchedWs.id);
+        const matchedChat = (matchedWs.chats || []).find((c) => c.id === savedSessionId);
+        if (matchedChat) {
+          setActiveSessionId(matchedChat.id);
+        } else if (matchedWs.chats && matchedWs.chats.length > 0) {
+          setActiveSessionId(matchedWs.chats[0].id);
+        } else {
+          setActiveSessionId(null);
+        }
       } else {
-        setActiveWorkspaceId(null);
+        const matchedStandalone = standList.find((s) => s.id === savedSessionId);
+        if (matchedStandalone) {
+          setActiveWorkspaceId(null);
+          setActiveSessionId(matchedStandalone.id);
+        } else if (wsList.length > 0) {
+          const firstWs = wsList[0];
+          setActiveWorkspaceId(firstWs.id);
+          setActiveSessionId(firstWs.chats?.[0]?.id || null);
+        } else if (standList.length > 0) {
+          setActiveWorkspaceId(null);
+          setActiveSessionId(standList[0].id);
+        } else {
+          setActiveWorkspaceId(null);
+          setActiveSessionId(null);
+        }
       }
     } catch {
       // Graceful offline fallback
@@ -191,15 +221,21 @@ export default function App() {
 
   useEffect(() => {
     if (activeWorkspaceId) {
-      localStorage.setItem('scholarsmate_active_id', activeWorkspaceId);
+      localStorage.setItem('scholarsmate_active_workspace_id', activeWorkspaceId);
     } else {
-      localStorage.removeItem('scholarsmate_active_id');
+      localStorage.removeItem('scholarsmate_active_workspace_id');
     }
-  }, [activeWorkspaceId]);
+    if (activeSessionId) {
+      localStorage.setItem('scholarsmate_active_session_id', activeSessionId);
+    } else {
+      localStorage.removeItem('scholarsmate_active_session_id');
+    }
+  }, [activeWorkspaceId, activeSessionId]);
 
   // Handle Google OAuth login or logout
   const handleAuthChange = async () => {
     setActiveWorkspaceId(null);
+    setActiveSessionId(null);
     setActivePdf(null);
     await syncUserData();
     await fetchDocs();
@@ -214,7 +250,7 @@ export default function App() {
 
   // Scoped documents: Workspace documents + any actively attached selectedDocs
   const scopedDocuments = useMemo(() => {
-    const activeDocNames = activeWorkspace?.documents || [];
+    const activeDocNames = activeWorkspace?.doc_names || [];
     const combinedSet = new Set([...activeDocNames, ...selectedDocs]);
     if (combinedSet.size === 0) return [];
 
@@ -224,10 +260,10 @@ export default function App() {
     );
   }, [documents, activeWorkspace, selectedDocs]);
 
-  // Strict Selection: Clear selected docs if no active workspace is selected
+  // Strict Selection: Sync selected docs with active workspace documents
   useEffect(() => {
-    if (activeWorkspace && activeWorkspace.documents) {
-      setSelectedDocs(activeWorkspace.documents);
+    if (activeWorkspace && activeWorkspace.doc_names) {
+      setSelectedDocs(activeWorkspace.doc_names);
     } else {
       setSelectedDocs([]);
     }
@@ -242,7 +278,7 @@ export default function App() {
           ws.id === activeWorkspaceId
             ? {
                 ...ws,
-                documents: Array.from(new Set([...(ws.documents || []), ...namesArray])),
+                doc_names: Array.from(new Set([...(ws.doc_names || []), ...namesArray])),
               }
             : ws
         )
@@ -252,55 +288,197 @@ export default function App() {
 
   const [targetMessageIndex, setTargetMessageIndex] = useState(null);
 
-  const handleWorkspaceCreated = async (newWorkspace) => {
+  const handleWorkspaceCreated = async (newWsData) => {
     await syncUserData();
-    if (newWorkspace?.id) {
-      setActiveWorkspaceId(newWorkspace.id);
+    if (newWsData?.workspace_id) {
+      setActiveWorkspaceId(newWsData.workspace_id);
+      setActiveSessionId(newWsData.session_id || null);
     }
     await fetchDocs();
   };
 
-  const handleSelectWorkspace = (workspaceOrId, messageIndex = null) => {
-    const wsObj = typeof workspaceOrId === 'object' && workspaceOrId !== null
-      ? workspaceOrId
-      : workspaces.find((w) => w.id === workspaceOrId);
-
-    const targetId = wsObj ? wsObj.id : (typeof workspaceOrId === 'string' ? workspaceOrId : null);
-    if (!targetId) return;
-
+  const handleSelectWorkspaceChat = (workspaceId, sessionId, messageIndex = null) => {
     if (messageIndex !== null && messageIndex !== undefined) {
       setTargetMessageIndex(messageIndex);
     } else {
       setTargetMessageIndex(null);
     }
 
-    setActiveWorkspaceId(targetId);
-    if (wsObj?.documents && wsObj.documents.length > 0) {
-      setSelectedDocs(wsObj.documents);
+    setActiveWorkspaceId(workspaceId);
+    setActiveSessionId(sessionId);
+
+    const wsObj = workspaces.find((w) => w.id === workspaceId);
+    if (wsObj?.doc_names && wsObj.doc_names.length > 0) {
+      setSelectedDocs(wsObj.doc_names);
     } else {
       setSelectedDocs([]);
     }
   };
 
-  const handleDeleteWorkspace = async (id) => {
+  const handleSelectStandaloneChat = (sessionId, messageIndex = null) => {
+    if (messageIndex !== null && messageIndex !== undefined) {
+      setTargetMessageIndex(messageIndex);
+    } else {
+      setTargetMessageIndex(null);
+    }
+
+    setActiveWorkspaceId(null);
+    setActiveSessionId(sessionId);
+    setSelectedDocs([]);
+  };
+
+  const handleAddWorkspaceChat = async (workspaceId) => {
+    const ws = workspaces.find((w) => w.id === workspaceId);
+    if (!ws) return;
+    const currentChats = ws.chats || [];
+    if (currentChats.length >= 3) {
+      alert('Maximum 3 chats allowed per workspace.');
+      return;
+    }
+
     try {
-      await deleteChatSession(id);
-      const updated = workspaces.filter((ws) => ws.id !== id);
+      const nextChatNum = currentChats.length + 1;
+      const newChat = await createWorkspaceChatAPI(workspaceId, `Chat ${nextChatNum}`);
+      setWorkspaces((prev) =>
+        prev.map((w) =>
+          w.id === workspaceId
+            ? { ...w, chats: [...(w.chats || []), newChat] }
+            : w
+        )
+      );
+      setActiveWorkspaceId(workspaceId);
+      setActiveSessionId(newChat.id);
+    } catch (err) {
+      console.error('Failed to add chat to workspace:', err);
+      alert(err.response?.data?.detail || 'Failed to create chat in workspace.');
+    }
+  };
+
+  const handleDeleteWorkspace = async (workspaceId) => {
+    if (!window.confirm('Delete this workspace and all its chats?')) return;
+    try {
+      await deleteWorkspaceAPI(workspaceId);
+      const updated = workspaces.filter((ws) => ws.id !== workspaceId);
       setWorkspaces(updated);
-      if (activeWorkspaceId === id) {
-        setActiveWorkspaceId(updated.length > 0 ? updated[0].id : null);
+      if (activeWorkspaceId === workspaceId) {
+        if (updated.length > 0) {
+          setActiveWorkspaceId(updated[0].id);
+          setActiveSessionId(updated[0].chats?.[0]?.id || null);
+        } else if (standaloneChats.length > 0) {
+          setActiveWorkspaceId(null);
+          setActiveSessionId(standaloneChats[0].id);
+        } else {
+          setActiveWorkspaceId(null);
+          setActiveSessionId(null);
+        }
       }
-    } catch {
-      // Graceful error handling
+    } catch (err) {
+      console.error('Failed to delete workspace:', err);
+    }
+  };
+
+  const handleDeleteChat = async (sessionId, workspaceId = null) => {
+    if (!window.confirm('Delete this chat thread?')) return;
+    try {
+      await deleteChatSession(sessionId);
+      if (workspaceId) {
+        setWorkspaces((prev) =>
+          prev.map((w) => {
+            if (w.id === workspaceId) {
+              const remaining = (w.chats || []).filter((c) => c.id !== sessionId);
+              return { ...w, chats: remaining };
+            }
+            return w;
+          })
+        );
+        if (activeSessionId === sessionId) {
+          const currentWs = workspaces.find((w) => w.id === workspaceId);
+          const otherChat = (currentWs?.chats || []).find((c) => c.id !== sessionId);
+          if (otherChat) {
+            setActiveSessionId(otherChat.id);
+          } else {
+            setActiveSessionId(null);
+          }
+        }
+      } else {
+        const updated = standaloneChats.filter((s) => s.id !== sessionId);
+        setStandaloneChats(updated);
+        if (activeSessionId === sessionId) {
+          setActiveSessionId(updated.length > 0 ? updated[0].id : null);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to delete chat:', err);
+    }
+  };
+
+  const handleRenameWorkspace = async (workspaceId, newName) => {
+    if (!newName || !newName.trim()) return;
+    try {
+      await renameWorkspaceAPI(workspaceId, newName.trim());
+      setWorkspaces((prev) =>
+        prev.map((w) => (w.id === workspaceId ? { ...w, name: newName.trim() } : w))
+      );
+    } catch (err) {
+      console.error('Failed to rename workspace:', err);
+    }
+  };
+
+  const handleRenameChat = async (sessionId, newTitle, workspaceId = null) => {
+    if (!newTitle || !newTitle.trim()) return;
+    try {
+      await renameChatSessionAPI(sessionId, newTitle.trim());
+      if (workspaceId) {
+        setWorkspaces((prev) =>
+          prev.map((w) => {
+            if (w.id === workspaceId) {
+              return {
+                ...w,
+                chats: (w.chats || []).map((c) =>
+                  c.id === sessionId ? { ...c, title: newTitle.trim() } : c
+                ),
+              };
+            }
+            return w;
+          })
+        );
+      } else {
+        setStandaloneChats((prev) =>
+          prev.map((s) =>
+            s.id === sessionId ? { ...s, title: newTitle.trim() } : s
+          )
+        );
+      }
+    } catch (err) {
+      console.error('Failed to rename chat:', err);
+    }
+  };
+
+  const handleAddPapersToWorkspace = async (workspaceId, files) => {
+    if (!files || files.length === 0) return;
+    try {
+      const res = await addPapersToWorkspace(workspaceId, files);
+      await fetchDocs();
+      if (res && res.doc_names) {
+        setWorkspaces((prev) =>
+          prev.map((w) => (w.id === workspaceId ? { ...w, doc_names: res.doc_names } : w))
+        );
+        if (activeWorkspaceId === workspaceId) {
+          setSelectedDocs(res.doc_names);
+        }
+      } else {
+        await syncUserData();
+      }
+    } catch (err) {
+      console.error('Failed to add papers to workspace:', err);
+      alert(err.response?.data?.detail || 'Failed to upload papers.');
     }
   };
 
   const handleDeleteCurrentChat = async () => {
-    if (activeWorkspaceId) {
-      if (window.confirm('Are you sure you want to delete this chat?')) {
-        await handleDeleteWorkspace(activeWorkspaceId);
-        window.dispatchEvent(new CustomEvent('scholarsmate:clear-chat'));
-      }
+    if (activeSessionId) {
+      await handleDeleteChat(activeSessionId, activeWorkspaceId);
+      window.dispatchEvent(new CustomEvent('scholarsmate:clear-chat'));
     } else {
       if (window.confirm('Clear all messages in this chat?')) {
         window.dispatchEvent(new CustomEvent('scholarsmate:clear-chat'));
@@ -310,15 +488,15 @@ export default function App() {
 
   const handleNewChat = () => {
     setActiveWorkspaceId(null);
+    setActiveSessionId(null);
     setSelectedDocs([]);
     setActivePdf(null);
     setIsWriterOpen(false);
-    localStorage.removeItem('scholarsmate_active_id');
     window.dispatchEvent(new CustomEvent('scholarsmate:clear-chat'));
   };
 
   const handleSessionCreated = async (newSessionId) => {
-    setActiveWorkspaceId(newSessionId);
+    setActiveSessionId(newSessionId);
     await syncUserData();
   };
 
@@ -354,7 +532,7 @@ export default function App() {
         className="fixed inset-0 z-50 h-screen w-screen bg-[#121316] text-zinc-100 overflow-hidden font-sans select-text"
       >
         <DocumentWriter
-          sessionId={activeWorkspaceId}
+          sessionId={activeSessionId}
           documents={scopedDocuments}
           availableModels={discoveredModels}
           currentModel={currentModel}
@@ -398,13 +576,21 @@ export default function App() {
       {/* Background Animated Particles Engine (for Blaze & Aurora themes) */}
       <AnimatedThemeCanvas theme={currentTheme} />
 
-      {/* 1. Left Sidebar with Theme Switcher */}
+      {/* 1. Left Sidebar with Nested Workspaces (Max 3 Chats) and Standalone History */}
       <DocumentSidebar
         currentUser={currentUser}
         workspaces={workspaces}
+        standaloneChats={standaloneChats}
         activeWorkspaceId={activeWorkspaceId}
-        onSelectWorkspace={handleSelectWorkspace}
+        activeSessionId={activeSessionId}
+        onSelectWorkspaceChat={handleSelectWorkspaceChat}
+        onSelectStandaloneChat={handleSelectStandaloneChat}
+        onAddWorkspaceChat={handleAddWorkspaceChat}
         onDeleteWorkspace={handleDeleteWorkspace}
+        onDeleteChat={handleDeleteChat}
+        onRenameWorkspace={handleRenameWorkspace}
+        onRenameChat={handleRenameChat}
+        onAddPapersToWorkspace={handleAddPapersToWorkspace}
         onOpenCreateModal={() => setIsModalOpen(true)}
         onNewChat={handleNewChat}
         onOpenLitReview={() => setIsLitReviewOpen(true)}
@@ -417,7 +603,6 @@ export default function App() {
         onOpenProfileSettings={() => setIsProfileSettingsOpen(true)}
         onOpenThemeModal={() => setIsThemeModalOpen(true)}
         onOpenSearchModal={() => setIsSearchModalOpen(true)}
-        onOpenWorkspaceLibrary={() => setIsWorkspaceLibraryOpen(true)}
         isCollapsed={isSidebarCollapsed}
         onToggleCollapse={handleToggleSidebar}
       />
@@ -463,12 +648,13 @@ export default function App() {
               setSelectedDocs={setSelectedDocs}
               onSelectCitation={handleSelectCitation}
               incomingMessage={reviewTriggerMessage}
-              sessionId={activeWorkspaceId}
+              sessionId={activeSessionId}
+              workspaceId={activeWorkspaceId}
               availableModels={discoveredModels}
               currentModel={currentModel}
               onModelChange={handleModelChange}
               onOpenSettings={() => setIsSettingsOpen(true)}
-              hasWriterButton={activeWorkspaceId ? openedWriterSessions.has(activeWorkspaceId) && !isWriterOpen : false}
+              hasWriterButton={activeSessionId ? openedWriterSessions.has(activeSessionId) && !isWriterOpen : false}
               onToggleWriter={handleToggleWriter}
               onDismissWriterBadge={handleDismissWriterBadge}
               isSplitScreen={Boolean(activePdf || isWriterOpen)}
@@ -491,7 +677,7 @@ export default function App() {
           ) : (
             isWriterOpen && (
               <div className="w-1/2 h-full transition-all duration-300 relative overflow-visible">
-                {/* Floating Expand Arrow positioned cleanly over the chat window boundary without getting cut off */}
+                {/* Floating Expand Arrow positioned cleanly over the chat window boundary */}
                 <button
                   type="button"
                   onClick={() => setIsWriterFullscreen(true)}
@@ -502,8 +688,8 @@ export default function App() {
                 </button>
 
                 <DocumentWriter
-                  key={activeWorkspaceId || 'global-writer'}
-                  sessionId={activeWorkspaceId}
+                  key={activeSessionId || 'global-writer'}
+                  sessionId={activeSessionId}
                   documents={scopedDocuments}
                   availableModels={discoveredModels}
                   currentModel={currentModel}
@@ -562,7 +748,9 @@ export default function App() {
         isOpen={isSearchModalOpen}
         onClose={() => setIsSearchModalOpen(false)}
         workspaces={workspaces}
-        onSelectWorkspace={handleSelectWorkspace}
+        standaloneChats={standaloneChats}
+        onSelectWorkspace={handleSelectWorkspaceChat}
+        onSelectStandaloneChat={handleSelectStandaloneChat}
       />
 
       <BrainModal
@@ -570,25 +758,6 @@ export default function App() {
         onClose={() => setIsBrainModalOpen(false)}
         activeWorkspaceId={activeWorkspaceId}
         workspaces={workspaces}
-      />
-
-      <WorkspaceLibraryModal
-        isOpen={isWorkspaceLibraryOpen}
-        onClose={() => setIsWorkspaceLibraryOpen(false)}
-        workspaces={workspaces}
-        activeWorkspaceId={activeWorkspaceId}
-        onSelectWorkspace={handleSelectWorkspace}
-        onDeleteWorkspace={handleDeleteWorkspace}
-        onOpenCreateModal={() => setIsModalOpen(true)}
-        onRefreshWorkspaces={async () => {
-          await syncUserData();
-          await fetchDocs();
-        }}
-        onOpenPdfViewer={(docName, pageNum = 1) => {
-          setActivePdf(docName);
-          setTargetPage(pageNum);
-        }}
-        onToggleWriter={handleToggleWriter}
       />
 
       <AuthModal

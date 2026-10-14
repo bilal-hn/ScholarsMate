@@ -280,12 +280,16 @@ export const uploadFile = async (file) => {
 /**
  * Creates a new research workspace by uploading and processing multiple PDF files.
  * @param {FileList|Array<File>} files - List or FileList of PDF files.
+ * @param {string|null} [title=null] - Optional custom workspace title.
  */
-export const createWorkspace = async (files) => {
+export const createWorkspace = async (files, title = null) => {
   const formData = new FormData();
   Array.from(files).forEach((file) => {
     formData.append('files', file);
   });
+  if (title) {
+    formData.append('title', title);
+  }
   const { keys } = getSavedBYOKConfig();
   if (keys && Object.keys(keys).length > 0) {
     formData.append('custom_keys', JSON.stringify(keys));
@@ -378,6 +382,112 @@ export const getWorkspacePapers = async (sessionId) => {
   }
 };
 
+/**
+ * Retrieves all workspaces with their nested child chat sessions (up to 3).
+ */
+export const getWorkspacesAPI = async () => {
+  try {
+    const response = await apiClient.get('/workspaces');
+    return response.data || [];
+  } catch (error) {
+    console.error('Failed to fetch workspaces:', error.response?.data || error.message);
+    return [];
+  }
+};
+
+/**
+ * Creates a new chat session inside an existing workspace (enforcing max 3 chats).
+ * @param {string} workspaceId
+ * @param {string|null} [title=null]
+ */
+export const createWorkspaceChatAPI = async (workspaceId, title = null) => {
+  try {
+    const response = await apiClient.post(`/workspaces/${workspaceId}/chats`, { title });
+    return response.data;
+  } catch (error) {
+    console.error('Failed to create workspace chat:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+/**
+ * Renames an existing workspace.
+ * @param {string} workspaceId
+ * @param {string} newName
+ */
+export const renameWorkspaceAPI = async (workspaceId, newName) => {
+  try {
+    const response = await apiClient.patch(`/workspaces/${workspaceId}/rename`, { name: newName });
+    return response.data;
+  } catch (error) {
+    console.error('Failed to rename workspace:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+/**
+ * Renames an existing chat session.
+ * @param {string} sessionId
+ * @param {string} newTitle
+ */
+export const renameChatSessionAPI = async (sessionId, newTitle) => {
+  try {
+    const response = await apiClient.patch(`/sessions/${sessionId}/rename`, { title: newTitle });
+    return response.data;
+  } catch (error) {
+    console.error('Failed to rename chat session:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+/**
+ * Deletes a workspace and all its child chat sessions.
+ * @param {string} workspaceId
+ */
+export const deleteWorkspaceAPI = async (workspaceId) => {
+  try {
+    const response = await apiClient.delete(`/workspaces/${workspaceId}`);
+    return response.data;
+  } catch (error) {
+    console.error('Failed to delete workspace:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+/**
+ * Retrieves atomic context points / memories recorded in other chats of the same workspace.
+ * @param {string} workspaceId
+ * @param {string|null} [excludeSessionId=null]
+ */
+export const getWorkspaceContextPointsAPI = async (workspaceId, excludeSessionId = null) => {
+  try {
+    const response = await apiClient.get(`/workspaces/${workspaceId}/context-points`, {
+      params: excludeSessionId ? { exclude_session_id: excludeSessionId } : {},
+    });
+    return response.data?.context_points || [];
+  } catch (error) {
+    console.error('Failed to fetch workspace context points:', error);
+    return [];
+  }
+};
+
+/**
+ * Pulls selected context points into target session as active memories.
+ * @param {string} sessionId
+ * @param {Array<string>} memoryIds
+ */
+export const importContextPointsAPI = async (sessionId, memoryIds) => {
+  try {
+    const response = await apiClient.post(`/sessions/${sessionId}/import-context`, {
+      memory_ids: memoryIds,
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Failed to import context points:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
 
 /**
  * Generates a structured multi-paper literature review using active keys and user filters.
@@ -455,10 +565,13 @@ export const createChatSession = async (title = 'New Research Chat', docNames = 
 
 /**
  * Retrieves all saved chat sessions ordered by latest update.
+ * @param {boolean} [standaloneOnly=false] - Whether to filter only standalone sessions (not attached to a workspace).
  */
-export const getChatSessions = async () => {
+export const getChatSessions = async (standaloneOnly = false) => {
   try {
-    const response = await apiClient.get('/sessions');
+    const response = await apiClient.get('/sessions', {
+      params: standaloneOnly ? { standalone_only: true } : {},
+    });
     return response.data;
   } catch (error) {
     return [];
@@ -612,6 +725,7 @@ export const extractImageDataAPI = async (file) => {
  * @param {string} [mode="research"] - Active academic reasoning lens.
  * @param {string|null} [customPromptDirective=null] - Optional custom prompt directive.
  * @param {Array<Object>|null} [attachedImages=null] - List of attached images with extracted data.
+ * @param {string|null} [workspaceId=null] - Optional Workspace ID for scoping brain memories and documents.
  */
 export const sendQuery = async (
   query,
@@ -622,7 +736,8 @@ export const sendQuery = async (
   modelName = null,
   mode = 'research',
   customPromptDirective = null,
-  attachedImages = null
+  attachedImages = null,
+  workspaceId = null
 ) => {
   const formattedHistory = Array.isArray(chatHistory)
     ? chatHistory.slice(-6).map((msg) => ({
@@ -638,11 +753,16 @@ export const sendQuery = async (
     throw new Error('No active model selected. Please add an API key in Settings first.');
   }
 
+  // Read Brain enabled state from localStorage (set by BrainModal toggle)
+  let brainEnabled = true;
+  try { brainEnabled = localStorage.getItem('brain_enabled') !== 'false'; } catch {}
+
   try {
     const response = await apiClient.post('/query', {
       query: query,
       doc_names: docNames && docNames.length > 0 ? docNames : null,
       session_id: sessionId || null,
+      workspace_id: workspaceId || null,
       chat_history: formattedHistory,
       top_k: topK,
       model_name: selectedModel,
@@ -650,6 +770,7 @@ export const sendQuery = async (
       mode: mode || 'research',
       custom_prompt_directive: customPromptDirective || null,
       attached_images: attachedImages && attachedImages.length > 0 ? attachedImages : null,
+      brain_enabled: brainEnabled,
     });
     return response.data;
   } catch (error) {

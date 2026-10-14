@@ -44,6 +44,14 @@ from backend.api.schemas import (
     DocumentListItem,
     ChatSessionResponse,
     ChatSessionDetailResponse,
+    WorkspaceResponse,
+    CreateWorkspaceRequest,
+    RenameWorkspaceRequest,
+    CreateWorkspaceChatRequest,
+    WorkspaceChatSummary,
+    ContextPointItem,
+    ContextPointsResponse,
+    ImportContextRequest,
     FetchModelsRequest,
     ModelItem,
     DraftSaveRequest,
@@ -531,11 +539,12 @@ async def update_session_mode_endpoint(
 
 @app.get("/api/sessions", response_model=List[ChatSessionResponse])
 async def list_sessions(
+    standalone_only: bool = False,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Lists historical chat sessions belonging exclusively to current user."""
-    return await crud.get_all_sessions(db, user_id=current_user.id)
+    return await crud.get_all_sessions(db, user_id=current_user.id, standalone_only=standalone_only)
 
 
 @app.get("/api/sessions/{session_id}", response_model=ChatSessionDetailResponse)
@@ -644,8 +653,17 @@ async def query_rag(
                 for msg in (request.chat_history or [])
             ]
 
-        # 4. Fetch Brain Context (learned research preferences, profile & workspace findings)
-        brain_context = await build_brain_context(db, user_id=current_user.id, workspace_id=session_id)
+        # 4. Resolve Workspace Scope & Fetch Brain Context
+        effective_workspace_id = getattr(request, "workspace_id", None)
+        if session_exists and current_session and getattr(current_session, "workspace_id", None):
+            effective_workspace_id = current_session.workspace_id
+
+        brain_context = await build_brain_context(
+            db, 
+            user_id=current_user.id, 
+            workspace_id=effective_workspace_id,
+            session_id=session_id
+        )
 
         # 5. Generate answer via RAG Pipeline (with mode lens + Brain context + FR-11 instant summary cache hit)
         start_time = time.perf_counter()
@@ -710,7 +728,7 @@ async def query_rag(
         is_brain_sync_turn = (turn_number == 3) or (
             turn_number > 3 and (turn_number - 3) % 5 == 0
         )
-        if is_brain_sync_turn:
+        if is_brain_sync_turn and getattr(request, 'brain_enabled', True):
             # Pass the last 10 raw messages (5 turns) as the consolidation window
             recent_window_msgs = db_messages[-8:]  # fetch before-save slice
             # Append the current turn manually since it's already committed
@@ -727,6 +745,7 @@ async def query_rag(
                 dialogue_window=recent_window_msgs_dicts,
                 model_name=request.model_name,
                 custom_keys=request.custom_keys,
+                workspace_id=effective_workspace_id,
             )
 
         return QueryResponse(
@@ -862,6 +881,7 @@ async def extract_image_endpoint(
 @app.post("/api/workspace/create")
 async def create_workspace(
     files: List[UploadFile] = File(...),
+    title: Optional[str] = Form(None),
     custom_keys: Optional[str] = Form(None),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
@@ -925,10 +945,11 @@ async def create_workspace(
     user_sessions = await crud.get_all_sessions(db, user_id=current_user.id)
     
     matching_workspaces_count = 0
-    for session in user_sessions:
-        session_docs = getattr(session, "doc_names", None)
-        if session_docs and isinstance(session_docs, list):
-            if sorted(session_docs) == target_docs_sorted:
+    user_workspaces = await crud.get_user_workspaces(db, user_id=current_user.id)
+    for ws in user_workspaces:
+        ws_docs = getattr(ws, "doc_names", None)
+        if ws_docs and isinstance(ws_docs, list):
+            if sorted(ws_docs) == target_docs_sorted:
                 matching_workspaces_count += 1
 
     if matching_workspaces_count >= 3:
@@ -940,11 +961,12 @@ async def create_workspace(
             )
         )
 
-    # Register session scoped to user
+    # Register workspace and auto-initialize first chat (Chat 1)
     default_title = f"{Path(processed_files[0]).stem} Workspace" if len(processed_files) == 1 else f"{len(processed_files)} Papers Workspace"
-    new_session = await crud.create_chat_session(
+    chosen_title = title.strip() if title and title.strip() else default_title
+    workspace, first_chat = await crud.create_workspace(
         db, 
-        title=default_title, 
+        name=chosen_title, 
         doc_names=target_docs_sorted, 
         user_id=current_user.id
     )
@@ -953,10 +975,152 @@ async def create_workspace(
         "message": f"Workspace created with {len(processed_files)} document(s).",
         "filename": ", ".join(processed_files),
         "chunks_processed": total_chunks,
-        "session_id": new_session.id,
-        "title": new_session.title,
+        "workspace_id": workspace.id,
+        "session_id": first_chat.id,
+        "title": workspace.name,
         "doc_names": target_docs_sorted,
     }
+
+
+# =============================================================================
+# WORKSPACE & CHAT HIERARCHY ENDPOINTS
+# =============================================================================
+
+@app.get("/api/workspaces", response_model=List[WorkspaceResponse])
+async def list_workspaces_endpoint(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Lists all workspaces belonging to user along with up to 3 child chats each."""
+    workspaces = await crud.get_user_workspaces(db, user_id=current_user.id)
+    resp = []
+    for ws in workspaces:
+        chats_summary = [
+            WorkspaceChatSummary(
+                id=s.id,
+                workspace_id=ws.id,
+                title=s.title,
+                active_mode=getattr(s, "active_mode", "research") or "research",
+                created_at=s.created_at,
+                updated_at=s.updated_at
+            )
+            for s in (ws.sessions or [])
+        ]
+        resp.append(WorkspaceResponse(
+            id=ws.id,
+            name=ws.name,
+            doc_names=ws.doc_names or [],
+            chats=chats_summary,
+            created_at=ws.created_at,
+            updated_at=ws.updated_at
+        ))
+    return resp
+
+
+@app.post("/api/workspaces/{workspace_id}/chats", response_model=ChatSessionResponse)
+async def add_chat_to_workspace_endpoint(
+    workspace_id: str,
+    req: Optional[CreateWorkspaceChatRequest] = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Creates a new chat session inside an existing workspace (enforcing max 3 chats limit)."""
+    title = req.title if req else None
+    try:
+        new_chat = await crud.add_chat_to_workspace(
+            db, 
+            workspace_id=workspace_id, 
+            user_id=current_user.id,
+            title=title
+        )
+        return new_chat
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.patch("/api/workspaces/{workspace_id}/rename")
+async def rename_workspace_endpoint(
+    workspace_id: str,
+    req: RenameWorkspaceRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Renames an existing workspace."""
+    if not req.name.strip():
+        raise HTTPException(status_code=400, detail="Workspace name cannot be empty.")
+
+    ws = await crud.rename_workspace(db, workspace_id=workspace_id, new_name=req.name.strip(), user_id=current_user.id)
+    if not ws:
+        raise HTTPException(status_code=404, detail="Workspace not found or unauthorized.")
+
+    return {
+        "message": "Workspace renamed successfully.",
+        "id": ws.id,
+        "name": ws.name,
+    }
+
+
+@app.delete("/api/workspaces/{workspace_id}")
+async def delete_workspace_endpoint(
+    workspace_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Deletes a workspace and all its child chat sessions."""
+    deleted = await crud.delete_workspace(db, workspace_id=workspace_id, user_id=current_user.id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Workspace not found or unauthorized.")
+
+    return {"message": "Workspace deleted successfully."}
+
+
+@app.get("/api/workspaces/{workspace_id}/context-points", response_model=ContextPointsResponse)
+async def get_workspace_context_points_endpoint(
+    workspace_id: str,
+    exclude_session_id: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Retrieves verified atomic context points / memories recorded in other chats of the same workspace.
+    Allows a new chat to optionally pull verified insights without expensive LLM re-extraction.
+    """
+    points = await crud.get_workspace_context_points(
+        db,
+        workspace_id=workspace_id,
+        exclude_session_id=exclude_session_id,
+        user_id=current_user.id
+    )
+    return ContextPointsResponse(
+        workspace_id=workspace_id,
+        context_points=[ContextPointItem(**p) for p in points]
+    )
+
+
+@app.post("/api/sessions/{session_id}/import-context")
+async def import_context_points_endpoint(
+    session_id: str,
+    req: ImportContextRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Pulls chosen context points into the target session as active memories.
+    Does NOT invoke any LLM calls — 100% cheap local database cloning.
+    """
+    try:
+        imported = await crud.import_context_points(
+            db,
+            target_session_id=session_id,
+            memory_ids=req.memory_ids,
+            user_id=current_user.id
+        )
+        return {
+            "message": f"Successfully imported {len(imported)} context point(s).",
+            "imported_count": len(imported)
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
 
 # =============================================================================
@@ -964,6 +1128,7 @@ async def create_workspace(
 # =============================================================================
 
 @app.post("/api/workspace/{session_id}/papers")
+@app.post("/api/workspaces/{session_id}/papers")
 async def add_papers_to_workspace(
     session_id: str,
     files: List[UploadFile] = File(...),
@@ -972,10 +1137,13 @@ async def add_papers_to_workspace(
     db: AsyncSession = Depends(get_db)
 ):
     """Adds and indexes additional PDF research papers into an existing workspace."""
-    user_sessions = await crud.get_all_sessions(db, user_id=current_user.id)
-    session = next((s for s in user_sessions if s.id == session_id), None)
-    if not session:
-        raise HTTPException(status_code=404, detail="Workspace not found or unauthorized.")
+    ws = await crud.get_workspace_by_id(db, session_id, user_id=current_user.id)
+    session = None
+    if not ws:
+        user_sessions = await crud.get_all_sessions(db, user_id=current_user.id)
+        session = next((s for s in user_sessions if s.id == session_id), None)
+        if not session:
+            raise HTTPException(status_code=404, detail="Workspace not found or unauthorized.")
 
     # Parse BYOK custom_keys once for all files in this batch
     keys_dict = {}
@@ -1020,18 +1188,30 @@ async def add_papers_to_workspace(
         raise HTTPException(status_code=400, detail="No valid readable PDF files were processed.")
 
     await db.commit()
-    updated_session = await crud.add_documents_to_session(db, session_id, processed_files, user_id=current_user.id)
-    
-    return {
-        "message": f"Added {len(processed_files)} document(s) to workspace.",
-        "session_id": session_id,
-        "title": updated_session.title if updated_session else session.title,
-        "doc_names": updated_session.doc_names if updated_session else [],
-        "chunks_processed": total_chunks,
-    }
+
+    if ws:
+        updated_ws = await crud.add_documents_to_workspace(db, session_id, processed_files, user_id=current_user.id)
+        return {
+            "message": f"Added {len(processed_files)} document(s) to workspace.",
+            "workspace_id": session_id,
+            "session_id": session_id,
+            "title": updated_ws.name if updated_ws else ws.name,
+            "doc_names": updated_ws.doc_names if updated_ws else [],
+            "chunks_processed": total_chunks,
+        }
+    else:
+        updated_session = await crud.add_documents_to_session(db, session_id, processed_files, user_id=current_user.id)
+        return {
+            "message": f"Added {len(processed_files)} document(s) to workspace.",
+            "session_id": session_id,
+            "title": updated_session.title if updated_session else session.title,
+            "doc_names": updated_session.doc_names if updated_session else [],
+            "chunks_processed": total_chunks,
+        }
 
 
 @app.delete("/api/workspace/{session_id}/papers/{doc_name}")
+@app.delete("/api/workspaces/{session_id}/papers/{doc_name}")
 async def remove_paper_from_workspace(
     session_id: str,
     doc_name: str,
@@ -1039,27 +1219,47 @@ async def remove_paper_from_workspace(
     db: AsyncSession = Depends(get_db)
 ):
     """Removes a single document from an existing workspace."""
-    updated_session = await crud.remove_document_from_session(db, session_id, doc_name, user_id=current_user.id)
-    if not updated_session:
-        raise HTTPException(status_code=404, detail="Workspace not found or document not in workspace.")
+    ws = await crud.get_workspace_by_id(db, session_id, user_id=current_user.id)
+    if ws:
+        updated_ws = await crud.remove_document_from_workspace(db, session_id, doc_name, user_id=current_user.id)
+        return {
+            "message": f"Document '{doc_name}' removed from workspace.",
+            "workspace_id": session_id,
+            "session_id": session_id,
+            "doc_names": updated_ws.doc_names if updated_ws else [],
+        }
+    else:
+        updated_session = await crud.remove_document_from_session(db, session_id, doc_name, user_id=current_user.id)
+        if not updated_session:
+            raise HTTPException(status_code=404, detail="Workspace not found or document not in workspace.")
 
-    return {
-        "message": f"Document '{doc_name}' removed from workspace.",
-        "session_id": session_id,
-        "doc_names": updated_session.doc_names,
-    }
+        return {
+            "message": f"Document '{doc_name}' removed from workspace.",
+            "session_id": session_id,
+            "doc_names": updated_session.doc_names,
+        }
 
 
 @app.patch("/api/workspace/{session_id}/rename")
-async def rename_workspace_endpoint(
+@app.patch("/api/sessions/{session_id}/rename")
+async def rename_workspace_endpoint_legacy(
     session_id: str,
     req: RenameSessionRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Renames an existing workspace title."""
+    """Renames an existing workspace title (legacy compatibility)."""
     if not req.title.strip():
         raise HTTPException(status_code=400, detail="Title cannot be empty.")
+
+    ws = await crud.get_workspace_by_id(db, session_id, user_id=current_user.id)
+    if ws:
+        updated_ws = await crud.rename_workspace(db, session_id, req.title.strip(), user_id=current_user.id)
+        return {
+            "message": "Workspace renamed successfully.",
+            "session_id": session_id,
+            "title": updated_ws.name if updated_ws else ws.name,
+        }
 
     updated_session = await crud.rename_session(db, session_id, req.title.strip(), user_id=current_user.id)
     if not updated_session:
@@ -1073,18 +1273,26 @@ async def rename_workspace_endpoint(
 
 
 @app.get("/api/workspace/{session_id}/papers")
+@app.get("/api/workspaces/{session_id}/papers")
 async def get_workspace_papers_endpoint(
     session_id: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
     """Retrieves full paper catalog and bibliographic metadata for a specific workspace."""
-    user_sessions = await crud.get_all_sessions(db, user_id=current_user.id)
-    session = next((s for s in user_sessions if s.id == session_id), None)
-    if not session:
-        raise HTTPException(status_code=404, detail="Workspace not found or unauthorized.")
-
-    doc_names = list(session.doc_names or [])
+    ws = await crud.get_workspace_by_id(db, session_id, user_id=current_user.id)
+    doc_names = []
+    title = ""
+    if ws:
+        doc_names = list(ws.doc_names or [])
+        title = ws.name
+    else:
+        user_sessions = await crud.get_all_sessions(db, user_id=current_user.id)
+        session = next((s for s in user_sessions if s.id == session_id), None)
+        if not session:
+            raise HTTPException(status_code=404, detail="Workspace not found or unauthorized.")
+        doc_names = list(session.doc_names or [])
+        title = session.title
     papers = []
 
     for name in doc_names:

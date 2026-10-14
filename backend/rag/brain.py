@@ -66,15 +66,16 @@ def _is_similar(a: str, b: str, threshold: float = 0.72) -> bool:
 async def build_brain_context(
     db: AsyncSession,
     user_id: str,
-    workspace_id: Optional[str] = None
+    workspace_id: Optional[str] = None,
+    session_id: Optional[str] = None
 ) -> str:
     """
     Retrieves active brain memories and formats them into a compact context block
     for the RAG system prompt.
 
     Injection tiers:
-    - Profile / Preference / Directive → always injected (identity + output style)
-    - Insight / Milestone              → only injected when workspace_id is set
+    - Profile / Preference / Directive → always injected (identity + output style, max 5)
+    - Insight / Milestone              → only injected for active chat/workspace context (max 5)
     """
     if not user_id:
         return ""
@@ -84,6 +85,7 @@ async def build_brain_context(
             db,
             user_id=user_id,
             workspace_id=workspace_id,
+            session_id=session_id,
             active_only=True
         )
     except Exception as e:
@@ -99,16 +101,16 @@ async def build_brain_context(
         if m.scope == "global" and m.category in _ALWAYS_INJECT_CATEGORIES
     ][:5]
 
-    workspace_conditional = []
-    if workspace_id:
-        workspace_conditional = [
+    chat_conditional = []
+    if session_id or workspace_id:
+        chat_conditional = [
             m for m in memories
             if m.scope == "workspace"
-            and m.workspace_id == workspace_id
+            and (m.session_id == session_id or (session_id is None and m.workspace_id == workspace_id))
             and m.category in _WORKSPACE_INJECT_CATEGORIES
         ][:5]
 
-    all_injected = global_core + workspace_conditional
+    all_injected = global_core + chat_conditional
     if not all_injected:
         return ""
 
@@ -122,7 +124,8 @@ async def consolidate_batch_memories_async(
     session_id: Optional[str],
     dialogue_window: List[Dict],
     model_name: Optional[str] = None,
-    custom_keys: Optional[Dict[str, str]] = None
+    custom_keys: Optional[Dict[str, str]] = None,
+    workspace_id: Optional[str] = None
 ):
     """
     Periodic background worker: extracts durable memories from a multi-turn
@@ -246,7 +249,8 @@ async def consolidate_batch_memories_async(
                         thought=thought,
                         scope=scope,
                         category=category,
-                        workspace_id=session_id if scope == "workspace" else None,
+                        workspace_id=workspace_id if scope == "workspace" else None,
+                        session_id=session_id if scope == "workspace" else None,
                         is_active=True,
                     )
                     logger.info(

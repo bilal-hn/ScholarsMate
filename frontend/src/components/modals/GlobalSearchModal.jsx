@@ -6,7 +6,9 @@ export default function GlobalSearchModal({
   isOpen,
   onClose,
   workspaces = [],
+  standaloneChats = [],
   onSelectWorkspace,
+  onSelectStandaloneChat,
 }) {
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -14,24 +16,52 @@ export default function GlobalSearchModal({
   const inputRef = useRef(null);
   const listRef = useRef(null);
 
-  // Load message data for all workspaces on modal open
+  // Flatten all searchable chat sessions from workspaces and standalone chats
+  const searchableSessions = useMemo(() => {
+    const list = [];
+    (workspaces || []).forEach((ws) => {
+      (ws.chats || []).forEach((c) => {
+        list.push({
+          sessionId: c.id,
+          workspaceId: ws.id,
+          name: `${ws.name} › ${c.title || 'Chat'}`,
+          workspaceName: ws.name,
+          chatTitle: c.title || 'Chat',
+          updated_at: c.updated_at || ws.updated_at,
+        });
+      });
+    });
+    (standaloneChats || []).forEach((s) => {
+      list.push({
+        sessionId: s.id,
+        workspaceId: null,
+        name: s.title || 'Chat Session',
+        workspaceName: null,
+        chatTitle: s.title || 'Chat Session',
+        updated_at: s.updated_at,
+      });
+    });
+    return list;
+  }, [workspaces, standaloneChats]);
+
+  // Load message data for all sessions on modal open
   useEffect(() => {
-    if (!isOpen || workspaces.length === 0) return;
+    if (!isOpen || searchableSessions.length === 0) return;
 
     let isMounted = true;
     const fetchAllSessionData = async () => {
       const messagesMap = {};
       await Promise.all(
-        workspaces.map(async (ws) => {
+        searchableSessions.map(async (item) => {
           try {
-            const data = await getSessionMessages(ws.id);
+            const data = await getSessionMessages(item.sessionId);
             if (data && Array.isArray(data.messages)) {
-              messagesMap[ws.id] = data.messages;
+              messagesMap[item.sessionId] = data.messages;
             } else {
-              messagesMap[ws.id] = [];
+              messagesMap[item.sessionId] = [];
             }
           } catch {
-            messagesMap[ws.id] = [];
+            messagesMap[item.sessionId] = [];
           }
         })
       );
@@ -46,7 +76,7 @@ export default function GlobalSearchModal({
     return () => {
       isMounted = false;
     };
-  }, [isOpen, workspaces]);
+  }, [isOpen, searchableSessions]);
 
   // Focus input and reset query on open
   useEffect(() => {
@@ -64,20 +94,20 @@ export default function GlobalSearchModal({
 
     const results = [];
 
-    workspaces.forEach((ws) => {
-      const messages = sessionMessagesMap[ws.id] || [];
-      const wsNameMatch = ws.name.toLowerCase().includes(cleanQ);
+    searchableSessions.forEach((sess) => {
+      const messages = sessionMessagesMap[sess.sessionId] || [];
+      const titleMatch = sess.name.toLowerCase().includes(cleanQ);
 
-      // Workspace title match
-      if (wsNameMatch) {
+      // Session / Workspace title match
+      if (titleMatch) {
         const lastUserMsg = [...messages].reverse().find((m) => m.sender === 'user');
         const userMsgIndex = lastUserMsg ? messages.indexOf(lastUserMsg) : (messages.length > 0 ? 0 : null);
         results.push({
-          type: 'workspace_match',
-          workspace: ws,
-          snippet: lastUserMsg ? lastUserMsg.text : 'Workspace title match',
+          type: 'title_match',
+          session: sess,
+          snippet: lastUserMsg ? lastUserMsg.text : 'Title match',
           messageIndex: userMsgIndex,
-          timestamp: ws.updated_at,
+          timestamp: sess.updated_at,
           score: 10,
         });
       }
@@ -95,13 +125,13 @@ export default function GlobalSearchModal({
 
           results.push({
             type: 'message_match',
-            workspace: ws,
+            session: sess,
             message: msg,
             messageIndex: mIdx,
             snippet: snippetText,
             matchTerm: cleanQ,
             sender: msg.sender,
-            timestamp: msg.timestamp || ws.updated_at,
+            timestamp: msg.timestamp || sess.updated_at,
             score: msg.sender === 'user' ? 8 : 5,
           });
         }
@@ -110,7 +140,7 @@ export default function GlobalSearchModal({
 
     results.sort((a, b) => b.score - a.score);
     return results.slice(0, 20);
-  }, [query, workspaces, sessionMessagesMap]);
+  }, [query, searchableSessions, sessionMessagesMap]);
 
   // Keep selected index within bounds
   useEffect(() => {
@@ -138,7 +168,11 @@ export default function GlobalSearchModal({
 
   const handleSelect = (item) => {
     if (!item) return;
-    onSelectWorkspace(item.workspace, item.messageIndex);
+    if (item.session.workspaceId && onSelectWorkspace) {
+      onSelectWorkspace(item.session.workspaceId, item.session.sessionId, item.messageIndex);
+    } else if (onSelectStandaloneChat) {
+      onSelectStandaloneChat(item.session.sessionId, item.messageIndex);
+    }
     onClose();
   };
 
@@ -165,7 +199,7 @@ export default function GlobalSearchModal({
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search conversations..."
+            placeholder="Search conversations across workspaces and chats..."
             className="flex-1 bg-transparent text-sm text-zinc-100 placeholder-zinc-500 focus:outline-hidden font-sans"
           />
           {hasQuery && (
@@ -194,7 +228,7 @@ export default function GlobalSearchModal({
                 const isSelected = idx === selectedIndex;
                 return (
                   <div
-                    key={`${item.workspace.id}-${idx}`}
+                    key={`${item.session.sessionId}-${idx}`}
                     onClick={() => handleSelect(item)}
                     onMouseEnter={() => setSelectedIndex(idx)}
                     className={`w-full flex items-start gap-3 p-3 rounded-xl transition-all cursor-pointer text-left group ${
@@ -207,7 +241,7 @@ export default function GlobalSearchModal({
                     <div
                       className={`p-2 rounded-lg shrink-0 mt-0.5 transition-colors ${
                         isSelected
-                          ? 'bg-red-500/15 text-red-400 border border-red-500/30'
+                          ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
                           : 'bg-zinc-800 text-zinc-400 border border-zinc-700/50'
                       }`}
                     >
@@ -223,7 +257,7 @@ export default function GlobalSearchModal({
                               isSelected ? 'text-zinc-100' : 'text-zinc-300'
                             }`}
                           >
-                            {item.workspace.name}
+                            {item.session.name}
                           </span>
                           {item.sender && (
                             <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-zinc-900 border border-zinc-800 text-zinc-400 shrink-0">
@@ -251,18 +285,26 @@ export default function GlobalSearchModal({
                         {item.snippet}
                       </p>
                     </div>
-
-                    {isSelected && (
-                      <div className="shrink-0 flex items-center gap-1 text-[10px] font-mono text-zinc-500 mt-1">
-                        <CornerDownLeft className="h-3 w-3 text-red-400" />
-                      </div>
-                    )}
                   </div>
                 );
               })
             )}
           </div>
         )}
+
+        {/* Footer Shortcut Hints */}
+        <div className="px-4 py-2 bg-zinc-950/80 border-t border-zinc-800/60 flex items-center justify-between text-[11px] text-zinc-500 font-mono">
+          <div className="flex items-center gap-3">
+            <span>↑↓ to navigate</span>
+            <span>↵ to select</span>
+            <span>esc to close</span>
+          </div>
+          {hasQuery && (
+            <span>
+              {searchResults.length} result{searchResults.length !== 1 ? 's' : ''}
+            </span>
+          )}
+        </div>
       </div>
     </div>
   );
