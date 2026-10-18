@@ -409,23 +409,38 @@ body,
   max-width: 816px;
   min-height: 1056px;
   height: auto !important;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.18);
-  border-radius: 2px;
-  padding: 4.5rem 4.5rem 6rem 4.5rem;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.22);
+  border-radius: 4px;
+  padding: 2.75rem 2rem 5rem 2rem;
   box-sizing: border-box;
   display: block !important;
   position: relative;
   overflow: visible !important;
 }
 
+@media (min-width: 1200px) {
+  .word-document-canvas,
+  .word-page-sheet {
+    padding: 4.5rem 4rem 6rem 4rem;
+  }
+}
+
 .word-page-break,
 .page-break {
   display: block !important;
-  margin-left: -4.5rem !important;
-  margin-right: -4.5rem !important;
+  margin-left: -2rem !important;
+  margin-right: -2rem !important;
   margin-top: 1.5rem !important;
   margin-bottom: 1.5rem !important;
   user-select: none !important;
+}
+
+@media (min-width: 1200px) {
+  .word-page-break,
+  .page-break {
+    margin-left: -4rem !important;
+    margin-right: -4rem !important;
+  }
 }
 
 .word-page-break .page-bottom-space,

@@ -191,6 +191,16 @@ export default function DocumentWriter({
   const [isTableMenuOpen, setIsTableMenuOpen] = useState(false);
   const [tableGridHover, setTableGridHover] = useState({ rows: 3, cols: 3 });
   const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
+  const [isAlignMenuOpen, setIsAlignMenuOpen] = useState(false);
+
+  const closeAllMenus = () => {
+    setIsFontMenuOpen(false);
+    setIsSizeMenuOpen(false);
+    setIsHeadingMenuOpen(false);
+    setIsTableMenuOpen(false);
+    setIsExportMenuOpen(false);
+    setIsAlignMenuOpen(false);
+  };
 
   // Typography State
   const [currentFont, setCurrentFont] = useState("'Source Serif 4', 'Source Serif Pro', Georgia, serif");
@@ -217,11 +227,7 @@ export default function DocumentWriter({
   // Close all popover menus on outside click
   useEffect(() => {
     const handleOutsideClick = () => {
-      setIsFontMenuOpen(false);
-      setIsSizeMenuOpen(false);
-      setIsHeadingMenuOpen(false);
-      setIsTableMenuOpen(false);
-      setIsExportMenuOpen(false);
+      closeAllMenus();
     };
     document.addEventListener('click', handleOutsideClick);
     return () => document.removeEventListener('click', handleOutsideClick);
@@ -1090,505 +1096,554 @@ export default function DocumentWriter({
   };
 
   return (
-    <div className="flex flex-col w-full h-full bg-zinc-950 text-zinc-100 font-sans select-text relative overflow-hidden">
+    <div className="flex flex-col w-full h-full min-w-0 bg-zinc-950 text-zinc-100 font-sans select-text relative overflow-hidden">
       {/* -------------------------------------------------------------------- */}
-      {/* 1. COLLAPSIBLE TOP RIBBON TOOLBAR (Overflow visible so popovers float) */}
+      {/* 1. DOCUMENT WRITER TOP BAR (Clean, uncrowded window header)          */}
       {/* -------------------------------------------------------------------- */}
-      <div
-        className={`relative z-30 transition-all duration-300 ease-in-out shrink-0 ${
-          isToolbarCollapsed ? 'h-0 opacity-0 overflow-hidden pointer-events-none' : 'h-auto opacity-100 overflow-visible'
-        }`}
-      >
-        <div className="bg-zinc-900 border-b border-zinc-800 px-3.5 py-2 flex items-center justify-between gap-2 select-none shadow-xl text-zinc-300 text-xs overflow-visible">
-          {/* Left Controls Cluster */}
-          <div className="flex items-center gap-1 flex-wrap sm:flex-nowrap shrink-0 overflow-visible">
-            {/* Close Writer Button (Cross / X) */}
-            {onClose && (
-              <button
-                type="button"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={onClose}
-                className="p-1.5 rounded hover:bg-red-500/20 text-zinc-400 hover:text-red-400 transition-colors cursor-pointer shrink-0 mr-1"
-                title="Close Document Writer"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            )}
-
-            {/* Undo / Redo */}
-            <button
-              type="button"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => formatDoc('undo')}
-              className="p-1.5 rounded hover:bg-zinc-800 text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer shrink-0"
-              title="Undo (Ctrl+Z)"
-            >
-              <Undo2 className="h-4 w-4" />
-            </button>
-            <button
-              type="button"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => formatDoc('redo')}
-              className="p-1.5 rounded hover:bg-zinc-800 text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer shrink-0"
-              title="Redo (Ctrl+Y)"
-            >
-              <Redo2 className="h-4 w-4" />
-            </button>
-
-            <div className="h-4 w-px bg-zinc-700/60 mx-1 shrink-0" />
-
-            {/* Custom Font Family Popover */}
-            <div className="relative shrink-0" onClick={(e) => e.stopPropagation()}>
-              <button
-                type="button"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => {
-                  setIsFontMenuOpen(!isFontMenuOpen);
-                  setIsSizeMenuOpen(false);
-                  setIsHeadingMenuOpen(false);
-                  setIsTableMenuOpen(false);
-                  setIsExportMenuOpen(false);
-                }}
-                className="flex items-center gap-1 px-2 py-1 rounded hover:bg-zinc-800 text-zinc-200 text-xs font-medium border border-transparent hover:border-zinc-700 transition-colors cursor-pointer"
-                title="Font Family"
-              >
-                <span>{currentFontLabel}</span>
-                <ChevronDown className="h-3 w-3 text-zinc-400" />
-              </button>
-
-              {isFontMenuOpen && (
-                <div className="absolute top-full left-0 mt-1.5 p-1 bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl z-50 w-44 max-h-64 overflow-y-auto space-y-0.5">
-                  {FONT_FAMILIES.map((f, i) => (
-                    <button
-                      key={i}
-                      type="button"
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => handleApplyFont(f)}
-                      className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs text-zinc-200 hover:bg-zinc-800 hover:text-amber-300 transition-colors cursor-pointer"
-                      style={{ fontFamily: f.value }}
-                    >
-                      {f.label}
-                    </button>
-                  ))}
-                </div>
-              )}
+      <div className="bg-zinc-900 border-b border-zinc-800 px-3.5 py-2 flex items-center justify-between gap-3 select-none shrink-0 z-30">
+        {/* Left: Document label + Save status */}
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="w-5 h-5 rounded-md bg-amber-500/10 border border-amber-500/25 flex items-center justify-center text-amber-400">
+              <FileText className="h-3 w-3" />
             </div>
-
-            {/* Custom Font Size Popover */}
-            <div className="relative shrink-0" onClick={(e) => e.stopPropagation()}>
-              <button
-                type="button"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => {
-                  setIsSizeMenuOpen(!isSizeMenuOpen);
-                  setIsFontMenuOpen(false);
-                  setIsHeadingMenuOpen(false);
-                  setIsTableMenuOpen(false);
-                  setIsExportMenuOpen(false);
-                }}
-                className="flex items-center gap-1 px-2 py-1 rounded hover:bg-zinc-800 text-zinc-200 text-xs font-medium border border-transparent hover:border-zinc-700 transition-colors cursor-pointer"
-                title="Font Size"
-              >
-                <span>{currentFontSize}</span>
-                <ChevronDown className="h-3 w-3 text-zinc-400" />
-              </button>
-
-              {isSizeMenuOpen && (
-                <div className="absolute top-full left-0 mt-1.5 p-1 bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl z-50 w-24 max-h-56 overflow-y-auto space-y-0.5">
-                  {FONT_SIZES.map((s, i) => (
-                    <button
-                      key={i}
-                      type="button"
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => handleApplyFontSize(s.pt)}
-                      className="w-full text-center px-2 py-1 rounded-lg text-xs text-zinc-200 hover:bg-zinc-800 hover:text-amber-300 transition-colors cursor-pointer"
-                    >
-                      {s.label} pt
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Custom Heading / Style Popover */}
-            <div className="relative shrink-0" onClick={(e) => e.stopPropagation()}>
-              <button
-                type="button"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => {
-                  setIsHeadingMenuOpen(!isHeadingMenuOpen);
-                  setIsFontMenuOpen(false);
-                  setIsSizeMenuOpen(false);
-                  setIsTableMenuOpen(false);
-                  setIsExportMenuOpen(false);
-                }}
-                className="flex items-center gap-1 px-2 py-1 rounded hover:bg-zinc-800 text-zinc-200 text-xs font-medium border border-transparent hover:border-zinc-700 transition-colors cursor-pointer"
-                title="Styles"
-              >
-                <span>{currentHeadingLabel}</span>
-                <ChevronDown className="h-3 w-3 text-zinc-400" />
-              </button>
-
-              {isHeadingMenuOpen && (
-                <div className="absolute top-full left-0 mt-1.5 p-1 bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl z-50 w-36 space-y-0.5">
-                  {HEADING_STYLES.map((h, i) => (
-                    <button
-                      key={i}
-                      type="button"
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => handleApplyHeading(h)}
-                      className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs text-zinc-200 hover:bg-zinc-800 hover:text-amber-300 transition-colors cursor-pointer font-medium"
-                    >
-                      {h.label}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="h-4 w-px bg-zinc-700/60 mx-1 shrink-0" />
-
-            {/* B, I, U, S */}
-            <button
-              type="button"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => formatDoc('bold')}
-              className="p-1.5 rounded hover:bg-zinc-800 text-zinc-300 hover:text-zinc-100 font-bold transition-colors cursor-pointer shrink-0"
-              title="Bold (Ctrl+B)"
-            >
-              <span className="font-bold text-xs">B</span>
-            </button>
-            <button
-              type="button"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => formatDoc('italic')}
-              className="p-1.5 rounded hover:bg-zinc-800 text-zinc-300 hover:text-zinc-100 italic transition-colors cursor-pointer shrink-0"
-              title="Italic (Ctrl+I)"
-            >
-              <span className="italic font-serif text-xs">I</span>
-            </button>
-            <button
-              type="button"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => formatDoc('underline')}
-              className="p-1.5 rounded hover:bg-zinc-800 text-zinc-300 hover:text-zinc-100 underline transition-colors cursor-pointer shrink-0"
-              title="Underline (Ctrl+U)"
-            >
-              <span className="underline text-xs">U</span>
-            </button>
-            <button
-              type="button"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => formatDoc('strikeThrough')}
-              className="p-1.5 rounded hover:bg-zinc-800 text-zinc-300 hover:text-zinc-100 line-through transition-colors cursor-pointer shrink-0"
-              title="Strikethrough"
-            >
-              <span className="line-through text-xs">S</span>
-            </button>
-
-            <div className="h-4 w-px bg-zinc-700/60 mx-1 shrink-0" />
-
-            {/* Alignments (Left active by default in teal block style) */}
-            <button
-              type="button"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => formatDoc('justifyLeft')}
-              className={`p-1.5 rounded transition-colors cursor-pointer shrink-0 ${
-                activeAlign === 'justifyLeft'
-                  ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
-                  : 'hover:bg-zinc-800 text-zinc-400 hover:text-zinc-100'
-              }`}
-              title="Align Left"
-            >
-              <AlignLeft className="h-3.5 w-3.5" />
-            </button>
-            <button
-              type="button"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => formatDoc('justifyCenter')}
-              className={`p-1.5 rounded transition-colors cursor-pointer shrink-0 ${
-                activeAlign === 'justifyCenter'
-                  ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
-                  : 'hover:bg-zinc-800 text-zinc-400 hover:text-zinc-100'
-              }`}
-              title="Align Center"
-            >
-              <AlignCenter className="h-3.5 w-3.5" />
-            </button>
-            <button
-              type="button"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => formatDoc('justifyRight')}
-              className={`p-1.5 rounded transition-colors cursor-pointer shrink-0 ${
-                activeAlign === 'justifyRight'
-                  ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
-                  : 'hover:bg-zinc-800 text-zinc-400 hover:text-zinc-100'
-              }`}
-              title="Align Right"
-            >
-              <AlignRight className="h-3.5 w-3.5" />
-            </button>
-            <button
-              type="button"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => formatDoc('justifyFull')}
-              className={`p-1.5 rounded transition-colors cursor-pointer shrink-0 ${
-                activeAlign === 'justifyFull'
-                  ? 'bg-amber-500/20 text-amber-400 border border-amber-500/40'
-                  : 'hover:bg-zinc-800 text-zinc-400 hover:text-zinc-100'
-              }`}
-              title="Justify"
-            >
-              <AlignJustify className="h-3.5 w-3.5" />
-            </button>
-
-            <div className="h-4 w-px bg-zinc-700/60 mx-1 shrink-0" />
-
-            {/* Lists & Academic Elements */}
-            <button
-              type="button"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => formatDoc('insertUnorderedList')}
-              className="p-1.5 rounded hover:bg-zinc-800 text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer shrink-0"
-              title="Bullet Points List"
-            >
-              <List className="h-3.5 w-3.5" />
-            </button>
-            <button
-              type="button"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => formatDoc('insertOrderedList')}
-              className="p-1.5 rounded hover:bg-zinc-800 text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer shrink-0"
-              title="Numbered List"
-            >
-              <ListOrdered className="h-3.5 w-3.5" />
-            </button>
-            <button
-              type="button"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => formatDoc('quote')}
-              className="p-1.5 rounded hover:bg-zinc-800 text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer shrink-0"
-              title="Blockquote (Literature citation)"
-            >
-              <Quote className="h-3.5 w-3.5" />
-            </button>
-
-            {/* Word-style Interactive Table Grid Selector */}
-            <div className="relative shrink-0" onClick={(e) => e.stopPropagation()}>
-              <button
-                type="button"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => {
-                  setIsTableMenuOpen(!isTableMenuOpen);
-                  setIsFontMenuOpen(false);
-                  setIsSizeMenuOpen(false);
-                  setIsHeadingMenuOpen(false);
-                  setIsExportMenuOpen(false);
-                }}
-                className="p-1.5 rounded hover:bg-zinc-800 text-zinc-400 hover:text-amber-400 transition-colors cursor-pointer shrink-0"
-                title="Insert Table (Grid Selector)"
-              >
-                <TableIcon className="h-3.5 w-3.5" />
-              </button>
-
-              {isTableMenuOpen && (
-                <div className="absolute top-full left-0 mt-1.5 p-3 bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl z-50 w-52 select-none">
-                  <div className="text-[11px] font-semibold text-zinc-300 mb-2 flex items-center justify-between">
-                    <span>Insert Table</span>
-                    <span className="font-mono text-amber-400 text-[10px]">
-                      {tableGridHover.rows} × {tableGridHover.cols}
-                    </span>
-                  </div>
-
-                  {/* 6x6 Grid of cells */}
-                  <div className="grid grid-cols-6 gap-1 bg-zinc-950 p-2 rounded-lg border border-zinc-800">
-                    {[1, 2, 3, 4, 5, 6].map((r) =>
-                      [1, 2, 3, 4, 5, 6].map((c) => {
-                        const isHovered = r <= tableGridHover.rows && c <= tableGridHover.cols;
-                        return (
-                          <div
-                            key={`${r}-${c}`}
-                            onMouseEnter={() => setTableGridHover({ rows: r, cols: c })}
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={() => handleInsertCustomTable(r, c)}
-                            className={`w-5 h-5 rounded-xs border cursor-pointer transition-all ${
-                              isHovered
-                                ? 'bg-amber-400/80 border-amber-300 shadow-xs'
-                                : 'bg-zinc-900 border-zinc-700/60 hover:border-zinc-500'
-                            }`}
-                          />
-                        );
-                      })
-                    )}
-                  </div>
-
-                  <div className="mt-2 text-center text-[10px] text-zinc-400">
-                    Click to insert {tableGridHover.rows} × {tableGridHover.cols} Table
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Section Divider Rule */}
-            <button
-              type="button"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => formatDoc('insertHorizontalRule')}
-              className="p-1.5 rounded hover:bg-zinc-800 text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer shrink-0"
-              title="Divider / Section Rule"
-            >
-              <Minus className="h-3.5 w-3.5" />
-            </button>
-
-            {/* Insert Page Break */}
-            <button
-              type="button"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={handleInsertPageBreak}
-              className="p-1.5 rounded hover:bg-zinc-800 text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer shrink-0"
-              title="Insert Page Break"
-            >
-              <FilePlus className="h-3.5 w-3.5" />
-            </button>
-
-            <div className="h-4 w-px bg-zinc-700/60 mx-1 shrink-0" />
-
-            {/* Clear Formatting */}
-            <button
-              type="button"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => formatDoc('removeFormat')}
-              className="p-1.5 rounded hover:bg-zinc-800 text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer shrink-0"
-              title="Clear Formatting"
-            >
-              <RemoveFormatting className="h-3.5 w-3.5" />
-            </button>
+            <span className="text-xs font-semibold text-zinc-200 tracking-tight">
+              Document
+            </span>
           </div>
 
-          {/* Right Status & Actions Cluster */}
-          <div className="flex items-center gap-2.5 flex-nowrap shrink-0 ml-auto pl-2">
-            {/* Auto-save Status */}
-            <div className="flex items-center gap-1.5 text-xs text-zinc-300 font-medium select-none shrink-0">
-              <span
-                className={`h-2 w-2 rounded-full ${
-                  saveStatus === 'saved'
-                    ? 'bg-emerald-400'
-                    : saveStatus === 'saving'
-                    ? 'bg-amber-400 animate-pulse'
-                    : 'bg-zinc-500'
-                }`}
-              />
-              <span>{saveStatus === 'saved' ? 'Saved' : saveStatus === 'saving' ? 'Saving...' : 'Unsaved'}</span>
-            </div>
+          <div className="h-3.5 w-px bg-zinc-800 shrink-0" />
 
-            {/* Copy Button */}
+          {/* Auto-save Status */}
+          <div className="flex items-center gap-1.5 text-[11px] text-zinc-400 font-medium select-none shrink-0">
+            <span
+              className={`h-2 w-2 rounded-full ${
+                saveStatus === 'saved'
+                  ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.4)]'
+                  : saveStatus === 'saving'
+                  ? 'bg-amber-400 animate-pulse'
+                  : 'bg-zinc-500'
+              }`}
+            />
+            <span className="hidden sm:inline">
+              {saveStatus === 'saved' ? 'Saved' : saveStatus === 'saving' ? 'Saving...' : 'Unsaved'}
+            </span>
+          </div>
+        </div>
+
+        {/* Right: Window & Document Actions */}
+        <div className="flex items-center gap-1 shrink-0">
+          {/* Copy Button */}
+          <button
+            type="button"
+            onClick={handleCopyMarkdown}
+            className="flex items-center gap-1 text-xs text-zinc-300 hover:text-zinc-100 px-2 py-1 rounded-lg hover:bg-zinc-800 transition-colors cursor-pointer font-medium shrink-0"
+            title="Copy document as Markdown"
+          >
+            {copied ? (
+              <Check className="h-3.5 w-3.5 text-emerald-400" />
+            ) : (
+              <Copy className="h-3.5 w-3.5 text-zinc-400" />
+            )}
+            <span className="hidden sm:inline">{copied ? 'Copied' : 'Copy'}</span>
+          </button>
+
+          {/* Export Multi-Format Dropdown */}
+          <div className="relative shrink-0" onClick={(e) => e.stopPropagation()}>
             <button
               type="button"
-              onClick={handleCopyMarkdown}
-              className="flex items-center gap-1 text-xs text-zinc-300 hover:text-zinc-100 px-2 py-1 rounded hover:bg-zinc-800 transition-colors cursor-pointer font-medium shrink-0"
-              title="Copy as Markdown"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                const next = !isExportMenuOpen;
+                closeAllMenus();
+                setIsExportMenuOpen(next);
+              }}
+              className="flex items-center gap-1 text-xs text-zinc-200 hover:text-white px-2.5 py-1 rounded-lg hover:bg-zinc-800 transition-colors cursor-pointer font-medium shrink-0 bg-zinc-800/70 border border-zinc-700/60 shadow-xs"
+              title="Export Document"
             >
-              {copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5 text-zinc-400" />}
-              <span>{copied ? 'Copied' : 'Copy'}</span>
+              <Download className="h-3.5 w-3.5 text-amber-400" />
+              <span>Export</span>
+              <ChevronDown className="h-3 w-3 text-zinc-400" />
             </button>
 
-            {/* Export Multi-Format Dropdown */}
-            <div className="relative shrink-0" onClick={(e) => e.stopPropagation()}>
-              <button
-                type="button"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => {
-                  setIsExportMenuOpen(!isExportMenuOpen);
-                  setIsFontMenuOpen(false);
-                  setIsSizeMenuOpen(false);
-                  setIsHeadingMenuOpen(false);
-                  setIsTableMenuOpen(false);
-                }}
-                className="flex items-center gap-1.5 text-xs text-zinc-300 hover:text-zinc-100 px-2.5 py-1 rounded hover:bg-zinc-800 transition-colors cursor-pointer font-medium shrink-0 bg-zinc-900 border border-zinc-700/60"
-                title="Export Document"
-              >
-                <Download className="h-3.5 w-3.5 text-amber-400" />
-                <span>Export</span>
-                <ChevronDown className="h-3 w-3 text-zinc-400" />
-              </button>
+            {isExportMenuOpen && (
+              <div className="absolute top-full right-0 mt-1.5 p-1.5 bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl z-50 w-52 space-y-1">
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={handleExportDocx}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-zinc-200 hover:bg-zinc-800 hover:text-blue-400 transition-colors cursor-pointer text-left"
+                >
+                  <FileText className="h-4 w-4 text-blue-400 shrink-0" />
+                  <div>
+                    <div className="font-semibold">Microsoft Word (.docx)</div>
+                    <div className="text-[10px] text-zinc-400">Formatted Word document</div>
+                  </div>
+                </button>
 
-              {isExportMenuOpen && (
-                <div className="absolute top-full right-0 mt-1.5 p-1.5 bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl z-50 w-52 space-y-1">
-                  <button
-                    type="button"
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={handleExportDocx}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-zinc-200 hover:bg-zinc-800 hover:text-blue-400 transition-colors cursor-pointer text-left"
-                  >
-                    <FileText className="h-4 w-4 text-blue-400 shrink-0" />
-                    <div>
-                      <div className="font-semibold">Microsoft Word (.docx)</div>
-                      <div className="text-[10px] text-zinc-400">Formatted Word document</div>
-                    </div>
-                  </button>
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={handleExportPdf}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-zinc-200 hover:bg-zinc-800 hover:text-red-400 transition-colors cursor-pointer text-left"
+                >
+                  <Download className="h-4 w-4 text-red-400 shrink-0" />
+                  <div>
+                    <div className="font-semibold">PDF Document (.pdf)</div>
+                    <div className="text-[10px] text-zinc-400">Printable publication layout</div>
+                  </div>
+                </button>
 
-                  <button
-                    type="button"
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={handleExportPdf}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-zinc-200 hover:bg-zinc-800 hover:text-red-400 transition-colors cursor-pointer text-left"
-                  >
-                    <Download className="h-4 w-4 text-red-400 shrink-0" />
-                    <div>
-                      <div className="font-semibold">PDF Document (.pdf)</div>
-                      <div className="text-[10px] text-zinc-400">Printable publication layout</div>
-                    </div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={handleDownloadMarkdown}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-zinc-200 hover:bg-zinc-800 hover:text-amber-400 transition-colors cursor-pointer text-left"
-                  >
-                    <FileCode className="h-4 w-4 text-amber-400 shrink-0" />
-                    <div>
-                      <div className="font-semibold">Markdown (.md)</div>
-                      <div className="text-[10px] text-zinc-400">Clean text synthesis</div>
-                    </div>
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Fullscreen Expand / Restore Button */}
-            {onToggleFullscreen && (
-              <button
-                type="button"
-                onClick={onToggleFullscreen}
-                className="p-1.5 rounded hover:bg-zinc-800 text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer shrink-0"
-                title={isFullscreen ? 'Restore Split Screen' : 'Expand to Fullscreen'}
-              >
-                {isFullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
-              </button>
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={handleDownloadMarkdown}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-zinc-200 hover:bg-zinc-800 hover:text-amber-400 transition-colors cursor-pointer text-left"
+                >
+                  <FileCode className="h-4 w-4 text-amber-400 shrink-0" />
+                  <div>
+                    <div className="font-semibold">Markdown (.md)</div>
+                    <div className="text-[10px] text-zinc-400">Clean text synthesis</div>
+                  </div>
+                </button>
+              </div>
             )}
           </div>
+
+          {/* Fullscreen Expand / Restore Button */}
+          {onToggleFullscreen && (
+            <button
+              type="button"
+              onClick={onToggleFullscreen}
+              className="p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer shrink-0"
+              title={isFullscreen ? 'Restore Split Screen' : 'Expand to Fullscreen'}
+            >
+              {isFullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+            </button>
+          )}
+
+          {/* Collapse / Expand Toolbar Toggle */}
+          <button
+            type="button"
+            onClick={() => setIsToolbarCollapsed(!isToolbarCollapsed)}
+            className={`p-1.5 rounded-lg hover:bg-zinc-800 transition-colors cursor-pointer shrink-0 ${
+              isToolbarCollapsed ? 'text-amber-400 bg-amber-500/10' : 'text-zinc-400 hover:text-zinc-100'
+            }`}
+            title={isToolbarCollapsed ? 'Show formatting toolbar' : 'Hide formatting toolbar'}
+          >
+            {isToolbarCollapsed ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronUp className="h-3.5 w-3.5" />}
+          </button>
+
+          <div className="h-3.5 w-px bg-zinc-800 shrink-0 mx-0.5" />
+
+          {/* Close Writer Button */}
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-1.5 rounded-lg hover:bg-rose-500/15 text-zinc-400 hover:text-rose-400 transition-colors cursor-pointer shrink-0"
+              title="Close Document Writer"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Center Toolbar Collapse Tab */}
-      <button
-        type="button"
-        onClick={() => setIsToolbarCollapsed(!isToolbarCollapsed)}
-        className={`fixed left-1/2 -translate-x-1/2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 border-t-0 rounded-b-md px-3.5 py-0.5 text-zinc-400 hover:text-zinc-200 shadow-xl cursor-pointer transition-all duration-300 z-50 ${
-          isToolbarCollapsed ? 'top-0' : 'top-[41px]'
+      {/* -------------------------------------------------------------------- */}
+      {/* 2. DEDICATED FORMATTING TOOLBAR (Collapsible)                        */}
+      {/* -------------------------------------------------------------------- */}
+      <div
+        className={`relative z-20 transition-all duration-200 ease-in-out shrink-0 ${
+          isToolbarCollapsed ? 'h-0 opacity-0 overflow-hidden pointer-events-none' : 'h-auto opacity-100 overflow-visible'
         }`}
-        title={isToolbarCollapsed ? 'Show Toolbar' : 'Collapse Toolbar'}
       >
-        {isToolbarCollapsed ? (
-          <ChevronDown className="h-3 w-3" />
-        ) : (
-          <ChevronUp className="h-3 w-3" />
-        )}
-      </button>
+        <div className="bg-zinc-900/60 border-b border-zinc-800 px-3 py-1.5 flex items-center gap-1 select-none text-zinc-300 text-xs overflow-x-auto no-scrollbar">
+          {/* Undo / Redo */}
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => formatDoc('undo')}
+            className="p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer shrink-0"
+            title="Undo (Ctrl+Z)"
+          >
+            <Undo2 className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => formatDoc('redo')}
+            className="p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer shrink-0"
+            title="Redo (Ctrl+Y)"
+          >
+            <Redo2 className="h-3.5 w-3.5" />
+          </button>
+
+          <div className="h-3.5 w-px bg-zinc-800 mx-0.5 shrink-0" />
+
+          {/* Font Family Popover */}
+          <div className="relative shrink-0" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                const next = !isFontMenuOpen;
+                closeAllMenus();
+                setIsFontMenuOpen(next);
+              }}
+              className="flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-zinc-800 text-zinc-200 text-xs font-medium border border-transparent hover:border-zinc-700/60 transition-colors cursor-pointer max-w-[110px]"
+              title="Font Family"
+            >
+              <span className="truncate">{currentFontLabel}</span>
+              <ChevronDown className="h-3 w-3 text-zinc-400 shrink-0" />
+            </button>
+
+            {isFontMenuOpen && (
+              <div className="absolute top-full left-0 mt-1.5 p-1 bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl z-50 w-44 max-h-64 overflow-y-auto space-y-0.5">
+                {FONT_FAMILIES.map((f, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => handleApplyFont(f)}
+                    className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs text-zinc-200 hover:bg-zinc-800 hover:text-amber-300 transition-colors cursor-pointer"
+                    style={{ fontFamily: f.value }}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Font Size Popover */}
+          <div className="relative shrink-0" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                const next = !isSizeMenuOpen;
+                closeAllMenus();
+                setIsSizeMenuOpen(next);
+              }}
+              className="flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-zinc-800 text-zinc-200 text-xs font-medium border border-transparent hover:border-zinc-700/60 transition-colors cursor-pointer"
+              title="Font Size"
+            >
+              <span>{currentFontSize}</span>
+              <ChevronDown className="h-3 w-3 text-zinc-400 shrink-0" />
+            </button>
+
+            {isSizeMenuOpen && (
+              <div className="absolute top-full left-0 mt-1.5 p-1 bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl z-50 w-24 max-h-56 overflow-y-auto space-y-0.5">
+                {FONT_SIZES.map((s, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => handleApplyFontSize(s.pt)}
+                    className="w-full text-center px-2 py-1 rounded-lg text-xs text-zinc-200 hover:bg-zinc-800 hover:text-amber-300 transition-colors cursor-pointer"
+                  >
+                    {s.label} pt
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Heading / Style Popover */}
+          <div className="relative shrink-0" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                const next = !isHeadingMenuOpen;
+                closeAllMenus();
+                setIsHeadingMenuOpen(next);
+              }}
+              className="flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-zinc-800 text-zinc-200 text-xs font-medium border border-transparent hover:border-zinc-700/60 transition-colors cursor-pointer max-w-[95px]"
+              title="Heading Styles"
+            >
+              <span className="truncate">{currentHeadingLabel}</span>
+              <ChevronDown className="h-3 w-3 text-zinc-400 shrink-0" />
+            </button>
+
+            {isHeadingMenuOpen && (
+              <div className="absolute top-full left-0 mt-1.5 p-1 bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl z-50 w-36 space-y-0.5">
+                {HEADING_STYLES.map((h, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => handleApplyHeading(h)}
+                    className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs text-zinc-200 hover:bg-zinc-800 hover:text-amber-300 transition-colors cursor-pointer font-medium"
+                  >
+                    {h.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="h-3.5 w-px bg-zinc-800 mx-0.5 shrink-0" />
+
+          {/* B, I, U, S */}
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => formatDoc('bold')}
+            className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-zinc-800 text-zinc-300 hover:text-zinc-100 font-bold transition-colors cursor-pointer shrink-0 text-xs"
+            title="Bold (Ctrl+B)"
+          >
+            B
+          </button>
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => formatDoc('italic')}
+            className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-zinc-800 text-zinc-300 hover:text-zinc-100 italic transition-colors cursor-pointer shrink-0 font-serif text-xs"
+            title="Italic (Ctrl+I)"
+          >
+            I
+          </button>
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => formatDoc('underline')}
+            className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-zinc-800 text-zinc-300 hover:text-zinc-100 underline transition-colors cursor-pointer shrink-0 text-xs"
+            title="Underline (Ctrl+U)"
+          >
+            U
+          </button>
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => formatDoc('strikeThrough')}
+            className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-zinc-800 text-zinc-300 hover:text-zinc-100 line-through transition-colors cursor-pointer shrink-0 text-xs"
+            title="Strikethrough"
+          >
+            S
+          </button>
+
+          <div className="h-3.5 w-px bg-zinc-800 mx-0.5 shrink-0" />
+
+          {/* Compact Alignment Popover */}
+          <div className="relative shrink-0" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                const next = !isAlignMenuOpen;
+                closeAllMenus();
+                setIsAlignMenuOpen(next);
+              }}
+              className="flex items-center gap-1 p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-300 hover:text-zinc-100 transition-colors cursor-pointer"
+              title="Text Alignment"
+            >
+              {activeAlign === 'justifyCenter' ? (
+                <AlignCenter className="h-3.5 w-3.5" />
+              ) : activeAlign === 'justifyRight' ? (
+                <AlignRight className="h-3.5 w-3.5" />
+              ) : activeAlign === 'justifyFull' ? (
+                <AlignJustify className="h-3.5 w-3.5" />
+              ) : (
+                <AlignLeft className="h-3.5 w-3.5" />
+              )}
+              <ChevronDown className="h-2.5 w-2.5 text-zinc-400" />
+            </button>
+
+            {isAlignMenuOpen && (
+              <div className="absolute top-full left-0 mt-1.5 p-1 bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl z-50 flex items-center gap-1">
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => {
+                    formatDoc('justifyLeft');
+                    setActiveAlign('justifyLeft');
+                    setIsAlignMenuOpen(false);
+                  }}
+                  className={`p-1.5 rounded-lg hover:bg-zinc-800 transition-colors cursor-pointer ${
+                    activeAlign === 'justifyLeft' ? 'bg-amber-500/20 text-amber-400' : 'text-zinc-400 hover:text-zinc-100'
+                  }`}
+                  title="Align Left"
+                >
+                  <AlignLeft className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => {
+                    formatDoc('justifyCenter');
+                    setActiveAlign('justifyCenter');
+                    setIsAlignMenuOpen(false);
+                  }}
+                  className={`p-1.5 rounded-lg hover:bg-zinc-800 transition-colors cursor-pointer ${
+                    activeAlign === 'justifyCenter' ? 'bg-amber-500/20 text-amber-400' : 'text-zinc-400 hover:text-zinc-100'
+                  }`}
+                  title="Align Center"
+                >
+                  <AlignCenter className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => {
+                    formatDoc('justifyRight');
+                    setActiveAlign('justifyRight');
+                    setIsAlignMenuOpen(false);
+                  }}
+                  className={`p-1.5 rounded-lg hover:bg-zinc-800 transition-colors cursor-pointer ${
+                    activeAlign === 'justifyRight' ? 'bg-amber-500/20 text-amber-400' : 'text-zinc-400 hover:text-zinc-100'
+                  }`}
+                  title="Align Right"
+                >
+                  <AlignRight className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => {
+                    formatDoc('justifyFull');
+                    setActiveAlign('justifyFull');
+                    setIsAlignMenuOpen(false);
+                  }}
+                  className={`p-1.5 rounded-lg hover:bg-zinc-800 transition-colors cursor-pointer ${
+                    activeAlign === 'justifyFull' ? 'bg-amber-500/20 text-amber-400' : 'text-zinc-400 hover:text-zinc-100'
+                  }`}
+                  title="Justify"
+                >
+                  <AlignJustify className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="h-3.5 w-px bg-zinc-800 mx-0.5 shrink-0" />
+
+          {/* Bullet and Numbered Lists */}
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => formatDoc('insertUnorderedList')}
+            className="p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer shrink-0"
+            title="Bullet List"
+          >
+            <List className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => formatDoc('insertOrderedList')}
+            className="p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer shrink-0"
+            title="Numbered List"
+          >
+            <ListOrdered className="h-3.5 w-3.5" />
+          </button>
+
+          <div className="h-3.5 w-px bg-zinc-800 mx-0.5 shrink-0" />
+
+          {/* Insert Table Grid Selector */}
+          <div className="relative shrink-0" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                const next = !isTableMenuOpen;
+                closeAllMenus();
+                setIsTableMenuOpen(next);
+              }}
+              className="p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-400 hover:text-amber-400 transition-colors cursor-pointer shrink-0"
+              title="Insert Table"
+            >
+              <TableIcon className="h-3.5 w-3.5" />
+            </button>
+
+            {isTableMenuOpen && (
+              <div className="absolute top-full left-0 mt-1.5 p-3 bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl z-50 w-52 select-none">
+                <div className="text-[11px] font-semibold text-zinc-300 mb-2 flex items-center justify-between">
+                  <span>Insert Table</span>
+                  <span className="font-mono text-amber-400 text-[10px]">
+                    {tableGridHover.rows} × {tableGridHover.cols}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-6 gap-1 bg-zinc-950 p-2 rounded-lg border border-zinc-800">
+                  {[1, 2, 3, 4, 5, 6].map((r) =>
+                    [1, 2, 3, 4, 5, 6].map((c) => {
+                      const isHovered = r <= tableGridHover.rows && c <= tableGridHover.cols;
+                      return (
+                        <div
+                          key={`${r}-${c}`}
+                          onMouseEnter={() => setTableGridHover({ rows: r, cols: c })}
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => handleInsertCustomTable(r, c)}
+                          className={`w-5 h-5 rounded-xs border cursor-pointer transition-all ${
+                            isHovered
+                              ? 'bg-amber-400/80 border-amber-300 shadow-xs'
+                              : 'bg-zinc-900 border-zinc-700/60 hover:border-zinc-500'
+                          }`}
+                        />
+                      );
+                    })
+                  )}
+                </div>
+
+                <div className="mt-2 text-center text-[10px] text-zinc-400">
+                  Click to insert {tableGridHover.rows} × {tableGridHover.cols} Table
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Blockquote */}
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => formatDoc('quote')}
+            className="p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer shrink-0"
+            title="Blockquote (Literature citation)"
+          >
+            <Quote className="h-3.5 w-3.5" />
+          </button>
+
+          {/* Horizontal Rule */}
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => formatDoc('insertHorizontalRule')}
+            className="p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer shrink-0"
+            title="Divider / Section Rule"
+          >
+            <Minus className="h-3.5 w-3.5" />
+          </button>
+
+          {/* Insert Page Break */}
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={handleInsertPageBreak}
+            className="p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer shrink-0"
+            title="Insert Page Break"
+          >
+            <FilePlus className="h-3.5 w-3.5" />
+          </button>
+
+          <div className="h-3.5 w-px bg-zinc-800 mx-0.5 shrink-0" />
+
+          {/* Clear Formatting */}
+          <button
+            type="button"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => formatDoc('removeFormat')}
+            className="p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer shrink-0"
+            title="Clear Formatting"
+          >
+            <RemoveFormatting className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </div>
 
       {/* -------------------------------------------------------------------- */}
-      {/* 2. FULLSCREEN RESTORE ARROW (Only shown in Fullscreen mode)           */}
+      {/* 3. FULLSCREEN RESTORE ARROW (Only shown in Fullscreen mode)           */}
       {/* -------------------------------------------------------------------- */}
       {isFullscreen && onToggleFullscreen && (
         <button
@@ -1602,12 +1657,10 @@ export default function DocumentWriter({
       )}
 
       {/* -------------------------------------------------------------------- */}
-      {/* 3. SCROLLABLE DOCUMENT CANVAS CONTAINER (Light Paper Sheet)          */}
+      {/* 4. SCROLLABLE DOCUMENT CANVAS CONTAINER                              */}
       {/* -------------------------------------------------------------------- */}
       <div
-        className={`flex-1 overflow-y-auto bg-zinc-950 flex justify-center items-start pb-36 transition-all duration-300 ${
-          isToolbarCollapsed ? 'pt-4 sm:pt-6' : 'pt-2 sm:pt-4'
-        } px-4`}
+        className="flex-1 overflow-y-auto overflow-x-hidden bg-zinc-950 flex justify-center items-start px-2 sm:px-6 py-6 pb-20"
         onMouseUp={handleSelectionChange}
         onKeyUp={handleSelectionChange}
       >
@@ -1623,8 +1676,7 @@ export default function DocumentWriter({
         )}
 
         {/* Word-Style Paginated Canvas (A4 Sheet Dimensions) */}
-        <div className="word-canvas-wrapper my-6 pb-28">
-
+        <div className="word-canvas-wrapper w-full flex flex-col items-center">
           {/* Single document canvas — white sheet with authentic page breaks */}
           <div
             ref={canvasRef}
@@ -1634,80 +1686,81 @@ export default function DocumentWriter({
             }}
             className="word-document-canvas"
           >
-              {/* 1. Document Title Header */}
-              <input
-                type="text"
-                value={title}
-                onChange={(e) => {
-                  setTitle(e.target.value);
-                  triggerAutoSave(editorRef.current?.innerHTML, e.target.value, citations);
-                }}
-                className="w-full text-3xl sm:text-4xl font-bold text-slate-900 border-none outline-none mb-6 pb-2 transition-colors bg-transparent font-serif"
-              />
+            {/* 1. Document Title Header */}
+            <input
+              type="text"
+              value={title}
+              placeholder="Untitled Academic Paper"
+              onChange={(e) => {
+                setTitle(e.target.value);
+                triggerAutoSave(editorRef.current?.innerHTML, e.target.value, citations);
+              }}
+              className="w-full text-2xl sm:text-3xl font-bold text-slate-900 border-none outline-none mb-6 pb-2 transition-colors bg-transparent font-serif placeholder:text-slate-400 placeholder:italic"
+            />
 
-              {/* 2. Rich Contenteditable Manuscript Body */}
-              <div
-                ref={editorRef}
-                contentEditable
-                suppressContentEditableWarning
-                onKeyDown={handleKeyDown}
-                onInput={() => {
-                  updateWordCount();
-                  triggerAutoSave(editorRef.current?.innerHTML, title, citations);
-                }}
-                className="academic-editor max-w-none focus:outline-none min-h-[600px] leading-relaxed text-slate-900"
-              />
+            {/* 2. Rich Contenteditable Manuscript Body */}
+            <div
+              ref={editorRef}
+              contentEditable
+              suppressContentEditableWarning
+              onKeyDown={handleKeyDown}
+              onInput={() => {
+                updateWordCount();
+                triggerAutoSave(editorRef.current?.innerHTML, title, citations);
+              }}
+              className="academic-editor max-w-none focus:outline-none min-h-[600px] leading-relaxed text-slate-900"
+            />
 
-              {/* 3. References Section (Pinned at the bottom of the manuscript) */}
-              {citations && citations.length > 0 && (
-                <div
-                  className="mt-20 pt-8 border-t-2 border-slate-300 font-sans select-text not-prose"
-                >
-                  <h2 className="text-xl font-bold text-slate-900 font-serif tracking-tight mb-5">
-                    References
-                  </h2>
+            {/* 3. References Section (Pinned at the bottom of the manuscript) */}
+            {citations && citations.length > 0 && (
+              <div className="mt-20 pt-8 border-t-2 border-slate-300 font-sans select-text not-prose">
+                <h2 className="text-xl font-bold text-slate-900 font-serif tracking-tight mb-5">
+                  References
+                </h2>
 
-                  <ol className="space-y-3 list-none p-0 m-0">
-                    {getGroupedBibliography(citations).map((item) => (
-                      <li
-                        key={item.doc_name}
-                        id={`reference-${item.doc_index}`}
-                        className="flex items-baseline gap-3 text-sm text-slate-800 leading-relaxed"
-                      >
-                        <span className="font-bold text-slate-900 font-serif shrink-0 min-w-[2rem]">
-                          [{item.doc_index}]
-                        </span>
-                        <span className="flex-1">
-                          {item.authors && (
-                            <span className="font-semibold text-slate-900">{item.authors} </span>
-                          )}
-                          {item.year && (
-                            <span className="text-slate-700">({item.year}). </span>
-                          )}
-                          <span className="italic font-serif text-slate-900">"{item.title}"</span>
-                          {item.pagesStr && (
-                            <span className="text-slate-600 text-xs font-mono ml-1.5">{item.pagesStr}</span>
-                          )}
-                          {item.doc_name && !item.title.toLowerCase().includes(item.doc_name.toLowerCase()) && (
-                            <span className="text-slate-400 text-xs font-mono ml-2">({item.doc_name})</span>
-                          )}
-                        </span>
-                      </li>
-                    ))}
-                  </ol>
-                </div>
-              )}
-            </div>
+                <ol className="space-y-3 list-none p-0 m-0">
+                  {getGroupedBibliography(citations).map((item) => (
+                    <li
+                      key={item.doc_name}
+                      id={`reference-${item.doc_index}`}
+                      className="flex items-baseline gap-3 text-sm text-slate-800 leading-relaxed"
+                    >
+                      <span className="font-bold text-slate-900 font-serif shrink-0 min-w-[2rem]">
+                        [{item.doc_index}]
+                      </span>
+                      <span className="flex-1">
+                        {item.authors && (
+                          <span className="font-semibold text-slate-900">{item.authors} </span>
+                        )}
+                        {item.year && (
+                          <span className="text-slate-700">({item.year}). </span>
+                        )}
+                        <span className="italic font-serif text-slate-900">"{item.title}"</span>
+                        {item.pagesStr && (
+                          <span className="text-slate-600 text-xs font-mono ml-1.5">{item.pagesStr}</span>
+                        )}
+                        {item.doc_name && !item.title.toLowerCase().includes(item.doc_name.toLowerCase()) && (
+                          <span className="text-slate-400 text-xs font-mono ml-2">({item.doc_name})</span>
+                        )}
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
       {/* -------------------------------------------------------------------- */}
-      {/* 4. BOTTOM METRICS FOOTER (Matches Screenshot)                        */}
+      {/* 5. BOTTOM METRICS FOOTER (Scoped to DocumentWriter)                  */}
       {/* -------------------------------------------------------------------- */}
-      <div className="bg-zinc-900 border-t border-zinc-800 px-6 py-2.5 flex items-center justify-between text-xs text-zinc-400 select-none shrink-0 fixed bottom-0 left-0 right-0 z-20">
+      <div className="bg-zinc-900/90 border-t border-zinc-800/80 px-4 py-2 flex items-center justify-between text-xs text-zinc-400 select-none shrink-0 z-10">
         <div className="flex items-center gap-2">
           <FileText className="h-3.5 w-3.5 text-zinc-500" />
-          <span>{wordCount} words · ~{Math.max(1, Math.ceil(wordCount / 200))} min read · {virtualPageCount} {virtualPageCount === 1 ? 'page' : 'pages'}</span>
+          <span>
+            {wordCount} words · ~{Math.max(1, Math.ceil(wordCount / 200))} min read · {virtualPageCount} {virtualPageCount === 1 ? 'page' : 'pages'}
+          </span>
         </div>
 
         <div className="flex items-center gap-1.5 text-xs text-zinc-400">

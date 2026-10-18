@@ -677,7 +677,7 @@ export default function App() {
             </div>
           ) : (
             isWriterOpen && (
-              <div className="w-1/2 h-full transition-all duration-300 relative overflow-visible">
+              <div className="w-1/2 h-full transition-all duration-300 relative min-w-0 flex flex-col">
                 {/* Floating Expand Arrow positioned cleanly over the chat window boundary */}
                 <button
                   type="button"
