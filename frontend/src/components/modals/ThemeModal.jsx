@@ -33,7 +33,7 @@ export default function ThemeModal({ isOpen, onClose, currentTheme, onThemeChang
       {/* Odysseus-Style Window Frame */}
       <div
         ref={modalRef}
-        className="w-full max-w-xl bg-[#14161b]/95 border border-zinc-800/90 rounded-2xl shadow-2xl overflow-hidden backdrop-blur-xl animate-in zoom-in-95 duration-150 text-zinc-200"
+        className="w-full max-w-xl bg-zinc-900/95 border border-zinc-800/90 rounded-2xl shadow-2xl overflow-hidden backdrop-blur-xl animate-in zoom-in-95 duration-150 text-zinc-200"
       >
         {/* Window Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800/80 bg-zinc-900/40">

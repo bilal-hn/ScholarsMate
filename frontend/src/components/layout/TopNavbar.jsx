@@ -34,7 +34,7 @@ export default function TopNavbar({
             borderRadius: '21px',
             border: '1px transparent solid',
           }}
-          className="bg-zinc-900/90 hover:bg-zinc-800 text-zinc-200 hover:text-white font-semibold text-sm flex items-center justify-center transition-all cursor-pointer shadow-sm hover:border-zinc-500"
+          className="bg-zinc-900/90 hover:bg-zinc-800 text-zinc-200 hover:text-zinc-100 font-semibold text-sm flex items-center justify-center transition-all cursor-pointer shadow-sm hover:border-zinc-500"
         >
           Login
         </button>

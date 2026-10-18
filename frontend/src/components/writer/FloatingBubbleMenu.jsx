@@ -25,7 +25,7 @@ export default function FloatingBubbleMenu({
       <button
         type="button"
         onClick={onCite}
-        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 hover:text-amber-200 border border-amber-500/30 text-xs font-medium cursor-pointer transition-all active:scale-95"
+        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-zinc-100 font-semibold border border-amber-500/30 text-xs cursor-pointer transition-all active:scale-95"
         title="Find grounded citations in workspace documents"
       >
         <BookmarkPlus className="h-3.5 w-3.5 text-amber-400" />

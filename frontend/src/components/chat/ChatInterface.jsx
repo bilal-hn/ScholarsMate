@@ -522,7 +522,7 @@ export default function ChatInterface({
     <main className="flex-1 flex flex-col bg-zinc-950 h-full relative overflow-hidden text-zinc-200 font-sans transition-colors">
       {/* Workspace Sister Chats Context Points Banner */}
       {workspaceId && availableContextPoints.length > 0 && dismissedSessionId !== activeSessionId && (
-        <div className="mx-6 mt-3 mb-1 px-4 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/25 flex items-center justify-between text-xs text-amber-200 animate-in fade-in duration-200 shrink-0 select-none">
+        <div className="mx-6 mt-3 mb-1 px-4 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/25 flex items-center justify-between text-xs text-zinc-200 animate-in fade-in duration-200 shrink-0 select-none">
           <div className="flex items-center gap-2.5 min-w-0">
             <Sparkles className="h-4 w-4 text-amber-400 shrink-0" />
             <span className="truncate">

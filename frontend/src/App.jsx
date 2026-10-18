@@ -529,7 +529,7 @@ export default function App() {
     return (
       <div 
         data-theme={currentTheme}
-        className="fixed inset-0 z-50 h-screen w-screen bg-[#121316] text-zinc-100 overflow-hidden font-sans select-text"
+        className="fixed inset-0 z-50 h-screen w-screen bg-zinc-950 text-zinc-100 overflow-hidden font-sans select-text"
       >
         <DocumentWriter
           sessionId={activeSessionId}
@@ -628,7 +628,7 @@ export default function App() {
             </div>
             <button
               onClick={checkStatus}
-              className="flex items-center gap-1 hover:text-white font-medium cursor-pointer transition-colors"
+              className="flex items-center gap-1 hover:text-zinc-100 font-medium cursor-pointer transition-colors"
             >
               <RefreshCw className="h-3 w-3" />
               <span>Retry</span>
@@ -682,7 +682,7 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => setIsWriterFullscreen(true)}
-                  className="absolute top-1/2 -translate-y-1/2 -left-4 z-50 p-2 bg-[#18191c] hover:bg-[#282a2e] border border-zinc-700/90 rounded-full shadow-2xl text-zinc-300 hover:text-amber-300 transition-all cursor-pointer flex items-center justify-center hover:scale-110"
+                  className="absolute top-1/2 -translate-y-1/2 -left-4 z-50 p-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700/90 rounded-full shadow-2xl text-zinc-300 hover:text-amber-400 transition-all cursor-pointer flex items-center justify-center hover:scale-110"
                   title="Expand to Fullscreen"
                 >
                   <ChevronLeft className="h-4 w-4" />

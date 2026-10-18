@@ -633,7 +633,7 @@ export default function ChatInput({
         {hasWriterButton ? (
           <div
             onClick={onToggleWriter}
-            className="inline-flex items-center gap-2 px-3 py-1 bg-[#131417] hover:bg-[#1a1b1f] border border-zinc-800/90 hover:border-zinc-700/80 rounded-full text-xs text-zinc-300 hover:text-zinc-100 shadow-xl backdrop-blur-md transition-all cursor-pointer select-none group animate-in fade-in slide-in-from-bottom-2 duration-150"
+            className="inline-flex items-center gap-2 px-3 py-1 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800/90 hover:border-zinc-700/80 rounded-full text-xs text-zinc-300 hover:text-zinc-100 shadow-xl backdrop-blur-md transition-all cursor-pointer select-none group animate-in fade-in slide-in-from-bottom-2 duration-150"
           >
             <FileText className="h-3.5 w-3.5 text-zinc-400 group-hover:text-amber-400 transition-colors" />
             <span className="font-medium text-[12px] tracking-tight">Document</span>
@@ -846,7 +846,7 @@ export default function ChatInput({
                 <button
                   type="button"
                   onClick={onOpenSettings}
-                  className="underline font-semibold text-amber-200 hover:text-white shrink-0 cursor-pointer ml-1"
+                  className="underline font-semibold text-amber-400 hover:text-amber-300 shrink-0 cursor-pointer ml-1"
                 >
                   Settings
                 </button>
@@ -855,7 +855,7 @@ export default function ChatInput({
             <button
               type="button"
               onClick={() => setVisionNotice(null)}
-              className="text-amber-400 hover:text-white p-0.5 cursor-pointer shrink-0"
+              className="text-amber-400 hover:text-zinc-100 p-0.5 cursor-pointer shrink-0"
             >
               <X className="h-3 w-3" />
             </button>
@@ -869,7 +869,7 @@ export default function ChatInput({
             <button
               type="button"
               onClick={() => setUploadError(null)}
-              className="text-rose-400 hover:text-white p-0.5 cursor-pointer"
+              className="text-rose-400 hover:text-zinc-100 p-0.5 cursor-pointer"
             >
               <X className="h-3 w-3" />
             </button>
@@ -1279,7 +1279,7 @@ export default function ChatInput({
                               type="button"
                               onClick={() => setExpandedProvider(isExpanded ? null : providerKey)}
                               className={`w-full flex items-center justify-between px-2.5 py-1.5 text-xs font-medium cursor-pointer transition-colors ${
-                                hasActiveModel ? 'text-amber-400 font-semibold' : 'text-zinc-300 hover:bg-zinc-800/50 hover:text-white'
+                                hasActiveModel ? 'text-amber-400 font-semibold' : 'text-zinc-300 hover:bg-zinc-800/50 hover:text-zinc-100'
                               }`}
                             >
                               <div className="flex items-center gap-1.5 truncate">

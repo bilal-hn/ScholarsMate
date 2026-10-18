@@ -397,7 +397,7 @@ function ChatMessage({ message, index, onSelectCitation }) {
                         key={sIdx}
                         type="button"
                         onClick={() => onSelectCitation && onSelectCitation(src.doc_name, src.page_number)}
-                        className="inline-flex items-center gap-1.5 text-[11px] font-mono bg-zinc-900 border border-zinc-800 hover:border-amber-500/40 text-amber-300 hover:text-amber-200 px-2 py-1 rounded-lg transition-colors cursor-pointer group"
+                        className="inline-flex items-center gap-1.5 text-[11px] font-mono bg-zinc-900 border border-zinc-800 hover:border-amber-500/40 text-zinc-200 hover:text-zinc-100 px-2 py-1 rounded-lg transition-colors cursor-pointer group"
                         title={`Jump to page ${src.page_number} of ${src.doc_name}`}
                       >
                         <FileText className="h-3 w-3 text-amber-400 shrink-0 group-hover:scale-105 transition-transform" />

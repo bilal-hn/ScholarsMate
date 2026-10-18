@@ -343,12 +343,12 @@ export default function LiteratureReviewModal({
                           onClick={() => togglePaper(docName)}
                           className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-left transition-colors cursor-pointer ${
                             selected
-                              ? 'bg-amber-400/10 border border-amber-400/30 text-amber-200'
-                              : 'bg-zinc-900/60 border border-zinc-800 text-zinc-400 hover:text-zinc-300'
+                              ? 'bg-amber-500/15 border border-amber-500/40 text-zinc-100 font-medium'
+                              : 'bg-zinc-900/60 border border-zinc-800 text-zinc-400 hover:text-zinc-200'
                           }`}
                         >
                           {selected
-                            ? <CheckSquare className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                            ? <CheckSquare className="h-3.5 w-3.5 text-amber-500 shrink-0" />
                             : <Square className="h-3.5 w-3.5 text-zinc-500 shrink-0" />}
                           <span className="truncate">{docName}</span>
                         </button>

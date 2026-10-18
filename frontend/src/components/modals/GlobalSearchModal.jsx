@@ -187,7 +187,7 @@ export default function GlobalSearchModal({
     >
       {/* Search Modal Container */}
       <div
-        className="w-full max-w-xl bg-[#131417]/95 border border-zinc-800/90 rounded-2xl shadow-2xl overflow-hidden backdrop-blur-2xl animate-in zoom-in-95 duration-150 text-zinc-200 flex flex-col transition-all"
+        className="w-full max-w-xl bg-zinc-900/95 border border-zinc-800/90 rounded-2xl shadow-2xl overflow-hidden backdrop-blur-2xl animate-in zoom-in-95 duration-150 text-zinc-200 flex flex-col transition-all"
         onClick={(e) => e.stopPropagation()}
         onKeyDown={handleKeyDown}
       >

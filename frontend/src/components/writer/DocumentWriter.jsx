@@ -1096,7 +1096,7 @@ export default function DocumentWriter({
                 closeAllMenus();
                 setIsExportMenuOpen(next);
               }}
-              className="flex items-center gap-1 text-xs text-zinc-200 hover:text-white px-2.5 py-1 rounded-lg hover:bg-zinc-800 transition-colors cursor-pointer font-medium shrink-0 bg-zinc-800/70 border border-zinc-700/60 shadow-xs"
+              className="flex items-center gap-1 text-xs text-zinc-200 hover:text-zinc-100 px-2.5 py-1 rounded-lg hover:bg-zinc-800 transition-colors cursor-pointer font-medium shrink-0 bg-zinc-800/70 border border-zinc-700/60 shadow-xs"
               title="Export Document"
             >
               <Download className="h-3.5 w-3.5 text-amber-400" />

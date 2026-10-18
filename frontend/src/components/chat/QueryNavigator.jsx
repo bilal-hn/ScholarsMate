@@ -70,7 +70,7 @@ export default function QueryNavigator({ messages = [], onDeleteChat }) {
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
         title="Previous questions & navigation"
-        className={`inline-flex items-center justify-center px-3 py-1 bg-[#131417] hover:bg-[#1a1b1f] border border-zinc-800/90 hover:border-zinc-700/80 rounded-full text-xs text-zinc-300 hover:text-zinc-100 shadow-xl backdrop-blur-md transition-all cursor-pointer select-none group ${
+        className={`inline-flex items-center justify-center px-3 py-1 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800/90 hover:border-zinc-700/80 rounded-full text-xs text-zinc-300 hover:text-zinc-100 shadow-xl backdrop-blur-md transition-all cursor-pointer select-none group ${
           isOpen
             ? 'bg-zinc-800/90 border-zinc-700 text-amber-400 ring-1 ring-amber-400/40'
             : ''

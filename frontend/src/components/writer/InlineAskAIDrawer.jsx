@@ -159,7 +159,7 @@ export default function InlineAskAIDrawer({
               <button
                 type="button"
                 onClick={handleCopy}
-                className="p-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white border border-zinc-700 transition-colors cursor-pointer"
+                className="p-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-zinc-100 border border-zinc-700 transition-colors cursor-pointer"
                 title="Copy to clipboard"
               >
                 {copied ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
