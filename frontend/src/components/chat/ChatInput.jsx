@@ -23,9 +23,10 @@ import {
   Info,
   Sparkles,
   Loader2,
-  Image
+  Image,
 } from 'lucide-react';
 import { uploadFile, extractImageDataAPI } from '../../services/api';
+import QueryNavigator from './QueryNavigator';
 
 export const LENS_GUIDES = {
   assistant: {
@@ -78,6 +79,8 @@ export default function ChatInput({
   setAttachedDocs,
   attachedImages,
   setAttachedImages,
+  messages = [],
+  onDeleteChat,
 }) {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isLensDropdownOpen, setIsLensDropdownOpen] = useState(false);
@@ -624,9 +627,10 @@ export default function ChatInput({
 
   return (
     <div className="w-full px-4 pb-4 pt-1 bg-gradient-to-t from-zinc-950 via-zinc-950/90 to-transparent shrink-0 relative z-30 transition-colors">
-      {/* Floating Document Pill Capsule (above chat input box) */}
-      {hasWriterButton && (
-        <div className="max-w-3xl mx-auto mb-2 flex items-center">
+      {/* Floating Capsule Bar (above chat input box): Left = Document Pill, Right = Query Navigator (Three Dots) */}
+      <div className="max-w-3xl mx-auto mb-2 flex items-center justify-between pointer-events-auto">
+        {/* Left Side: Document Pill (when writer button is active) */}
+        {hasWriterButton ? (
           <div
             onClick={onToggleWriter}
             className="inline-flex items-center gap-2 px-3 py-1 bg-[#131417] hover:bg-[#1a1b1f] border border-zinc-800/90 hover:border-zinc-700/80 rounded-full text-xs text-zinc-300 hover:text-zinc-100 shadow-xl backdrop-blur-md transition-all cursor-pointer select-none group animate-in fade-in slide-in-from-bottom-2 duration-150"
@@ -647,8 +651,13 @@ export default function ChatInput({
               </button>
             )}
           </div>
-        </div>
-      )}
+        ) : (
+          <div />
+        )}
+
+        {/* Right Side: Query Navigator (Three Dots Pill Button, always present, without a cross) */}
+        <QueryNavigator messages={messages} onDeleteChat={onDeleteChat} />
+      </div>
 
       <form
         onSubmit={handleFormSubmit}

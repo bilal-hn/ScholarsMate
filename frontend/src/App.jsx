@@ -662,6 +662,7 @@ export default function App() {
               onTargetMessageScrolled={() => setTargetMessageIndex(null)}
               onSessionCreated={handleSessionCreated}
               onDocumentUploaded={handleDocumentUploaded}
+              onDeleteChat={handleDeleteCurrentChat}
             />
           </div>
 

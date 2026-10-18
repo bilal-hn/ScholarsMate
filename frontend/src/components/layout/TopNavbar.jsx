@@ -1,5 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { PanelLeftOpen, MoreVertical, Trash2, Key } from 'lucide-react';
+import React from 'react';
 
 export default function TopNavbar({
   isSidebarCollapsed,
@@ -9,25 +8,7 @@ export default function TopNavbar({
   onDeleteChat,
   onOpenSettings,
 }) {
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const menuRef = useRef(null);
-
   const isAuthenticated = currentUser && !currentUser.is_guest;
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (menuRef.current && !menuRef.current.contains(event.target)) {
-        setIsMenuOpen(false);
-      }
-    };
-    if (isMenuOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [isMenuOpen]);
 
   return (
     <header className="h-[75px] bg-zinc-950/80 backdrop-blur-md flex items-center justify-between px-6 shrink-0 z-30 select-none">
@@ -44,53 +25,9 @@ export default function TopNavbar({
         )}
       </div>
 
-      {/* Top Right: Three dots (with Delete Chat) when logged in; Login/Sign Up when logged out */}
-      <div className="flex items-center gap-3 relative" ref={menuRef}>
-        {isAuthenticated ? (
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setIsMenuOpen((prev) => !prev)}
-              title="Chat Options"
-              className={`p-2.5 rounded-xl border transition-all cursor-pointer shadow-sm flex items-center justify-center ${
-                isMenuOpen
-                  ? 'bg-zinc-800 text-amber-400 border-zinc-700'
-                  : 'bg-zinc-900/90 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-100 border-zinc-800'
-              }`}
-            >
-              <MoreVertical className="h-5 w-5" />
-            </button>
-
-            {isMenuOpen && (
-              <div className="absolute right-0 mt-2 w-44 bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl p-1.5 z-50 animate-in fade-in duration-150">
-                {onOpenSettings && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsMenuOpen(false);
-                      onOpenSettings();
-                    }}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-zinc-300 hover:text-amber-400 hover:bg-zinc-800/60 rounded-lg transition-colors cursor-pointer text-left"
-                  >
-                    <Key className="h-4 w-4 shrink-0" />
-                    <span>API Keys</span>
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsMenuOpen(false);
-                    if (onDeleteChat) onDeleteChat();
-                  }}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-rose-400 hover:text-rose-300 hover:bg-rose-950/40 rounded-lg transition-colors cursor-pointer text-left"
-                >
-                  <Trash2 className="h-4 w-4 shrink-0" />
-                  <span>Delete Chat</span>
-                </button>
-              </div>
-            )}
-          </div>
-        ) : (
+      {/* Top Right: Login/Sign Up when logged out; empty when logged in */}
+      <div className="flex items-center gap-3 relative">
+        {!isAuthenticated && (
           <div className="flex items-center gap-3">
             <button
               type="button"

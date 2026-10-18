@@ -18,7 +18,6 @@ import ChatInput from './ChatInput';
 import LiteratureReviewModal from '../modals/LiteratureReviewModal';
 import CustomLensModal from '../modals/CustomLensModal';
 import WorkspaceLoadingState from './WorkspaceLoadingState';
-import QueryNavigator from './QueryNavigator';
 import { 
   sendQuery, 
   generateLiteratureReviewAPI, 
@@ -121,6 +120,7 @@ export default function ChatInterface({
   onTargetMessageScrolled,
   onSessionCreated,
   onDocumentUploaded,
+  onDeleteChat,
   customKeys
 }) {
   const [messages, setMessages] = useState([]);
@@ -557,13 +557,6 @@ export default function ChatInterface({
         </div>
       )}
 
-      {/* Far Right Vertically-Centered Query Navigator */}
-      {!isSessionLoading && !isSplitScreen && messages.length > 0 && (
-        <div className="absolute right-3.5 top-1/2 -translate-y-1/2 z-40 flex flex-col items-center gap-2.5">
-          <QueryNavigator messages={messages} />
-        </div>
-      )}
-
       {/* Main Content Area */}
       {isSessionLoading ? (
         <WorkspaceLoadingState />
@@ -676,6 +669,8 @@ export default function ChatInterface({
         setAttachedDocs={setAttachedDocs}
         attachedImages={attachedImages}
         setAttachedImages={setAttachedImages}
+        messages={messages}
+        onDeleteChat={onDeleteChat}
       />
 
       {/* Literature Review Studio Modal */}

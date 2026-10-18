@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { AlignLeft, ArrowUp, ArrowDown, Sparkles, MessageSquare, X } from 'lucide-react';
+import { MoreHorizontal, ArrowUp, ArrowDown, X, Trash2 } from 'lucide-react';
 
-export default function QueryNavigator({ messages = [] }) {
+export default function QueryNavigator({ messages = [], onDeleteChat }) {
   const [isOpen, setIsOpen] = useState(false);
   const popoverRef = useRef(null);
 
@@ -12,22 +12,27 @@ export default function QueryNavigator({ messages = [] }) {
       .filter((m) => m.sender === 'user');
   }, [messages]);
 
-  // Close on click outside
+  // Close on click outside or Escape key
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (popoverRef.current && !popoverRef.current.contains(e.target)) {
         setIsOpen(false);
       }
     };
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        setIsOpen(false);
+      }
+    };
     if (isOpen) {
       document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('keydown', handleKeyDown);
     }
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
     };
   }, [isOpen]);
-
-  if (userQueries.length === 0) return null;
 
   const scrollToMessage = (index) => {
     const el = document.getElementById(`chat-msg-${index}`);
@@ -59,24 +64,24 @@ export default function QueryNavigator({ messages = [] }) {
   };
 
   return (
-    <div className="relative" ref={popoverRef}>
-      {/* 3-Bars Query Navigator Trigger Button (Icon Only) */}
+    <div className="relative inline-flex" ref={popoverRef}>
+      {/* 3-Dots Query Navigator Trigger Button (Styled like Document Capsule, without a cross) */}
       <button
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
-        title="Jump between queries"
-        className={`p-2.5 rounded-xl border transition-all cursor-pointer shadow-xl backdrop-blur-md flex items-center justify-center hover:scale-105 ${
+        title="Previous questions & navigation"
+        className={`inline-flex items-center justify-center px-3 py-1 bg-[#131417] hover:bg-[#1a1b1f] border border-zinc-800/90 hover:border-zinc-700/80 rounded-full text-xs text-zinc-300 hover:text-zinc-100 shadow-xl backdrop-blur-md transition-all cursor-pointer select-none group ${
           isOpen
-            ? 'bg-zinc-800 border-zinc-600 text-zinc-100 ring-2 ring-zinc-700/60'
-            : 'bg-zinc-900/90 hover:bg-zinc-800 border-zinc-800 hover:border-zinc-700 text-zinc-400 hover:text-zinc-200'
+            ? 'bg-zinc-800/90 border-zinc-700 text-amber-400 ring-1 ring-amber-400/40'
+            : ''
         }`}
       >
-        <AlignLeft className="h-4 w-4 stroke-[2.2]" />
+        <MoreHorizontal className="h-4 w-4 text-zinc-400 group-hover:text-amber-400 transition-colors" />
       </button>
 
-      {/* Popover Menu (Opens to the left of the right edge bar) */}
+      {/* Popover Menu (Opens upward above the button, aligned to the right) */}
       {isOpen && (
-        <div className="absolute right-full mr-2.5 top-1/2 -translate-y-1/2 w-72 sm:w-80 bg-zinc-900/95 border border-zinc-800 rounded-2xl shadow-2xl z-50 p-2 text-xs backdrop-blur-xl animate-in fade-in zoom-in-95 duration-150">
+        <div className="absolute bottom-full mb-2 right-0 w-72 sm:w-80 bg-zinc-900/95 border border-zinc-800 rounded-2xl shadow-2xl z-50 p-2 text-xs backdrop-blur-xl animate-in fade-in zoom-in-95 duration-150">
           {/* Header */}
           <div className="flex items-center justify-between px-2.5 py-1.5 border-b border-zinc-800/80 mb-1.5">
             <div className="flex items-center gap-2">
@@ -103,6 +108,19 @@ export default function QueryNavigator({ messages = [] }) {
               >
                 <ArrowDown className="h-3.5 w-3.5" />
               </button>
+              {onDeleteChat && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsOpen(false);
+                    onDeleteChat();
+                  }}
+                  title="Delete Chat Thread"
+                  className="p-1 text-zinc-500 hover:text-rose-400 hover:bg-rose-950/30 rounded transition-colors cursor-pointer"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => setIsOpen(false)}
@@ -113,24 +131,30 @@ export default function QueryNavigator({ messages = [] }) {
             </div>
           </div>
 
-          {/* Queries List */}
-          <div className="max-h-64 overflow-y-auto space-y-1 p-0.5 pr-1">
-            {userQueries.map((q, qIdx) => (
-              <button
-                key={q.id || q.originalIndex}
-                type="button"
-                onClick={() => scrollToMessage(q.originalIndex)}
-                className="w-full flex items-start gap-2.5 p-2 rounded-xl text-left hover:bg-zinc-800/70 transition-all cursor-pointer group text-zinc-300 hover:text-zinc-100"
-              >
-                <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-zinc-950/80 text-zinc-500 group-hover:text-amber-400 border border-zinc-800 shrink-0 mt-0.5">
-                  #{qIdx + 1}
-                </span>
-                <p className="text-[11.5px] leading-snug line-clamp-2 select-none flex-1">
-                  {q.text}
-                </p>
-              </button>
-            ))}
-          </div>
+          {/* Queries List or Empty State */}
+          {userQueries.length === 0 ? (
+            <div className="py-6 px-3 text-center text-zinc-500 italic text-[11.5px] select-none">
+              No previous questions in this chat yet.
+            </div>
+          ) : (
+            <div className="max-h-64 overflow-y-auto space-y-1 p-0.5 pr-1">
+              {userQueries.map((q, qIdx) => (
+                <button
+                  key={q.id || q.originalIndex}
+                  type="button"
+                  onClick={() => scrollToMessage(q.originalIndex)}
+                  className="w-full flex items-start gap-2.5 p-2 rounded-xl text-left hover:bg-zinc-800/70 transition-all cursor-pointer group text-zinc-300 hover:text-zinc-100"
+                >
+                  <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-zinc-950/80 text-zinc-500 group-hover:text-amber-400 border border-zinc-800 shrink-0 mt-0.5">
+                    #{qIdx + 1}
+                  </span>
+                  <p className="text-[11.5px] leading-snug line-clamp-2 select-none flex-1">
+                    {q.text}
+                  </p>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
