@@ -1,5 +1,5 @@
 import React from 'react';
-import { Sparkles, BookmarkPlus, Bold, Italic, Underline, Heading2, Quote } from 'lucide-react';
+import { BookmarkPlus, Bold, Italic, Underline, Heading2, Quote } from 'lucide-react';
 
 /**
  * Floating bubble menu that appears above highlighted text selections in the Document Writer.
@@ -7,7 +7,6 @@ import { Sparkles, BookmarkPlus, Bold, Italic, Underline, Heading2, Quote } from
 export default function FloatingBubbleMenu({
   position,
   onCite,
-  onAskAI,
   onFormat,
   onClose,
 }) {
@@ -31,17 +30,6 @@ export default function FloatingBubbleMenu({
       >
         <BookmarkPlus className="h-3.5 w-3.5 text-amber-400" />
         <span>Cite</span>
-      </button>
-
-      {/* 2. Ask AI Button */}
-      <button
-        type="button"
-        onClick={onAskAI}
-        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-purple-500/15 hover:bg-purple-500/25 text-purple-300 hover:text-purple-200 border border-purple-500/30 text-xs font-medium cursor-pointer transition-all active:scale-95"
-        title="Ask AI to critique, expand, or rewrite this selection"
-      >
-        <Sparkles className="h-3.5 w-3.5 text-purple-400" />
-        <span>Ask AI</span>
       </button>
 
       <div className="h-4 w-px bg-zinc-700 mx-0.5" />

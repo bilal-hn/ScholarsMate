@@ -50,8 +50,7 @@ import {
 } from 'lucide-react';
 import FloatingBubbleMenu from './FloatingBubbleMenu';
 import CitationDrawer from './CitationDrawer';
-import InlineAskAIDrawer from './InlineAskAIDrawer';
-import { getDraftAPI, saveDraftAPI, findCitationsAPI, editorAskAIAPI } from '../../services/api';
+import { getDraftAPI, saveDraftAPI, findCitationsAPI } from '../../services/api';
 
 const FONT_FAMILIES = [
   { label: 'Source Sans 3', value: "'Source Sans 3', sans-serif" },
@@ -218,11 +217,6 @@ export default function DocumentWriter({
   const [isCitationDrawerOpen, setIsCitationDrawerOpen] = useState(false);
   const [isCitationLoading, setIsCitationLoading] = useState(false);
   const [citationCandidates, setCitationCandidates] = useState([]);
-
-  const [isAskAIDrawerOpen, setIsAskAIDrawerOpen] = useState(false);
-  const [isAskAILoading, setIsAskAILoading] = useState(false);
-  const [aiResult, setAiResult] = useState('');
-  const [thinkingProcess, setThinkingProcess] = useState('');
 
   // Close all popover menus on outside click
   useEffect(() => {
@@ -607,63 +601,7 @@ export default function DocumentWriter({
   };
 
   // --------------------------------------------------------------------------
-  // 5. IN-EDITOR ASK AI FLOW
-  // --------------------------------------------------------------------------
-  const handleOpenAskAI = () => {
-    setBubblePosition(null);
-    setIsAskAIDrawerOpen(true);
-    setAiResult('');
-    setThinkingProcess('');
-  };
-
-  const handleSubmitAskAIPrompt = async (instruction) => {
-    if (!selectedText || !instruction) return;
-    setIsAskAILoading(true);
-    setAiResult('');
-    setThinkingProcess('');
-
-    try {
-      const docNames = documents.map((d) => d.doc_name);
-      const res = await editorAskAIAPI({
-        selection: selectedText,
-        instruction: instruction,
-        docNames: docNames,
-        modelName: currentModel,
-      });
-
-      setAiResult(res.result || '');
-      setThinkingProcess(res.thinking_process || '');
-    } catch (err) {
-      console.error('In-editor AI error:', err);
-      setAiResult('⚠️ Failed to generate AI assistance. Please check backend connection.');
-    } finally {
-      setIsAskAILoading(false);
-    }
-  };
-
-  const handleReplaceSelection = (replacementText) => {
-    if (editorRef.current) {
-      editorRef.current.focus();
-    }
-    document.execCommand('insertText', false, replacementText);
-    setIsAskAIDrawerOpen(false);
-    updateWordCount();
-    triggerAutoSave();
-  };
-
-  const handleInsertBelow = (insertionText) => {
-    if (editorRef.current) {
-      editorRef.current.focus();
-    }
-    const formattedHtml = `<p>${insertionText}</p>`;
-    document.execCommand('insertHTML', false, formattedHtml);
-    setIsAskAIDrawerOpen(false);
-    updateWordCount();
-    triggerAutoSave();
-  };
-
-  // --------------------------------------------------------------------------
-  // 6. MULTI-FORMAT EXPORT ENGINE (Word .docx, PDF, Markdown, Copy)
+  // 5. MULTI-FORMAT EXPORT ENGINE (Word .docx, PDF, Markdown, Copy)
   // --------------------------------------------------------------------------
   const formatMarkdownBibliography = (cList) => {
     const grouped = getGroupedBibliography(cList);
@@ -1254,11 +1192,11 @@ export default function DocumentWriter({
       {/* 2. DEDICATED FORMATTING TOOLBAR (Collapsible)                        */}
       {/* -------------------------------------------------------------------- */}
       <div
-        className={`relative z-20 transition-all duration-200 ease-in-out shrink-0 ${
+        className={`relative z-40 transition-all duration-200 ease-in-out shrink-0 ${
           isToolbarCollapsed ? 'h-0 opacity-0 overflow-hidden pointer-events-none' : 'h-auto opacity-100 overflow-visible'
         }`}
       >
-        <div className="bg-zinc-900/60 border-b border-zinc-800 px-3 py-1.5 flex items-center gap-1 select-none text-zinc-300 text-xs overflow-x-auto no-scrollbar">
+        <div className="bg-zinc-900/60 border-b border-zinc-800 px-3 py-1.5 flex items-center gap-1 select-none text-zinc-300 text-xs overflow-visible">
           {/* Undo / Redo */}
           <button
             type="button"
@@ -1660,7 +1598,7 @@ export default function DocumentWriter({
       {/* 4. SCROLLABLE DOCUMENT CANVAS CONTAINER                              */}
       {/* -------------------------------------------------------------------- */}
       <div
-        className="flex-1 overflow-y-auto overflow-x-hidden bg-zinc-950 flex justify-center items-start px-2 sm:px-6 py-6 pb-20"
+        className="flex-1 overflow-y-auto overflow-x-hidden bg-zinc-950 flex justify-center items-start px-2 sm:px-6 py-6 pb-20 relative z-10"
         onMouseUp={handleSelectionChange}
         onKeyUp={handleSelectionChange}
       >
@@ -1669,7 +1607,6 @@ export default function DocumentWriter({
           <FloatingBubbleMenu
             position={bubblePosition}
             onCite={handleOpenCitationSearch}
-            onAskAI={handleOpenAskAI}
             onFormat={(cmd) => formatDoc(cmd)}
             onClose={() => setBubblePosition(null)}
           />
@@ -1764,7 +1701,7 @@ export default function DocumentWriter({
         </div>
 
         <div className="flex items-center gap-1.5 text-xs text-zinc-400">
-          <span>Select a claim to <strong className="text-zinc-200 font-semibold">Cite</strong> or <strong className="text-zinc-200 font-semibold">Ask AI</strong></span>
+          <span>Select a claim to <strong className="text-zinc-200 font-semibold">Cite</strong></span>
         </div>
       </div>
 
@@ -1779,18 +1716,6 @@ export default function DocumentWriter({
         isLoading={isCitationLoading}
         onInsertCitation={handleInsertCitation}
         onOpenPdfViewer={onOpenPdfViewer}
-      />
-
-      <InlineAskAIDrawer
-        isOpen={isAskAIDrawerOpen}
-        onClose={() => setIsAskAIDrawerOpen(false)}
-        selection={selectedText}
-        onSubmitPrompt={handleSubmitAskAIPrompt}
-        isLoading={isAskAILoading}
-        aiResult={aiResult}
-        thinkingProcess={thinkingProcess}
-        onReplaceSelection={handleReplaceSelection}
-        onInsertBelow={handleInsertBelow}
       />
     </div>
   );
