@@ -13,6 +13,7 @@ import BrainModal from './components/modals/BrainModal';
 import AuthModal from './components/modals/AuthModal';
 import PdfViewer from './components/viewer/PdfViewer';
 import ProfileSettingsModal from './components/layout/ProfileSettingsModal';
+import LibraryView from './components/library/LibraryView';
 import { 
   getDocuments, 
   checkHealth, 
@@ -46,6 +47,7 @@ export default function App() {
   const [isBrainModalOpen, setIsBrainModalOpen] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authModalMode, setAuthModalMode] = useState('login');
+  const [isLibraryOpen, setIsLibraryOpen] = useState(false);
 
   const handleOpenAuth = (mode = 'login') => {
     setAuthModalMode(mode);
@@ -298,6 +300,7 @@ export default function App() {
   };
 
   const handleSelectWorkspaceChat = (workspaceId, sessionId, messageIndex = null) => {
+    setIsLibraryOpen(false);
     if (messageIndex !== null && messageIndex !== undefined) {
       setTargetMessageIndex(messageIndex);
     } else {
@@ -316,6 +319,7 @@ export default function App() {
   };
 
   const handleSelectStandaloneChat = (sessionId, messageIndex = null) => {
+    setIsLibraryOpen(false);
     if (messageIndex !== null && messageIndex !== undefined) {
       setTargetMessageIndex(messageIndex);
     } else {
@@ -487,6 +491,7 @@ export default function App() {
   };
 
   const handleNewChat = () => {
+    setIsLibraryOpen(false);
     setActiveWorkspaceId(null);
     setActiveSessionId(null);
     setSelectedDocs([]);
@@ -521,6 +526,59 @@ export default function App() {
   const handleGenerateLiteratureReview = async (config) => {
     return await generateLiteratureReviewAPI(config);
   };
+
+  // --------------------------------------------------------------------------
+  // DEDICATED REFERENCE LIBRARY WORKBENCH (Zero sidebar, 100vw x 100vh)
+  // --------------------------------------------------------------------------
+  if (isLibraryOpen) {
+    return (
+      <div 
+        data-theme={currentTheme}
+        className="fixed inset-0 z-50 h-screen w-screen bg-zinc-950 text-zinc-100 overflow-hidden font-sans select-text flex flex-col"
+      >
+        {/* Background Animated Particles Engine (for Blaze & Aurora themes) */}
+        <AnimatedThemeCanvas theme={currentTheme} />
+
+        <LibraryView
+          workspaces={workspaces}
+          onClose={() => setIsLibraryOpen(false)}
+          onStartChatWithPaper={(docName) => {
+            setIsLibraryOpen(false);
+            handleSelectCitation(docName, 1);
+          }}
+          onOpenPdfViewer={(docName, page) => {
+            setIsLibraryOpen(false);
+            handleSelectCitation(docName, page);
+          }}
+          onOpenLitReviewWithDocs={(docNames) => {
+            setSelectedDocs(docNames);
+            setIsLibraryOpen(false);
+            setIsLitReviewOpen(true);
+          }}
+        />
+
+        {/* Modals */}
+        <CreateWorkspaceModal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          onWorkspaceCreated={handleWorkspaceCreated}
+        />
+        <SettingsModal
+          isOpen={isSettingsOpen}
+          onClose={() => setIsSettingsOpen(false)}
+          onConfigUpdated={handleConfigUpdated}
+        />
+        <LiteratureReviewModal
+          isOpen={isLitReviewOpen}
+          onClose={() => setIsLitReviewOpen(false)}
+          documents={scopedDocuments}
+          selectedDocs={selectedDocs}
+          currentModel={currentModel}
+          onGenerateReview={handleGenerateLiteratureReview}
+        />
+      </div>
+    );
+  }
 
   // --------------------------------------------------------------------------
   // FULLSCREEN DOCUMENT WRITER VIEW (Zero sidebar, 100vw x 100vh)
@@ -597,6 +655,8 @@ export default function App() {
         onOpenBrainModal={() => setIsBrainModalOpen(true)}
         onToggleWriter={handleToggleWriter}
         isWriterActive={isWriterOpen}
+        onToggleLibrary={() => setIsLibraryOpen((prev) => !prev)}
+        isLibraryActive={isLibraryOpen}
         onAuthChange={handleAuthChange}
         onOpenAuth={handleOpenAuth}
         onOpenSettings={() => setIsSettingsOpen(true)}

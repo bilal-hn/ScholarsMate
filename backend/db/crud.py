@@ -5,7 +5,7 @@ from typing import List, Optional, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete as sql_delete
 from sqlalchemy.orm import selectinload
-from backend.db.models import ChatSession, ChatMessage, User, Workspace, WorkspaceDraft, BrainMemory
+from backend.db.models import ChatSession, ChatMessage, User, Workspace, WorkspaceDraft, BrainMemory, UserDocument
 
 
 def _normalize_json_list(val: Any) -> list:
@@ -904,4 +904,124 @@ async def clear_brain_memories(
     result = await db.execute(stmt)
     await db.commit()
     return result.rowcount
+
+
+# =============================================================================
+# FR-17: ACADEMIC REFERENCE MANAGER & LIBRARY CRUD
+# =============================================================================
+
+async def get_user_library(
+    db: AsyncSession,
+    user_id: str,
+    tag: Optional[str] = None,
+    workspace_id: Optional[str] = None,
+    search: Optional[str] = None,
+) -> List[UserDocument]:
+    """Fetches user library documents with optional tag, workspace, and search filtering."""
+    stmt = select(UserDocument).where(UserDocument.user_id == user_id)
+
+    # If workspace_id is provided, find docs attached to that workspace
+    if workspace_id:
+        ws_stmt = select(Workspace).where(Workspace.id == workspace_id, Workspace.user_id == user_id)
+        ws_res = await db.execute(ws_stmt)
+        ws = ws_res.scalar_one_or_none()
+        if ws and ws.doc_names:
+            stmt = stmt.where(UserDocument.doc_name.in_(ws.doc_names))
+        else:
+            return []
+
+    stmt = stmt.order_by(UserDocument.created_at.desc())
+    result = await db.execute(stmt)
+    docs = list(result.scalars().all())
+
+    # Tag filtering (JSON array in SQLite)
+    if tag:
+        docs = [d for d in docs if tag in (d.tags or [])]
+
+    # Search filtering (Title, Authors, doc_name)
+    if search and search.strip():
+        q = search.strip().lower()
+        docs = [
+            d for d in docs
+            if q in (d.doc_name or "").lower()
+            or q in (d.title or "").lower()
+            or q in (d.authors or "").lower()
+            or q in (d.venue or "").lower()
+            or q in (d.year or "").lower()
+        ]
+
+    return docs
+
+
+async def get_library_document(
+    db: AsyncSession,
+    doc_id: str,
+    user_id: str
+) -> Optional[UserDocument]:
+    """Retrieves a single library document by ID with user isolation."""
+    stmt = select(UserDocument).where(UserDocument.id == doc_id, UserDocument.user_id == user_id)
+    result = await db.execute(stmt)
+    return result.scalar_one_or_none()
+
+
+async def get_library_document_by_name(
+    db: AsyncSession,
+    doc_name: str,
+    user_id: str
+) -> Optional[UserDocument]:
+    """Retrieves a library document by filename with user isolation."""
+    stmt = select(UserDocument).where(UserDocument.doc_name == doc_name, UserDocument.user_id == user_id)
+    result = await db.execute(stmt)
+    return result.scalar_one_or_none()
+
+
+async def update_library_document(
+    db: AsyncSession,
+    doc_id: str,
+    user_id: str,
+    updates: dict
+) -> Optional[UserDocument]:
+    """Updates bibliographic metadata for a document."""
+    doc = await get_library_document(db, doc_id=doc_id, user_id=user_id)
+    if not doc:
+        return None
+
+    allowed_fields = {
+        "item_type", "title", "authors", "year", "venue", 
+        "doi", "arxiv_id", "url", "abstract", "tags", "notes"
+    }
+    for field, val in updates.items():
+        if field in allowed_fields:
+            setattr(doc, field, val)
+
+    doc.updated_at = datetime.utcnow()
+    await db.commit()
+    await db.refresh(doc)
+    return doc
+
+
+async def delete_library_document(
+    db: AsyncSession,
+    doc_id: str,
+    user_id: str
+) -> bool:
+    """Deletes a document from the user's library and disassociates it from workspaces."""
+    doc = await get_library_document(db, doc_id=doc_id, user_id=user_id)
+    if not doc:
+        return False
+
+    doc_name = doc.doc_name
+
+    # Remove from all workspaces of this user
+    ws_stmt = select(Workspace).where(Workspace.user_id == user_id)
+    ws_result = await db.execute(ws_stmt)
+    workspaces = ws_result.scalars().all()
+    for ws in workspaces:
+        if ws.doc_names and doc_name in ws.doc_names:
+            ws.doc_names = [d for d in ws.doc_names if d != doc_name]
+
+    await db.delete(doc)
+    await db.commit()
+    return True
+
 

@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 from typing import Optional, List
-from sqlalchemy import String, DateTime, ForeignKey, Text, JSON, Boolean
+from sqlalchemy import String, DateTime, ForeignKey, Text, JSON, Boolean, Integer
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from backend.db.session import Base
 
@@ -67,16 +67,32 @@ class Workspace(Base):
 
 
 class UserDocument(Base):
-    """Tracks document ownership, workspace attachment, and pre-computed summary caches."""
+    """Tracks document ownership, workspace attachment, bibliographic metadata, and summary caches."""
     __tablename__ = "user_documents"
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=generate_uuid)
     user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"), index=True)
     doc_name: Mapped[str] = mapped_column(String)
     file_hash: Mapped[str] = mapped_column(String, index=True)  # Links to global SHA-256
+
+    # FR-17 Bibliographic Metadata & Reference Management
+    item_type: Mapped[str] = mapped_column(String, default="journal_article")
+    title: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    authors: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    year: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    venue: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    doi: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    arxiv_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    url: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    abstract: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    tags: Mapped[list[str]] = mapped_column(JSON, default=list)
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    file_size_bytes: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, default=0)
+
     summary_cache: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # FR-11 Pre-computed summary cache
     summary_generated_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     user: Mapped["User"] = relationship("User", back_populates="documents")
 

@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import List, Optional, Dict, Any
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends, BackgroundTasks
+from fastapi.responses import PlainTextResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -68,9 +69,14 @@ from backend.api.schemas import (
     BrainMemoriesListResponse,
     ImageExtractResponse,
     RenameSessionRequest,
+    LibraryItem,
+    LibraryListResponse,
+    UpdateLibraryItemRequest,
+    WorkspaceReference,
 )
 from backend.ingestion.pipeline import process_path
 from backend.ingestion.bibliographic_extractor import extract_bibliographic_metadata
+from backend.ingestion.citation_engine import format_citations_all, export_bibtex_file
 from backend.ingestion.summary_worker import trigger_async_summary_generation
 from backend.embeddings.vector_store import store_chunks, get_or_create_collection, search_similar_chunks
 from backend.rag.retriever import build_context_block
@@ -801,14 +807,32 @@ async def upload_pdf(
         if chunks:
             store_chunks(chunks)
 
-        # Register document in database
+        # Register document in database with extracted bibliographic metadata (FR-17)
         file_hash = calculate_sha256(file_path)
-        doc_entry = UserDocument(
-            user_id=current_user.id,
-            doc_name=file.filename,
-            file_hash=file_hash,
-        )
-        db.add(doc_entry)
+        bib_meta = extract_bibliographic_metadata(str(file_path))
+        file_size = file_path.stat().st_size if file_path.exists() else 0
+
+        existing_doc = await crud.get_library_document_by_name(db, file.filename, current_user.id)
+        if existing_doc:
+            existing_doc.file_hash = file_hash
+            existing_doc.file_size_bytes = file_size
+            if not existing_doc.title:
+                existing_doc.title = bib_meta.get("title")
+            if not existing_doc.authors:
+                existing_doc.authors = bib_meta.get("authors")
+            if not existing_doc.year:
+                existing_doc.year = bib_meta.get("year")
+        else:
+            doc_entry = UserDocument(
+                user_id=current_user.id,
+                doc_name=file.filename,
+                file_hash=file_hash,
+                title=bib_meta.get("title"),
+                authors=bib_meta.get("authors"),
+                year=bib_meta.get("year"),
+                file_size_bytes=file_size,
+            )
+            db.add(doc_entry)
         await db.commit()
 
         # Trigger background summary worker using user's BYOK keys
@@ -1796,6 +1820,216 @@ async def clear_all_brain_memories(
         return {"status": "success", "cleared_count": cleared_count}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to clear brain memories: {str(e)}")
+
+
+# =============================================================================
+# FR-17: ACADEMIC REFERENCE MANAGER & LIBRARY ENDPOINTS
+# =============================================================================
+
+def _build_library_item(doc: UserDocument, workspace_map: Dict[str, List[Dict[str, str]]]) -> LibraryItem:
+    linked_ws = workspace_map.get(doc.doc_name, [])
+    return LibraryItem(
+        id=doc.id,
+        doc_name=doc.doc_name,
+        file_hash=doc.file_hash,
+        item_type=doc.item_type or "journal_article",
+        title=doc.title,
+        authors=doc.authors,
+        year=doc.year,
+        venue=doc.venue,
+        doi=doc.doi,
+        arxiv_id=doc.arxiv_id,
+        url=doc.url,
+        abstract=doc.abstract or doc.summary_cache,
+        tags=list(doc.tags or []),
+        notes=doc.notes,
+        file_size_bytes=doc.file_size_bytes or 0,
+        summary_cache=doc.summary_cache,
+        summary_generated_at=doc.summary_generated_at,
+        created_at=doc.created_at,
+        updated_at=doc.updated_at,
+        workspaces=[WorkspaceReference(id=ws["id"], name=ws["name"]) for ws in linked_ws]
+    )
+
+
+@app.get("/api/library", response_model=LibraryListResponse)
+async def list_user_library(
+    tag: Optional[str] = None,
+    workspace_id: Optional[str] = None,
+    search: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Fetches user library with metadata, AI summaries, and linked workspaces."""
+    try:
+        docs = await crud.get_user_library(
+            db=db,
+            user_id=current_user.id,
+            tag=tag,
+            workspace_id=workspace_id,
+            search=search
+        )
+        workspaces = await crud.get_user_workspaces(db, user_id=current_user.id)
+        
+        # Build mapping of doc_name -> list of workspace references
+        ws_map: Dict[str, List[Dict[str, str]]] = {}
+        for ws in workspaces:
+            for d in (ws.doc_names or []):
+                ws_map.setdefault(d, []).append({"id": ws.id, "name": ws.name})
+
+        # Collect all unique tags across all documents of the user
+        all_user_docs = await crud.get_user_library(db, user_id=current_user.id)
+        available_tags = sorted(list({t for d in all_user_docs for t in (d.tags or []) if t}))
+
+        items = [_build_library_item(d, ws_map) for d in docs]
+        return LibraryListResponse(
+            items=items,
+            total_count=len(items),
+            available_tags=available_tags
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch library: {str(e)}")
+
+
+@app.get("/api/library/{doc_id}", response_model=LibraryItem)
+async def get_library_item_endpoint(
+    doc_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Retrieves a single document's bibliographic details."""
+    doc = await crud.get_library_document(db, doc_id=doc_id, user_id=current_user.id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found in library.")
+
+    workspaces = await crud.get_user_workspaces(db, user_id=current_user.id)
+    ws_map: Dict[str, List[Dict[str, str]]] = {}
+    for ws in workspaces:
+        for d in (ws.doc_names or []):
+            ws_map.setdefault(d, []).append({"id": ws.id, "name": ws.name})
+
+    return _build_library_item(doc, ws_map)
+
+
+@app.patch("/api/library/{doc_id}", response_model=LibraryItem)
+async def update_library_item_endpoint(
+    doc_id: str,
+    request: UpdateLibraryItemRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Updates bibliographic metadata for a document."""
+    try:
+        update_data = {k: v for k, v in request.model_dump().items() if v is not None} if hasattr(request, "model_dump") else {k: v for k, v in request.dict().items() if v is not None}
+        updated_doc = await crud.update_library_document(
+            db=db,
+            doc_id=doc_id,
+            user_id=current_user.id,
+            updates=update_data
+        )
+        if not updated_doc:
+            raise HTTPException(status_code=404, detail="Document not found in library.")
+
+        workspaces = await crud.get_user_workspaces(db, user_id=current_user.id)
+        ws_map: Dict[str, List[Dict[str, str]]] = {}
+        for ws in workspaces:
+            for d in (ws.doc_names or []):
+                ws_map.setdefault(d, []).append({"id": ws.id, "name": ws.name})
+
+        return _build_library_item(updated_doc, ws_map)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to update document metadata: {str(e)}")
+
+
+@app.delete("/api/library/{doc_id}")
+async def delete_library_item_endpoint(
+    doc_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Deletes a document from the user's library and disassociates it from workspaces."""
+    try:
+        deleted = await crud.delete_library_document(db, doc_id=doc_id, user_id=current_user.id)
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Document not found in library.")
+        return {"status": "success", "message": "Document removed from library.", "doc_id": doc_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to delete document from library: {str(e)}")
+
+
+@app.get("/api/library/{doc_id}/citations")
+async def get_document_citations_endpoint(
+    doc_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Generates standard academic citations (APA, IEEE, Harvard, MLA, BibTeX) for a paper."""
+    doc = await crud.get_library_document(db, doc_id=doc_id, user_id=current_user.id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found in library.")
+
+    doc_dict = {
+        "title": doc.title,
+        "authors": doc.authors,
+        "year": doc.year,
+        "venue": doc.venue,
+        "doi": doc.doi,
+        "arxiv_id": doc.arxiv_id,
+        "url": doc.url,
+        "item_type": doc.item_type,
+        "doc_name": doc.doc_name,
+    }
+    return format_citations_all(doc_dict)
+
+
+@app.get("/api/library/export/bibtex")
+async def export_library_bibtex_endpoint(
+    doc_ids: Optional[str] = None,
+    workspace_id: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Exports user's library or selected papers as a downloadable .bib file for Overleaf / LaTeX."""
+    try:
+        if doc_ids:
+            ids_list = [i.strip() for i in doc_ids.split(",") if i.strip()]
+            docs = []
+            for did in ids_list:
+                d = await crud.get_library_document(db, doc_id=did, user_id=current_user.id)
+                if d:
+                    docs.append(d)
+        else:
+            docs = await crud.get_user_library(db, user_id=current_user.id, workspace_id=workspace_id)
+
+        items = [
+            {
+                "title": d.title,
+                "authors": d.authors,
+                "year": d.year,
+                "venue": d.venue,
+                "doi": d.doi,
+                "arxiv_id": d.arxiv_id,
+                "url": d.url,
+                "item_type": d.item_type,
+                "doc_name": d.doc_name,
+            }
+            for d in docs
+        ]
+
+        bib_content = export_bibtex_file(items)
+        return PlainTextResponse(
+            content=bib_content,
+            media_type="text/plain",
+            headers={"Content-Disposition": 'attachment; filename="scholarsmate_references.bib"'}
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to export BibTeX: {str(e)}")
+
+
 
 
 if __name__ == "__main__":

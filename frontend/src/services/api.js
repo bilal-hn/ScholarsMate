@@ -929,3 +929,105 @@ export const clearBrainMemoriesAPI = async (params = {}) => {
     throw error;
   }
 };
+
+// =============================================================================
+// FR-17: ACADEMIC REFERENCE MANAGER & LIBRARY APIS
+// =============================================================================
+
+/**
+ * Fetches the user's reference library with metadata, AI summaries, and workspace tags.
+ * @param {Object} [params] - { tag, workspace_id, search }
+ */
+export const getLibraryAPI = async (params = {}) => {
+  try {
+    const response = await apiClient.get('/library', { params });
+    return response.data;
+  } catch (error) {
+    console.error('Failed to fetch library:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+/**
+ * Retrieves a single document's bibliographic details.
+ * @param {string} docId
+ */
+export const getLibraryItemAPI = async (docId) => {
+  try {
+    const response = await apiClient.get(`/library/${docId}`);
+    return response.data;
+  } catch (error) {
+    console.error(`Failed to fetch library item ${docId}:`, error.response?.data || error.message);
+    throw error;
+  }
+};
+
+/**
+ * Updates bibliographic metadata for a library document.
+ * @param {string} docId
+ * @param {Object} updates
+ */
+export const updateLibraryItemAPI = async (docId, updates) => {
+  try {
+    const response = await apiClient.patch(`/library/${docId}`, updates);
+    return response.data;
+  } catch (error) {
+    console.error(`Failed to update library item ${docId}:`, error.response?.data || error.message);
+    throw error;
+  }
+};
+
+/**
+ * Deletes a document from the reference library.
+ * @param {string} docId
+ */
+export const deleteLibraryItemAPI = async (docId) => {
+  try {
+    const response = await apiClient.delete(`/library/${docId}`);
+    return response.data;
+  } catch (error) {
+    console.error(`Failed to delete library item ${docId}:`, error.response?.data || error.message);
+    throw error;
+  }
+};
+
+/**
+ * Retrieves formatted academic citations (APA, IEEE, Harvard, MLA, BibTeX) for a paper.
+ * @param {string} docId
+ */
+export const getItemCitationsAPI = async (docId) => {
+  try {
+    const response = await apiClient.get(`/library/${docId}/citations`);
+    return response.data;
+  } catch (error) {
+    console.error(`Failed to get citations for ${docId}:`, error.response?.data || error.message);
+    throw error;
+  }
+};
+
+/**
+ * Exports library or selected papers as a downloadable .bib file.
+ * @param {Object} [params] - { doc_ids, workspace_id }
+ */
+export const exportLibraryBibtexAPI = async (params = {}) => {
+  try {
+    const response = await apiClient.get('/library/export/bibtex', {
+      params,
+      responseType: 'blob',
+    });
+    // Trigger browser download
+    const blob = new Blob([response.data], { type: 'text/plain' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', 'scholarsmate_references.bib');
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+    return true;
+  } catch (error) {
+    console.error('Failed to export BibTeX:', error.response?.data || error.message);
+    throw error;
+  }
+};

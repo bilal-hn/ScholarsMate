@@ -306,4 +306,57 @@ class ImageExtractResponse(BaseModel):
     is_query: bool = False
     query_text: Optional[str] = None
     structured_content: Optional[Dict[str, Any]] = None
+
+
+# =============================================================================
+# FR-17: ACADEMIC REFERENCE MANAGER & LIBRARY SCHEMAS
+# =============================================================================
+
+class WorkspaceReference(BaseModel):
+    id: str
+    name: str
+
+
+class LibraryItem(BaseModel):
+    id: str
+    doc_name: str
+    file_hash: str
+    item_type: str = "journal_article"
+    title: Optional[str] = None
+    authors: Optional[str] = None
+    year: Optional[str] = None
+    venue: Optional[str] = None
+    doi: Optional[str] = None
+    arxiv_id: Optional[str] = None
+    url: Optional[str] = None
+    abstract: Optional[str] = None
+    tags: List[str] = Field(default_factory=list)
+    notes: Optional[str] = None
+    file_size_bytes: Optional[int] = 0
+    summary_cache: Optional[str] = None
+    summary_generated_at: Optional[datetime] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    workspaces: List[WorkspaceReference] = Field(default_factory=list)
+
+
+class LibraryListResponse(BaseModel):
+    items: List[LibraryItem]
+    total_count: int
+    available_tags: List[str] = Field(default_factory=list)
+
+
+class UpdateLibraryItemRequest(BaseModel):
+    title: Optional[str] = None
+    authors: Optional[str] = None
+    year: Optional[str] = None
+    venue: Optional[str] = None
+    doi: Optional[str] = None
+    arxiv_id: Optional[str] = None
+    url: Optional[str] = None
+    abstract: Optional[str] = None
+    tags: Optional[List[str]] = None
+    notes: Optional[str] = None
+    item_type: Optional[str] = None
+
 

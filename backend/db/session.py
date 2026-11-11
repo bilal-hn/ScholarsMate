@@ -88,6 +88,32 @@ async def init_db():
                     print("\n[DB Migration] Adding missing 'summary_generated_at' column to user_documents...")
                     await conn.execute(text("ALTER TABLE user_documents ADD COLUMN summary_generated_at DATETIME;"))
                     print("[DB Migration] Column 'summary_generated_at' added successfully.")
+                if "item_type" not in doc_columns:
+                    await conn.execute(text("ALTER TABLE user_documents ADD COLUMN item_type VARCHAR DEFAULT 'journal_article';"))
+                if "title" not in doc_columns:
+                    await conn.execute(text("ALTER TABLE user_documents ADD COLUMN title VARCHAR;"))
+                if "authors" not in doc_columns:
+                    await conn.execute(text("ALTER TABLE user_documents ADD COLUMN authors VARCHAR;"))
+                if "year" not in doc_columns:
+                    await conn.execute(text("ALTER TABLE user_documents ADD COLUMN year VARCHAR;"))
+                if "venue" not in doc_columns:
+                    await conn.execute(text("ALTER TABLE user_documents ADD COLUMN venue VARCHAR;"))
+                if "doi" not in doc_columns:
+                    await conn.execute(text("ALTER TABLE user_documents ADD COLUMN doi VARCHAR;"))
+                if "arxiv_id" not in doc_columns:
+                    await conn.execute(text("ALTER TABLE user_documents ADD COLUMN arxiv_id VARCHAR;"))
+                if "url" not in doc_columns:
+                    await conn.execute(text("ALTER TABLE user_documents ADD COLUMN url VARCHAR;"))
+                if "abstract" not in doc_columns:
+                    await conn.execute(text("ALTER TABLE user_documents ADD COLUMN abstract TEXT;"))
+                if "tags" not in doc_columns:
+                    await conn.execute(text("ALTER TABLE user_documents ADD COLUMN tags JSON DEFAULT '[]';"))
+                if "notes" not in doc_columns:
+                    await conn.execute(text("ALTER TABLE user_documents ADD COLUMN notes TEXT;"))
+                if "file_size_bytes" not in doc_columns:
+                    await conn.execute(text("ALTER TABLE user_documents ADD COLUMN file_size_bytes INTEGER DEFAULT 0;"))
+                if "updated_at" not in doc_columns:
+                    await conn.execute(text("ALTER TABLE user_documents ADD COLUMN updated_at DATETIME;"))
 
             # Automated migrations for chat_messages table
             result_msgs = await conn.execute(text("PRAGMA table_info(chat_messages);"))

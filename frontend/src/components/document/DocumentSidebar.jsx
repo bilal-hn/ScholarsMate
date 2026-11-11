@@ -21,6 +21,7 @@ import {
   Edit3,
   Check,
   X,
+  BookMarked,
 } from 'lucide-react';
 import AppLogo from '../common/AppLogo';
 import { AuthProfile } from '../layout/AuthProfile';
@@ -46,6 +47,8 @@ export default function DocumentSidebar({
   onOpenBrainModal,
   onToggleWriter,
   isWriterActive = false,
+  onToggleLibrary,
+  isLibraryActive = false,
   onAuthChange,
   onOpenAuth,
   onOpenSettings,
@@ -434,6 +437,25 @@ export default function DocumentSidebar({
                 </button>
               )}
 
+              {/* Reference Library (Zotero) */}
+              {onToggleLibrary && (
+                <button
+                  type="button"
+                  onClick={onToggleLibrary}
+                  className={`relative group p-2.5 rounded-xl transition-all cursor-pointer flex items-center justify-center ${
+                    isLibraryActive
+                      ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                      : 'text-zinc-400 hover:text-amber-400 hover:bg-zinc-800/70'
+                  }`}
+                  aria-label="Reference Library"
+                >
+                  <BookMarked className="h-4.5 w-4.5" />
+                  <span className="pointer-events-none absolute left-full top-1/2 -translate-y-1/2 ml-3 px-2.5 py-1.5 bg-zinc-900 border border-zinc-700/80 text-zinc-100 text-[12.5px] font-medium rounded-lg shadow-2xl whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50">
+                    Reference Library
+                  </span>
+                </button>
+              )}
+
               {/* Theme */}
               <button
                 type="button"
@@ -567,6 +589,22 @@ export default function DocumentSidebar({
               >
                 <PenTool className={`h-3.5 w-3.5 ${isWriterActive ? 'text-amber-400' : 'text-zinc-500 group-hover:text-amber-400'} transition-colors`} />
                 <span>Academic Writer</span>
+              </button>
+            )}
+
+            {/* Reference Library (Zotero) Navigation Item */}
+            {onToggleLibrary && (
+              <button
+                type="button"
+                onClick={onToggleLibrary}
+                className={`w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[13.5px] transition-colors cursor-pointer group text-left ${
+                  isLibraryActive
+                    ? 'bg-amber-500/15 text-amber-300 font-medium border border-amber-500/30'
+                    : 'text-zinc-400 hover:text-amber-400 hover:bg-zinc-800/30'
+                }`}
+              >
+                <BookMarked className={`h-3.5 w-3.5 ${isLibraryActive ? 'text-amber-400' : 'text-zinc-500 group-hover:text-amber-400'} transition-colors`} />
+                <span>Reference Library</span>
               </button>
             )}
 
