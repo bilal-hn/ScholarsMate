@@ -1,5 +1,5 @@
 import React from 'react';
-import { BookmarkPlus, Bold, Italic, Underline, Heading2, Quote } from 'lucide-react';
+import { BookmarkPlus, BookMarked, Bold, Italic, Underline, Heading2, Quote } from 'lucide-react';
 
 /**
  * Floating bubble menu that appears above highlighted text selections in the Document Writer.
@@ -7,6 +7,7 @@ import { BookmarkPlus, Bold, Italic, Underline, Heading2, Quote } from 'lucide-r
 export default function FloatingBubbleMenu({
   position,
   onCite,
+  onCiteLibrary,
   onFormat,
   onClose,
 }) {
@@ -29,8 +30,21 @@ export default function FloatingBubbleMenu({
         title="Find grounded citations in workspace documents"
       >
         <BookmarkPlus className="h-3.5 w-3.5 text-amber-400" />
-        <span>Cite</span>
+        <span>Find Match</span>
       </button>
+
+      {/* 2. Library Citation Button */}
+      {onCiteLibrary && (
+        <button
+          type="button"
+          onClick={onCiteLibrary}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg hover:bg-zinc-800 text-zinc-300 hover:text-amber-300 text-xs cursor-pointer transition-all active:scale-95"
+          title="Browse Reference Library & Cite"
+        >
+          <BookMarked className="h-3.5 w-3.5 text-amber-400" />
+          <span>Library</span>
+        </button>
+      )}
 
       <div className="h-4 w-px bg-zinc-700 mx-0.5" />
 

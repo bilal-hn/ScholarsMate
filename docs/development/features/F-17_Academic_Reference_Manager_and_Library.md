@@ -72,8 +72,13 @@ Transforms ScholarsMate from a session-locked RAG chat interface into an **All-i
   - **"Synthesize Literature Review":** Selecting 2 to 6 papers enables a "Synthesize Review" action that opens the Literature Review Studio with those documents pre-selected.
 
 ### FR-17.8 (Action Bridge: Library $\rightarrow$ Document Writer)
-* **Requirement:** Inside the Assisted Document Writer (`DocumentWriter.jsx`), a slide-out "Library Drawer" shall allow authors to search their library, click a paper, and click **"Insert Citation"**.
-* **Behavior:** Inserts `[Author, Year]` at the cursor position and automatically updates the References block at the bottom of the thesis draft.
+* **Requirement:** Inside the Assisted Document Writer (`DocumentWriter.jsx`), a slide-out "Library Citation Drawer" (`LibraryCitationDrawer.jsx`) allows authors to browse their library, filter by workspace or search by metadata, and click **"Insert Citation"**.
+* **Citation Styles Supported:**
+  - **IEEE Style:** Inserts clean numeric citation superscripts (e.g. `[1]`, `[1, p. 4]`), automatically re-using existing indices for already-cited papers.
+  - **APA 7th Style:** Inserts in-text author-date citations (e.g. `(Vaswani et al., 2017)` or `(Smith & Jones, 2024, p. 12)`).
+  - **Harvard Style:** Inserts standard author-date without comma (e.g. `(Vaswani et al. 2017)`).
+* **Automatic Bibliography Generation:** Inserting a citation instantly updates the live References section at the bottom of the thesis draft, as well as Word (`.docx`), PDF, and Markdown exports.
+* **Shortcuts:** Accessible via the top toolbar button (`Cite Library`), the floating bubble menu, or keyboard shortcut `Ctrl+Shift+C`.
 
 ---
 

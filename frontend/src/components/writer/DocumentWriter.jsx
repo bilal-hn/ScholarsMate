@@ -47,9 +47,11 @@ import {
   ChevronUp,
   ChevronLeft,
   ChevronRight,
+  BookMarked,
 } from 'lucide-react';
 import FloatingBubbleMenu from './FloatingBubbleMenu';
 import CitationDrawer from './CitationDrawer';
+import LibraryCitationDrawer from './LibraryCitationDrawer';
 import { getDraftAPI, saveDraftAPI, findCitationsAPI } from '../../services/api';
 
 const FONT_FAMILIES = [
@@ -117,6 +119,8 @@ export function getGroupedBibliography(citations = []) {
         title: c.paper_title || fallbackTitle,
         authors: c.authors || null,
         year: c.year || null,
+        venue: c.venue || null,
+        doi: c.doi || null,
         formatted_citation: c.formatted_citation || null,
         pages: new Set(),
       });
@@ -137,14 +141,16 @@ export function getGroupedBibliography(citations = []) {
       : '';
 
     let citationMain = '';
+    const venueStr = item.venue ? `. ${item.venue}` : '';
+    const doiStr = item.doi ? `. https://doi.org/${item.doi}` : '';
     if (item.authors && item.year) {
-      citationMain = `${item.authors} (${item.year}). "${item.title}"`;
+      citationMain = `${item.authors} (${item.year}). "${item.title}"${venueStr}${doiStr}`;
     } else if (item.year) {
-      citationMain = `"${item.title}" (${item.year})`;
+      citationMain = `"${item.title}" (${item.year})${venueStr}${doiStr}`;
     } else if (item.title && item.title.toLowerCase() !== item.doc_name.toLowerCase()) {
-      citationMain = `"${item.title}" (${item.doc_name})`;
+      citationMain = `"${item.title}" (${item.doc_name})${venueStr}${doiStr}`;
     } else {
-      citationMain = `Document: ${item.doc_name}`;
+      citationMain = `Document: ${item.doc_name}${venueStr}${doiStr}`;
     }
 
     return {
@@ -153,11 +159,28 @@ export function getGroupedBibliography(citations = []) {
       title: item.title,
       authors: item.authors,
       year: item.year,
+      venue: item.venue,
+      doi: item.doi,
       citationMain,
       pagesStr,
       fullText: `[${idx + 1}]  ${citationMain}${pagesStr}`,
     };
   });
+}
+
+function formatInTextAuthor(authorsStr) {
+  if (!authorsStr) return 'Anon';
+  const parts = authorsStr.split(/[;]| and /i).map((p) => p.trim()).filter(Boolean);
+  if (parts.length === 0) return 'Anon';
+  const getLastName = (fullName) => {
+    if (fullName.includes(',')) return fullName.split(',')[0].trim();
+    const words = fullName.split(/\s+/);
+    return words[words.length - 1];
+  };
+  const firstLast = getLastName(parts[0]);
+  if (parts.length === 1) return firstLast;
+  if (parts.length === 2) return `${firstLast} & ${getLastName(parts[1])}`;
+  return `${firstLast} et al.`;
 }
 
 export default function DocumentWriter({
@@ -217,6 +240,7 @@ export default function DocumentWriter({
   const [isCitationDrawerOpen, setIsCitationDrawerOpen] = useState(false);
   const [isCitationLoading, setIsCitationLoading] = useState(false);
   const [citationCandidates, setCitationCandidates] = useState([]);
+  const [isLibraryDrawerOpen, setIsLibraryDrawerOpen] = useState(false);
 
   // Close all popover menus on outside click
   useEffect(() => {
@@ -576,6 +600,97 @@ export default function DocumentWriter({
     }
   };
 
+  const handleInsertLibraryCitation = (paper, style = 'ieee', pageNum = null) => {
+    if (!editorRef.current) return;
+
+    let targetRange = null;
+    if (savedSelectionRange.current) {
+      targetRange = savedSelectionRange.current.cloneRange();
+    } else {
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount > 0) {
+        targetRange = sel.getRangeAt(0).cloneRange();
+      }
+    }
+
+    if (!targetRange) {
+      targetRange = document.createRange();
+      targetRange.selectNodeContents(editorRef.current);
+      targetRange.collapse(false);
+    }
+
+    targetRange.collapse(false);
+
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(targetRange);
+    editorRef.current.focus();
+
+    // Check existing reference index
+    const existingDoc = citations.find((c) => c.doc_name === paper.doc_name);
+    let docRefNumber;
+    if (existingDoc && existingDoc.doc_index) {
+      docRefNumber = existingDoc.doc_index;
+    } else {
+      const uniqueDocs = Array.from(new Set(citations.map((c) => c.doc_name)));
+      docRefNumber = uniqueDocs.includes(paper.doc_name)
+        ? uniqueDocs.indexOf(paper.doc_name) + 1
+        : uniqueDocs.length + 1;
+    }
+
+    const nextId = citations.length + 1;
+    const cleanTitle = paper.title || paper.doc_name;
+    const authorShort = formatInTextAuthor(paper.authors);
+    const yearStr = paper.year || 'n.d.';
+
+    const newCitationEntry = {
+      id: nextId,
+      doc_index: docRefNumber,
+      doc_name: paper.doc_name,
+      paper_title: cleanTitle,
+      authors: paper.authors || null,
+      year: paper.year || null,
+      venue: paper.venue || null,
+      doi: paper.doi || null,
+      arxiv_id: paper.arxiv_id || null,
+      url: paper.url || null,
+      formatted_citation: paper.formatted_citation || null,
+      page_number: pageNum || null,
+      citation_style: style,
+      timestamp: new Date().toISOString(),
+    };
+
+    const updatedCitations = [...citations, newCitationEntry];
+    setCitations(updatedCitations);
+
+    // Format in-text citation marker
+    const pageSuffix = pageNum ? `, p. ${pageNum}` : '';
+    let inTextLabel = '';
+    if (style === 'apa') {
+      inTextLabel = `(${authorShort}, ${yearStr}${pageSuffix})`;
+    } else if (style === 'harvard') {
+      inTextLabel = `(${authorShort} ${yearStr}${pageSuffix})`;
+    } else {
+      inTextLabel = `[${docRefNumber}${pageSuffix}]`;
+    }
+
+    const citationNode = document.createElement(style === 'ieee' ? 'sup' : 'span');
+    citationNode.innerHTML = `<span data-citation-id="${nextId}" data-doc-ref="${docRefNumber}" data-doc-name="${paper.doc_name}" class="citation-ref" style="font-family: inherit; font-size: ${style === 'ieee' ? '0.85em' : '0.95em'}; font-weight: 700; color: #1e3a8a; cursor: pointer; user-select: none; padding: 0 2px;" title="${cleanTitle} — ${paper.authors || ''}"> ${inTextLabel}</span>&nbsp;`;
+
+    targetRange.insertNode(citationNode);
+
+    // Advance cursor immediately after the inserted citation node
+    targetRange.setStartAfter(citationNode);
+    targetRange.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(targetRange);
+
+    setIsLibraryDrawerOpen(false);
+    savedSelectionRange.current = null;
+    updateWordCount();
+    triggerAutoSave(editorRef.current.innerHTML, title, updatedCitations);
+  };
+
   const handleInsertPageBreak = () => {
     if (editorRef.current) {
       editorRef.current.focus();
@@ -597,6 +712,14 @@ export default function DocumentWriter({
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
       e.preventDefault();
       handleInsertPageBreak();
+    }
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'c') {
+      e.preventDefault();
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount > 0) {
+        savedSelectionRange.current = sel.getRangeAt(0).cloneRange();
+      }
+      setIsLibraryDrawerOpen(true);
     }
   };
 
@@ -1543,6 +1666,24 @@ export default function DocumentWriter({
             <Quote className="h-3.5 w-3.5" />
           </button>
 
+          {/* Insert Citation from Library (FR-17.8) */}
+          <button
+            type="button"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              const sel = window.getSelection();
+              if (sel && sel.rangeCount > 0) {
+                savedSelectionRange.current = sel.getRangeAt(0).cloneRange();
+              }
+            }}
+            onClick={() => setIsLibraryDrawerOpen(true)}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 hover:text-amber-300 border border-amber-500/30 text-xs font-medium transition-colors cursor-pointer shrink-0"
+            title="Browse Reference Library & Insert Citation (Ctrl+Shift+C)"
+          >
+            <BookMarked className="h-3.5 w-3.5 text-amber-400" />
+            <span className="hidden sm:inline font-semibold">Cite Library</span>
+          </button>
+
           {/* Horizontal Rule */}
           <button
             type="button"
@@ -1607,6 +1748,10 @@ export default function DocumentWriter({
           <FloatingBubbleMenu
             position={bubblePosition}
             onCite={handleOpenCitationSearch}
+            onCiteLibrary={() => {
+              setBubblePosition(null);
+              setIsLibraryDrawerOpen(true);
+            }}
             onFormat={(cmd) => formatDoc(cmd)}
             onClose={() => setBubblePosition(null)}
           />
@@ -1715,6 +1860,15 @@ export default function DocumentWriter({
         candidates={citationCandidates}
         isLoading={isCitationLoading}
         onInsertCitation={handleInsertCitation}
+        onOpenPdfViewer={onOpenPdfViewer}
+      />
+
+      <LibraryCitationDrawer
+        isOpen={isLibraryDrawerOpen}
+        onClose={() => setIsLibraryDrawerOpen(false)}
+        onInsertCitation={handleInsertLibraryCitation}
+        existingCitations={citations}
+        workspaceDocs={documents}
         onOpenPdfViewer={onOpenPdfViewer}
       />
     </div>
