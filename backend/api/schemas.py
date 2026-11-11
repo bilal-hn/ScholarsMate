@@ -440,5 +440,57 @@ class MergeDuplicatesResponse(BaseModel):
     deleted_item_ids: List[str]
 
 
+# =============================================================================
+# FR-17.7 WORKSPACE ASSIGNMENT & LIBRARY COLLECTIONS
+# =============================================================================
+
+class CreateWorkspaceRequest(BaseModel):
+    name: str = Field(default="New Workspace")
+    doc_ids: Optional[List[str]] = Field(default_factory=list)
+
+
+class AssignWorkspaceDocumentsRequest(BaseModel):
+    doc_ids: List[str] = Field(default_factory=list)
+    doc_names: Optional[List[str]] = Field(default_factory=list)
+
+
+class AssignWorkspaceDocumentsResponse(BaseModel):
+    success: bool
+    workspace_id: str
+    workspace_name: str
+    assigned_count: int
+    doc_names: List[str]
+    message: str
+
+
+class RemoveWorkspaceDocumentsRequest(BaseModel):
+    doc_ids: List[str] = Field(default_factory=list)
+    doc_names: Optional[List[str]] = Field(default_factory=list)
+
+
+class RemoveWorkspaceDocumentsResponse(BaseModel):
+    success: bool
+    workspace_id: str
+    workspace_name: str
+    removed_count: int
+    doc_names: List[str]
+    message: str
+
+
+class MoveWorkspaceDocumentsRequest(BaseModel):
+    doc_ids: List[str]
+    source_workspace_id: str
+    target_workspace_id: str
+
+
+class MoveWorkspaceDocumentsResponse(BaseModel):
+    success: bool
+    source_workspace_id: str
+    target_workspace_id: str
+    moved_count: int
+    message: str
+
+
+
 
 

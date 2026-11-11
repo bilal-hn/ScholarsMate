@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   FileText,
   Sparkles,
@@ -25,6 +25,8 @@ import {
   ChevronRight,
   Wand2,
   Download,
+  Plus,
+  Folder,
 } from 'lucide-react';
 import {
   updateLibraryItemAPI,
@@ -32,10 +34,13 @@ import {
   autoEnrichDocumentAPI,
   lookupAcademicIdentifierAPI,
   downloadItemPdfAPI,
+  assignWorkspaceDocumentsAPI,
+  removeWorkspaceDocumentsAPI,
 } from '../../services/api';
 
 export default function LibraryInspector({
   document,
+  workspaces = [],
   onClose,
   onUpdateDocument,
   onOpenPdf,
@@ -241,6 +246,55 @@ export default function LibraryInspector({
       setDownloadPdfError(err.response?.data?.detail || 'Failed to download open-access PDF.');
     } finally {
       setIsDownloadingPdf(false);
+    }
+  };
+
+  // Workspace Assignment State (FR-17.7)
+  const [isAddWorkspaceOpen, setIsAddWorkspaceOpen] = useState(false);
+  const addWorkspaceMenuRef = useRef(null);
+
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (addWorkspaceMenuRef.current && !addWorkspaceMenuRef.current.contains(e.target)) {
+        setIsAddWorkspaceOpen(false);
+      }
+    };
+    if (isAddWorkspaceOpen) {
+      document.addEventListener('mousedown', handleOutsideClick);
+    }
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [isAddWorkspaceOpen]);
+
+  const handleAssignWorkspace = async (workspaceId) => {
+    try {
+      const res = await assignWorkspaceDocumentsAPI(workspaceId, [document.id]);
+      if (res.success) {
+        setIsAddWorkspaceOpen(false);
+        const targetWs = workspaces.find((w) => w.id === workspaceId);
+        const updatedWorkspaces = [...(document.workspaces || [])];
+        if (targetWs && !updatedWorkspaces.some((w) => w.id === workspaceId)) {
+          updatedWorkspaces.push({ id: targetWs.id, name: targetWs.name });
+        }
+        if (onUpdateDocument) {
+          onUpdateDocument({ ...document, workspaces: updatedWorkspaces });
+        }
+      }
+    } catch (err) {
+      console.error('Failed to assign workspace:', err);
+    }
+  };
+
+  const handleRemoveWorkspace = async (workspaceId) => {
+    try {
+      const res = await removeWorkspaceDocumentsAPI(workspaceId, [document.id]);
+      if (res.success) {
+        const updatedWorkspaces = (document.workspaces || []).filter((w) => w.id !== workspaceId);
+        if (onUpdateDocument) {
+          onUpdateDocument({ ...document, workspaces: updatedWorkspaces });
+        }
+      }
+    } catch (err) {
+      console.error('Failed to remove workspace:', err);
     }
   };
 
@@ -585,25 +639,73 @@ export default function LibraryInspector({
               </span>
             </div>
 
-            {/* Workspaces */}
+            {/* Workspaces (Collections) */}
             <div className="flex items-start gap-2 pt-1 border-t border-zinc-850">
               <span className="w-20 text-right text-zinc-400 font-medium select-none shrink-0 text-[11px] pt-0.5">
                 Workspaces
               </span>
-              <div className="flex-1 flex flex-wrap gap-1">
+              <div className="flex-1 flex flex-wrap items-center gap-1">
                 {document.workspaces && document.workspaces.length > 0 ? (
                   document.workspaces.map((ws) => (
                     <span
                       key={ws.id}
-                      className="inline-flex items-center gap-1 text-[10.5px] bg-zinc-800 text-zinc-300 px-1.5 py-0.5 rounded border border-zinc-700/60"
+                      className="inline-flex items-center gap-1 text-[10.5px] bg-zinc-800 text-zinc-300 px-1.5 py-0.5 rounded border border-zinc-700/60 group"
                     >
-                      <Building className="h-2.5 w-2.5 text-zinc-500" />
+                      <Folder className="h-2.5 w-2.5 text-blue-400" />
                       <span>{ws.name}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveWorkspace(ws.id)}
+                        className="text-zinc-500 hover:text-red-400 p-0.5 rounded cursor-pointer transition-colors"
+                        title={`Remove from ${ws.name}`}
+                      >
+                        <X className="h-2.5 w-2.5" />
+                      </button>
                     </span>
                   ))
                 ) : (
                   <span className="text-zinc-500 italic text-[11px]">Unfiled</span>
                 )}
+
+                {/* Add to Workspace Dropdown */}
+                <div className="relative inline-block" ref={addWorkspaceMenuRef}>
+                  <button
+                    type="button"
+                    onClick={() => setIsAddWorkspaceOpen(!isAddWorkspaceOpen)}
+                    className="inline-flex items-center gap-0.5 text-[10px] bg-zinc-800 hover:bg-zinc-750 text-zinc-400 hover:text-zinc-200 px-1.5 py-0.5 rounded border border-zinc-700/60 cursor-pointer transition-colors"
+                    title="Assign to workspace collection"
+                  >
+                    <Plus className="h-2.5 w-2.5" />
+                    <span>Add</span>
+                  </button>
+
+                  {isAddWorkspaceOpen && (
+                    <div className="absolute right-0 mt-1 w-48 bg-zinc-900 border border-zinc-750 rounded shadow-2xl py-1 z-30 max-h-48 overflow-y-auto">
+                      <div className="px-2 py-1 text-[10px] text-zinc-500 font-semibold uppercase tracking-wider border-b border-zinc-800">
+                        Assign Workspace
+                      </div>
+                      {workspaces.filter((w) => !(document.workspaces || []).some((dw) => dw.id === w.id)).length > 0 ? (
+                        workspaces
+                          .filter((w) => !(document.workspaces || []).some((dw) => dw.id === w.id))
+                          .map((ws) => (
+                            <button
+                              key={ws.id}
+                              type="button"
+                              onClick={() => handleAssignWorkspace(ws.id)}
+                              className="w-full flex items-center gap-1.5 px-2 py-1 text-left text-xs text-zinc-300 hover:bg-blue-600 hover:text-white transition-colors cursor-pointer truncate"
+                            >
+                              <Folder className="h-3 w-3 shrink-0 text-blue-400" />
+                              <span className="truncate">{ws.name}</span>
+                            </button>
+                          ))
+                      ) : (
+                        <div className="px-2 py-1.5 text-[10.5px] text-zinc-500 italic">
+                          Already in all collections
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 

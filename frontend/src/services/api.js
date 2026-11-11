@@ -1183,4 +1183,81 @@ export const mergeLibraryDuplicatesAPI = async (canonicalItemId, duplicateItemId
   }
 };
 
+/**
+ * Creates a new workspace collection from JSON (FR-17.7), optionally pre-populated with library references.
+ * @param {string} name
+ * @param {Array<string>} [docIds=[]]
+ */
+export const createWorkspaceJSONAPI = async (name, docIds = []) => {
+  try {
+    const response = await apiClient.post('/workspaces', {
+      name,
+      doc_ids: docIds,
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Failed to create workspace collection:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+/**
+ * Assigns library documents to an existing workspace (FR-17.7).
+ * @param {string} workspaceId
+ * @param {Array<string>} docIds
+ * @param {Array<string>} [docNames=[]]
+ */
+export const assignWorkspaceDocumentsAPI = async (workspaceId, docIds, docNames = []) => {
+  try {
+    const response = await apiClient.post(`/workspaces/${workspaceId}/assign-documents`, {
+      doc_ids: docIds,
+      doc_names: docNames,
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Failed to assign documents to workspace:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+/**
+ * Removes documents from a workspace collection without deleting the documents (FR-17.7).
+ * @param {string} workspaceId
+ * @param {Array<string>} docIds
+ * @param {Array<string>} [docNames=[]]
+ */
+export const removeWorkspaceDocumentsAPI = async (workspaceId, docIds, docNames = []) => {
+  try {
+    const response = await apiClient.post(`/workspaces/${workspaceId}/remove-documents`, {
+      doc_ids: docIds,
+      doc_names: docNames,
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Failed to remove documents from workspace:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+/**
+ * Moves documents from source workspace to target workspace (FR-17.7).
+ * @param {string} sourceWorkspaceId
+ * @param {string} targetWorkspaceId
+ * @param {Array<string>} docIds
+ */
+export const moveWorkspaceDocumentsAPI = async (sourceWorkspaceId, targetWorkspaceId, docIds) => {
+  try {
+    const response = await apiClient.post('/workspaces/move-documents', {
+      source_workspace_id: sourceWorkspaceId,
+      target_workspace_id: targetWorkspaceId,
+      doc_ids: docIds,
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Failed to move documents between workspaces:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+
 

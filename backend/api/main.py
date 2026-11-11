@@ -85,6 +85,12 @@ from backend.api.schemas import (
     DuplicateDetectionResponse,
     MergeDuplicatesRequest,
     MergeDuplicatesResponse,
+    AssignWorkspaceDocumentsRequest,
+    AssignWorkspaceDocumentsResponse,
+    RemoveWorkspaceDocumentsRequest,
+    RemoveWorkspaceDocumentsResponse,
+    MoveWorkspaceDocumentsRequest,
+    MoveWorkspaceDocumentsResponse,
 )
 from backend.ingestion.pipeline import process_path
 from backend.ingestion.bibliographic_extractor import extract_bibliographic_metadata
@@ -1154,6 +1160,180 @@ async def delete_workspace_endpoint(
         raise HTTPException(status_code=404, detail="Workspace not found or unauthorized.")
 
     return {"message": "Workspace deleted successfully."}
+
+
+@app.post("/api/workspaces", response_model=WorkspaceResponse)
+async def create_workspace_json_endpoint(
+    req: CreateWorkspaceRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Creates a new workspace collection (FR-17.7), optionally pre-populated with library document IDs.
+    """
+    doc_names = []
+    if req.doc_ids:
+        for did in req.doc_ids:
+            doc = await crud.get_library_document(db, doc_id=did, user_id=current_user.id)
+            if doc and doc.doc_name:
+                doc_names.append(doc.doc_name)
+
+    workspace, first_chat = await crud.create_workspace(
+        db,
+        name=req.name.strip() if req.name and req.name.strip() else "New Workspace",
+        doc_names=list(dict.fromkeys(doc_names)),
+        user_id=current_user.id
+    )
+
+    chats_summary = [
+        WorkspaceChatSummary(
+            id=first_chat.id,
+            workspace_id=workspace.id,
+            title=first_chat.title,
+            active_mode="research",
+            created_at=first_chat.created_at,
+            updated_at=first_chat.updated_at
+        )
+    ]
+
+    return WorkspaceResponse(
+        id=workspace.id,
+        name=workspace.name,
+        doc_names=workspace.doc_names or [],
+        chats=chats_summary,
+        created_at=workspace.created_at,
+        updated_at=workspace.updated_at
+    )
+
+
+@app.post("/api/workspaces/{workspace_id}/assign-documents", response_model=AssignWorkspaceDocumentsResponse)
+async def assign_documents_to_workspace_endpoint(
+    workspace_id: str,
+    req: AssignWorkspaceDocumentsRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Assigns one or more existing library references to a workspace collection (FR-17.7).
+    """
+    ws = await crud.get_workspace_by_id(db, workspace_id, user_id=current_user.id)
+    if not ws:
+        raise HTTPException(status_code=404, detail="Workspace not found or unauthorized.")
+
+    resolved_names = list(req.doc_names or [])
+    if req.doc_ids:
+        for did in req.doc_ids:
+            doc = await crud.get_library_document(db, doc_id=did, user_id=current_user.id)
+            if doc and doc.doc_name:
+                resolved_names.append(doc.doc_name)
+
+    resolved_names = list(dict.fromkeys(resolved_names))
+    if not resolved_names:
+        raise HTTPException(status_code=400, detail="No valid documents specified to assign.")
+
+    updated_ws = await crud.add_documents_to_workspace(
+        db=db,
+        workspace_id=workspace_id,
+        doc_names=resolved_names,
+        user_id=current_user.id
+    )
+
+    return AssignWorkspaceDocumentsResponse(
+        success=True,
+        workspace_id=workspace_id,
+        workspace_name=updated_ws.name if updated_ws else ws.name,
+        assigned_count=len(resolved_names),
+        doc_names=updated_ws.doc_names if updated_ws else [],
+        message=f"Successfully assigned {len(resolved_names)} document(s) to '{ws.name}'."
+    )
+
+
+@app.post("/api/workspaces/{workspace_id}/remove-documents", response_model=RemoveWorkspaceDocumentsResponse)
+async def remove_documents_from_workspace_endpoint(
+    workspace_id: str,
+    req: RemoveWorkspaceDocumentsRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Removes one or more references from a workspace collection without deleting the underlying document (FR-17.7).
+    """
+    ws = await crud.get_workspace_by_id(db, workspace_id, user_id=current_user.id)
+    if not ws:
+        raise HTTPException(status_code=404, detail="Workspace not found or unauthorized.")
+
+    resolved_names = list(req.doc_names or [])
+    if req.doc_ids:
+        for did in req.doc_ids:
+            doc = await crud.get_library_document(db, doc_id=did, user_id=current_user.id)
+            if doc and doc.doc_name:
+                resolved_names.append(doc.doc_name)
+
+    resolved_names = list(dict.fromkeys(resolved_names))
+    if not resolved_names:
+        raise HTTPException(status_code=400, detail="No valid documents specified to remove.")
+
+    updated_ws = ws
+    for dname in resolved_names:
+        updated_ws = await crud.remove_document_from_workspace(
+            db=db,
+            workspace_id=workspace_id,
+            doc_name=dname,
+            user_id=current_user.id
+        )
+
+    return RemoveWorkspaceDocumentsResponse(
+        success=True,
+        workspace_id=workspace_id,
+        workspace_name=updated_ws.name if updated_ws else ws.name,
+        removed_count=len(resolved_names),
+        doc_names=updated_ws.doc_names if updated_ws else [],
+        message=f"Removed {len(resolved_names)} document(s) from '{ws.name}'."
+    )
+
+
+@app.post("/api/workspaces/move-documents", response_model=MoveWorkspaceDocumentsResponse)
+async def move_documents_between_workspaces_endpoint(
+    req: MoveWorkspaceDocumentsRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Moves references from source workspace to target workspace (FR-17.7).
+    """
+    source_ws = await crud.get_workspace_by_id(db, req.source_workspace_id, user_id=current_user.id)
+    if not source_ws:
+        raise HTTPException(status_code=404, detail="Source workspace not found.")
+
+    target_ws = await crud.get_workspace_by_id(db, req.target_workspace_id, user_id=current_user.id)
+    if not target_ws:
+        raise HTTPException(status_code=404, detail="Target workspace not found.")
+
+    resolved_names = []
+    for did in req.doc_ids:
+        doc = await crud.get_library_document(db, doc_id=did, user_id=current_user.id)
+        if doc and doc.doc_name:
+            resolved_names.append(doc.doc_name)
+
+    resolved_names = list(dict.fromkeys(resolved_names))
+    if not resolved_names:
+        raise HTTPException(status_code=400, detail="No valid documents specified to move.")
+
+    # Remove from source
+    for dname in resolved_names:
+        await crud.remove_document_from_workspace(db, req.source_workspace_id, dname, user_id=current_user.id)
+
+    # Add to target
+    await crud.add_documents_to_workspace(db, req.target_workspace_id, resolved_names, user_id=current_user.id)
+
+    return MoveWorkspaceDocumentsResponse(
+        success=True,
+        source_workspace_id=req.source_workspace_id,
+        target_workspace_id=req.target_workspace_id,
+        moved_count=len(resolved_names),
+        message=f"Moved {len(resolved_names)} item(s) from '{source_ws.name}' to '{target_ws.name}'."
+    )
+
 
 
 @app.get("/api/workspaces/{workspace_id}/context-points", response_model=ContextPointsResponse)

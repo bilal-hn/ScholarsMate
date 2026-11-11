@@ -45,6 +45,10 @@ import {
   downloadItemPdfAPI,
   createManualLibraryItemAPI,
   getLibraryDuplicatesAPI,
+  getWorkspacesAPI,
+  assignWorkspaceDocumentsAPI,
+  removeWorkspaceDocumentsAPI,
+  createWorkspaceJSONAPI,
 } from '../../services/api';
 import LibraryInspector from './LibraryInspector';
 import DuplicateMerger from './DuplicateMerger';
@@ -91,6 +95,111 @@ export default function LibraryView({
   const [duplicateData, setDuplicateData] = useState({ groups: [], total_groups: 0, total_duplicate_items: 0 });
   const [isLoadingDuplicates, setIsLoadingDuplicates] = useState(false);
   const [selectedDuplicateGroup, setSelectedDuplicateGroup] = useState(null);
+
+  // Workspaces Local State & Refresh (FR-17.7)
+  const [localWorkspaces, setLocalWorkspaces] = useState(workspaces);
+  useEffect(() => {
+    setLocalWorkspaces(workspaces);
+  }, [workspaces]);
+
+  const refreshWorkspaces = async () => {
+    try {
+      const list = await getWorkspacesAPI();
+      setLocalWorkspaces(list || []);
+    } catch (err) {
+      console.error('Failed to refresh workspaces:', err);
+    }
+  };
+
+  // Workspace Batch Assignment Menu State (FR-17.7)
+  const [isAssignWsMenuOpen, setIsAssignWsMenuOpen] = useState(false);
+  const assignWsMenuRef = useRef(null);
+  const [newWsInlineName, setNewWsInlineName] = useState('');
+  const [isCreatingInlineWs, setIsCreatingInlineWs] = useState(false);
+
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (assignWsMenuRef.current && !assignWsMenuRef.current.contains(e.target)) {
+        setIsAssignWsMenuOpen(false);
+      }
+    };
+    if (isAssignWsMenuOpen) {
+      document.addEventListener('mousedown', handleOutsideClick);
+    }
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [isAssignWsMenuOpen]);
+
+  const handleAssignSelectedToWorkspace = async (workspaceId) => {
+    if (selectedIds.size === 0) return;
+    setIsAssignWsMenuOpen(false);
+    try {
+      const docIds = Array.from(selectedIds);
+      const res = await assignWorkspaceDocumentsAPI(workspaceId, docIds);
+      if (res.success) {
+        setImportNotification({
+          type: 'success',
+          message: `Assigned ${res.assigned_count} paper(s) to "${res.workspace_name}".`,
+        });
+        setSelectedIds(new Set());
+        await refreshWorkspaces();
+        await fetchLibrary();
+      }
+    } catch (err) {
+      setImportNotification({
+        type: 'error',
+        message: err.response?.data?.detail || 'Failed to assign papers to workspace.',
+      });
+    }
+  };
+
+  const handleRemoveSelectedFromWorkspace = async () => {
+    if (selectedIds.size === 0 || !activeWorkspaceFilter || activeWorkspaceFilter.startsWith('__')) return;
+    try {
+      const docIds = Array.from(selectedIds);
+      const currentWs = localWorkspaces.find((w) => w.id === activeWorkspaceFilter);
+      const res = await removeWorkspaceDocumentsAPI(activeWorkspaceFilter, docIds);
+      if (res.success) {
+        setImportNotification({
+          type: 'success',
+          message: `Removed ${res.removed_count} paper(s) from "${currentWs?.name || 'collection'}".`,
+        });
+        setSelectedIds(new Set());
+        await refreshWorkspaces();
+        await fetchLibrary();
+      }
+    } catch (err) {
+      setImportNotification({
+        type: 'error',
+        message: err.response?.data?.detail || 'Failed to remove papers from workspace.',
+      });
+    }
+  };
+
+  const handleCreateWorkspaceAndAssign = async (e) => {
+    e?.preventDefault();
+    if (!newWsInlineName.trim() || selectedIds.size === 0) return;
+    setIsCreatingInlineWs(true);
+    try {
+      const docIds = Array.from(selectedIds);
+      const created = await createWorkspaceJSONAPI(newWsInlineName.trim(), docIds);
+      setImportNotification({
+        type: 'success',
+        message: `Created collection "${created.name}" with ${docIds.length} paper(s).`,
+      });
+      setNewWsInlineName('');
+      setIsAssignWsMenuOpen(false);
+      setSelectedIds(new Set());
+      await refreshWorkspaces();
+      await fetchLibrary();
+    } catch (err) {
+      setImportNotification({
+        type: 'error',
+        message: err.response?.data?.detail || 'Failed to create workspace collection.',
+      });
+    } finally {
+      setIsCreatingInlineWs(false);
+    }
+  };
 
   // New Item Menu & Manual Form State (FR-17.5)
   const pdfUploadInputRef = useRef(null);
@@ -765,15 +874,100 @@ export default function LibraryView({
 
           {/* Batch Selection Actions */}
           {selectedIds.size > 0 && (
-            <div className="flex items-center gap-1 ml-2 pl-2 border-l border-zinc-800">
+            <div className="flex items-center gap-1.5 ml-2 pl-2 border-l border-zinc-800">
+              <span className="text-[11px] text-zinc-400 font-mono hidden xl:inline">
+                {selectedIds.size} selected
+              </span>
+
+              {/* Synthesize Review */}
               <button
                 type="button"
                 onClick={handleSynthesizeReview}
                 className="flex items-center gap-1 px-2.5 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded text-[11px] font-medium transition-colors shadow-sm cursor-pointer"
+                title="Synthesize Literature Review on selected papers"
               >
                 <Sparkles className="h-3 w-3" />
-                <span>Synthesize Review ({selectedIds.size})</span>
+                <span>Review</span>
               </button>
+
+              {/* Add to Workspace ▾ Dropdown (FR-17.7) */}
+              <div className="relative" ref={assignWsMenuRef}>
+                <button
+                  type="button"
+                  onClick={() => setIsAssignWsMenuOpen(!isAssignWsMenuOpen)}
+                  className="flex items-center gap-1 px-2 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700/60 rounded text-[11px] font-medium transition-colors cursor-pointer"
+                  title="Assign selected papers to a workspace collection"
+                >
+                  <Folder className="h-3 w-3 text-blue-400" />
+                  <span>Add to Workspace</span>
+                  <ChevronDown className="h-3 w-3 text-zinc-400" />
+                </button>
+
+                {isAssignWsMenuOpen && (
+                  <div className="absolute left-0 mt-1 w-56 bg-zinc-900 border border-zinc-750 rounded-lg shadow-2xl py-1 z-30 font-sans">
+                    <div className="px-3 py-1.5 text-[10px] text-zinc-400 font-semibold uppercase tracking-wider border-b border-zinc-800">
+                      Add {selectedIds.size} item(s) to collection:
+                    </div>
+
+                    <div className="max-h-48 overflow-y-auto py-1 space-y-0.5">
+                      {localWorkspaces.length > 0 ? (
+                        localWorkspaces.map((ws) => (
+                          <button
+                            key={ws.id}
+                            type="button"
+                            onClick={() => handleAssignSelectedToWorkspace(ws.id)}
+                            className="w-full flex items-center justify-between px-3 py-1.5 text-xs text-zinc-300 hover:bg-blue-600 hover:text-white transition-colors cursor-pointer text-left"
+                          >
+                            <div className="flex items-center gap-1.5 truncate flex-1 pr-2">
+                              <Folder className="h-3 w-3 shrink-0 text-blue-400" />
+                              <span className="truncate">{ws.name}</span>
+                            </div>
+                            <span className="text-[10px] font-mono text-zinc-500 group-hover:text-white shrink-0">
+                              {ws.doc_names?.length || 0}
+                            </span>
+                          </button>
+                        ))
+                      ) : (
+                        <p className="px-3 py-2 text-[11px] text-zinc-500 italic">No workspaces created yet.</p>
+                      )}
+                    </div>
+
+                    {/* Inline Create New Workspace Form */}
+                    <div className="p-2 border-t border-zinc-800 bg-zinc-950/60">
+                      <form onSubmit={handleCreateWorkspaceAndAssign} className="space-y-1.5">
+                        <input
+                          type="text"
+                          value={newWsInlineName}
+                          onChange={(e) => setNewWsInlineName(e.target.value)}
+                          placeholder="New collection name..."
+                          className="w-full bg-zinc-900 border border-zinc-750 rounded px-2 py-1 text-[11px] text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-blue-500"
+                        />
+                        <button
+                          type="submit"
+                          disabled={!newWsInlineName.trim() || isCreatingInlineWs}
+                          className="w-full flex items-center justify-center gap-1 py-1 px-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white rounded text-[10.5px] font-medium transition-colors cursor-pointer"
+                        >
+                          <Plus className="h-3 w-3" />
+                          <span>{isCreatingInlineWs ? 'Creating...' : 'Create & Add Selected'}</span>
+                        </button>
+                      </form>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Remove from current workspace (if viewing one) */}
+              {activeWorkspaceFilter && !activeWorkspaceFilter.startsWith('__') && (
+                <button
+                  type="button"
+                  onClick={handleRemoveSelectedFromWorkspace}
+                  className="flex items-center gap-1 px-2 py-1 bg-zinc-800 hover:bg-red-950/40 text-zinc-300 hover:text-red-300 border border-zinc-700/60 hover:border-red-800/60 rounded text-[11px] font-medium transition-colors cursor-pointer"
+                  title="Remove selected papers from this workspace collection"
+                >
+                  <X className="h-3 w-3 text-red-400" />
+                  <span>Remove from Collection</span>
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -835,7 +1029,7 @@ export default function LibraryView({
 
             {/* Indented Workspace Collections */}
             <div className="space-y-0.5 px-1.5 pl-4">
-              {workspaces.map((ws) => {
+              {localWorkspaces.map((ws) => {
                 const isSelected = activeWorkspaceFilter === ws.id;
                 return (
                   <button
@@ -1532,10 +1726,12 @@ export default function LibraryView({
         ) : selectedDoc ? (
           <LibraryInspector
             document={selectedDoc}
+            workspaces={localWorkspaces}
             onClose={() => setSelectedDoc(null)}
             onUpdateDocument={(updated) => {
               setSelectedDoc(updated);
               fetchLibrary();
+              refreshWorkspaces();
             }}
             onOpenPdf={onOpenPdfViewer}
             onChatWithPaper={onStartChatWithPaper}
