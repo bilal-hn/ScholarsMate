@@ -10,7 +10,7 @@ router = APIRouter()
 DOCUMENTS_DIR = (Path(__file__).parent.parent.parent / "data" / "uploads").resolve()
 
 
-@router.get("/api/documents/{filename}")
+@router.api_route("/api/documents/{filename}", methods=["GET", "HEAD"])
 async def get_document(filename: str):
     """Streams requested PDF file to the frontend PDF viewer."""
     # Strip any directory traversal components — only the bare filename is accepted
@@ -32,4 +32,5 @@ async def get_document(filename: str):
         path=file_path,
         media_type="application/pdf",
         filename=safe_name,
+        content_disposition_type="inline",
     )

@@ -1410,6 +1410,11 @@ export default function LibraryView({
                         {/* Main Paper Row (Height ~28px - Dense Desktop Style) */}
                         <tr
                           onClick={() => setSelectedDoc(item)}
+                          onDoubleClick={() => {
+                            if (item.has_pdf && onOpenPdfViewer) {
+                              onOpenPdfViewer(item.doc_name, 1);
+                            }
+                          }}
                           className={`h-7.5 transition-colors cursor-pointer group select-none ${
                             isInspecting
                               ? 'bg-blue-600 text-white font-normal'
@@ -1606,6 +1611,7 @@ export default function LibraryView({
                               <button
                                 type="button"
                                 onClick={(e) => {
+                                  e.stopPropagation();
                                   if (item.has_pdf) {
                                     if (onOpenPdfViewer) onOpenPdfViewer(item.doc_name, 1);
                                   } else {
@@ -1667,7 +1673,10 @@ export default function LibraryView({
                                   <div className="flex items-center gap-2 shrink-0">
                                     <button
                                       type="button"
-                                      onClick={() => onOpenPdfViewer && onOpenPdfViewer(item.doc_name, 1)}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (onOpenPdfViewer) onOpenPdfViewer(item.doc_name, 1);
+                                      }}
                                       className="px-2 py-0.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded text-[10.5px] font-medium transition-colors cursor-pointer"
                                     >
                                       Read PDF

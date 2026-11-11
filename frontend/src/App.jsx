@@ -12,6 +12,7 @@ import GlobalSearchModal from './components/modals/GlobalSearchModal';
 import BrainModal from './components/modals/BrainModal';
 import AuthModal from './components/modals/AuthModal';
 import PdfViewer from './components/viewer/PdfViewer';
+import ErrorBoundary from './components/common/ErrorBoundary';
 import ProfileSettingsModal from './components/layout/ProfileSettingsModal';
 import LibraryView from './components/library/LibraryView';
 import { 
@@ -726,11 +727,16 @@ export default function App() {
           {/* Right Canvas: PDF Viewer OR Split Document Writer */}
           {activePdf ? (
             <div className="w-1/2 h-full bg-zinc-900">
-              <PdfViewer
-                activePdf={activePdf}
-                targetPage={targetPage}
-                onClose={() => setActivePdf(null)}
-              />
+              <ErrorBoundary 
+                title="Could not display PDF viewer" 
+                onReset={() => setActivePdf(null)}
+              >
+                <PdfViewer
+                  activePdf={activePdf}
+                  targetPage={targetPage}
+                  onClose={() => setActivePdf(null)}
+                />
+              </ErrorBoundary>
             </div>
           ) : (
             isWriterOpen && (
