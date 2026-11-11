@@ -536,9 +536,6 @@ export default function App() {
         data-theme={currentTheme}
         className="fixed inset-0 z-50 h-screen w-screen bg-zinc-950 text-zinc-100 overflow-hidden font-sans select-text flex flex-col"
       >
-        {/* Background Animated Particles Engine (for Blaze & Aurora themes) */}
-        <AnimatedThemeCanvas theme={currentTheme} />
-
         <LibraryView
           workspaces={workspaces}
           onClose={() => setIsLibraryOpen(false)}

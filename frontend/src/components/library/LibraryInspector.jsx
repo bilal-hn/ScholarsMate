@@ -20,6 +20,10 @@ import {
   RefreshCw,
   AlertCircle,
   Zap,
+  Paperclip,
+  ChevronDown,
+  ChevronRight,
+  Wand2,
 } from 'lucide-react';
 import {
   updateLibraryItemAPI,
@@ -35,7 +39,7 @@ export default function LibraryInspector({
   onOpenPdf,
   onChatWithPaper,
 }) {
-  const [activeTab, setActiveTab] = useState('details'); // 'details' | 'ai_summary' | 'citations' | 'notes'
+  const [activeTab, setActiveTab] = useState('info'); // 'info' | 'abstract' | 'cite' | 'notes' | 'ai_summary'
   
   // Editable form state
   const [formData, setFormData] = useState({
@@ -58,6 +62,8 @@ export default function LibraryInspector({
   const [newTagInput, setNewTagInput] = useState('');
   const [isEnriching, setIsEnriching] = useState(false);
   const [enrichMessage, setEnrichMessage] = useState(null);
+  const [isAbstractExpanded, setIsAbstractExpanded] = useState(true);
+  const [isAttachmentsExpanded, setIsAttachmentsExpanded] = useState(true);
 
   // Sync state when selected document changes
   useEffect(() => {
@@ -190,7 +196,6 @@ export default function LibraryInspector({
       if (!formData.tags.includes(cleanTag)) {
         const nextTags = [...formData.tags, cleanTag];
         handleInputChange('tags', nextTags);
-        // Automatically save tags
         updateLibraryItemAPI(document.id, { tags: nextTags })
           .then((updated) => onUpdateDocument && onUpdateDocument(updated))
           .catch((err) => console.error('Failed to save tag:', err));
@@ -214,401 +219,512 @@ export default function LibraryInspector({
   };
 
   return (
-    <div className="h-full flex flex-col bg-zinc-900/95 border-l border-zinc-800 text-zinc-200 w-96 shadow-2xl relative select-text z-20">
-      {/* Top Header */}
-      <div className="p-4 border-b border-zinc-800 flex items-center justify-between">
-        <div className="flex items-center gap-2 min-w-0">
-          <BookOpen className="h-4 w-4 text-amber-500 shrink-0" />
-          <h3 className="font-semibold text-sm truncate text-zinc-100">
-            {document.title || document.doc_name}
-          </h3>
-        </div>
+    <div className="h-full flex flex-col bg-zinc-900 border-l border-zinc-800 text-zinc-200 w-96 shadow-xl relative select-text z-20 font-sans">
+      {/* ========================================================================= */}
+      {/* TOP HEADER: TITLE & CLOSE (Zotero 7 Style) */}
+      {/* ========================================================================= */}
+      <div className="p-3 border-b border-zinc-800 bg-zinc-900/95 flex items-start justify-between gap-2">
+        <h2 className="font-semibold text-xs text-zinc-100 leading-snug line-clamp-3 select-text">
+          {formData.title || document.doc_name}
+        </h2>
         <button
           onClick={onClose}
-          className="p-1 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition-colors cursor-pointer"
-          title="Close Inspector"
+          className="p-1 rounded text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition-colors cursor-pointer shrink-0"
+          title="Close Inspector (Esc)"
         >
-          <X className="h-4 w-4" />
+          <X className="h-3.5 w-3.5" />
         </button>
       </div>
 
-      {/* Action Bar (Chat / PDF Viewer) */}
-      <div className="px-4 py-2 bg-zinc-950/60 border-b border-zinc-800/80 flex items-center gap-2">
+      {/* ========================================================================= */}
+      {/* QUICK ACTIONS BAR: READ PDF | CHAT | AUTO-ENRICH */}
+      {/* ========================================================================= */}
+      <div className="px-3 py-1.5 bg-zinc-950/70 border-b border-zinc-800 flex items-center gap-1.5 select-none">
         <button
-          onClick={() => onChatWithPaper && onChatWithPaper(document.doc_name)}
-          className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-md text-xs font-medium transition-colors cursor-pointer"
-        >
-          <MessageSquare className="h-3.5 w-3.5" />
-          <span>Chat with Paper</span>
-        </button>
-        <button
+          type="button"
           onClick={() => onOpenPdf && onOpenPdf(document.doc_name, 1)}
-          className="flex items-center justify-center gap-1.5 py-1.5 px-3 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700/60 rounded-md text-xs font-medium transition-colors cursor-pointer"
+          className="flex-1 flex items-center justify-center gap-1 py-1 px-2 bg-zinc-800 hover:bg-zinc-750 text-zinc-200 border border-zinc-700/60 rounded text-[11px] font-medium transition-colors cursor-pointer"
+          title="Open PDF in integrated viewer"
         >
-          <FileText className="h-3.5 w-3.5" />
+          <FileText className="h-3 w-3 text-red-400" />
           <span>Read PDF</span>
         </button>
+
+        <button
+          type="button"
+          onClick={() => onChatWithPaper && onChatWithPaper(document.doc_name)}
+          className="flex-1 flex items-center justify-center gap-1 py-1 px-2 bg-zinc-800 hover:bg-zinc-750 text-zinc-200 border border-zinc-700/60 rounded text-[11px] font-medium transition-colors cursor-pointer"
+          title="Chat with paper in AI assistant"
+        >
+          <MessageSquare className="h-3 w-3 text-blue-400" />
+          <span>Chat</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={handleAutoEnrich}
+          disabled={isEnriching}
+          className="flex items-center justify-center gap-1 py-1 px-2 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 rounded text-[11px] font-medium transition-colors cursor-pointer"
+          title="Auto-enrich metadata via CrossRef / arXiv"
+        >
+          <Wand2 className={`h-3 w-3 text-blue-400 ${isEnriching ? 'animate-spin' : ''}`} />
+          <span>{isEnriching ? '...' : 'Enrich'}</span>
+        </button>
       </div>
 
-      {/* Tabs Switcher */}
-      <div className="flex border-b border-zinc-800 bg-zinc-950/40 text-xs font-medium text-zinc-400">
+      {/* Auto-enrich status message toast */}
+      {enrichMessage && (
+        <div
+          className={`mx-3 my-1 px-2 py-1 rounded text-[10.5px] font-medium flex items-center gap-1.5 ${
+            enrichMessage.type === 'success'
+              ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+              : 'bg-red-500/15 text-red-400 border border-red-500/30'
+          }`}
+        >
+          {enrichMessage.type === 'success' ? <Check className="h-3 w-3 shrink-0" /> : <AlertCircle className="h-3 w-3 shrink-0" />}
+          <span>{enrichMessage.text}</span>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* TABS SWITCHER (Zotero Info / Abstract / Cite / Notes / Summary) */}
+      {/* ========================================================================= */}
+      <div className="flex border-b border-zinc-800 bg-zinc-950/40 text-[11px] font-medium text-zinc-400 select-none">
         <button
-          onClick={() => setActiveTab('details')}
-          className={`flex-1 py-2.5 flex items-center justify-center gap-1.5 border-b-2 transition-colors cursor-pointer ${
-            activeTab === 'details'
-              ? 'border-amber-500 text-amber-400 bg-zinc-900/40'
+          type="button"
+          onClick={() => setActiveTab('info')}
+          className={`flex-1 py-1.5 text-center border-b-2 transition-colors cursor-pointer ${
+            activeTab === 'info'
+              ? 'border-blue-500 text-blue-400 bg-zinc-900/60 font-semibold'
               : 'border-transparent hover:text-zinc-200'
           }`}
         >
-          <FileText className="h-3.5 w-3.5" />
-          <span>Details</span>
+          Info
         </button>
         <button
-          onClick={() => setActiveTab('ai_summary')}
-          className={`flex-1 py-2.5 flex items-center justify-center gap-1.5 border-b-2 transition-colors cursor-pointer ${
-            activeTab === 'ai_summary'
-              ? 'border-amber-500 text-amber-400 bg-zinc-900/40'
+          type="button"
+          onClick={() => setActiveTab('abstract')}
+          className={`flex-1 py-1.5 text-center border-b-2 transition-colors cursor-pointer ${
+            activeTab === 'abstract'
+              ? 'border-blue-500 text-blue-400 bg-zinc-900/60 font-semibold'
               : 'border-transparent hover:text-zinc-200'
           }`}
         >
-          <Sparkles className="h-3.5 w-3.5" />
-          <span>AI Summary</span>
+          Abstract
         </button>
         <button
-          onClick={() => setActiveTab('citations')}
-          className={`flex-1 py-2.5 flex items-center justify-center gap-1.5 border-b-2 transition-colors cursor-pointer ${
-            activeTab === 'citations'
-              ? 'border-amber-500 text-amber-400 bg-zinc-900/40'
+          type="button"
+          onClick={() => setActiveTab('cite')}
+          className={`flex-1 py-1.5 text-center border-b-2 transition-colors cursor-pointer ${
+            activeTab === 'cite'
+              ? 'border-blue-500 text-blue-400 bg-zinc-900/60 font-semibold'
               : 'border-transparent hover:text-zinc-200'
           }`}
         >
-          <Quote className="h-3.5 w-3.5" />
-          <span>Cite</span>
+          Cite
         </button>
         <button
+          type="button"
           onClick={() => setActiveTab('notes')}
-          className={`flex-1 py-2.5 flex items-center justify-center gap-1.5 border-b-2 transition-colors cursor-pointer ${
+          className={`flex-1 py-1.5 text-center border-b-2 transition-colors cursor-pointer ${
             activeTab === 'notes'
-              ? 'border-amber-500 text-amber-400 bg-zinc-900/40'
+              ? 'border-blue-500 text-blue-400 bg-zinc-900/60 font-semibold'
               : 'border-transparent hover:text-zinc-200'
           }`}
         >
-          <StickyNote className="h-3.5 w-3.5" />
-          <span>Notes</span>
+          Notes
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('ai_summary')}
+          className={`flex-1 py-1.5 text-center border-b-2 transition-colors cursor-pointer ${
+            activeTab === 'ai_summary'
+              ? 'border-blue-500 text-blue-400 bg-zinc-900/60 font-semibold'
+              : 'border-transparent hover:text-zinc-200'
+          }`}
+        >
+          TL;DR
         </button>
       </div>
 
-      {/* Tab Content Container */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 text-xs">
-        {/* TAB 1: DETAILS */}
-        {activeTab === 'details' && (
-          <div className="space-y-3.5">
-            {/* Auto-Enrich Banner */}
-            <div className="p-2.5 bg-amber-500/10 border border-amber-500/25 rounded-lg flex flex-col gap-2">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5 text-amber-400 font-semibold text-[11px]">
-                  <Sparkles className="h-3.5 w-3.5" />
-                  <span>Auto-Enrich Metadata</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleAutoEnrich}
-                  disabled={isEnriching}
-                  className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-zinc-950 font-semibold rounded text-[11px] transition-colors cursor-pointer shadow-sm"
-                  title="Query CrossRef & arXiv APIs"
-                >
-                  <RefreshCw className={`h-3 w-3 ${isEnriching ? 'animate-spin' : ''}`} />
-                  <span>{isEnriching ? 'Resolving...' : 'Auto-Fill'}</span>
-                </button>
-              </div>
-              <p className="text-[10px] text-zinc-400 leading-tight">
-                Scans PDF layout for DOI or arXiv ID and pulls official title, authors, venue, and year from CrossRef / arXiv.
-              </p>
-              {enrichMessage && (
-                <div className={`text-[10.5px] px-2 py-1 rounded font-medium flex items-center gap-1.5 ${
-                  enrichMessage.type === 'success' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-red-500/20 text-red-400 border border-red-500/30'
-                }`}>
-                  {enrichMessage.type === 'success' ? <Check className="h-3 w-3 shrink-0" /> : <AlertCircle className="h-3 w-3 shrink-0" />}
-                  <span>{enrichMessage.text}</span>
-                </div>
-              )}
-            </div>
-
-            <div>
-              <label className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider block mb-1">
+      {/* ========================================================================= */}
+      {/* TAB CONTENT CONTAINER */}
+      {/* ========================================================================= */}
+      <div className="flex-1 overflow-y-auto p-3 text-xs space-y-3">
+        {/* ======================================================================= */}
+        {/* TAB 1: ZOTERO TWO-COLUMN KEY-VALUE INFO FORM */}
+        {/* ======================================================================= */}
+        {activeTab === 'info' && (
+          <div className="space-y-2 text-[11.5px]">
+            {/* Item Type */}
+            <div className="flex items-center gap-2">
+              <span className="w-20 text-right text-zinc-400 font-medium select-none shrink-0 text-[11px]">
                 Item Type
-              </label>
+              </span>
               <select
                 value={formData.item_type}
                 onChange={(e) => handleInputChange('item_type', e.target.value)}
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-md px-2.5 py-1.5 text-zinc-200 focus:outline-none focus:border-amber-500/70"
+                className="flex-1 bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-zinc-200 focus:outline-none focus:border-blue-500"
               >
                 <option value="journal_article">Journal Article</option>
                 <option value="conference_paper">Conference Paper</option>
                 <option value="preprint">Preprint (arXiv)</option>
-                <option value="book_chapter">Book Chapter</option>
+                <option value="book_chapter">Book Section / Chapter</option>
                 <option value="thesis">Thesis / Dissertation</option>
-                <option value="report">Technical Report</option>
+                <option value="report">Report</option>
               </select>
             </div>
 
-            <div>
-              <label className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider block mb-1">
+            {/* Title */}
+            <div className="flex items-start gap-2">
+              <span className="w-20 text-right text-zinc-400 font-medium select-none shrink-0 text-[11px] pt-1">
                 Title
-              </label>
+              </span>
               <textarea
                 rows={2}
                 value={formData.title}
                 onChange={(e) => handleInputChange('title', e.target.value)}
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-md p-2 text-zinc-200 focus:outline-none focus:border-amber-500/70 resize-none"
                 placeholder="Full paper title..."
+                className="flex-1 bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-zinc-200 focus:outline-none focus:border-blue-500 resize-none leading-snug"
               />
             </div>
 
-            <div>
-              <label className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider block mb-1">
-                Authors (separated by 'and' or commas)
-              </label>
-              <input
-                type="text"
+            {/* Author */}
+            <div className="flex items-start gap-2">
+              <span className="w-20 text-right text-zinc-400 font-medium select-none shrink-0 text-[11px] pt-1">
+                Author
+              </span>
+              <textarea
+                rows={2}
                 value={formData.authors}
                 onChange={(e) => handleInputChange('authors', e.target.value)}
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-md px-2.5 py-1.5 text-zinc-200 focus:outline-none focus:border-amber-500/70"
-                placeholder="Vaswani, Ashish and Shazeer, Noam"
+                placeholder="Last, First and Last, First"
+                className="flex-1 bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-zinc-200 focus:outline-none focus:border-blue-500 resize-none leading-snug"
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider block mb-1">
-                  Year
-                </label>
-                <input
-                  type="text"
-                  value={formData.year}
-                  onChange={(e) => handleInputChange('year', e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-md px-2.5 py-1.5 text-zinc-200 focus:outline-none focus:border-amber-500/70"
-                  placeholder="2024"
-                />
-              </div>
-              <div>
-                <label className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider block mb-1">
-                  Venue / Journal
-                </label>
-                <input
-                  type="text"
-                  value={formData.venue}
-                  onChange={(e) => handleInputChange('venue', e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-md px-2.5 py-1.5 text-zinc-200 focus:outline-none focus:border-amber-500/70"
-                  placeholder="NeurIPS, ICML, Nature"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider block mb-1">
-                  DOI
-                </label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={formData.doi}
-                    onChange={(e) => handleInputChange('doi', e.target.value)}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-md pl-2.5 pr-7 py-1.5 text-zinc-200 focus:outline-none focus:border-amber-500/70"
-                    placeholder="10.1145/..."
-                  />
-                  {formData.doi && (
-                    <button
-                      type="button"
-                      onClick={() => handleLookupIdentifier(formData.doi)}
-                      disabled={isEnriching}
-                      className="absolute right-1 top-1/2 -translate-y-1/2 p-1 text-zinc-400 hover:text-amber-400 cursor-pointer"
-                      title="Fetch metadata for this DOI"
-                    >
-                      <Search className="h-3 w-3" />
-                    </button>
-                  )}
-                </div>
-              </div>
-              <div>
-                <label className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider block mb-1">
-                  arXiv ID
-                </label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={formData.arxiv_id}
-                    onChange={(e) => handleInputChange('arxiv_id', e.target.value)}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-md pl-2.5 pr-7 py-1.5 text-zinc-200 focus:outline-none focus:border-amber-500/70"
-                    placeholder="2305.18290"
-                  />
-                  {formData.arxiv_id && (
-                    <button
-                      type="button"
-                      onClick={() => handleLookupIdentifier(formData.arxiv_id)}
-                      disabled={isEnriching}
-                      className="absolute right-1 top-1/2 -translate-y-1/2 p-1 text-zinc-400 hover:text-amber-400 cursor-pointer"
-                      title="Fetch metadata for this arXiv ID"
-                    >
-                      <Search className="h-3 w-3" />
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Tags Section */}
-            <div>
-              <label className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider block mb-1.5">
-                Tags
-              </label>
-              <div className="flex flex-wrap gap-1.5 mb-2">
-                {formData.tags.map((tag) => (
-                  <span
-                    key={tag}
-                    className="inline-flex items-center gap-1 bg-amber-500/10 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded text-[11px]"
-                  >
-                    {tag}
-                    <button
-                      onClick={() => handleRemoveTag(tag)}
-                      className="hover:text-amber-200 cursor-pointer"
-                    >
-                      ×
-                    </button>
-                  </span>
-                ))}
-              </div>
+            {/* Publication / Venue */}
+            <div className="flex items-center gap-2">
+              <span className="w-20 text-right text-zinc-400 font-medium select-none shrink-0 text-[11px]">
+                Publication
+              </span>
               <input
                 type="text"
-                value={newTagInput}
-                onChange={(e) => setNewTagInput(e.target.value)}
-                onKeyDown={handleAddTag}
-                placeholder="Type #tag and press Enter..."
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-md px-2.5 py-1.5 text-zinc-200 focus:outline-none focus:border-amber-500/70 text-xs"
+                value={formData.venue}
+                onChange={(e) => handleInputChange('venue', e.target.value)}
+                placeholder="NeurIPS, ICML, Nature..."
+                className="flex-1 bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-zinc-200 focus:outline-none focus:border-blue-500 truncate"
               />
             </div>
 
-            {/* Linked Workspaces */}
-            <div>
-              <label className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider block mb-1">
-                Linked Workspaces
-              </label>
-              <div className="space-y-1">
-                {document.workspaces && document.workspaces.length > 0 ? (
-                  document.workspaces.map((ws) => (
-                    <div
-                      key={ws.id}
-                      className="flex items-center gap-1.5 text-zinc-300 bg-zinc-950/60 px-2.5 py-1 rounded border border-zinc-800/60"
-                    >
-                      <Building className="h-3 w-3 text-zinc-500" />
-                      <span>{ws.name}</span>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-zinc-500 italic">Not assigned to any workspace yet.</p>
+            {/* Date / Year */}
+            <div className="flex items-center gap-2">
+              <span className="w-20 text-right text-zinc-400 font-medium select-none shrink-0 text-[11px]">
+                Date
+              </span>
+              <input
+                type="text"
+                value={formData.year}
+                onChange={(e) => handleInputChange('year', e.target.value)}
+                placeholder="YYYY (e.g. 2024)"
+                className="w-28 bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-zinc-200 focus:outline-none focus:border-blue-500 font-mono"
+              />
+            </div>
+
+            {/* DOI */}
+            <div className="flex items-center gap-2">
+              <span className="w-20 text-right text-zinc-400 font-medium select-none shrink-0 text-[11px]">
+                DOI
+              </span>
+              <div className="flex-1 flex items-center gap-1">
+                <input
+                  type="text"
+                  value={formData.doi}
+                  onChange={(e) => handleInputChange('doi', e.target.value)}
+                  placeholder="10.xxxx/..."
+                  className="flex-1 bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-zinc-200 focus:outline-none focus:border-blue-500 font-mono text-[11px]"
+                />
+                {formData.doi && (
+                  <a
+                    href={`https://doi.org/${formData.doi}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="p-1 text-zinc-400 hover:text-blue-400 cursor-pointer"
+                    title={`Open https://doi.org/${formData.doi}`}
+                  >
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
                 )}
               </div>
             </div>
 
+            {/* arXiv ID */}
+            <div className="flex items-center gap-2">
+              <span className="w-20 text-right text-zinc-400 font-medium select-none shrink-0 text-[11px]">
+                arXiv ID
+              </span>
+              <div className="flex-1 flex items-center gap-1">
+                <input
+                  type="text"
+                  value={formData.arxiv_id}
+                  onChange={(e) => handleInputChange('arxiv_id', e.target.value)}
+                  placeholder="2305.18290"
+                  className="flex-1 bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-zinc-200 focus:outline-none focus:border-blue-500 font-mono text-[11px]"
+                />
+                {formData.arxiv_id && (
+                  <a
+                    href={`https://arxiv.org/abs/${formData.arxiv_id}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="p-1 text-zinc-400 hover:text-rose-400 cursor-pointer"
+                    title={`Open https://arxiv.org/abs/${formData.arxiv_id}`}
+                  >
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
+                )}
+              </div>
+            </div>
+
+            {/* URL */}
+            <div className="flex items-center gap-2">
+              <span className="w-20 text-right text-zinc-400 font-medium select-none shrink-0 text-[11px]">
+                URL
+              </span>
+              <div className="flex-1 flex items-center gap-1">
+                <input
+                  type="text"
+                  value={formData.url}
+                  onChange={(e) => handleInputChange('url', e.target.value)}
+                  placeholder="https://..."
+                  className="flex-1 bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-zinc-200 focus:outline-none focus:border-blue-500 truncate"
+                />
+                {formData.url && (
+                  <a
+                    href={formData.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="p-1 text-zinc-400 hover:text-blue-400 cursor-pointer"
+                  >
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
+                )}
+              </div>
+            </div>
+
+            {/* Date Added */}
+            <div className="flex items-center gap-2">
+              <span className="w-20 text-right text-zinc-400 font-medium select-none shrink-0 text-[11px]">
+                Date Added
+              </span>
+              <span className="text-zinc-400 font-mono text-[11px] px-1">
+                {document.created_at ? new Date(document.created_at).toLocaleDateString() : '—'}
+              </span>
+            </div>
+
+            {/* Workspaces */}
+            <div className="flex items-start gap-2 pt-1 border-t border-zinc-850">
+              <span className="w-20 text-right text-zinc-400 font-medium select-none shrink-0 text-[11px] pt-0.5">
+                Workspaces
+              </span>
+              <div className="flex-1 flex flex-wrap gap-1">
+                {document.workspaces && document.workspaces.length > 0 ? (
+                  document.workspaces.map((ws) => (
+                    <span
+                      key={ws.id}
+                      className="inline-flex items-center gap-1 text-[10.5px] bg-zinc-800 text-zinc-300 px-1.5 py-0.5 rounded border border-zinc-700/60"
+                    >
+                      <Building className="h-2.5 w-2.5 text-zinc-500" />
+                      <span>{ws.name}</span>
+                    </span>
+                  ))
+                ) : (
+                  <span className="text-zinc-500 italic text-[11px]">Unfiled</span>
+                )}
+              </div>
+            </div>
+
+            {/* Tags */}
+            <div className="flex items-start gap-2 pt-1 border-t border-zinc-850">
+              <span className="w-20 text-right text-zinc-400 font-medium select-none shrink-0 text-[11px] pt-1">
+                Tags
+              </span>
+              <div className="flex-1 space-y-1">
+                <div className="flex flex-wrap gap-1">
+                  {formData.tags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="inline-flex items-center gap-1 text-[10.5px] bg-zinc-800 text-zinc-200 border border-zinc-700/80 px-1.5 py-0.2 rounded"
+                    >
+                      <span>{tag}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveTag(tag)}
+                        className="text-zinc-400 hover:text-zinc-100 cursor-pointer text-xs leading-none"
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+                <input
+                  type="text"
+                  value={newTagInput}
+                  onChange={(e) => setNewTagInput(e.target.value)}
+                  onKeyDown={handleAddTag}
+                  placeholder="Add #tag and press Enter..."
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded px-2 py-0.5 text-zinc-200 placeholder-zinc-500 text-[11px] focus:outline-none focus:border-blue-500"
+                />
+              </div>
+            </div>
+
             {/* Save Button */}
-            <button
-              onClick={handleSaveMetadata}
-              disabled={isSaving}
-              className="w-full mt-4 flex items-center justify-center gap-2 py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-zinc-950 font-semibold rounded-md shadow transition-colors cursor-pointer"
-            >
-              <Save className="h-3.5 w-3.5" />
-              <span>{isSaving ? 'Saving...' : 'Save Metadata Changes'}</span>
-            </button>
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={handleSaveMetadata}
+                disabled={isSaving}
+                className="w-full flex items-center justify-center gap-1.5 py-1 px-3 bg-zinc-800 hover:bg-zinc-750 text-zinc-200 border border-zinc-700/60 rounded text-xs font-medium transition-colors cursor-pointer shadow-sm"
+              >
+                <Save className="h-3.5 w-3.5 text-blue-400" />
+                <span>{isSaving ? 'Saving...' : 'Save Metadata Changes'}</span>
+              </button>
+            </div>
+
+            {/* Collapsible Attachment Box (Look at Image 1 Zotero!) */}
+            <div className="mt-3 pt-2 border-t border-zinc-850">
+              <button
+                type="button"
+                onClick={() => setIsAttachmentsExpanded(!isAttachmentsExpanded)}
+                className="w-full flex items-center justify-between text-zinc-400 hover:text-zinc-200 font-medium text-[11px] select-none py-1 cursor-pointer"
+              >
+                <div className="flex items-center gap-1.5">
+                  <Paperclip className="h-3 w-3 text-zinc-400" />
+                  <span>1 Attachment</span>
+                </div>
+                {isAttachmentsExpanded ? (
+                  <ChevronDown className="h-3 w-3" />
+                ) : (
+                  <ChevronRight className="h-3 w-3" />
+                )}
+              </button>
+
+              {isAttachmentsExpanded && (
+                <div className="mt-1 p-2 bg-zinc-950/80 border border-zinc-800 rounded flex items-center justify-between">
+                  <div className="flex items-center gap-2 truncate">
+                    <FileText className="h-4 w-4 text-red-400 shrink-0" />
+                    <div className="truncate">
+                      <p className="text-[11.5px] font-medium text-zinc-200 truncate">
+                        Full Text PDF
+                      </p>
+                      <p className="text-[10px] text-zinc-500 font-mono truncate">
+                        {document.doc_name}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => onOpenPdf && onOpenPdf(document.doc_name, 1)}
+                    className="px-2 py-0.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700/60 rounded text-[10.5px] font-medium transition-colors shrink-0"
+                  >
+                    View
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
-        {/* TAB 2: AI SUMMARY */}
-        {activeTab === 'ai_summary' && (
-          <div className="space-y-3">
-            <div className="flex items-center gap-1.5 text-amber-400 font-medium text-xs">
-              <Sparkles className="h-3.5 w-3.5" />
-              <span>Instant AI Executive Summary</span>
-            </div>
-
+        {/* ======================================================================= */}
+        {/* TAB 2: ABSTRACT */}
+        {/* ======================================================================= */}
+        {activeTab === 'abstract' && (
+          <div className="space-y-2 text-[11.5px]">
+            <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider block">
+              Paper Abstract
+            </span>
             {document.summary_cache ? (
-              <div className="bg-zinc-950/70 border border-zinc-800 rounded-lg p-3 leading-relaxed text-zinc-300 font-normal whitespace-pre-line text-[11.5px]">
+              <div className="bg-zinc-950/80 border border-zinc-800 rounded p-2.5 text-zinc-300 leading-relaxed whitespace-pre-line text-[11.5px]">
                 {document.summary_cache}
               </div>
             ) : (
-              <div className="bg-zinc-950/50 border border-dashed border-zinc-800 rounded-lg p-6 text-center text-zinc-500">
-                <Sparkles className="h-6 w-6 text-zinc-600 mx-auto mb-2 animate-pulse" />
-                <p>Summary is being synthesized in the background...</p>
-                <p className="text-[10px] mt-1 text-zinc-600">Will automatically appear once indexed.</p>
+              <div className="bg-zinc-950/40 border border-dashed border-zinc-800 rounded p-4 text-center text-zinc-500">
+                <FileText className="h-5 w-5 text-zinc-600 mx-auto mb-1 stroke-[1.5]" />
+                <p>No abstract indexed yet.</p>
+                <button
+                  type="button"
+                  onClick={handleAutoEnrich}
+                  className="mt-2 text-[10.5px] text-blue-400 hover:underline"
+                >
+                  Lookup via CrossRef / arXiv
+                </button>
               </div>
-            )}
-
-            {document.summary_generated_at && (
-              <p className="text-[10px] text-zinc-500">
-                Generated: {new Date(document.summary_generated_at).toLocaleDateString()}
-              </p>
             )}
           </div>
         )}
 
-        {/* TAB 3: CITATIONS */}
-        {activeTab === 'citations' && (
-          <div className="space-y-4">
+        {/* ======================================================================= */}
+        {/* TAB 3: CITE (APA, IEEE, BibTeX) */}
+        {/* ======================================================================= */}
+        {activeTab === 'cite' && (
+          <div className="space-y-3 text-[11.5px]">
             <p className="text-zinc-400 text-[11px]">
-              One-click copy formatted citation into your paper or Overleaf bibliography:
+              One-click citation formats for publications and Overleaf:
             </p>
 
             {loadingCitations ? (
-              <div className="text-center py-8 text-zinc-500">Loading citation formats...</div>
+              <div className="text-center py-6 text-zinc-500 text-xs">Loading citation styles...</div>
             ) : citations ? (
-              <div className="space-y-3">
-                {/* APA */}
-                <div className="bg-zinc-950 border border-zinc-800/90 rounded-md p-2.5">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="font-semibold text-amber-400 text-[11px]">APA 7th</span>
+              <div className="space-y-2.5">
+                {/* APA 7th */}
+                <div className="bg-zinc-950 border border-zinc-800 rounded p-2">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-semibold text-blue-400 text-[10.5px]">APA 7th</span>
                     <button
+                      type="button"
                       onClick={() => handleCopyCitation('apa', citations.apa)}
                       className="flex items-center gap-1 text-[10px] text-zinc-400 hover:text-zinc-100 cursor-pointer"
                     >
                       {copiedFormat === 'apa' ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
-                      <span>{copiedFormat === 'apa' ? 'Copied!' : 'Copy'}</span>
+                      <span>{copiedFormat === 'apa' ? 'Copied' : 'Copy'}</span>
                     </button>
                   </div>
-                  <p className="text-zinc-300 text-[11px] leading-relaxed font-mono bg-zinc-900/50 p-1.5 rounded">
+                  <p className="text-zinc-300 text-[11px] leading-relaxed font-mono bg-zinc-900/60 p-1.5 rounded">
                     {citations.apa}
                   </p>
                 </div>
 
                 {/* IEEE */}
-                <div className="bg-zinc-950 border border-zinc-800/90 rounded-md p-2.5">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="font-semibold text-amber-400 text-[11px]">IEEE</span>
+                <div className="bg-zinc-950 border border-zinc-800 rounded p-2">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-semibold text-blue-400 text-[10.5px]">IEEE</span>
                     <button
+                      type="button"
                       onClick={() => handleCopyCitation('ieee', citations.ieee)}
                       className="flex items-center gap-1 text-[10px] text-zinc-400 hover:text-zinc-100 cursor-pointer"
                     >
                       {copiedFormat === 'ieee' ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
-                      <span>{copiedFormat === 'ieee' ? 'Copied!' : 'Copy'}</span>
+                      <span>{copiedFormat === 'ieee' ? 'Copied' : 'Copy'}</span>
                     </button>
                   </div>
-                  <p className="text-zinc-300 text-[11px] leading-relaxed font-mono bg-zinc-900/50 p-1.5 rounded">
+                  <p className="text-zinc-300 text-[11px] leading-relaxed font-mono bg-zinc-900/60 p-1.5 rounded">
                     {citations.ieee}
                   </p>
                 </div>
 
                 {/* BibTeX */}
-                <div className="bg-zinc-950 border border-zinc-800/90 rounded-md p-2.5">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="font-semibold text-amber-400 text-[11px]">BibTeX (Overleaf)</span>
+                <div className="bg-zinc-950 border border-zinc-800 rounded p-2">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-semibold text-blue-400 text-[10.5px]">BibTeX (Overleaf)</span>
                     <button
+                      type="button"
                       onClick={() => handleCopyCitation('bibtex', citations.bibtex)}
                       className="flex items-center gap-1 text-[10px] text-zinc-400 hover:text-zinc-100 cursor-pointer"
                     >
                       {copiedFormat === 'bibtex' ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
-                      <span>{copiedFormat === 'bibtex' ? 'Copied!' : 'Copy'}</span>
+                      <span>{copiedFormat === 'bibtex' ? 'Copied' : 'Copy'}</span>
                     </button>
                   </div>
-                  <pre className="text-zinc-300 text-[10px] font-mono bg-zinc-900/60 p-2 rounded overflow-x-auto">
+                  <pre className="text-zinc-300 text-[10px] font-mono bg-zinc-900/60 p-1.5 rounded overflow-x-auto whitespace-pre">
                     {citations.bibtex}
                   </pre>
                 </div>
@@ -617,27 +733,53 @@ export default function LibraryInspector({
           </div>
         )}
 
+        {/* ======================================================================= */}
         {/* TAB 4: NOTES */}
+        {/* ======================================================================= */}
         {activeTab === 'notes' && (
-          <div className="space-y-3">
-            <p className="text-zinc-400 text-[11px]">
-              Personal notes and observations attached to this paper:
-            </p>
+          <div className="space-y-2 text-[11.5px]">
+            <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider block">
+              Research Notes
+            </span>
             <textarea
               rows={8}
               value={formData.notes}
               onChange={(e) => handleInputChange('notes', e.target.value)}
-              placeholder="e.g. In Section 3.2, their baseline evaluation uses BLEU-4 on CNN/DailyMail. Need to replicate this for FYP Chapter 4..."
-              className="w-full bg-zinc-950 border border-zinc-800 rounded-md p-2.5 text-zinc-200 focus:outline-none focus:border-amber-500/70 text-xs resize-none"
+              placeholder="Record your observations, takeaways, and methodology notes for this paper..."
+              className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-zinc-200 focus:outline-none focus:border-blue-500 text-xs resize-none leading-relaxed"
             />
             <button
+              type="button"
               onClick={handleSaveMetadata}
               disabled={isSaving}
-              className="w-full flex items-center justify-center gap-1.5 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-md font-medium text-xs transition-colors cursor-pointer"
+              className="w-full flex items-center justify-center gap-1.5 py-1 px-3 bg-zinc-800 hover:bg-zinc-750 text-zinc-200 border border-zinc-700/60 rounded text-xs font-medium transition-colors cursor-pointer"
             >
-              <Save className="h-3.5 w-3.5" />
-              <span>Save Notes</span>
+              <Save className="h-3.5 w-3.5 text-blue-400" />
+              <span>{isSaving ? 'Saving...' : 'Save Notes'}</span>
             </button>
+          </div>
+        )}
+
+        {/* ======================================================================= */}
+        {/* TAB 5: AI SUMMARY (TL;DR) */}
+        {/* ======================================================================= */}
+        {activeTab === 'ai_summary' && (
+          <div className="space-y-2 text-[11.5px]">
+            <div className="flex items-center gap-1.5 text-blue-400 font-semibold text-xs">
+              <Sparkles className="h-3.5 w-3.5" />
+              <span>Instant AI Executive Summary</span>
+            </div>
+
+            {document.summary_cache ? (
+              <div className="bg-zinc-950/80 border border-zinc-800 rounded p-2.5 leading-relaxed text-zinc-300 whitespace-pre-line text-[11.5px]">
+                {document.summary_cache}
+              </div>
+            ) : (
+              <div className="bg-zinc-950/40 border border-dashed border-zinc-800 rounded p-4 text-center text-zinc-500">
+                <Sparkles className="h-5 w-5 text-zinc-600 mx-auto mb-1 animate-pulse" />
+                <p>Summary is being synthesized in the background...</p>
+              </div>
+            )}
           </div>
         )}
       </div>
