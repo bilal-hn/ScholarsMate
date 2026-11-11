@@ -24,12 +24,14 @@ import {
   ChevronDown,
   ChevronRight,
   Wand2,
+  Download,
 } from 'lucide-react';
 import {
   updateLibraryItemAPI,
   getItemCitationsAPI,
   autoEnrichDocumentAPI,
   lookupAcademicIdentifierAPI,
+  downloadItemPdfAPI,
 } from '../../services/api';
 
 export default function LibraryInspector({
@@ -64,6 +66,9 @@ export default function LibraryInspector({
   const [enrichMessage, setEnrichMessage] = useState(null);
   const [isAbstractExpanded, setIsAbstractExpanded] = useState(true);
   const [isAttachmentsExpanded, setIsAttachmentsExpanded] = useState(true);
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+  const [downloadPdfError, setDownloadPdfError] = useState(null);
+  const [downloadPdfSuccess, setDownloadPdfSuccess] = useState(null);
 
   // Sync state when selected document changes
   useEffect(() => {
@@ -218,6 +223,27 @@ export default function LibraryInspector({
     setTimeout(() => setCopiedFormat(null), 2000);
   };
 
+  const handleDownloadOaPdf = async () => {
+    setIsDownloadingPdf(true);
+    setDownloadPdfError(null);
+    setDownloadPdfSuccess(null);
+    try {
+      const res = await downloadItemPdfAPI(document.id);
+      if (res.success && res.item) {
+        setDownloadPdfSuccess(res.message || 'Full-text PDF downloaded and attached.');
+        if (onUpdateDocument) {
+          onUpdateDocument(res.item);
+        }
+      } else {
+        setDownloadPdfError(res.message || 'No open-access full-text PDF found (may be paywalled).');
+      }
+    } catch (err) {
+      setDownloadPdfError(err.response?.data?.detail || 'Failed to download open-access PDF.');
+    } finally {
+      setIsDownloadingPdf(false);
+    }
+  };
+
   return (
     <div className="h-full flex flex-col bg-zinc-900 border-l border-zinc-800 text-zinc-200 w-96 shadow-xl relative select-text z-20 font-sans">
       {/* ========================================================================= */}
@@ -237,18 +263,31 @@ export default function LibraryInspector({
       </div>
 
       {/* ========================================================================= */}
-      {/* QUICK ACTIONS BAR: READ PDF | CHAT | AUTO-ENRICH */}
+      {/* QUICK ACTIONS BAR: READ PDF / GET OA PDF | CHAT | AUTO-ENRICH */}
       {/* ========================================================================= */}
       <div className="px-3 py-1.5 bg-zinc-950/70 border-b border-zinc-800 flex items-center gap-1.5 select-none">
-        <button
-          type="button"
-          onClick={() => onOpenPdf && onOpenPdf(document.doc_name, 1)}
-          className="flex-1 flex items-center justify-center gap-1 py-1 px-2 bg-zinc-800 hover:bg-zinc-750 text-zinc-200 border border-zinc-700/60 rounded text-[11px] font-medium transition-colors cursor-pointer"
-          title="Open PDF in integrated viewer"
-        >
-          <FileText className="h-3 w-3 text-red-400" />
-          <span>Read PDF</span>
-        </button>
+        {document.has_pdf ? (
+          <button
+            type="button"
+            onClick={() => onOpenPdf && onOpenPdf(document.doc_name, 1)}
+            className="flex-1 flex items-center justify-center gap-1 py-1 px-2 bg-zinc-800 hover:bg-zinc-750 text-zinc-200 border border-zinc-700/60 rounded text-[11px] font-medium transition-colors cursor-pointer"
+            title="Open PDF in integrated viewer"
+          >
+            <FileText className="h-3 w-3 text-red-400" />
+            <span>Read PDF</span>
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={handleDownloadOaPdf}
+            disabled={isDownloadingPdf}
+            className="flex-1 flex items-center justify-center gap-1 py-1 px-2 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 rounded text-[11px] font-medium transition-colors cursor-pointer disabled:opacity-50"
+            title="Download Open-Access Full-Text PDF from arXiv or Unpaywall"
+          >
+            <Download className={`h-3 w-3 text-emerald-400 ${isDownloadingPdf ? 'animate-bounce' : ''}`} />
+            <span>{isDownloadingPdf ? 'Downloading...' : 'Get OA PDF'}</span>
+          </button>
+        )}
 
         <button
           type="button"
@@ -283,6 +322,30 @@ export default function LibraryInspector({
         >
           {enrichMessage.type === 'success' ? <Check className="h-3 w-3 shrink-0" /> : <AlertCircle className="h-3 w-3 shrink-0" />}
           <span>{enrichMessage.text}</span>
+        </div>
+      )}
+
+      {/* Download PDF status message toast */}
+      {downloadPdfSuccess && (
+        <div className="mx-3 my-1 px-2 py-1 rounded text-[10.5px] font-medium flex items-center justify-between bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+          <div className="flex items-center gap-1.5">
+            <Check className="h-3 w-3 shrink-0" />
+            <span>{downloadPdfSuccess}</span>
+          </div>
+          <button type="button" onClick={() => setDownloadPdfSuccess(null)} className="text-zinc-400 hover:text-zinc-200">
+            <X className="h-2.5 w-2.5" />
+          </button>
+        </div>
+      )}
+      {downloadPdfError && (
+        <div className="mx-3 my-1 px-2 py-1 rounded text-[10.5px] font-medium flex items-center justify-between bg-red-500/15 text-red-400 border border-red-500/30">
+          <div className="flex items-center gap-1.5">
+            <AlertCircle className="h-3 w-3 shrink-0" />
+            <span>{downloadPdfError}</span>
+          </div>
+          <button type="button" onClick={() => setDownloadPdfError(null)} className="text-zinc-400 hover:text-zinc-200">
+            <X className="h-2.5 w-2.5" />
+          </button>
         </div>
       )}
 
@@ -599,7 +662,7 @@ export default function LibraryInspector({
               >
                 <div className="flex items-center gap-1.5">
                   <Paperclip className="h-3 w-3 text-zinc-400" />
-                  <span>1 Attachment</span>
+                  <span>{document.has_pdf ? '1 Attachment' : '0 Attachments'}</span>
                 </div>
                 {isAttachmentsExpanded ? (
                   <ChevronDown className="h-3 w-3" />
@@ -609,26 +672,48 @@ export default function LibraryInspector({
               </button>
 
               {isAttachmentsExpanded && (
-                <div className="mt-1 p-2 bg-zinc-950/80 border border-zinc-800 rounded flex items-center justify-between">
-                  <div className="flex items-center gap-2 truncate">
-                    <FileText className="h-4 w-4 text-red-400 shrink-0" />
-                    <div className="truncate">
-                      <p className="text-[11.5px] font-medium text-zinc-200 truncate">
-                        Full Text PDF
-                      </p>
-                      <p className="text-[10px] text-zinc-500 font-mono truncate">
-                        {document.doc_name}
-                      </p>
+                document.has_pdf ? (
+                  <div className="mt-1 p-2 bg-zinc-950/80 border border-zinc-800 rounded flex items-center justify-between">
+                    <div className="flex items-center gap-2 truncate">
+                      <FileText className="h-4 w-4 text-red-400 shrink-0" />
+                      <div className="truncate">
+                        <p className="text-[11.5px] font-medium text-zinc-200 truncate">
+                          Full Text PDF
+                        </p>
+                        <p className="text-[10px] text-zinc-500 font-mono truncate">
+                          {document.doc_name}
+                        </p>
+                      </div>
                     </div>
+                    <button
+                      type="button"
+                      onClick={() => onOpenPdf && onOpenPdf(document.doc_name, 1)}
+                      className="px-2 py-0.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700/60 rounded text-[10.5px] font-medium transition-colors shrink-0"
+                    >
+                      View
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => onOpenPdf && onOpenPdf(document.doc_name, 1)}
-                    className="px-2 py-0.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700/60 rounded text-[10.5px] font-medium transition-colors shrink-0"
-                  >
-                    View
-                  </button>
-                </div>
+                ) : (
+                  <div className="mt-1 p-2.5 bg-zinc-950/60 border border-dashed border-zinc-800 rounded space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] text-zinc-400">No PDF attached</span>
+                      {(document.doi || document.arxiv_id) && (
+                        <span className="text-[10px] text-blue-400 font-mono">
+                          {document.arxiv_id ? 'arXiv' : 'Unpaywall'} OA
+                        </span>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleDownloadOaPdf}
+                      disabled={isDownloadingPdf}
+                      className="w-full flex items-center justify-center gap-1.5 py-1 px-2.5 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 rounded text-[11px] font-medium transition-colors cursor-pointer disabled:opacity-50"
+                    >
+                      <Download className={`h-3 w-3 text-blue-400 ${isDownloadingPdf ? 'animate-bounce' : ''}`} />
+                      <span>{isDownloadingPdf ? 'Downloading OA Full-Text...' : 'Download Open-Access PDF'}</span>
+                    </button>
+                  </div>
+                )
               )}
             </div>
           </div>

@@ -1063,13 +1063,31 @@ export const autoEnrichDocumentAPI = async (docId) => {
 /**
  * Creates a bibliographic reference in the library directly from a DOI or arXiv identifier.
  * @param {string} identifier
+ * @param {boolean} [autoDownloadPdf=true]
  */
-export const addLibraryReferenceAPI = async (identifier) => {
+export const addLibraryReferenceAPI = async (identifier, autoDownloadPdf = true) => {
   try {
-    const response = await apiClient.post('/library/add-reference', { identifier });
+    const response = await apiClient.post('/library/add-reference', {
+      identifier,
+      auto_download_pdf: autoDownloadPdf,
+    });
     return response.data;
   } catch (error) {
     console.error(`Failed to add reference for ${identifier}:`, error.response?.data || error.message);
+    throw error;
+  }
+};
+
+/**
+ * Resolves and downloads Open-Access full-text PDF (arXiv / Unpaywall) for a document (FR-17.4).
+ * @param {string} docId
+ */
+export const downloadItemPdfAPI = async (docId) => {
+  try {
+    const response = await apiClient.post(`/library/${docId}/download-pdf`);
+    return response.data; // { success, message, doc_name, source, file_size_bytes, item }
+  } catch (error) {
+    console.error(`Failed to download OA PDF for document ${docId}:`, error.response?.data || error.message);
     throw error;
   }
 };

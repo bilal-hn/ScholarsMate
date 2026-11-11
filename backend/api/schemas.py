@@ -333,6 +333,7 @@ class LibraryItem(BaseModel):
     tags: List[str] = Field(default_factory=list)
     notes: Optional[str] = None
     file_size_bytes: Optional[int] = 0
+    has_pdf: bool = False
     summary_cache: Optional[str] = None
     summary_generated_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
@@ -364,6 +365,7 @@ class IdentifierLookupRequest(BaseModel):
     identifier: Optional[str] = None
     doi: Optional[str] = None
     arxiv_id: Optional[str] = None
+    auto_download_pdf: bool = True
 
 
 class IdentifierLookupResponse(BaseModel):
@@ -371,6 +373,16 @@ class IdentifierLookupResponse(BaseModel):
     source: Optional[str] = None
     metadata: Optional[Dict[str, Any]] = None
     message: Optional[str] = None
+
+
+class DownloadPdfResponse(BaseModel):
+    success: bool
+    message: str
+    doc_name: Optional[str] = None
+    source: Optional[str] = None
+    file_size_bytes: Optional[int] = None
+    item: Optional[LibraryItem] = None
+
 
 
 class BibliographicImportTextRequest(BaseModel):

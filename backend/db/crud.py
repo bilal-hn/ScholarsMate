@@ -1024,4 +1024,42 @@ async def delete_library_document(
     await db.commit()
     return True
 
+
+async def update_library_doc_attachment(
+    db: AsyncSession,
+    doc_id: str,
+    user_id: str,
+    new_doc_name: str,
+    new_file_hash: str,
+    new_file_size: int,
+) -> Optional[UserDocument]:
+    """Updates a library document's doc_name, file_hash, and file_size, and updates workspace references."""
+    doc = await get_library_document(db, doc_id=doc_id, user_id=user_id)
+    if not doc:
+        return None
+
+    old_doc_name = doc.doc_name
+    doc.doc_name = new_doc_name
+    doc.file_hash = new_file_hash
+    doc.file_size_bytes = new_file_size
+    doc.updated_at = datetime.utcnow()
+
+    # Update workspace doc_names if old_doc_name changed
+    if old_doc_name and old_doc_name != new_doc_name:
+        ws_stmt = select(Workspace).where(Workspace.user_id == user_id)
+        ws_result = await db.execute(ws_stmt)
+        workspaces = ws_result.scalars().all()
+        for ws in workspaces:
+            if ws.doc_names and old_doc_name in ws.doc_names:
+                ws.doc_names = [new_doc_name if d == old_doc_name else d for d in ws.doc_names]
+                # Also update sessions
+                for s in (ws.sessions or []):
+                    if s.doc_names and old_doc_name in s.doc_names:
+                        s.doc_names = [new_doc_name if d == old_doc_name else d for d in s.doc_names]
+
+    await db.commit()
+    await db.refresh(doc)
+    return doc
+
+
 

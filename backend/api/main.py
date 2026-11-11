@@ -78,9 +78,11 @@ from backend.api.schemas import (
     IdentifierLookupResponse,
     BibliographicImportTextRequest,
     BibliographicImportResponse,
+    DownloadPdfResponse,
 )
 from backend.ingestion.pipeline import process_path
 from backend.ingestion.bibliographic_extractor import extract_bibliographic_metadata
+from backend.ingestion.oa_pdf_downloader import auto_download_and_attach_oa_pdf
 from backend.ingestion.identifier_resolver import (
     resolve_identifier,
     fetch_crossref_metadata,
@@ -1874,6 +1876,12 @@ async def clear_all_brain_memories(
 
 def _build_library_item(doc: UserDocument, workspace_map: Dict[str, List[Dict[str, str]]]) -> LibraryItem:
     linked_ws = workspace_map.get(doc.doc_name, [])
+    has_pdf = bool(
+        doc.doc_name
+        and doc.doc_name.lower().endswith(".pdf")
+        and (doc.file_size_bytes or 0) > 0
+        and (UPLOADS_DIR / doc.doc_name).exists()
+    )
     return LibraryItem(
         id=doc.id,
         doc_name=doc.doc_name,
@@ -1890,6 +1898,7 @@ def _build_library_item(doc: UserDocument, workspace_map: Dict[str, List[Dict[st
         tags=list(doc.tags or []),
         notes=doc.notes,
         file_size_bytes=doc.file_size_bytes or 0,
+        has_pdf=has_pdf,
         summary_cache=doc.summary_cache,
         summary_generated_at=doc.summary_generated_at,
         created_at=doc.created_at,
@@ -2151,6 +2160,20 @@ async def add_library_reference_by_identifier(
         await db.commit()
         await db.refresh(doc_entry)
 
+    # Attempt Open-Access Full-Text PDF Auto-Download (FR-17.4)
+    if req.auto_download_pdf:
+        try:
+            oa_result = await auto_download_and_attach_oa_pdf(
+                db=db,
+                doc_id=doc_entry.id,
+                user_id=current_user.id,
+                uploads_dir=UPLOADS_DIR,
+            )
+            if oa_result.get("success") and oa_result.get("document"):
+                doc_entry = oa_result["document"]
+        except Exception as e:
+            logger.warning(f"[AddReference] Auto-download OA PDF skipped due to: {e}")
+
     workspaces = await crud.get_user_workspaces(db, user_id=current_user.id)
     ws_map: Dict[str, List[Dict[str, str]]] = {}
     for ws in workspaces:
@@ -2158,6 +2181,45 @@ async def add_library_reference_by_identifier(
             ws_map.setdefault(d, []).append({"id": ws.id, "name": ws.name})
 
     return _build_library_item(doc_entry, ws_map)
+
+
+@app.post("/api/library/{doc_id}/download-pdf", response_model=DownloadPdfResponse)
+async def download_oa_pdf_endpoint(
+    doc_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Finds and downloads open-access full-text PDF (arXiv / Unpaywall) and attaches it to document (FR-17.4).
+    """
+    doc = await crud.get_library_document(db, doc_id=doc_id, user_id=current_user.id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found in library.")
+
+    res = await auto_download_and_attach_oa_pdf(
+        db=db,
+        doc_id=doc_id,
+        user_id=current_user.id,
+        uploads_dir=UPLOADS_DIR,
+    )
+
+    workspaces = await crud.get_user_workspaces(db, user_id=current_user.id)
+    ws_map: Dict[str, List[Dict[str, str]]] = {}
+    for ws in workspaces:
+        for d in (ws.doc_names or []):
+            ws_map.setdefault(d, []).append({"id": ws.id, "name": ws.name})
+
+    refreshed_doc = await crud.get_library_document(db, doc_id=doc_id, user_id=current_user.id)
+    item_repr = _build_library_item(refreshed_doc, ws_map) if refreshed_doc else None
+
+    return DownloadPdfResponse(
+        success=res.get("success", False),
+        message=res.get("message", "Processing completed."),
+        doc_name=res.get("doc_name"),
+        source=res.get("source"),
+        file_size_bytes=res.get("file_size_bytes"),
+        item=item_repr,
+    )
 
 
 

@@ -39,6 +39,7 @@ import {
   autoEnrichDocumentAPI,
   addLibraryReferenceAPI,
   importLibraryFileAPI,
+  downloadItemPdfAPI,
 } from '../../services/api';
 import LibraryInspector from './LibraryInspector';
 
@@ -71,12 +72,14 @@ export default function LibraryView({
   const [sortAsc, setSortAsc] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
 
-  // Add by Identifier Modal State (FR-17.3)
+  // Add by Identifier Modal State (FR-17.3 & FR-17.4)
   const [isAddIdentifierOpen, setIsAddIdentifierOpen] = useState(false);
   const [identifierInput, setIdentifierInput] = useState('');
+  const [autoDownloadPdfCheckbox, setAutoDownloadPdfCheckbox] = useState(true);
   const [isAddingIdentifier, setIsAddingIdentifier] = useState(false);
   const [addError, setAddError] = useState(null);
   const [enrichingDocIds, setEnrichingDocIds] = useState(new Set());
+  const [downloadingPdfDocIds, setDownloadingPdfDocIds] = useState(new Set());
 
   // BibTeX / RIS Bulk Import State (FR-17.1)
   const bibFileInputRef = useRef(null);
@@ -344,18 +347,58 @@ export default function LibraryView({
     }
   };
 
-  // Add paper reference directly by DOI or arXiv ID
+  // Manual Open-Access PDF Download Trigger (FR-17.4)
+  const handleDownloadPdf = async (docId, e) => {
+    e?.stopPropagation();
+    setDownloadingPdfDocIds((prev) => new Set(prev).add(docId));
+    try {
+      const res = await downloadItemPdfAPI(docId);
+      if (res.success && res.item) {
+        setItems((prev) => prev.map((item) => (item.id === docId ? res.item : item)));
+        if (selectedDoc && selectedDoc.id === docId) setSelectedDoc(res.item);
+        setImportNotification({
+          type: 'success',
+          message: res.message || 'Full-text PDF downloaded and attached successfully.',
+        });
+      } else {
+        setImportNotification({
+          type: 'error',
+          message: res.message || 'Could not find an open-access PDF for this reference.',
+        });
+      }
+    } catch (err) {
+      console.error('Failed to download OA PDF:', err);
+      setImportNotification({
+        type: 'error',
+        message: err.response?.data?.detail || 'Failed to download open-access PDF.',
+      });
+    } finally {
+      setDownloadingPdfDocIds((prev) => {
+        const next = new Set(prev);
+        next.delete(docId);
+        return next;
+      });
+    }
+  };
+
+  // Add paper reference directly by DOI or arXiv ID (FR-17.3 & FR-17.4)
   const handleAddIdentifierSubmit = async (e) => {
     e.preventDefault();
     if (!identifierInput.trim()) return;
     setIsAddingIdentifier(true);
     setAddError(null);
     try {
-      const newDoc = await addLibraryReferenceAPI(identifierInput.trim());
+      const newDoc = await addLibraryReferenceAPI(identifierInput.trim(), autoDownloadPdfCheckbox);
       setIsAddIdentifierOpen(false);
       setIdentifierInput('');
       await fetchLibrary();
       setSelectedDoc(newDoc);
+      setImportNotification({
+        type: 'success',
+        message: newDoc.has_pdf
+          ? `Added reference & downloaded OA full-text PDF: "${newDoc.title || newDoc.doc_name}"`
+          : `Added reference metadata: "${newDoc.title || newDoc.doc_name}"`,
+      });
     } catch (err) {
       setAddError(err.response?.data?.detail || 'Could not resolve identifier. Please verify the DOI or arXiv ID.');
     } finally {
@@ -926,18 +969,55 @@ export default function LibraryView({
                           </td>
 
                           {/* Attachment (PDF) Indicator */}
-                          <td className="px-1 text-center">
-                            <FileText
-                              className={`h-3.5 w-3.5 mx-auto ${
-                                isInspecting ? 'text-white' : 'text-red-400'
-                              }`}
-                              title="Full Text PDF Attached"
-                            />
+                          <td className="px-1 text-center" onClick={(e) => e.stopPropagation()}>
+                            {item.has_pdf ? (
+                              <FileText
+                                className={`h-3.5 w-3.5 mx-auto ${
+                                  isInspecting ? 'text-white' : 'text-red-400'
+                                }`}
+                                title={`Full Text PDF: ${item.doc_name}`}
+                              />
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={(e) => handleDownloadPdf(item.id, e)}
+                                disabled={downloadingPdfDocIds.has(item.id)}
+                                className={`p-0.5 rounded transition-colors cursor-pointer ${
+                                  isInspecting
+                                    ? 'text-blue-200 hover:text-white'
+                                    : 'text-zinc-500 hover:text-emerald-400 hover:bg-zinc-800'
+                                }`}
+                                title="Download Open-Access Full-Text PDF (arXiv / Unpaywall)"
+                              >
+                                <Download
+                                  className={`h-3 w-3 mx-auto ${
+                                    downloadingPdfDocIds.has(item.id) ? 'animate-bounce text-blue-400' : ''
+                                  }`}
+                                />
+                              </button>
+                            )}
                           </td>
 
                           {/* Quick Row Actions */}
                           <td className="px-2 text-right" onClick={(e) => e.stopPropagation()}>
                             <div className="flex items-center justify-end gap-1">
+                              {/* Download OA PDF if missing */}
+                              {!item.has_pdf && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => handleDownloadPdf(item.id, e)}
+                                  disabled={downloadingPdfDocIds.has(item.id)}
+                                  className={`p-0.5 rounded transition-colors cursor-pointer ${
+                                    isInspecting
+                                      ? 'text-white hover:bg-blue-700'
+                                      : 'text-zinc-400 hover:text-emerald-400 hover:bg-zinc-800'
+                                  }`}
+                                  title="Download Open-Access PDF (arXiv / Unpaywall)"
+                                >
+                                  <Download className={`h-3 w-3 ${downloadingPdfDocIds.has(item.id) ? 'animate-bounce text-emerald-400' : ''}`} />
+                                </button>
+                              )}
+
                               {/* Auto-enrich */}
                               <button
                                 type="button"
@@ -970,13 +1050,21 @@ export default function LibraryView({
                               {/* Read PDF */}
                               <button
                                 type="button"
-                                onClick={() => onOpenPdfViewer && onOpenPdfViewer(item.doc_name, 1)}
+                                onClick={(e) => {
+                                  if (item.has_pdf) {
+                                    if (onOpenPdfViewer) onOpenPdfViewer(item.doc_name, 1);
+                                  } else {
+                                    handleDownloadPdf(item.id, e);
+                                  }
+                                }}
                                 className={`p-0.5 rounded transition-colors cursor-pointer ${
                                   isInspecting
                                     ? 'text-white hover:bg-blue-700'
-                                    : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800'
+                                    : item.has_pdf
+                                    ? 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800'
+                                    : 'text-zinc-600 hover:text-blue-400 hover:bg-zinc-800'
                                 }`}
-                                title="Read PDF"
+                                title={item.has_pdf ? "Read PDF" : "Download Full-Text PDF"}
                               >
                                 <FileText className="h-3 w-3" />
                               </button>
@@ -1000,34 +1088,65 @@ export default function LibraryView({
 
                         {/* Zotero Sub-Row (Attached PDF child item) */}
                         {isExpanded && (
-                          <tr className="bg-zinc-900/60 border-b border-zinc-850/60 text-xs">
+                          <tr className="bg-zinc-900/60 border-b border-zinc-855/60 text-xs">
                             <td colSpan={2}></td>
                             <td className="text-center">
-                              <FileText className="h-3.5 w-3.5 mx-auto text-red-400" />
+                              {item.has_pdf ? (
+                                <FileText className="h-3.5 w-3.5 mx-auto text-red-400" />
+                              ) : (
+                                <Download className="h-3.5 w-3.5 mx-auto text-zinc-500" />
+                              )}
                             </td>
-                            <td colSpan={6} className="py-1 px-2">
-                              <div className="flex items-center justify-between text-[11.5px]">
-                                <div className="flex items-center gap-2">
-                                  <span className="font-medium text-zinc-300">Full Text PDF:</span>
-                                  <span className="text-zinc-400 font-mono text-[11px]">{item.doc_name}</span>
+                            <td colSpan={6} className="py-1.5 px-2">
+                              {item.has_pdf ? (
+                                <div className="flex items-center justify-between text-[11.5px]">
+                                  <div className="flex items-center gap-2 truncate">
+                                    <span className="font-medium text-zinc-300">Full Text PDF:</span>
+                                    <span className="text-zinc-400 font-mono text-[11px] truncate">{item.doc_name}</span>
+                                    {item.file_size_bytes > 0 && (
+                                      <span className="text-[10px] text-zinc-500 font-mono">
+                                        ({(item.file_size_bytes / (1024 * 1024)).toFixed(1)} MB)
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-2 shrink-0">
+                                    <button
+                                      type="button"
+                                      onClick={() => onOpenPdfViewer && onOpenPdfViewer(item.doc_name, 1)}
+                                      className="px-2 py-0.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded text-[10.5px] font-medium transition-colors cursor-pointer"
+                                    >
+                                      Read PDF
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => onStartChatWithPaper && onStartChatWithPaper(item.doc_name)}
+                                      className="px-2 py-0.5 bg-blue-600/80 hover:bg-blue-600 text-white rounded text-[10.5px] font-medium transition-colors cursor-pointer"
+                                    >
+                                      Chat
+                                    </button>
+                                  </div>
                                 </div>
-                                <div className="flex items-center gap-2">
+                              ) : (
+                                <div className="flex items-center justify-between text-[11.5px]">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-zinc-400">No PDF attached to this reference yet.</span>
+                                    {(item.doi || item.arxiv_id) && (
+                                      <span className="text-[10.5px] text-blue-400 font-mono">
+                                        (Open access via {item.arxiv_id ? 'arXiv' : 'Unpaywall'})
+                                      </span>
+                                    )}
+                                  </div>
                                   <button
                                     type="button"
-                                    onClick={() => onOpenPdfViewer && onOpenPdfViewer(item.doc_name, 1)}
-                                    className="px-2 py-0.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded text-[10.5px] font-medium transition-colors"
+                                    onClick={(e) => handleDownloadPdf(item.id, e)}
+                                    disabled={downloadingPdfDocIds.has(item.id)}
+                                    className="flex items-center gap-1.5 px-2.5 py-0.5 bg-blue-600/85 hover:bg-blue-600 text-white rounded text-[10.5px] font-medium transition-colors cursor-pointer disabled:opacity-50"
                                   >
-                                    Read PDF
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => onStartChatWithPaper && onStartChatWithPaper(item.doc_name)}
-                                    className="px-2 py-0.5 bg-blue-600/80 hover:bg-blue-600 text-white rounded text-[10.5px] font-medium transition-colors"
-                                  >
-                                    Chat
+                                    <Download className={`h-3 w-3 ${downloadingPdfDocIds.has(item.id) ? 'animate-bounce' : ''}`} />
+                                    <span>{downloadingPdfDocIds.has(item.id) ? 'Downloading OA PDF...' : 'Download Open-Access PDF'}</span>
                                   </button>
                                 </div>
-                              </div>
+                              )}
                             </td>
                           </tr>
                         )}
@@ -1093,6 +1212,17 @@ export default function LibraryView({
                 />
               </div>
 
+              {/* Auto-download Open-Access full-text PDF checkbox */}
+              <label className="flex items-center gap-2 cursor-pointer select-none text-[11.5px] text-zinc-300 hover:text-white pt-0.5">
+                <input
+                  type="checkbox"
+                  checked={autoDownloadPdfCheckbox}
+                  onChange={(e) => setAutoDownloadPdfCheckbox(e.target.checked)}
+                  className="rounded border-zinc-700 bg-zinc-950 text-blue-600 focus:ring-0 focus:ring-offset-0 h-3.5 w-3.5"
+                />
+                <span>Auto-download Open-Access PDF if available (arXiv / Unpaywall)</span>
+              </label>
+
               {addError && (
                 <div className="text-[11px] bg-red-500/10 border border-red-500/30 text-red-400 px-2 py-1 rounded flex items-center gap-1.5">
                   <AlertCircle className="h-3.5 w-3.5 shrink-0" />
@@ -1114,7 +1244,13 @@ export default function LibraryView({
                   className="flex items-center gap-1.5 px-3 py-1 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded text-xs font-medium shadow transition-colors cursor-pointer"
                 >
                   <RefreshCw className={`h-3 w-3 ${isAddingIdentifier ? 'animate-spin' : ''}`} />
-                  <span>{isAddingIdentifier ? 'Resolving...' : 'Lookup & Add'}</span>
+                  <span>
+                    {isAddingIdentifier
+                      ? autoDownloadPdfCheckbox
+                        ? 'Resolving & Downloading...'
+                        : 'Resolving...'
+                      : 'Lookup & Add'}
+                  </span>
                 </button>
               </div>
             </form>
