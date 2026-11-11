@@ -359,4 +359,18 @@ class UpdateLibraryItemRequest(BaseModel):
     notes: Optional[str] = None
     item_type: Optional[str] = None
 
+
+class IdentifierLookupRequest(BaseModel):
+    identifier: Optional[str] = None
+    doi: Optional[str] = None
+    arxiv_id: Optional[str] = None
+
+
+class IdentifierLookupResponse(BaseModel):
+    success: bool
+    source: Optional[str] = None
+    metadata: Optional[Dict[str, Any]] = None
+    message: Optional[str] = None
+
+
 

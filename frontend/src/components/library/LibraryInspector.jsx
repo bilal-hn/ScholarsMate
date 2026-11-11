@@ -16,8 +16,17 @@ import {
   Building,
   Hash,
   X,
+  Search,
+  RefreshCw,
+  AlertCircle,
+  Zap,
 } from 'lucide-react';
-import { updateLibraryItemAPI, getItemCitationsAPI } from '../../services/api';
+import {
+  updateLibraryItemAPI,
+  getItemCitationsAPI,
+  autoEnrichDocumentAPI,
+  lookupAcademicIdentifierAPI,
+} from '../../services/api';
 
 export default function LibraryInspector({
   document,
@@ -47,6 +56,8 @@ export default function LibraryInspector({
   const [copiedFormat, setCopiedFormat] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
   const [newTagInput, setNewTagInput] = useState('');
+  const [isEnriching, setIsEnriching] = useState(false);
+  const [enrichMessage, setEnrichMessage] = useState(null);
 
   // Sync state when selected document changes
   useEffect(() => {
@@ -90,6 +101,85 @@ export default function LibraryInspector({
       console.error('Failed to save metadata:', err);
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleAutoEnrich = async () => {
+    setIsEnriching(true);
+    setEnrichMessage(null);
+    try {
+      const enriched = await autoEnrichDocumentAPI(document.id);
+      if (enriched) {
+        setFormData({
+          title: enriched.title || '',
+          authors: enriched.authors || '',
+          year: enriched.year || '',
+          venue: enriched.venue || '',
+          doi: enriched.doi || '',
+          arxiv_id: enriched.arxiv_id || '',
+          url: enriched.url || '',
+          item_type: enriched.item_type || 'journal_article',
+          notes: enriched.notes || '',
+          tags: Array.isArray(enriched.tags) ? enriched.tags : [],
+        });
+        if (onUpdateDocument) {
+          onUpdateDocument(enriched);
+        }
+        getItemCitationsAPI(document.id)
+          .then((c) => setCitations(c))
+          .catch((e) => console.error(e));
+        setEnrichMessage({ type: 'success', text: 'Verified and enriched via CrossRef/arXiv!' });
+        setTimeout(() => setEnrichMessage(null), 4000);
+      }
+    } catch (err) {
+      console.error('Auto-enrichment error:', err);
+      setEnrichMessage({
+        type: 'error',
+        text: err.response?.data?.detail || 'No DOI or arXiv ID could be resolved.',
+      });
+      setTimeout(() => setEnrichMessage(null), 4000);
+    } finally {
+      setIsEnriching(false);
+    }
+  };
+
+  const handleLookupIdentifier = async (identifier) => {
+    if (!identifier || !identifier.trim()) return;
+    setIsEnriching(true);
+    setEnrichMessage(null);
+    try {
+      const res = await lookupAcademicIdentifierAPI(identifier.trim());
+      if (res?.success && res.metadata) {
+        const m = res.metadata;
+        const nextData = {
+          ...formData,
+          title: m.title || formData.title,
+          authors: m.authors || formData.authors,
+          year: m.year || formData.year,
+          venue: m.venue || formData.venue,
+          doi: m.doi || formData.doi,
+          arxiv_id: m.arxiv_id || formData.arxiv_id,
+          url: m.url || formData.url,
+          item_type: m.item_type || formData.item_type,
+          tags: Array.from(new Set([...formData.tags, ...(m.tags || [])])),
+        };
+        setFormData(nextData);
+        const updated = await updateLibraryItemAPI(document.id, nextData);
+        if (onUpdateDocument) onUpdateDocument(updated);
+        getItemCitationsAPI(document.id)
+          .then((c) => setCitations(c))
+          .catch((e) => console.error(e));
+        setEnrichMessage({ type: 'success', text: `Resolved from ${res.source?.toUpperCase() || 'Academic API'}!` });
+        setTimeout(() => setEnrichMessage(null), 4000);
+      } else {
+        setEnrichMessage({ type: 'error', text: res?.message || 'Could not find metadata.' });
+        setTimeout(() => setEnrichMessage(null), 4000);
+      }
+    } catch (err) {
+      setEnrichMessage({ type: 'error', text: err.response?.data?.detail || 'Lookup failed.' });
+      setTimeout(() => setEnrichMessage(null), 4000);
+    } finally {
+      setIsEnriching(false);
     }
   };
 
@@ -213,6 +303,37 @@ export default function LibraryInspector({
         {/* TAB 1: DETAILS */}
         {activeTab === 'details' && (
           <div className="space-y-3.5">
+            {/* Auto-Enrich Banner */}
+            <div className="p-2.5 bg-amber-500/10 border border-amber-500/25 rounded-lg flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-amber-400 font-semibold text-[11px]">
+                  <Sparkles className="h-3.5 w-3.5" />
+                  <span>Auto-Enrich Metadata</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleAutoEnrich}
+                  disabled={isEnriching}
+                  className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-zinc-950 font-semibold rounded text-[11px] transition-colors cursor-pointer shadow-sm"
+                  title="Query CrossRef & arXiv APIs"
+                >
+                  <RefreshCw className={`h-3 w-3 ${isEnriching ? 'animate-spin' : ''}`} />
+                  <span>{isEnriching ? 'Resolving...' : 'Auto-Fill'}</span>
+                </button>
+              </div>
+              <p className="text-[10px] text-zinc-400 leading-tight">
+                Scans PDF layout for DOI or arXiv ID and pulls official title, authors, venue, and year from CrossRef / arXiv.
+              </p>
+              {enrichMessage && (
+                <div className={`text-[10.5px] px-2 py-1 rounded font-medium flex items-center gap-1.5 ${
+                  enrichMessage.type === 'success' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-red-500/20 text-red-400 border border-red-500/30'
+                }`}>
+                  {enrichMessage.type === 'success' ? <Check className="h-3 w-3 shrink-0" /> : <AlertCircle className="h-3 w-3 shrink-0" />}
+                  <span>{enrichMessage.text}</span>
+                </div>
+              )}
+            </div>
+
             <div>
               <label className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider block mb-1">
                 Item Type
@@ -289,25 +410,51 @@ export default function LibraryInspector({
                 <label className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider block mb-1">
                   DOI
                 </label>
-                <input
-                  type="text"
-                  value={formData.doi}
-                  onChange={(e) => handleInputChange('doi', e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-md px-2.5 py-1.5 text-zinc-200 focus:outline-none focus:border-amber-500/70"
-                  placeholder="10.1145/..."
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={formData.doi}
+                    onChange={(e) => handleInputChange('doi', e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-md pl-2.5 pr-7 py-1.5 text-zinc-200 focus:outline-none focus:border-amber-500/70"
+                    placeholder="10.1145/..."
+                  />
+                  {formData.doi && (
+                    <button
+                      type="button"
+                      onClick={() => handleLookupIdentifier(formData.doi)}
+                      disabled={isEnriching}
+                      className="absolute right-1 top-1/2 -translate-y-1/2 p-1 text-zinc-400 hover:text-amber-400 cursor-pointer"
+                      title="Fetch metadata for this DOI"
+                    >
+                      <Search className="h-3 w-3" />
+                    </button>
+                  )}
+                </div>
               </div>
               <div>
                 <label className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider block mb-1">
                   arXiv ID
                 </label>
-                <input
-                  type="text"
-                  value={formData.arxiv_id}
-                  onChange={(e) => handleInputChange('arxiv_id', e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-md px-2.5 py-1.5 text-zinc-200 focus:outline-none focus:border-amber-500/70"
-                  placeholder="2305.18290"
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={formData.arxiv_id}
+                    onChange={(e) => handleInputChange('arxiv_id', e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-md pl-2.5 pr-7 py-1.5 text-zinc-200 focus:outline-none focus:border-amber-500/70"
+                    placeholder="2305.18290"
+                  />
+                  {formData.arxiv_id && (
+                    <button
+                      type="button"
+                      onClick={() => handleLookupIdentifier(formData.arxiv_id)}
+                      disabled={isEnriching}
+                      className="absolute right-1 top-1/2 -translate-y-1/2 p-1 text-zinc-400 hover:text-amber-400 cursor-pointer"
+                      title="Fetch metadata for this arXiv ID"
+                    >
+                      <Search className="h-3 w-3" />
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 

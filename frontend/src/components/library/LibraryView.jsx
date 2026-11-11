@@ -21,12 +21,17 @@ import {
   Plus,
   RefreshCw,
   ArrowLeft,
+  ExternalLink,
+  X,
+  AlertCircle,
 } from 'lucide-react';
 import {
   getLibraryAPI,
   deleteLibraryItemAPI,
   exportLibraryBibtexAPI,
   uploadFile,
+  autoEnrichDocumentAPI,
+  addLibraryReferenceAPI,
 } from '../../services/api';
 import LibraryInspector from './LibraryInspector';
 
@@ -54,6 +59,13 @@ export default function LibraryView({
   const [sortField, setSortField] = useState('created_at'); // 'title' | 'year' | 'created_at' | 'authors'
   const [sortAsc, setSortAsc] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+
+  // Add by Identifier Modal State (FR-17.3)
+  const [isAddIdentifierOpen, setIsAddIdentifierOpen] = useState(false);
+  const [identifierInput, setIdentifierInput] = useState('');
+  const [isAddingIdentifier, setIsAddingIdentifier] = useState(false);
+  const [addError, setAddError] = useState(null);
+  const [enrichingDocIds, setEnrichingDocIds] = useState(new Set());
 
   // Escape key returns to chat or closes inspector
   useEffect(() => {
@@ -194,6 +206,46 @@ export default function LibraryView({
     }
   };
 
+  // Quick auto-enrich item via CrossRef or arXiv
+  const handleQuickEnrich = async (docId, e) => {
+    e.stopPropagation();
+    setEnrichingDocIds((prev) => new Set(prev).add(docId));
+    try {
+      const enriched = await autoEnrichDocumentAPI(docId);
+      if (enriched) {
+        setItems((prev) => prev.map((item) => (item.id === docId ? enriched : item)));
+        if (selectedDoc && selectedDoc.id === docId) setSelectedDoc(enriched);
+      }
+    } catch (err) {
+      console.error('Failed to auto-enrich document:', err);
+    } finally {
+      setEnrichingDocIds((prev) => {
+        const next = new Set(prev);
+        next.delete(docId);
+        return next;
+      });
+    }
+  };
+
+  // Add paper reference directly by DOI or arXiv ID
+  const handleAddIdentifierSubmit = async (e) => {
+    e.preventDefault();
+    if (!identifierInput.trim()) return;
+    setIsAddingIdentifier(true);
+    setAddError(null);
+    try {
+      const newDoc = await addLibraryReferenceAPI(identifierInput.trim());
+      setIsAddIdentifierOpen(false);
+      setIdentifierInput('');
+      await fetchLibrary();
+      setSelectedDoc(newDoc);
+    } catch (err) {
+      setAddError(err.response?.data?.detail || 'Could not resolve identifier. Please verify the DOI or arXiv ID.');
+    } finally {
+      setIsAddingIdentifier(false);
+    }
+  };
+
   return (
     <div className="h-full flex flex-col w-full bg-zinc-950 text-zinc-200 overflow-hidden select-text relative z-10">
       {/* ========================================================================= */}
@@ -278,6 +330,20 @@ export default function LibraryView({
               </button>
             </>
           )}
+
+          {/* Add by Identifier Button */}
+          <button
+            type="button"
+            onClick={() => {
+              setIsAddIdentifierOpen(true);
+              setAddError(null);
+            }}
+            className="flex items-center gap-1.5 py-1.5 px-3 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700/80 rounded-lg text-xs font-medium transition-colors cursor-pointer"
+            title="Import paper metadata by DOI or arXiv identifier"
+          >
+            <Search className="h-3.5 w-3.5 text-amber-400" />
+            <span>Add by DOI / arXiv</span>
+          </button>
 
           {/* Upload PDF */}
           <label className="flex items-center gap-1.5 py-1.5 px-3 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-lg text-xs font-medium transition-colors cursor-pointer">
@@ -517,10 +583,36 @@ export default function LibraryView({
                           <span className="font-medium text-zinc-100 group-hover:text-amber-400 transition-colors line-clamp-1">
                             {item.title || item.doc_name}
                           </span>
-                          <div className="flex items-center gap-2 mt-0.5">
+                          <div className="flex items-center flex-wrap gap-1.5 mt-0.5">
                             <span className="text-[10px] text-zinc-500 font-mono">
                               {item.doc_name}
                             </span>
+                            {item.doi && (
+                              <a
+                                href={`https://doi.org/${item.doi}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="inline-flex items-center gap-0.5 text-[9px] bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 hover:text-blue-300 px-1.5 py-0.2 rounded border border-blue-500/20 font-mono transition-colors"
+                                title={`Open DOI: ${item.doi}`}
+                              >
+                                <span>DOI</span>
+                                <ExternalLink className="h-2 w-2" />
+                              </a>
+                            )}
+                            {item.arxiv_id && (
+                              <a
+                                href={`https://arxiv.org/abs/${item.arxiv_id}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="inline-flex items-center gap-0.5 text-[9px] bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 px-1.5 py-0.2 rounded border border-rose-500/20 font-mono transition-colors"
+                                title={`Open arXiv: ${item.arxiv_id}`}
+                              >
+                                <span>arXiv</span>
+                                <ExternalLink className="h-2 w-2" />
+                              </a>
+                            )}
                             {item.summary_cache && (
                               <span className="inline-flex items-center gap-0.5 text-[9.5px] bg-amber-500/10 text-amber-400 px-1.5 py-0.2 rounded font-medium">
                                 <Sparkles className="h-2.5 w-2.5" />
@@ -568,6 +660,16 @@ export default function LibraryView({
                       <td className="py-2.5 px-3 text-right" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1 opacity-80 group-hover:opacity-100">
                           <button
+                            type="button"
+                            onClick={(e) => handleQuickEnrich(item.id, e)}
+                            disabled={enrichingDocIds.has(item.id)}
+                            className="p-1 hover:text-amber-400 text-zinc-400 rounded hover:bg-zinc-800 transition-colors cursor-pointer"
+                            title="Auto-enrich metadata via CrossRef/arXiv"
+                          >
+                            <Sparkles className={`h-3.5 w-3.5 ${enrichingDocIds.has(item.id) ? 'animate-spin text-amber-400' : ''}`} />
+                          </button>
+                          <button
+                            type="button"
                             onClick={() => onStartChatWithPaper && onStartChatWithPaper(item.doc_name)}
                             className="p-1 hover:text-amber-400 text-zinc-400 rounded hover:bg-zinc-800 transition-colors cursor-pointer"
                             title="Chat with this paper"
@@ -575,6 +677,7 @@ export default function LibraryView({
                             <MessageSquare className="h-3.5 w-3.5" />
                           </button>
                           <button
+                            type="button"
                             onClick={() => onOpenPdfViewer && onOpenPdfViewer(item.doc_name, 1)}
                             className="p-1 hover:text-zinc-100 text-zinc-400 rounded hover:bg-zinc-800 transition-colors cursor-pointer"
                             title="Read PDF"
@@ -582,6 +685,7 @@ export default function LibraryView({
                             <FileText className="h-3.5 w-3.5" />
                           </button>
                           <button
+                            type="button"
                             onClick={(e) => handleDeleteItem(item.id, e)}
                             className="p-1 hover:text-red-400 text-zinc-500 rounded hover:bg-zinc-800 transition-colors cursor-pointer"
                             title="Delete from library"
@@ -615,6 +719,71 @@ export default function LibraryView({
         />
       )}
       </div>
+
+      {/* ========================================================================= */}
+      {/* MODAL: ADD BY DOI OR ARXIV IDENTIFIER */}
+      {/* ========================================================================= */}
+      {isAddIdentifierOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl max-w-md w-full p-5 shadow-2xl space-y-4 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-zinc-100 font-semibold text-sm">
+                <BookOpen className="h-4 w-4 text-amber-500" />
+                <span>Add Paper by DOI or arXiv ID</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAddIdentifierOpen(false)}
+                className="p-1 text-zinc-400 hover:text-zinc-200 rounded cursor-pointer transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <p className="text-xs text-zinc-400 leading-relaxed">
+              Enter any DOI (e.g. <code className="bg-zinc-800 px-1 py-0.5 rounded text-amber-400 font-mono text-[11px]">10.1145/3292500.3330964</code>) or arXiv ID (e.g. <code className="bg-zinc-800 px-1 py-0.5 rounded text-amber-400 font-mono text-[11px]">2305.18290</code> or <code className="bg-zinc-800 px-1 py-0.5 rounded text-amber-400 font-mono text-[11px]">1706.03762</code>) to automatically resolve official title, authors, venue, and year into your library.
+            </p>
+
+            <form onSubmit={handleAddIdentifierSubmit} className="space-y-3">
+              <div>
+                <input
+                  type="text"
+                  autoFocus
+                  value={identifierInput}
+                  onChange={(e) => setIdentifierInput(e.target.value)}
+                  placeholder="Paste DOI or arXiv identifier..."
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-amber-500/70 font-mono"
+                />
+              </div>
+
+              {addError && (
+                <div className="text-[11px] bg-red-500/10 border border-red-500/30 text-red-400 px-2.5 py-1.5 rounded-md flex items-center gap-1.5">
+                  <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                  <span>{addError}</span>
+                </div>
+              )}
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAddIdentifierOpen(false)}
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isAddingIdentifier || !identifierInput.trim()}
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-zinc-950 rounded-lg text-xs font-semibold shadow transition-colors cursor-pointer"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${isAddingIdentifier ? 'animate-spin' : ''}`} />
+                  <span>{isAddingIdentifier ? 'Resolving...' : 'Lookup & Add'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

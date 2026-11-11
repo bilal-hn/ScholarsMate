@@ -36,8 +36,12 @@ Transforms ScholarsMate from a session-locked RAG chat interface into an **All-i
 * **Persistence:** Stored in relational SQLite/PostgreSQL with automatic migration.
 
 ### FR-17.3 (Automated Bibliographic Extraction & Manual Inspector)
-* **Requirement:** When a PDF is ingested, the system shall run layout-aware font extraction (`bibliographic_extractor.py`) to auto-populate metadata.
-* **Manual Correction:** The right-hand Inspector pane shall provide inline editable fields allowing the researcher to fix or enrich extracted metadata (e.g., correcting an author name or adding a missing DOI).
+* **Requirement:** When a PDF is ingested, the system shall run layout-aware font extraction (`bibliographic_extractor.py`) and detect embedded DOIs or arXiv identifiers (`identifier_resolver.py`).
+* **Online Academic Verification:** The backend automatically queries CrossRef REST API and arXiv Atom API to populate verified academic metadata (title, authors, year, journal/venue, abstract, DOI, arXiv ID, URL, item_type).
+* **Manual Correction & Auto-Enrichment:** 
+  - The right-hand Inspector pane provides inline editable fields with an **"Auto-Enrich Metadata"** button that resolves official metadata on demand.
+  - Dedicated search buttons beside DOI and arXiv inputs allow instant lookup.
+  - An **"Add by DOI / arXiv"** modal allows researchers to import papers directly via identifier.
 
 ### FR-17.4 (Multi-Format Citation Engine & BibTeX Exporter)
 * **Requirement:** The system shall format any selected paper into standard academic citation styles:

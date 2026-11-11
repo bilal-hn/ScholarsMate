@@ -4,6 +4,7 @@ import unicodedata
 from pathlib import Path
 from typing import Optional, Dict, Any
 import pymupdf
+from backend.ingestion.identifier_resolver import detect_identifiers_in_text
 
 # In-memory LRU-like cache for bibliographic metadata per file path
 _METADATA_CACHE: Dict[str, Dict[str, Any]] = {}
@@ -160,6 +161,21 @@ def extract_bibliographic_metadata(pdf_path: str) -> Dict[str, Any]:
         except Exception as e:
             print(f"[BibliographicExtractor] Page 1 inspection error: {e}")
 
+    # 5. Detect DOI and arXiv Identifiers
+    doi_fn, arxiv_fn = detect_identifiers_in_text(filename)
+    doi = doi_fn
+    arxiv_id = arxiv_fn
+    if len(doc) > 0:
+        try:
+            pages_text = doc[0].get_text()
+            if len(doc) > 1:
+                pages_text += "\n" + doc[1].get_text()
+            d_p, a_p = detect_identifiers_in_text(pages_text)
+            doi = d_p or doi
+            arxiv_id = a_p or arxiv_id
+        except Exception:
+            pass
+
     doc.close()
 
     if not title:
@@ -202,6 +218,8 @@ def extract_bibliographic_metadata(pdf_path: str) -> Dict[str, Any]:
         "title": title,
         "authors": authors,
         "year": year,
+        "doi": doi,
+        "arxiv_id": arxiv_id,
         "formatted_citation": formatted_citation,
         "tier": tier
     }

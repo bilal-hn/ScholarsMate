@@ -73,9 +73,17 @@ from backend.api.schemas import (
     LibraryListResponse,
     UpdateLibraryItemRequest,
     WorkspaceReference,
+    IdentifierLookupRequest,
+    IdentifierLookupResponse,
 )
 from backend.ingestion.pipeline import process_path
 from backend.ingestion.bibliographic_extractor import extract_bibliographic_metadata
+from backend.ingestion.identifier_resolver import (
+    resolve_identifier,
+    fetch_crossref_metadata,
+    fetch_arxiv_metadata,
+    enrich_document_from_file,
+)
 from backend.ingestion.citation_engine import format_citations_all, export_bibtex_file
 from backend.ingestion.summary_worker import trigger_async_summary_generation
 from backend.embeddings.vector_store import store_chunks, get_or_create_collection, search_similar_chunks
@@ -812,24 +820,58 @@ async def upload_pdf(
         bib_meta = extract_bibliographic_metadata(str(file_path))
         file_size = file_path.stat().st_size if file_path.exists() else 0
 
+        # Attempt automated CrossRef / arXiv enrichment if identifier detected
+        detected_doi = bib_meta.get("doi")
+        detected_arxiv = bib_meta.get("arxiv_id")
+        resolved = None
+        try:
+            if detected_doi:
+                resolved = await fetch_crossref_metadata(detected_doi)
+            if not resolved and detected_arxiv:
+                resolved = await fetch_arxiv_metadata(detected_arxiv)
+        except Exception as e:
+            print(f"[Upload] Auto-enrichment lookup skipped: {e}")
+
+        final_title = (resolved.get("title") if resolved and resolved.get("title") else None) or bib_meta.get("title")
+        final_authors = (resolved.get("authors") if resolved and resolved.get("authors") else None) or bib_meta.get("authors")
+        final_year = (resolved.get("year") if resolved and resolved.get("year") else None) or bib_meta.get("year")
+        final_venue = resolved.get("venue") if resolved else None
+        final_doi = resolved.get("doi") if resolved else detected_doi
+        final_arxiv_id = resolved.get("arxiv_id") if resolved else detected_arxiv
+        final_url = resolved.get("url") if resolved else None
+        final_abstract = resolved.get("abstract") if resolved else None
+        final_item_type = resolved.get("item_type") if resolved else "journal_article"
+        final_tags = resolved.get("tags") if resolved and resolved.get("tags") else []
+
         existing_doc = await crud.get_library_document_by_name(db, file.filename, current_user.id)
         if existing_doc:
             existing_doc.file_hash = file_hash
             existing_doc.file_size_bytes = file_size
-            if not existing_doc.title:
-                existing_doc.title = bib_meta.get("title")
-            if not existing_doc.authors:
-                existing_doc.authors = bib_meta.get("authors")
-            if not existing_doc.year:
-                existing_doc.year = bib_meta.get("year")
+            if final_title: existing_doc.title = final_title
+            if final_authors: existing_doc.authors = final_authors
+            if final_year: existing_doc.year = final_year
+            if final_venue: existing_doc.venue = final_venue
+            if final_doi: existing_doc.doi = final_doi
+            if final_arxiv_id: existing_doc.arxiv_id = final_arxiv_id
+            if final_url: existing_doc.url = final_url
+            if final_abstract and not existing_doc.abstract: existing_doc.abstract = final_abstract
+            if final_item_type: existing_doc.item_type = final_item_type
+            if final_tags and not existing_doc.tags: existing_doc.tags = final_tags
         else:
             doc_entry = UserDocument(
                 user_id=current_user.id,
                 doc_name=file.filename,
                 file_hash=file_hash,
-                title=bib_meta.get("title"),
-                authors=bib_meta.get("authors"),
-                year=bib_meta.get("year"),
+                title=final_title,
+                authors=final_authors,
+                year=final_year,
+                venue=final_venue,
+                doi=final_doi,
+                arxiv_id=final_arxiv_id,
+                url=final_url,
+                abstract=final_abstract,
+                item_type=final_item_type,
+                tags=final_tags,
                 file_size_bytes=file_size,
             )
             db.add(doc_entry)
@@ -2028,6 +2070,161 @@ async def export_library_bibtex_endpoint(
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to export BibTeX: {str(e)}")
+
+
+@app.post("/api/library/lookup", response_model=IdentifierLookupResponse)
+async def lookup_academic_identifier_endpoint(
+    req: IdentifierLookupRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Looks up scholarly metadata from CrossRef or arXiv using a DOI or arXiv identifier (FR-17.3).
+    """
+    target = req.identifier or req.doi or req.arxiv_id
+    if not target:
+        raise HTTPException(status_code=400, detail="Must provide an identifier, doi, or arxiv_id.")
+
+    resolved = await resolve_identifier(target)
+    if not resolved:
+        return IdentifierLookupResponse(
+            success=False,
+            message=f"Could not resolve academic metadata for '{target}'. Check the DOI or arXiv ID.",
+        )
+
+    return IdentifierLookupResponse(
+        success=True,
+        source=resolved.get("source"),
+        metadata=resolved,
+        message="Metadata successfully retrieved.",
+    )
+
+
+@app.post("/api/library/add-reference", response_model=LibraryItem)
+async def add_library_reference_by_identifier(
+    req: IdentifierLookupRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Creates a bibliographic reference in the library directly from a DOI or arXiv ID (FR-17.3).
+    """
+    target = req.identifier or req.doi or req.arxiv_id
+    if not target:
+        raise HTTPException(status_code=400, detail="Must provide an identifier, doi, or arxiv_id.")
+
+    resolved = await resolve_identifier(target)
+    if not resolved:
+        raise HTTPException(status_code=404, detail="Could not resolve academic metadata for this identifier.")
+
+    doi = resolved.get("doi")
+    arxiv_id = resolved.get("arxiv_id")
+    title = resolved.get("title") or "Untitled Reference"
+    clean_id = (arxiv_id or clean_doi(doi or "") or "academic_ref").replace("/", "_")
+    ref_name = f"ref_{clean_id}.ref"
+    file_hash = hashlib.sha256(ref_name.encode()).hexdigest()
+
+    existing_doc = await crud.get_library_document_by_name(db, ref_name, current_user.id)
+    if existing_doc:
+        doc_entry = existing_doc
+    else:
+        doc_entry = UserDocument(
+            user_id=current_user.id,
+            doc_name=ref_name,
+            file_hash=file_hash,
+            title=title,
+            authors=resolved.get("authors"),
+            year=resolved.get("year"),
+            venue=resolved.get("venue"),
+            doi=doi,
+            arxiv_id=arxiv_id,
+            url=resolved.get("url"),
+            abstract=resolved.get("abstract"),
+            item_type=resolved.get("item_type") or "journal_article",
+            tags=resolved.get("tags") or [],
+            file_size_bytes=0,
+        )
+        db.add(doc_entry)
+        await db.commit()
+        await db.refresh(doc_entry)
+
+    workspaces = await crud.get_user_workspaces(db, user_id=current_user.id)
+    ws_map: Dict[str, List[Dict[str, str]]] = {}
+    for ws in workspaces:
+        for d in (ws.doc_names or []):
+            ws_map.setdefault(d, []).append({"id": ws.id, "name": ws.name})
+
+    return _build_library_item(doc_entry, ws_map)
+
+
+
+@app.post("/api/library/{doc_id}/auto-enrich", response_model=LibraryItem)
+async def auto_enrich_library_item_endpoint(
+    doc_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Inspects document's identifiers or PDF text to query CrossRef / arXiv and auto-populate all metadata.
+    """
+    doc = await crud.get_library_document(db, doc_id=doc_id, user_id=current_user.id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found in library.")
+
+    pdf_full_path = UPLOADS_DIR / doc.doc_name
+    resolved = None
+
+    if pdf_full_path.exists():
+        resolved = await enrich_document_from_file(str(pdf_full_path), existing_doc=doc)
+    else:
+        target = doc.doi or doc.arxiv_id or doc.doc_name
+        resolved = await resolve_identifier(target)
+
+    if not resolved:
+        raise HTTPException(
+            status_code=404,
+            detail="No DOI or arXiv identifier could be matched or resolved for this document."
+        )
+
+    update_data = {}
+    if resolved.get("title"):
+        update_data["title"] = resolved["title"]
+    if resolved.get("authors"):
+        update_data["authors"] = resolved["authors"]
+    if resolved.get("year"):
+        update_data["year"] = resolved["year"]
+    if resolved.get("venue"):
+        update_data["venue"] = resolved["venue"]
+    if resolved.get("doi"):
+        update_data["doi"] = resolved["doi"]
+    if resolved.get("arxiv_id"):
+        update_data["arxiv_id"] = resolved["arxiv_id"]
+    if resolved.get("url"):
+        update_data["url"] = resolved["url"]
+    if resolved.get("abstract"):
+        update_data["abstract"] = resolved["abstract"]
+    if resolved.get("item_type"):
+        update_data["item_type"] = resolved["item_type"]
+    if resolved.get("tags"):
+        existing_tags = set(doc.tags or [])
+        for t in resolved["tags"]:
+            existing_tags.add(t)
+        update_data["tags"] = list(existing_tags)
+
+    updated_doc = await crud.update_library_document(
+        db=db,
+        doc_id=doc_id,
+        user_id=current_user.id,
+        updates=update_data
+    )
+
+    workspaces = await crud.get_user_workspaces(db, user_id=current_user.id)
+    ws_map: Dict[str, List[Dict[str, str]]] = {}
+    for ws in workspaces:
+        for d in (ws.doc_names or []):
+            ws_map.setdefault(d, []).append({"id": ws.id, "name": ws.name})
+
+    return _build_library_item(updated_doc, ws_map)
+
 
 
 

@@ -1031,3 +1031,46 @@ export const exportLibraryBibtexAPI = async (params = {}) => {
     throw error;
   }
 };
+
+/**
+ * Resolves verified academic metadata from CrossRef or arXiv using a DOI or arXiv identifier.
+ * @param {string} identifier
+ */
+export const lookupAcademicIdentifierAPI = async (identifier) => {
+  try {
+    const response = await apiClient.post('/library/lookup', { identifier });
+    return response.data;
+  } catch (error) {
+    console.error(`Failed to lookup identifier ${identifier}:`, error.response?.data || error.message);
+    throw error;
+  }
+};
+
+/**
+ * Automatically inspects a paper and enriches its metadata via CrossRef or arXiv.
+ * @param {string} docId
+ */
+export const autoEnrichDocumentAPI = async (docId) => {
+  try {
+    const response = await apiClient.post(`/library/${docId}/auto-enrich`);
+    return response.data;
+  } catch (error) {
+    console.error(`Failed to auto-enrich document ${docId}:`, error.response?.data || error.message);
+    throw error;
+  }
+};
+
+/**
+ * Creates a bibliographic reference in the library directly from a DOI or arXiv identifier.
+ * @param {string} identifier
+ */
+export const addLibraryReferenceAPI = async (identifier) => {
+  try {
+    const response = await apiClient.post('/library/add-reference', { identifier });
+    return response.data;
+  } catch (error) {
+    console.error(`Failed to add reference for ${identifier}:`, error.response?.data || error.message);
+    throw error;
+  }
+};
+
