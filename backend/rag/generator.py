@@ -8,6 +8,7 @@ load_dotenv(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.env"
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
 from backend.rag.retriever import retrieve_context, build_context_block
+from backend.guardrails import GuardrailPipeline, RailAction
 from backend.rag.prompt_templates import (
     construct_prompt, 
     construct_system_prompt,
@@ -299,6 +300,25 @@ def generate_answer(
     else:
         clean_query = query.strip()
 
+    # -------------------------------------------------------------------------
+    # Tier 1 Input Guardrail (Prompt Injection, Jailbreak, Credential Scrubbing)
+    # -------------------------------------------------------------------------
+    input_guard = GuardrailPipeline.run_input_rails(clean_query)
+    if input_guard.action == RailAction.BLOCK:
+        return {
+            "query": query,
+            "answer": input_guard.sanitized_text,
+            "thinking_process": None,
+            "sources_used": [],
+            "mode_applied": mode,
+            "guardrails": {
+                "input_rails": input_guard.to_dict(),
+                "retrieval_rails": None,
+                "output_rails": None,
+            }
+        }
+    clean_query = input_guard.sanitized_text
+
     # Format attached image content if present
     image_context_blocks = []
     if attached_images:
@@ -429,6 +449,14 @@ def generate_answer(
         plan=plan,
     )
 
+    # -------------------------------------------------------------------------
+    # Tier 2 Retrieval Guardrail (Workspace Scoping, Gate 2 Similarity, Budget)
+    # -------------------------------------------------------------------------
+    retrieved_chunks, ret_guard = GuardrailPipeline.run_retrieval_rails(
+        chunks=retrieved_chunks,
+        allowed_docs=active_workspace_docs,
+    )
+
     # Branch D: Map-Reduce Synthesis
     if plan.get("generation_mode") == "map_reduce" and len(retrieved_chunks) >= 8:
         answer_text, thinking_text = execute_map_reduce_synthesis(
@@ -511,10 +539,24 @@ def generate_answer(
     # Sort sources cleanly by document name and page number
     unique_sources.sort(key=lambda s: (s.get("doc_name", ""), s.get("page_number", 1)))
 
+    # -------------------------------------------------------------------------
+    # Tier 3 Output Guardrail (Citation Provenance Verification & Redaction)
+    # -------------------------------------------------------------------------
+    answer_text, unique_sources, out_guard = GuardrailPipeline.run_output_rails(
+        generated_text=answer_text,
+        extracted_citations=unique_sources,
+        retrieved_chunks=retrieved_chunks,
+    )
+
     return {
         "query": query,
         "answer": answer_text,
         "thinking_process": thinking_text or None,
         "sources_used": unique_sources,
-        "mode_applied": mode
+        "mode_applied": mode,
+        "guardrails": {
+            "input_rails": input_guard.to_dict() if "input_guard" in locals() else None,
+            "retrieval_rails": ret_guard.to_dict() if "ret_guard" in locals() else None,
+            "output_rails": out_guard.to_dict(),
+        },
     }

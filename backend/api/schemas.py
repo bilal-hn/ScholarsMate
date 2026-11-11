@@ -48,9 +48,11 @@ class QueryRequest(BaseModel):
 
 
 class SourceItem(BaseModel):
-    chunk_id: str
+    chunk_id: Optional[str] = "ref"
     doc_name: str
     page_number: int
+    verified: Optional[bool] = True
+    status: Optional[str] = "grounded"
 
 
 class QueryResponse(BaseModel):

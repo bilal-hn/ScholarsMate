@@ -691,7 +691,8 @@ async def query_rag(
             "model": request.model_name,
             "mode": applied_mode,
             "brainApplied": bool(brain_context),
-            "attachedImagesCount": len(request.attached_images) if getattr(request, "attached_images", None) else 0
+            "attachedImagesCount": len(request.attached_images) if getattr(request, "attached_images", None) else 0,
+            "guardrails": result.get("guardrails"),
         }
 
         # 6. Save User prompt & Bot answer (including thinking trace & telemetry) to Database
