@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Folder,
   FolderOpen,
@@ -28,6 +28,8 @@ import {
   Layers,
   Inbox,
   Filter,
+  FileUp,
+  Check,
 } from 'lucide-react';
 import {
   getLibraryAPI,
@@ -36,6 +38,7 @@ import {
   uploadFile,
   autoEnrichDocumentAPI,
   addLibraryReferenceAPI,
+  importLibraryFileAPI,
 } from '../../services/api';
 import LibraryInspector from './LibraryInspector';
 
@@ -74,6 +77,99 @@ export default function LibraryView({
   const [isAddingIdentifier, setIsAddingIdentifier] = useState(false);
   const [addError, setAddError] = useState(null);
   const [enrichingDocIds, setEnrichingDocIds] = useState(new Set());
+
+  // BibTeX / RIS Bulk Import State (FR-17.1)
+  const bibFileInputRef = useRef(null);
+  const [isImportingBib, setIsImportingBib] = useState(false);
+  const [importNotification, setImportNotification] = useState(null);
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
+
+  // Auto-dismiss notification after 4.5 seconds
+  useEffect(() => {
+    if (!importNotification) return;
+    const timer = setTimeout(() => {
+      setImportNotification(null);
+    }, 4500);
+    return () => clearTimeout(timer);
+  }, [importNotification]);
+
+  const handleBibImportFile = async (file) => {
+    if (!file) return;
+    setIsImportingBib(true);
+    setImportNotification(null);
+    try {
+      const targetWorkspace =
+        activeWorkspaceFilter && activeWorkspaceFilter !== '__unfiled__' ? activeWorkspaceFilter : null;
+      const res = await importLibraryFileAPI(file, targetWorkspace);
+      setImportNotification({
+        type: 'success',
+        message: `Imported ${res.imported_count} reference${res.imported_count === 1 ? '' : 's'}${
+          res.skipped_count > 0 ? ` (${res.skipped_count} skipped duplicates)` : ''
+        }`,
+      });
+      await fetchLibrary();
+    } catch (err) {
+      console.error('Failed to import bibliographic file:', err);
+      setImportNotification({
+        type: 'error',
+        message: err.response?.data?.detail || 'Failed to parse or import bibliographic file.',
+      });
+    } finally {
+      setIsImportingBib(false);
+    }
+  };
+
+  const handleBibFileInputChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      await handleBibImportFile(file);
+    }
+    e.target.value = '';
+  };
+
+  // Drag and Drop support for bulk import & files
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingOver(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingOver(false);
+  };
+
+  const handleDrop = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingOver(false);
+
+    const files = Array.from(e.dataTransfer?.files || []);
+    if (!files.length) return;
+
+    for (const file of files) {
+      const lowerName = file.name.toLowerCase();
+      if (
+        lowerName.endsWith('.bib') ||
+        lowerName.endsWith('.bibtex') ||
+        lowerName.endsWith('.ris') ||
+        lowerName.endsWith('.txt')
+      ) {
+        await handleBibImportFile(file);
+      } else if (lowerName.endsWith('.pdf')) {
+        setIsUploading(true);
+        try {
+          await uploadFile(file);
+          await fetchLibrary();
+        } catch (err) {
+          console.error('Failed to upload dropped PDF:', err);
+        } finally {
+          setIsUploading(false);
+        }
+      }
+    }
+  };
 
   // Escape key returns to chat or closes inspector
   useEffect(() => {
@@ -370,6 +466,26 @@ export default function LibraryView({
               <span className="hidden md:inline">Add by Identifier</span>
             </button>
 
+            {/* Import BibTeX / RIS (FR-17.1) */}
+            <button
+              type="button"
+              onClick={() => bibFileInputRef.current?.click()}
+              disabled={isImportingBib}
+              className="flex items-center gap-1 px-2 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700/60 rounded text-[11.5px] font-medium transition-colors cursor-pointer disabled:opacity-50"
+              title="Bulk import references from BibTeX (.bib) or RIS (.ris) file"
+            >
+              <FileUp className="h-3.5 w-3.5 text-blue-400" />
+              <span className="hidden md:inline">{isImportingBib ? 'Importing...' : 'Import (.bib / .ris)'}</span>
+            </button>
+            <input
+              ref={bibFileInputRef}
+              type="file"
+              accept=".bib,.bibtex,.ris,.txt"
+              onChange={handleBibFileInputChange}
+              disabled={isImportingBib}
+              className="hidden"
+            />
+
             {/* Export BibTeX */}
             <button
               type="button"
@@ -557,7 +673,48 @@ export default function LibraryView({
         {/* ========================================================================= */}
         {/* PANE 2: HIGH-DENSITY DATA TABLE (Zotero Desktop Table) */}
         {/* ========================================================================= */}
-        <div className="flex-1 flex flex-col h-full overflow-hidden bg-zinc-950">
+        <div
+          className="flex-1 flex flex-col h-full overflow-hidden bg-zinc-950 relative"
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
+          {/* Drag & Drop Visual Indicator Overlay */}
+          {isDraggingOver && (
+            <div className="absolute inset-0 z-30 bg-blue-950/85 border-2 border-dashed border-blue-500/80 flex flex-col items-center justify-center pointer-events-none backdrop-blur-[2px]">
+              <FileUp className="h-10 w-10 text-blue-400 mb-2 animate-bounce" />
+              <p className="text-sm font-semibold text-white">Drop .bib, .ris, or .pdf files to import</p>
+              <p className="text-xs text-blue-200 mt-1">Bibliographic metadata will be automatically parsed and added</p>
+            </div>
+          )}
+
+          {/* Import Notification Banner / Toast */}
+          {importNotification && (
+            <div
+              className={`px-3 py-1.5 border-b text-xs flex items-center justify-between shrink-0 select-none z-20 ${
+                importNotification.type === 'success'
+                  ? 'bg-emerald-950/70 border-emerald-800/80 text-emerald-200'
+                  : 'bg-rose-950/70 border-rose-800/80 text-rose-200'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                {importNotification.type === 'success' ? (
+                  <Check className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+                ) : (
+                  <AlertCircle className="h-3.5 w-3.5 text-rose-400 shrink-0" />
+                )}
+                <span>{importNotification.message}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setImportNotification(null)}
+                className="text-zinc-400 hover:text-zinc-200 p-0.5 rounded cursor-pointer"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          )}
+
           <div className="flex-1 overflow-auto">
             {loading ? (
               <div className="flex flex-col items-center justify-center h-64 text-zinc-500 space-y-2">
@@ -568,8 +725,8 @@ export default function LibraryView({
               <div className="flex flex-col items-center justify-center h-64 text-zinc-500 space-y-2">
                 <FileText className="h-8 w-8 text-zinc-700 stroke-[1.5]" />
                 <p className="text-xs font-medium text-zinc-400">No items found in this collection.</p>
-                <p className="text-[11px] text-zinc-600 max-w-xs text-center">
-                  Use "New Item" to import PDF papers or "Add by Identifier" for DOI / arXiv lookups.
+                <p className="text-[11px] text-zinc-600 max-w-sm text-center">
+                  Use "New Item" to import PDF papers, "Add by Identifier" for DOI / arXiv lookups, or drag-and-drop / "Import (.bib / .ris)" for bulk imports.
                 </p>
               </div>
             ) : (

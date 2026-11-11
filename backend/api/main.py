@@ -6,6 +6,7 @@ import hashlib
 import httpx
 import uuid
 import json
+import re
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 from contextlib import asynccontextmanager
@@ -75,6 +76,8 @@ from backend.api.schemas import (
     WorkspaceReference,
     IdentifierLookupRequest,
     IdentifierLookupResponse,
+    BibliographicImportTextRequest,
+    BibliographicImportResponse,
 )
 from backend.ingestion.pipeline import process_path
 from backend.ingestion.bibliographic_extractor import extract_bibliographic_metadata
@@ -84,6 +87,7 @@ from backend.ingestion.identifier_resolver import (
     fetch_arxiv_metadata,
     enrich_document_from_file,
 )
+from backend.ingestion.bibtex_ris_parser import parse_bibliographic_content
 from backend.ingestion.citation_engine import format_citations_all, export_bibtex_file
 from backend.ingestion.summary_worker import trigger_async_summary_generation
 from backend.embeddings.vector_store import store_chunks, get_or_create_collection, search_similar_chunks
@@ -2224,6 +2228,164 @@ async def auto_enrich_library_item_endpoint(
             ws_map.setdefault(d, []).append({"id": ws.id, "name": ws.name})
 
     return _build_library_item(updated_doc, ws_map)
+
+
+async def _process_bibliographic_import(
+    content: str,
+    filename: Optional[str],
+    workspace_id: Optional[str],
+    current_user: User,
+    db: AsyncSession
+) -> BibliographicImportResponse:
+    parsed_entries = parse_bibliographic_content(content, filename=filename)
+    if not parsed_entries:
+        return BibliographicImportResponse(
+            success=False,
+            imported_count=0,
+            skipped_duplicates=0,
+            total_parsed=0,
+            items=[],
+            message="No valid BibTeX or RIS entries found in input.",
+        )
+
+    # Pre-fetch existing user documents to detect duplicates
+    user_docs = await crud.get_user_library(db, user_id=current_user.id)
+    existing_dois = {d.doi.lower().strip() for d in user_docs if d.doi}
+    existing_arxivs = {d.arxiv_id.lower().strip() for d in user_docs if d.arxiv_id}
+    existing_titles = {d.title.lower().strip() for d in user_docs if d.title}
+
+    imported_items: List[UserDocument] = []
+    skipped_count = 0
+    new_doc_names: List[str] = []
+
+    for entry in parsed_entries:
+        doi = entry.get("doi")
+        arxiv_id = entry.get("arxiv_id")
+        title = entry.get("title") or "Untitled Citation"
+
+        # Duplicate check: by DOI, arXiv ID, or exact Title
+        if doi and doi.lower().strip() in existing_dois:
+            skipped_count += 1
+            continue
+        if arxiv_id and arxiv_id.lower().strip() in existing_arxivs:
+            skipped_count += 1
+            continue
+        if title and title.lower().strip() in existing_titles:
+            skipped_count += 1
+            continue
+
+        # Generate unique doc_name
+        citekey = entry.get("citekey") or "ref"
+        clean_key = re.sub(r'[^a-zA-Z0-9_-]', '', citekey)[:30] or "ref"
+        unique_suffix = uuid.uuid4().hex[:6]
+        ref_doc_name = f"ref_{clean_key}_{unique_suffix}.ref"
+        file_hash = hashlib.sha256(f"{ref_doc_name}_{title}".encode()).hexdigest()
+
+        doc_entry = UserDocument(
+            user_id=current_user.id,
+            doc_name=ref_doc_name,
+            file_hash=file_hash,
+            title=title,
+            authors=entry.get("authors"),
+            year=entry.get("year"),
+            venue=entry.get("venue"),
+            doi=doi,
+            arxiv_id=arxiv_id,
+            url=entry.get("url"),
+            abstract=entry.get("abstract"),
+            item_type=entry.get("item_type") or "journal_article",
+            tags=entry.get("tags") or [],
+            file_size_bytes=0,
+        )
+        db.add(doc_entry)
+        imported_items.append(doc_entry)
+        new_doc_names.append(ref_doc_name)
+
+        # Track so duplicates within the same import file are also caught
+        if doi:
+            existing_dois.add(doi.lower().strip())
+        if arxiv_id:
+            existing_arxivs.add(arxiv_id.lower().strip())
+        if title:
+            existing_titles.add(title.lower().strip())
+
+    if imported_items:
+        await db.commit()
+        for doc in imported_items:
+            await db.refresh(doc)
+
+    # If workspace_id specified, attach all new doc_names to that workspace
+    if workspace_id and new_doc_names:
+        await crud.add_documents_to_workspace(
+            db=db,
+            workspace_id=workspace_id,
+            doc_names=new_doc_names,
+            user_id=current_user.id,
+        )
+
+    # Re-fetch workspace mapping
+    workspaces = await crud.get_user_workspaces(db, user_id=current_user.id)
+    ws_map: Dict[str, List[Dict[str, str]]] = {}
+    for ws in workspaces:
+        for d in (ws.doc_names or []):
+            ws_map.setdefault(d, []).append({"id": ws.id, "name": ws.name})
+
+    library_items = [_build_library_item(d, ws_map) for d in imported_items]
+
+    return BibliographicImportResponse(
+        success=True,
+        imported_count=len(imported_items),
+        skipped_duplicates=skipped_count,
+        total_parsed=len(parsed_entries),
+        items=library_items,
+        message=f"Successfully imported {len(imported_items)} item(s) into your library ({skipped_count} skipped as duplicates).",
+    )
+
+
+@app.post("/api/library/import/file", response_model=BibliographicImportResponse)
+async def import_library_file_endpoint(
+    file: UploadFile = File(...),
+    workspace_id: Optional[str] = Form(None),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Bulk imports citations from a .bib or .ris file (FR-17.1).
+    """
+    try:
+        content_bytes = await file.read()
+        content = content_bytes.decode("utf-8", errors="replace")
+        return await _process_bibliographic_import(
+            content=content,
+            filename=file.filename,
+            workspace_id=workspace_id,
+            current_user=current_user,
+            db=db
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to import file: {str(e)}")
+
+
+@app.post("/api/library/import/text", response_model=BibliographicImportResponse)
+async def import_library_text_endpoint(
+    req: BibliographicImportTextRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Bulk imports citations from raw BibTeX or RIS text pasted by user (FR-17.1).
+    """
+    try:
+        return await _process_bibliographic_import(
+            content=req.content,
+            filename=req.filename,
+            workspace_id=req.workspace_id,
+            current_user=current_user,
+            db=db
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to import citations: {str(e)}")
+
 
 
 

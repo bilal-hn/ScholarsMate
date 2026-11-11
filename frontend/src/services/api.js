@@ -1074,3 +1074,48 @@ export const addLibraryReferenceAPI = async (identifier) => {
   }
 };
 
+/**
+ * Bulk imports bibliographic citations from a .bib or .ris file (FR-17.1).
+ * @param {File} file - .bib or .ris file
+ * @param {string|null} [workspaceId=null] - Optional workspace to bind imported documents
+ */
+export const importLibraryFileAPI = async (file, workspaceId = null) => {
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (workspaceId) {
+      formData.append('workspace_id', workspaceId);
+    }
+    const response = await apiClient.post('/library/import/file', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data; // { success, imported_count, skipped_duplicates, total_parsed, items, message }
+  } catch (error) {
+    console.error('Failed to import bibliographic file:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+/**
+ * Bulk imports bibliographic citations from raw BibTeX or RIS text (FR-17.1).
+ * @param {string} content - Raw BibTeX or RIS text
+ * @param {string|null} [workspaceId=null]
+ * @param {string|null} [filename=null]
+ */
+export const importLibraryTextAPI = async (content, workspaceId = null, filename = null) => {
+  try {
+    const response = await apiClient.post('/library/import/text', {
+      content,
+      workspace_id: workspaceId,
+      filename,
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Failed to import bibliographic text:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+

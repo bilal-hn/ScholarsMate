@@ -373,4 +373,20 @@ class IdentifierLookupResponse(BaseModel):
     message: Optional[str] = None
 
 
+class BibliographicImportTextRequest(BaseModel):
+    content: str
+    workspace_id: Optional[str] = None
+    filename: Optional[str] = None
+
+
+class BibliographicImportResponse(BaseModel):
+    success: bool
+    imported_count: int
+    skipped_duplicates: int
+    total_parsed: int
+    items: List[LibraryItem] = Field(default_factory=list)
+    message: str
+
+
+
 
