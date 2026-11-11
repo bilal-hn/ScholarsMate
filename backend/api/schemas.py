@@ -361,6 +361,21 @@ class UpdateLibraryItemRequest(BaseModel):
     item_type: Optional[str] = None
 
 
+class CreateManualItemRequest(BaseModel):
+    item_type: str = "journal_article"
+    title: Optional[str] = "Untitled Item"
+    authors: Optional[str] = None
+    year: Optional[str] = None
+    venue: Optional[str] = None
+    doi: Optional[str] = None
+    arxiv_id: Optional[str] = None
+    url: Optional[str] = None
+    abstract: Optional[str] = None
+    tags: List[str] = Field(default_factory=list)
+    notes: Optional[str] = None
+    workspace_id: Optional[str] = None
+
+
 class IdentifierLookupRequest(BaseModel):
     identifier: Optional[str] = None
     doi: Optional[str] = None

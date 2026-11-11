@@ -1061,6 +1061,20 @@ export const autoEnrichDocumentAPI = async (docId) => {
 };
 
 /**
+ * Creates a manual academic reference item from scratch (FR-17.5).
+ * @param {Object} itemData - { item_type, title, authors, year, venue, doi, arxiv_id, url, abstract, tags, notes, workspace_id }
+ */
+export const createManualLibraryItemAPI = async (itemData) => {
+  try {
+    const response = await apiClient.post('/library/manual', itemData);
+    return response.data;
+  } catch (error) {
+    console.error('Failed to create manual library item:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+/**
  * Creates a bibliographic reference in the library directly from a DOI or arXiv identifier.
  * @param {string} identifier
  * @param {boolean} [autoDownloadPdf=true]

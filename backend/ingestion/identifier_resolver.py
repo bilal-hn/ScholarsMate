@@ -216,9 +216,10 @@ async def fetch_arxiv_metadata(arxiv_id: str) -> Optional[Dict[str, Any]]:
         return None
 
     url = f"https://export.arxiv.org/api/query?id_list={cleaned_id}"
+    headers = {"User-Agent": CROSSREF_USER_AGENT}
     try:
         async with httpx.AsyncClient(timeout=HTTP_TIMEOUT, follow_redirects=True) as client:
-            resp = await client.get(url)
+            resp = await client.get(url, headers=headers)
             if resp.status_code != 200:
                 return None
 

@@ -40,6 +40,7 @@ import {
   addLibraryReferenceAPI,
   importLibraryFileAPI,
   downloadItemPdfAPI,
+  createManualLibraryItemAPI,
 } from '../../services/api';
 import LibraryInspector from './LibraryInspector';
 
@@ -80,6 +81,79 @@ export default function LibraryView({
   const [addError, setAddError] = useState(null);
   const [enrichingDocIds, setEnrichingDocIds] = useState(new Set());
   const [downloadingPdfDocIds, setDownloadingPdfDocIds] = useState(new Set());
+
+  // New Item Menu & Manual Form State (FR-17.5)
+  const pdfUploadInputRef = useRef(null);
+  const newItemMenuRef = useRef(null);
+  const [isNewItemMenuOpen, setIsNewItemMenuOpen] = useState(false);
+  const [isManualModalOpen, setIsManualModalOpen] = useState(false);
+  const [isCreatingManualItem, setIsCreatingManualItem] = useState(false);
+  const [manualError, setManualError] = useState(null);
+  const [manualForm, setManualForm] = useState({
+    item_type: 'book',
+    title: '',
+    authors: '',
+    year: '',
+    venue: '',
+    doi: '',
+    url: '',
+    notes: '',
+  });
+
+  // Close New Item dropdown on outside click
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (newItemMenuRef.current && !newItemMenuRef.current.contains(e.target)) {
+        setIsNewItemMenuOpen(false);
+      }
+    };
+    if (isNewItemMenuOpen) {
+      document.addEventListener('mousedown', handleOutsideClick);
+    }
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [isNewItemMenuOpen]);
+
+  const handleOpenManualModal = (type = 'book') => {
+    setManualForm({
+      item_type: type,
+      title: '',
+      authors: '',
+      year: new Date().getFullYear().toString(),
+      venue: '',
+      doi: '',
+      url: '',
+      notes: '',
+    });
+    setManualError(null);
+    setIsNewItemMenuOpen(false);
+    setIsManualModalOpen(true);
+  };
+
+  const handleCreateManualSubmit = async (e) => {
+    e.preventDefault();
+    if (!manualForm.title.trim()) return;
+    setIsCreatingManualItem(true);
+    setManualError(null);
+    try {
+      const targetWorkspace =
+        activeWorkspaceFilter && activeWorkspaceFilter !== '__unfiled__' ? activeWorkspaceFilter : null;
+      const createdItem = await createManualLibraryItemAPI({
+        ...manualForm,
+        workspace_id: targetWorkspace,
+      });
+      setIsManualModalOpen(false);
+      await fetchLibrary();
+      setSelectedDoc(createdItem);
+      setImportNotification({
+        type: 'success',
+        message: `Created new ${manualForm.item_type.replace('_', ' ')}: "${createdItem.title || 'Untitled'}"`,
+      });
+    } catch (err) {
+      setManualError(err.response?.data?.detail || 'Failed to create manual library item.');
+    } finally {
+      setIsCreatingManualItem(false);
+    }
+  };
 
   // BibTeX / RIS Bulk Import State (FR-17.1)
   const bibFileInputRef = useRef(null);
@@ -174,11 +248,15 @@ export default function LibraryView({
     }
   };
 
-  // Escape key returns to chat or closes inspector
+  // Escape key returns to chat or closes inspector/modals
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
-        if (isAddIdentifierOpen) {
+        if (isNewItemMenuOpen) {
+          setIsNewItemMenuOpen(false);
+        } else if (isManualModalOpen) {
+          setIsManualModalOpen(false);
+        } else if (isAddIdentifierOpen) {
           setIsAddIdentifierOpen(false);
         } else if (selectedDoc) {
           setSelectedDoc(null);
@@ -189,7 +267,7 @@ export default function LibraryView({
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedDoc, isAddIdentifierOpen, onClose]);
+  }, [selectedDoc, isAddIdentifierOpen, isManualModalOpen, isNewItemMenuOpen, onClose]);
 
   // Fetch Library Items
   const fetchLibrary = async () => {
@@ -479,21 +557,108 @@ export default function LibraryView({
 
           {/* Zotero Desktop Action Buttons */}
           <div className="flex items-center gap-1">
-            {/* New Item (Upload PDF) */}
-            <label
-              className="flex items-center gap-1 px-2 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700/60 rounded text-[11.5px] font-medium transition-colors cursor-pointer"
-              title="Add PDF Document to Library"
-            >
-              <Plus className="h-3.5 w-3.5 text-blue-400" />
-              <span>{isUploading ? 'Indexing...' : 'New Item'}</span>
-              <input
-                type="file"
-                accept=".pdf"
-                onChange={handleFileUpload}
-                disabled={isUploading}
-                className="hidden"
-              />
-            </label>
+            {/* New Item Dropdown (Zotero Style - FR-17.5) */}
+            <div className="relative" ref={newItemMenuRef}>
+              <button
+                type="button"
+                onClick={() => setIsNewItemMenuOpen(!isNewItemMenuOpen)}
+                className="flex items-center gap-1 px-2 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700/60 rounded text-[11.5px] font-medium transition-colors cursor-pointer select-none"
+                title="Create New Item or Upload Document"
+              >
+                <Plus className="h-3.5 w-3.5 text-blue-400" />
+                <span>New Item</span>
+                <ChevronDown className="h-2.5 w-2.5 text-zinc-400" />
+              </button>
+
+              {/* New Item Dropdown Menu */}
+              {isNewItemMenuOpen && (
+                <div className="absolute left-0 top-full mt-1 w-52 bg-zinc-900 border border-zinc-750 rounded-md shadow-2xl py-1 z-50 text-[11.5px] select-none backdrop-blur-sm">
+                  <div className="px-2.5 py-1 text-[10px] uppercase font-semibold text-zinc-500 tracking-wider">
+                    New Blank Item
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenManualModal('book')}
+                    className="w-full flex items-center gap-2 px-3 py-1.5 text-zinc-300 hover:bg-blue-600 hover:text-white transition-colors text-left cursor-pointer"
+                  >
+                    <Book className="h-3.5 w-3.5 text-purple-400" />
+                    <span>Book</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenManualModal('journal_article')}
+                    className="w-full flex items-center gap-2 px-3 py-1.5 text-zinc-300 hover:bg-blue-600 hover:text-white transition-colors text-left cursor-pointer"
+                  >
+                    <FileText className="h-3.5 w-3.5 text-blue-400" />
+                    <span>Journal Article</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenManualModal('conference_paper')}
+                    className="w-full flex items-center gap-2 px-3 py-1.5 text-zinc-300 hover:bg-blue-600 hover:text-white transition-colors text-left cursor-pointer"
+                  >
+                    <Layers className="h-3.5 w-3.5 text-emerald-400" />
+                    <span>Conference Paper</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenManualModal('preprint')}
+                    className="w-full flex items-center gap-2 px-3 py-1.5 text-zinc-300 hover:bg-blue-600 hover:text-white transition-colors text-left cursor-pointer"
+                  >
+                    <FileCode className="h-3.5 w-3.5 text-rose-400" />
+                    <span>Preprint / Working Paper</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenManualModal('book_chapter')}
+                    className="w-full flex items-center gap-2 px-3 py-1.5 text-zinc-300 hover:bg-blue-600 hover:text-white transition-colors text-left cursor-pointer"
+                  >
+                    <Book className="h-3.5 w-3.5 text-amber-400" />
+                    <span>Book Section / Chapter</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenManualModal('thesis')}
+                    className="w-full flex items-center gap-2 px-3 py-1.5 text-zinc-300 hover:bg-blue-600 hover:text-white transition-colors text-left cursor-pointer"
+                  >
+                    <FileText className="h-3.5 w-3.5 text-cyan-400" />
+                    <span>Thesis / Dissertation</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenManualModal('report')}
+                    className="w-full flex items-center gap-2 px-3 py-1.5 text-zinc-300 hover:bg-blue-600 hover:text-white transition-colors text-left cursor-pointer"
+                  >
+                    <FileText className="h-3.5 w-3.5 text-zinc-400" />
+                    <span>Report</span>
+                  </button>
+
+                  <div className="my-1 border-t border-zinc-800" />
+
+                  {/* Upload PDF */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsNewItemMenuOpen(false);
+                      pdfUploadInputRef.current?.click();
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-1.5 text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 transition-colors text-left cursor-pointer"
+                  >
+                    <Upload className="h-3.5 w-3.5 text-zinc-400" />
+                    <span>{isUploading ? 'Indexing PDF...' : 'Store Copy of File (PDF)...'}</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <input
+              ref={pdfUploadInputRef}
+              type="file"
+              accept=".pdf"
+              onChange={handleFileUpload}
+              disabled={isUploading}
+              className="hidden"
+            />
 
             {/* Add by Identifier (DOI / arXiv Wand) */}
             <button
@@ -1251,6 +1416,166 @@ export default function LibraryView({
                         : 'Resolving...'
                       : 'Lookup & Add'}
                   </span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL: NEW ITEM FROM SCRATCH (BLANK FORM - FR-17.5) */}
+      {/* ========================================================================= */}
+      {isManualModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-lg max-w-lg w-full p-4 shadow-2xl space-y-3">
+            <div className="flex items-center justify-between border-b border-zinc-800 pb-2.5">
+              <div className="flex items-center gap-2 text-zinc-100 font-semibold text-xs">
+                <Plus className="h-4 w-4 text-blue-400" />
+                <span>New Item from Scratch (Blank Form)</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsManualModalOpen(false)}
+                className="p-1 text-zinc-400 hover:text-zinc-200 rounded cursor-pointer transition-colors"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateManualSubmit} className="space-y-2.5 text-xs">
+              {/* Item Type */}
+              <div className="flex items-center gap-2">
+                <label className="w-24 text-right text-zinc-400 font-medium select-none text-[11px]">
+                  Item Type
+                </label>
+                <select
+                  value={manualForm.item_type}
+                  onChange={(e) => setManualForm({ ...manualForm, item_type: e.target.value })}
+                  className="flex-1 bg-zinc-950 border border-zinc-750 rounded px-2.5 py-1 text-zinc-200 focus:outline-none focus:border-blue-500 text-xs"
+                >
+                  <option value="book">Book</option>
+                  <option value="journal_article">Journal Article</option>
+                  <option value="conference_paper">Conference Paper</option>
+                  <option value="preprint">Preprint / Working Paper</option>
+                  <option value="book_chapter">Book Section / Chapter</option>
+                  <option value="thesis">Thesis / Dissertation</option>
+                  <option value="report">Report</option>
+                </select>
+              </div>
+
+              {/* Title */}
+              <div className="flex items-start gap-2">
+                <label className="w-24 text-right text-zinc-400 font-medium select-none text-[11px] pt-1.5">
+                  Title *
+                </label>
+                <input
+                  type="text"
+                  autoFocus
+                  required
+                  value={manualForm.title}
+                  onChange={(e) => setManualForm({ ...manualForm, title: e.target.value })}
+                  placeholder="e.g. Design Patterns: Elements of Reusable Object-Oriented Software"
+                  className="flex-1 bg-zinc-950 border border-zinc-750 rounded px-2.5 py-1 text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-blue-500 text-xs"
+                />
+              </div>
+
+              {/* Authors */}
+              <div className="flex items-center gap-2">
+                <label className="w-24 text-right text-zinc-400 font-medium select-none text-[11px]">
+                  Author(s)
+                </label>
+                <input
+                  type="text"
+                  value={manualForm.authors}
+                  onChange={(e) => setManualForm({ ...manualForm, authors: e.target.value })}
+                  placeholder="e.g. Gamma, Erich; Helm, Richard"
+                  className="flex-1 bg-zinc-950 border border-zinc-750 rounded px-2.5 py-1 text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-blue-500 text-xs"
+                />
+              </div>
+
+              {/* Year & Venue Row */}
+              <div className="flex items-center gap-2">
+                <label className="w-24 text-right text-zinc-400 font-medium select-none text-[11px]">
+                  Year & Venue
+                </label>
+                <div className="flex-1 flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={manualForm.year}
+                    onChange={(e) => setManualForm({ ...manualForm, year: e.target.value })}
+                    placeholder="Year (e.g. 1994)"
+                    className="w-24 bg-zinc-950 border border-zinc-750 rounded px-2 py-1 text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-blue-500 font-mono text-xs"
+                  />
+                  <input
+                    type="text"
+                    value={manualForm.venue}
+                    onChange={(e) => setManualForm({ ...manualForm, venue: e.target.value })}
+                    placeholder="Publisher / Journal / Conference"
+                    className="flex-1 bg-zinc-950 border border-zinc-750 rounded px-2.5 py-1 text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-blue-500 text-xs"
+                  />
+                </div>
+              </div>
+
+              {/* DOI or URL Row */}
+              <div className="flex items-center gap-2">
+                <label className="w-24 text-right text-zinc-400 font-medium select-none text-[11px]">
+                  DOI / URL
+                </label>
+                <div className="flex-1 flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={manualForm.doi}
+                    onChange={(e) => setManualForm({ ...manualForm, doi: e.target.value })}
+                    placeholder="DOI (optional)"
+                    className="flex-1 bg-zinc-950 border border-zinc-750 rounded px-2.5 py-1 text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-blue-500 font-mono text-xs"
+                  />
+                  <input
+                    type="text"
+                    value={manualForm.url}
+                    onChange={(e) => setManualForm({ ...manualForm, url: e.target.value })}
+                    placeholder="https://... (optional)"
+                    className="flex-1 bg-zinc-950 border border-zinc-750 rounded px-2.5 py-1 text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-blue-500 text-xs"
+                  />
+                </div>
+              </div>
+
+              {/* Notes */}
+              <div className="flex items-start gap-2">
+                <label className="w-24 text-right text-zinc-400 font-medium select-none text-[11px] pt-1">
+                  Notes
+                </label>
+                <textarea
+                  rows={2}
+                  value={manualForm.notes}
+                  onChange={(e) => setManualForm({ ...manualForm, notes: e.target.value })}
+                  placeholder="Optional personal research notes..."
+                  className="flex-1 bg-zinc-950 border border-zinc-750 rounded px-2.5 py-1 text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-blue-500 resize-none text-xs"
+                />
+              </div>
+
+              {manualError && (
+                <div className="text-[11px] bg-red-500/10 border border-red-500/30 text-red-400 px-2 py-1 rounded flex items-center gap-1.5">
+                  <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                  <span>{manualError}</span>
+                </div>
+              )}
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-800">
+                <button
+                  type="button"
+                  onClick={() => setIsManualModalOpen(false)}
+                  className="px-2.5 py-1 rounded text-xs font-medium text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isCreatingManualItem || !manualForm.title.trim()}
+                  className="flex items-center gap-1.5 px-3 py-1 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded text-xs font-medium shadow transition-colors cursor-pointer"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  <span>{isCreatingManualItem ? 'Creating...' : 'Create Item'}</span>
                 </button>
               </div>
             </form>

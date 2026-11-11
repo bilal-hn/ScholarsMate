@@ -430,6 +430,7 @@ export default function LibraryInspector({
                 className="flex-1 bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-zinc-200 focus:outline-none focus:border-blue-500"
               >
                 <option value="journal_article">Journal Article</option>
+                <option value="book">Book</option>
                 <option value="conference_paper">Conference Paper</option>
                 <option value="preprint">Preprint (arXiv)</option>
                 <option value="book_chapter">Book Section / Chapter</option>

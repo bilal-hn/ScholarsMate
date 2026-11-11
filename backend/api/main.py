@@ -7,6 +7,7 @@ import httpx
 import uuid
 import json
 import re
+from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 from contextlib import asynccontextmanager
@@ -79,6 +80,7 @@ from backend.api.schemas import (
     BibliographicImportTextRequest,
     BibliographicImportResponse,
     DownloadPdfResponse,
+    CreateManualItemRequest,
 )
 from backend.ingestion.pipeline import process_path
 from backend.ingestion.bibliographic_extractor import extract_bibliographic_metadata
@@ -2110,6 +2112,59 @@ async def lookup_academic_identifier_endpoint(
         metadata=resolved,
         message="Metadata successfully retrieved.",
     )
+
+
+@app.post("/api/library/manual", response_model=LibraryItem)
+async def create_manual_library_item_endpoint(
+    req: CreateManualItemRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Creates a new academic reference from scratch (e.g. Book, Journal Article, Report) without needing a PDF or identifier (FR-17.5).
+    """
+    raw_title = (req.title or "Untitled Item").strip()
+    clean_title = re.sub(r'[^a-zA-Z0-9_-]', '', raw_title.replace(" ", "_"))[:25] or "item"
+    unique_suffix = uuid.uuid4().hex[:6]
+    doc_name = f"manual_{clean_title}_{unique_suffix}.ref"
+    file_hash = hashlib.sha256(f"{doc_name}_{datetime.utcnow().isoformat()}".encode()).hexdigest()
+
+    doc_entry = UserDocument(
+        user_id=current_user.id,
+        doc_name=doc_name,
+        file_hash=file_hash,
+        title=raw_title,
+        authors=req.authors.strip() if req.authors else None,
+        year=str(req.year).strip() if req.year else None,
+        venue=req.venue.strip() if req.venue else None,
+        doi=clean_doi(req.doi) if req.doi else None,
+        arxiv_id=clean_arxiv_id(req.arxiv_id) if req.arxiv_id else None,
+        url=req.url.strip() if req.url else None,
+        abstract=req.abstract.strip() if req.abstract else None,
+        item_type=req.item_type or "journal_article",
+        tags=req.tags or [],
+        notes=req.notes.strip() if req.notes else None,
+        file_size_bytes=0,
+    )
+    db.add(doc_entry)
+    await db.commit()
+    await db.refresh(doc_entry)
+
+    if req.workspace_id:
+        await crud.add_documents_to_workspace(
+            db=db,
+            workspace_id=req.workspace_id,
+            doc_names=[doc_name],
+            user_id=current_user.id
+        )
+
+    workspaces = await crud.get_user_workspaces(db, user_id=current_user.id)
+    ws_map: Dict[str, List[Dict[str, str]]] = {}
+    for ws in workspaces:
+        for d in (ws.doc_names or []):
+            ws_map.setdefault(d, []).append({"id": ws.id, "name": ws.name})
+
+    return _build_library_item(doc_entry, ws_map)
 
 
 @app.post("/api/library/add-reference", response_model=LibraryItem)
