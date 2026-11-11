@@ -65,23 +65,23 @@ export default function QueryNavigator({ messages = [], onDeleteChat }) {
 
   return (
     <div className="relative inline-flex" ref={popoverRef}>
-      {/* 3-Dots Query Navigator Trigger Button (Styled like Document Capsule, without a cross) */}
+      {/* 3-Dots Query Navigator Trigger Button */}
       <button
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
         title="Previous questions & navigation"
-        className={`inline-flex items-center justify-center px-3 py-1 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800/90 hover:border-zinc-700/80 rounded-full text-xs text-zinc-300 hover:text-zinc-100 shadow-xl backdrop-blur-md transition-all cursor-pointer select-none group ${
+        className={`inline-flex items-center justify-center px-2.5 py-0.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 rounded-full text-xs text-zinc-300 hover:text-zinc-100 shadow-md transition-all cursor-pointer select-none group ${
           isOpen
             ? 'bg-zinc-800/90 border-zinc-700 text-amber-400 ring-1 ring-amber-400/40'
             : ''
         }`}
       >
-        <MoreHorizontal className="h-4 w-4 text-zinc-400 group-hover:text-amber-400 transition-colors" />
+        <MoreHorizontal className="h-3.5 w-3.5 text-zinc-400 group-hover:text-amber-400 transition-colors" />
       </button>
 
       {/* Popover Menu (Opens upward above the button, aligned to the right) */}
       {isOpen && (
-        <div className="absolute bottom-full mb-2 right-0 w-72 sm:w-80 bg-zinc-900/95 border border-zinc-800 rounded-2xl shadow-2xl z-50 p-2 text-xs backdrop-blur-xl animate-in fade-in zoom-in-95 duration-150">
+        <div className="absolute bottom-full mb-1.5 right-0 w-72 sm:w-80 bg-zinc-900 border border-zinc-800 rounded-xl shadow-xl z-50 p-1.5 text-xs animate-in fade-in zoom-in-95 duration-150">
           {/* Header */}
           <div className="flex items-center justify-between px-2.5 py-1.5 border-b border-zinc-800/80 mb-1.5">
             <div className="flex items-center gap-2">

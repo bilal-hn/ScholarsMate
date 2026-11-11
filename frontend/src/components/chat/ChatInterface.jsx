@@ -522,28 +522,28 @@ export default function ChatInterface({
     <main className="flex-1 flex flex-col bg-zinc-950 h-full relative overflow-hidden text-zinc-200 font-sans transition-colors">
       {/* Workspace Sister Chats Context Points Banner */}
       {workspaceId && availableContextPoints.length > 0 && dismissedSessionId !== activeSessionId && (
-        <div className="mx-6 mt-3 mb-1 px-4 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/25 flex items-center justify-between text-xs text-zinc-200 animate-in fade-in duration-200 shrink-0 select-none">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <Sparkles className="h-4 w-4 text-amber-400 shrink-0" />
-            <span className="truncate">
+        <div className="mx-4 mt-2 mb-1 px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/25 flex items-center justify-between text-xs text-zinc-200 animate-in fade-in duration-200 shrink-0 select-none">
+          <div className="flex items-center gap-2 min-w-0">
+            <Sparkles className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+            <span className="truncate text-[11.5px]">
               Found <strong>{availableContextPoints.length}</strong> context point{availableContextPoints.length > 1 ? 's' : ''} from sister chats in this workspace.
             </span>
           </div>
-          <div className="flex items-center gap-2 shrink-0 ml-3">
+          <div className="flex items-center gap-2 shrink-0 ml-2">
             <button
               type="button"
               onClick={() => setIsContextModalOpen(true)}
-              className="px-3 py-1 rounded-lg bg-amber-400 hover:bg-amber-300 text-zinc-950 font-semibold transition-colors cursor-pointer text-[11.5px]"
+              className="px-2.5 py-0.5 rounded-md bg-amber-400 hover:bg-amber-300 text-zinc-950 font-semibold transition-colors cursor-pointer text-[11px]"
             >
               Review & Pull
             </button>
             <button
               type="button"
               onClick={() => setDismissedSessionId(activeSessionId)}
-              className="text-zinc-400 hover:text-zinc-200 p-1 transition-colors cursor-pointer"
+              className="text-zinc-400 hover:text-zinc-200 p-0.5 transition-colors cursor-pointer"
               title="Dismiss"
             >
-              <X className="h-3.5 w-3.5" />
+              <X className="h-3 w-3" />
             </button>
           </div>
         </div>
@@ -551,8 +551,8 @@ export default function ChatInterface({
 
       {/* Context Import Success Toast */}
       {contextToast && (
-        <div className="mx-6 mt-2 mb-1 px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-center gap-2 animate-in fade-in duration-150 shrink-0">
-          <Check className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+        <div className="mx-4 mt-1.5 mb-1 px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-[11.5px] flex items-center gap-2 animate-in fade-in duration-150 shrink-0">
+          <Check className="h-3 w-3 text-emerald-400 shrink-0" />
           <span>{contextToast}</span>
         </div>
       )}
@@ -562,47 +562,47 @@ export default function ChatInterface({
         <WorkspaceLoadingState />
       ) : isHeroEmpty ? (
         /* Minimalist Hero Empty State */
-        <div className="flex-1 flex flex-col items-center justify-center p-6 text-center select-none relative">
-          <div className="max-w-md w-full flex flex-col items-center animate-in fade-in duration-300 -mt-16">
-            {/* Odysseus-Style Brand Header: Logo + Title inline */}
-            <div className="flex items-center justify-center gap-3 mb-2">
-              <AppLogo className="h-7 w-7 text-amber-500" />
-              <h1 className="text-3xl font-bold text-zinc-100 tracking-tight font-sans">
+        <div className="flex-1 flex flex-col items-center justify-center p-4 text-center select-none relative">
+          <div className="max-w-md w-full flex flex-col items-center animate-in fade-in duration-300 -mt-10">
+            {/* Brand Header */}
+            <div className="flex items-center justify-center gap-2.5 mb-1.5">
+              <AppLogo className="h-6 w-6 text-amber-500" />
+              <h1 className="text-2xl font-bold text-zinc-100 tracking-tight font-sans">
                 {APP_CONFIG.name}
               </h1>
             </div>
 
-            <p className="text-[13px] text-zinc-300 font-mono mb-2">
+            <p className="text-xs text-zinc-300 font-mono mb-1">
               Type <span className="text-amber-400 font-medium">/action</span> or <span className="text-amber-400 font-medium">@</span> to get started.
             </p>
 
-            <p className="text-[11.5px] text-zinc-500 max-w-sm text-center leading-relaxed mb-6 font-mono">
+            <p className="text-[11px] text-zinc-500 max-w-sm text-center leading-relaxed mb-4 font-mono">
               welcome to ScholarsMate! From setting up your context, to search to generation, may this voyage be easy.
             </p>
 
             {(!availableModels || availableModels.length === 0) ? (
-              <div className="mt-2 w-full max-w-sm rounded-2xl border border-amber-500/30 bg-gradient-to-b from-amber-500/10 via-zinc-900/80 to-zinc-950 p-5 shadow-2xl backdrop-blur-md text-center flex flex-col items-center animate-in fade-in zoom-in-95 duration-200">
-                <div className="mb-2.5 flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400 shadow-inner">
-                  <Key className="h-5 w-5 stroke-[2]" />
+              <div className="mt-1 w-full max-w-xs rounded-xl border border-zinc-800 bg-zinc-900/90 p-4 shadow-lg text-center flex flex-col items-center animate-in fade-in zoom-in-95 duration-200">
+                <div className="mb-2 flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-400 shadow-inner">
+                  <Key className="h-4 w-4 stroke-[2]" />
                 </div>
-                <h2 className="text-sm font-semibold text-zinc-100 tracking-tight">
+                <h2 className="text-xs font-semibold text-zinc-100 tracking-tight">
                   Add an API key to start
                 </h2>
-                <p className="mt-1 text-xs text-zinc-400 leading-relaxed max-w-xs">
+                <p className="mt-1 text-[11px] text-zinc-400 leading-relaxed max-w-xs">
                   Connect a free or BYOK model (Google Gemini, Groq, OpenAI, Anthropic, or Ollama) to begin research chat and synthesis.
                 </p>
                 <button
                   type="button"
                   onClick={onOpenSettings}
-                  className="mt-4 inline-flex items-center justify-center gap-1.5 rounded-lg bg-amber-500 px-4 py-2 text-xs font-semibold text-zinc-950 hover:bg-amber-400 transition-all shadow-md active:scale-95 cursor-pointer"
+                  className="mt-3 inline-flex items-center justify-center gap-1.5 rounded-md bg-amber-500 px-3 py-1.5 text-xs font-semibold text-zinc-950 hover:bg-amber-400 transition-all shadow cursor-pointer"
                 >
-                  <Plus className="h-3.5 w-3.5 stroke-[2.5]" />
+                  <Plus className="h-3 w-3 stroke-[2.5]" />
                   <span>Configure API Key</span>
-                  <ArrowRight className="h-3.5 w-3.5" />
+                  <ArrowRight className="h-3 w-3" />
                 </button>
               </div>
             ) : (
-              <p className="text-[11px] text-zinc-500 max-w-xs leading-relaxed font-mono">
+              <p className="text-[10.5px] text-zinc-500 max-w-xs leading-relaxed font-mono">
                 Tip: Drag and drop files onto the chat, or type <span className="text-amber-400">@</span> to tag a paper.
               </p>
             )}
@@ -610,7 +610,7 @@ export default function ChatInterface({
         </div>
       ) : (
         /* Messages Feed */
-        <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6 max-w-3xl mx-auto w-full">
+        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3.5 max-w-3xl mx-auto w-full">
           {messages.map((msg, idx) => (
             <ChatMessage 
               key={idx} 

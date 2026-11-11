@@ -628,15 +628,15 @@ export default function ChatInput({
   return (
     <div className="w-full px-4 pb-4 pt-1 bg-gradient-to-t from-zinc-950 via-zinc-950/90 to-transparent shrink-0 relative z-30 transition-colors">
       {/* Floating Capsule Bar (above chat input box): Left = Document Pill, Right = Query Navigator (Three Dots) */}
-      <div className="max-w-3xl mx-auto mb-2 flex items-center justify-between pointer-events-auto">
+      <div className="max-w-3xl mx-auto mb-1.5 flex items-center justify-between pointer-events-auto">
         {/* Left Side: Document Pill (when writer button is active) */}
         {hasWriterButton ? (
           <div
             onClick={onToggleWriter}
-            className="inline-flex items-center gap-2 px-3 py-1 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800/90 hover:border-zinc-700/80 rounded-full text-xs text-zinc-300 hover:text-zinc-100 shadow-xl backdrop-blur-md transition-all cursor-pointer select-none group animate-in fade-in slide-in-from-bottom-2 duration-150"
+            className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 rounded-full text-[11px] text-zinc-300 hover:text-zinc-100 shadow-md transition-all cursor-pointer select-none group animate-in fade-in slide-in-from-bottom-2 duration-150"
           >
-            <FileText className="h-3.5 w-3.5 text-zinc-400 group-hover:text-amber-400 transition-colors" />
-            <span className="font-medium text-[12px] tracking-tight">Document</span>
+            <FileText className="h-3 w-3 text-zinc-400 group-hover:text-amber-400 transition-colors" />
+            <span className="font-medium text-[11px] tracking-tight">Document</span>
             {onDismissWriterBadge && (
               <button
                 type="button"
@@ -647,7 +647,7 @@ export default function ChatInput({
                 className="p-0.5 -mr-0.5 rounded-full text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800 transition-colors cursor-pointer"
                 title="Dismiss"
               >
-                <X className="h-3 w-3" />
+                <X className="h-2.5 w-2.5" />
               </button>
             )}
           </div>
@@ -674,9 +674,9 @@ export default function ChatInput({
         onDrop={handleDrop}
         className={`max-w-3xl mx-auto bg-zinc-900 hover:bg-zinc-900/95 border ${
           isDragging
-            ? 'border-amber-400 bg-amber-500/5 ring-2 ring-amber-400/20'
-            : 'border-zinc-800 hover:border-zinc-700/80 focus-within:border-zinc-600'
-        } rounded-2xl p-3 flex flex-col gap-2 transition-all shadow-2xl relative`}
+            ? 'border-amber-400 bg-amber-500/5 ring-1 ring-amber-400/20'
+            : 'border-zinc-800 hover:border-zinc-700/80 focus-within:border-zinc-650'
+        } rounded-xl p-2.5 flex flex-col gap-1.5 transition-all shadow-lg relative`}
       >
         {/* Slash Command Autocomplete Menu */}
         {showSlashMenu && matchingSlashCommands.length > 0 && (
@@ -888,26 +888,26 @@ export default function ChatInput({
           value={effectiveInput}
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
-          className="w-full bg-transparent text-[13.5px] text-zinc-100 placeholder-zinc-500 focus:outline-none resize-none px-2 pt-1 font-sans leading-relaxed"
+          className="w-full bg-transparent text-[12.5px] text-zinc-100 placeholder-zinc-500 focus:outline-none resize-none px-2 pt-0.5 font-sans leading-relaxed"
         />
 
         {/* Bottom Control & Tool Row */}
-        <div className="flex items-center justify-between pt-0.5 px-1">
+        <div className="flex items-center justify-between pt-0.5 px-0.5">
           {/* Left Action Toolbar */}
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1">
             {/* 9-Dots Matrix Menu Button */}
             <div className="relative" ref={matrixMenuRef}>
               <button
                 type="button"
                 onClick={() => setIsMatrixMenuOpen((prev) => !prev)}
                 title="Workspace Tools & Scoped Documents"
-                className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                className={`p-1 rounded-md transition-colors cursor-pointer ${
                   isMatrixMenuOpen
                     ? 'text-amber-400 bg-zinc-800'
                     : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/60'
                 }`}
               >
-                <LayoutGrid className="h-3.5 w-3.5" />
+                <LayoutGrid className="h-3 w-3" />
               </button>
 
               {/* 9-Dots Matrix Menu Popover */}
@@ -1008,13 +1008,13 @@ export default function ChatInput({
               type="button"
               onClick={() => setIsDeepSearchActive(!isDeepSearchActive)}
               title={isDeepSearchActive ? "Deep Search Active" : "Deep Search Mode"}
-              className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+              className={`p-1 rounded-md transition-colors cursor-pointer ${
                 isDeepSearchActive
                   ? 'text-amber-400 bg-amber-500/10 border border-amber-500/20'
                   : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/60'
               }`}
             >
-              <Search className="h-3.5 w-3.5" />
+              <Search className="h-3 w-3" />
             </button>
 
             {/* Hidden File Input for Paper Attachment (.pdf) */}
@@ -1043,7 +1043,7 @@ export default function ChatInput({
                 type="button"
                 onClick={() => setIsAttachMenuOpen((prev) => !prev)}
                 disabled={uploadingFiles.length > 0}
-                className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                className={`p-1 rounded-md transition-colors cursor-pointer ${
                   isAttachMenuOpen
                     ? 'text-amber-400 bg-zinc-800'
                     : uploadingFiles.length > 0
@@ -1053,9 +1053,9 @@ export default function ChatInput({
                 title="Add attachment"
               >
                 {uploadingFiles.length > 0 ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin text-amber-400" />
+                  <Loader2 className="h-3 w-3 animate-spin text-amber-400" />
                 ) : (
-                  <Plus className={`h-3.5 w-3.5 transition-transform duration-150 ${isAttachMenuOpen ? 'rotate-45 text-amber-400' : ''}`} />
+                  <Plus className={`h-3 w-3 transition-transform duration-150 ${isAttachMenuOpen ? 'rotate-45 text-amber-400' : ''}`} />
                 )}
               </button>
 
@@ -1113,11 +1113,11 @@ export default function ChatInput({
               <button
                 type="button"
                 onClick={() => setIsLensDropdownOpen((prev) => !prev)}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-zinc-300 hover:text-zinc-100 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 transition-all cursor-pointer select-none"
+                className="flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-medium text-zinc-300 hover:text-zinc-100 bg-zinc-800/80 hover:bg-zinc-750 border border-zinc-700/60 transition-all cursor-pointer select-none"
                 title={`Active Lens: ${activeModeObj?.name || 'Academic Lens'}`}
               >
                 <span>{activeModeObj?.short_name || activeModeObj?.name || 'Research'}</span>
-                <ChevronDown className={`h-3 w-3 text-zinc-500 transition-transform duration-150 ${isLensDropdownOpen ? 'rotate-180 text-amber-400' : ''}`} />
+                <ChevronDown className={`h-2.5 w-2.5 text-zinc-500 transition-transform duration-150 ${isLensDropdownOpen ? 'rotate-180 text-amber-400' : ''}`} />
               </button>
 
               {/* Lens Selector Popover */}
@@ -1250,11 +1250,11 @@ export default function ChatInput({
                 <button
                   type="button"
                   onClick={() => setIsDropdownOpen((prev) => !prev)}
-                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium text-zinc-300 hover:text-zinc-100 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 transition-all cursor-pointer"
+                  className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium text-zinc-300 hover:text-zinc-100 bg-zinc-800/80 hover:bg-zinc-750 border border-zinc-700/60 font-mono transition-all cursor-pointer"
                 >
-                  <span className="text-amber-400 font-mono text-[11px]">@</span>
-                  <span className="truncate max-w-[120px] text-[11.5px] font-mono">{currentFormatted.rawId || currentFormatted.title}</span>
-                  <ChevronDown className={`h-3 w-3 text-zinc-500 transition-transform duration-150 ${isDropdownOpen ? 'rotate-180 text-amber-400' : ''}`} />
+                  <span className="text-amber-400 font-mono text-[10.5px]">@</span>
+                  <span className="truncate max-w-[120px] text-[11px] font-mono">{currentFormatted.rawId || currentFormatted.title}</span>
+                  <ChevronDown className={`h-2.5 w-2.5 text-zinc-500 transition-transform duration-150 ${isDropdownOpen ? 'rotate-180 text-amber-400' : ''}`} />
                 </button>
 
                 {/* Model Selector Dropdown Popover */}
@@ -1351,10 +1351,10 @@ export default function ChatInput({
             <button
               type="submit"
               disabled={loading || (!effectiveInput.trim() && (!effectiveAttachedImages || effectiveAttachedImages.length === 0))}
-              className="h-7 w-7 rounded-full bg-amber-500 hover:bg-amber-400 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-950 flex items-center justify-center transition-all cursor-pointer shadow-md active:scale-95 shrink-0"
+              className="h-6.5 w-6.5 rounded-full bg-amber-500 hover:bg-amber-400 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-950 flex items-center justify-center transition-all cursor-pointer shadow-xs active:scale-95 shrink-0"
               title="Send Message"
             >
-              <ArrowUp className="h-3.5 w-3.5 stroke-[2.5]" />
+              <ArrowUp className="h-3 w-3 stroke-[2.5]" />
             </button>
           </div>
         </div>

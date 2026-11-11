@@ -505,17 +505,17 @@ export default function DocumentSidebar({
         /* Full Sidebar View */
         <>
           {/* Top Brand Header */}
-          <div className="px-4 pt-4 pb-3 flex items-center justify-between">
+          <div className="px-3 pt-3 pb-2 flex items-center justify-between">
             <div 
               onClick={onToggleCollapse}
               title="Collapse Sidebar"
-              className="flex items-center gap-2.5 cursor-pointer group"
+              className="flex items-center gap-2 cursor-pointer group"
             >
-              <div className="h-6 w-6 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500 group-hover:bg-amber-500/20 transition-colors">
-                <AppLogo className="h-4 w-4 block group-hover:hidden transition-all text-amber-500" />
-                <PanelLeftClose className="h-4 w-4 hidden group-hover:block transition-all text-zinc-200" />
+              <div className="h-5.5 w-5.5 rounded-md bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500 group-hover:bg-amber-500/20 transition-colors">
+                <AppLogo className="h-3.5 w-3.5 block group-hover:hidden transition-all text-amber-500" />
+                <PanelLeftClose className="h-3.5 w-3.5 hidden group-hover:block transition-all text-zinc-200" />
               </div>
-              <span className="font-semibold text-zinc-100 text-sm tracking-tight group-hover:text-amber-400 transition-colors">
+              <span className="font-semibold text-zinc-100 text-xs tracking-tight group-hover:text-amber-400 transition-colors">
                 {APP_CONFIG.name}
               </span>
             </div>
@@ -525,22 +525,22 @@ export default function DocumentSidebar({
                 type="button"
                 onClick={onToggleCollapse}
                 title="Collapse Sidebar"
-                className="p-1 rounded-lg text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800/60 transition-colors cursor-pointer"
+                className="p-1 rounded-md text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800/60 transition-colors cursor-pointer"
               >
-                <PanelLeftClose className="h-4 w-4" />
+                <PanelLeftClose className="h-3.5 w-3.5" />
               </button>
             )}
           </div>
 
           {/* Primary Navigation Actions */}
-          <div className="px-2 py-2 space-y-0.5 border-b border-zinc-800/40">
+          <div className="px-2 py-1.5 space-y-0.5 border-b border-zinc-800/40">
             {/* "+ New Chat" Action */}
             <button
               type="button"
               onClick={onNewChat}
-              className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13.5px] font-semibold text-amber-400 hover:text-amber-300 hover:bg-zinc-800/50 transition-colors cursor-pointer group text-left"
+              className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-xs font-semibold text-amber-400 hover:text-amber-300 hover:bg-zinc-800/50 transition-colors cursor-pointer group text-left"
             >
-              <SquarePen className="h-4 w-4 stroke-[2.2] group-hover:scale-110 transition-transform" />
+              <SquarePen className="h-3.5 w-3.5 stroke-[2.2] group-hover:scale-105 transition-transform" />
               <span>New Chat</span>
             </button>
 
@@ -548,9 +548,9 @@ export default function DocumentSidebar({
             <button
               type="button"
               onClick={onOpenSearchModal}
-              className="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[13.5px] text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/30 transition-colors cursor-pointer text-left group"
+              className="w-full flex items-center gap-2 px-2.5 py-1 rounded-md text-xs text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/40 transition-colors cursor-pointer text-left group"
             >
-              <Search className="h-3.5 w-3.5 text-zinc-500 group-hover:text-zinc-300 transition-colors" />
+              <Search className="h-3 w-3 text-zinc-500 group-hover:text-zinc-300 transition-colors" />
               <span>Search</span>
             </button>
 
@@ -559,9 +559,9 @@ export default function DocumentSidebar({
               <button
                 type="button"
                 onClick={onOpenBrainModal}
-                className="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[13.5px] text-zinc-400 hover:text-red-400 hover:bg-zinc-800/30 transition-colors cursor-pointer group text-left"
+                className="w-full flex items-center gap-2 px-2.5 py-1 rounded-md text-xs text-zinc-400 hover:text-red-400 hover:bg-zinc-800/40 transition-colors cursor-pointer group text-left"
               >
-                <Brain className="h-3.5 w-3.5 text-zinc-500 group-hover:text-red-400 transition-colors" />
+                <Brain className="h-3 w-3 text-zinc-500 group-hover:text-red-400 transition-colors" />
                 <span>Brain</span>
               </button>
             )}
@@ -570,9 +570,9 @@ export default function DocumentSidebar({
             <button
               type="button"
               onClick={onOpenLitReview}
-              className="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[13.5px] text-zinc-400 hover:text-amber-400 hover:bg-zinc-800/30 transition-colors cursor-pointer group text-left"
+              className="w-full flex items-center gap-2 px-2.5 py-1 rounded-md text-xs text-zinc-400 hover:text-amber-400 hover:bg-zinc-800/40 transition-colors cursor-pointer group text-left"
             >
-              <BookOpen className="h-3.5 w-3.5 text-zinc-500 group-hover:text-amber-400 transition-colors" />
+              <BookOpen className="h-3 w-3 text-zinc-500 group-hover:text-amber-400 transition-colors" />
               <span>Literature Review Studio</span>
             </button>
 
@@ -581,13 +581,13 @@ export default function DocumentSidebar({
               <button
                 type="button"
                 onClick={onToggleWriter}
-                className={`w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[13.5px] transition-colors cursor-pointer group text-left ${
+                className={`w-full flex items-center gap-2 px-2.5 py-1 rounded-md text-xs transition-colors cursor-pointer group text-left ${
                   isWriterActive
                     ? 'bg-amber-500/15 text-amber-300 font-medium border border-amber-500/30'
-                    : 'text-zinc-400 hover:text-amber-400 hover:bg-zinc-800/30'
+                    : 'text-zinc-400 hover:text-amber-400 hover:bg-zinc-800/40'
                 }`}
               >
-                <PenTool className={`h-3.5 w-3.5 ${isWriterActive ? 'text-amber-400' : 'text-zinc-500 group-hover:text-amber-400'} transition-colors`} />
+                <PenTool className={`h-3 w-3 ${isWriterActive ? 'text-amber-400' : 'text-zinc-500 group-hover:text-amber-400'} transition-colors`} />
                 <span>Academic Writer</span>
               </button>
             )}
@@ -597,13 +597,13 @@ export default function DocumentSidebar({
               <button
                 type="button"
                 onClick={onToggleLibrary}
-                className={`w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[13.5px] transition-colors cursor-pointer group text-left ${
+                className={`w-full flex items-center gap-2 px-2.5 py-1 rounded-md text-xs transition-colors cursor-pointer group text-left ${
                   isLibraryActive
                     ? 'bg-amber-500/15 text-amber-300 font-medium border border-amber-500/30'
-                    : 'text-zinc-400 hover:text-amber-400 hover:bg-zinc-800/30'
+                    : 'text-zinc-400 hover:text-amber-400 hover:bg-zinc-800/40'
                 }`}
               >
-                <BookMarked className={`h-3.5 w-3.5 ${isLibraryActive ? 'text-amber-400' : 'text-zinc-500 group-hover:text-amber-400'} transition-colors`} />
+                <BookMarked className={`h-3 w-3 ${isLibraryActive ? 'text-amber-400' : 'text-zinc-500 group-hover:text-amber-400'} transition-colors`} />
                 <span>Reference Library</span>
               </button>
             )}
@@ -612,9 +612,9 @@ export default function DocumentSidebar({
             <button
               type="button"
               onClick={onOpenThemeModal}
-              className="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[13.5px] transition-colors cursor-pointer text-left text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/30"
+              className="w-full flex items-center gap-2 px-2.5 py-1 rounded-md text-xs transition-colors cursor-pointer text-left text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/40"
             >
-              <Palette className="h-3.5 w-3.5 text-zinc-500 shrink-0" />
+              <Palette className="h-3 w-3 text-zinc-500 shrink-0" />
               <span>Theme</span>
             </button>
           </div>
@@ -623,24 +623,24 @@ export default function DocumentSidebar({
           <div className="flex-1 overflow-y-auto px-2 py-3 space-y-4">
             {/* RECENT ACTIVITY SECTION (Top 3-5 Active Chats Across All Workspaces) */}
             {recentActivityChats.length > 0 && (
-              <div className="space-y-1.5">
+              <div className="space-y-1">
                 <button
                   type="button"
                   onClick={() => setIsRecentOpen((prev) => !prev)}
-                  className="w-full flex items-center justify-between px-2 py-1 text-xs font-semibold tracking-wider text-zinc-500 hover:text-zinc-300 transition-colors uppercase cursor-pointer text-left"
+                  className="w-full flex items-center justify-between px-2 py-0.5 text-[10px] font-semibold tracking-wider text-zinc-500 hover:text-zinc-300 transition-colors uppercase cursor-pointer text-left"
                 >
                   <div className="flex items-center gap-1.5 min-w-0">
-                    <History className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                    <History className="h-3 w-3 text-amber-400 shrink-0" />
                     <span className="truncate">Recent Activity</span>
                   </div>
                   <div className="flex items-center gap-1 shrink-0 text-zinc-500">
-                    <span className="text-[10px] font-mono font-normal text-zinc-400 bg-zinc-800/70 px-1.5 py-0.5 rounded-full">
+                    <span className="text-[9.5px] font-mono font-normal text-zinc-400 bg-zinc-800/70 px-1 py-0.2 rounded-full">
                       {recentActivityChats.length}
                     </span>
                     {isRecentOpen ? (
-                      <ChevronDown className="h-3 w-3 text-zinc-400" />
+                      <ChevronDown className="h-2.5 w-2.5 text-zinc-400" />
                     ) : (
-                      <ChevronRight className="h-3 w-3 text-zinc-400" />
+                      <ChevronRight className="h-2.5 w-2.5 text-zinc-400" />
                     )}
                   </div>
                 </button>
@@ -656,15 +656,15 @@ export default function DocumentSidebar({
                           key={chat.id}
                           onClick={() => handleSelectRecentChat(chat)}
                           onContextMenu={(e) => handleContextMenu(e, 'chat', chat.id, chat.workspaceId)}
-                          className={`group flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs cursor-pointer transition-colors relative border-l-2 ${
+                          className={`group flex items-center justify-between px-2 py-1 rounded-md text-[11.5px] cursor-pointer transition-colors relative border-l-2 ${
                             isActive
                               ? 'bg-amber-500/15 text-amber-300 font-medium border-amber-400'
                               : 'border-transparent hover:border-zinc-700 text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800/40'
                           }`}
                         >
-                          <div className="flex items-center gap-2 truncate min-w-0 pr-1 flex-1">
+                          <div className="flex items-center gap-1.5 truncate min-w-0 pr-1 flex-1">
                             <MessageSquare
-                              className={`h-3.5 w-3.5 shrink-0 ${
+                              className={`h-3 w-3 shrink-0 ${
                                 isActive ? 'text-amber-400' : 'text-zinc-500 group-hover:text-zinc-100'
                               }`}
                             />
@@ -698,14 +698,14 @@ export default function DocumentSidebar({
                                     e.stopPropagation();
                                     startChatRename(chat, chat.workspaceId);
                                   }}
-                                  className="truncate text-[12.5px] select-none"
+                                  className="truncate text-[11.5px] select-none"
                                   title={chat.title || 'Chat'}
                                 >
                                   {chat.title || 'Chat'}
                                 </span>
                                 {chat.workspaceName && (
-                                  <span className="text-[10px] text-zinc-500 truncate leading-tight mt-0.5 flex items-center gap-1">
-                                    <Folder className="h-2.5 w-2.5 text-amber-400/60 shrink-0" />
+                                  <span className="text-[9.5px] text-zinc-500 truncate leading-tight mt-0.5 flex items-center gap-1">
+                                    <Folder className="h-2 w-2 text-amber-400/60 shrink-0" />
                                     <span className="truncate">{chat.workspaceName}</span>
                                   </span>
                                 )}
@@ -719,9 +719,9 @@ export default function DocumentSidebar({
                               type="button"
                               onClick={(e) => handleOpenThreeDots(e, 'chat', chat.id, chat.workspaceId)}
                               title="Chat options"
-                              className="opacity-0 group-hover:opacity-100 p-1 rounded text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-opacity cursor-pointer"
+                              className="opacity-0 group-hover:opacity-100 p-0.5 rounded text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-opacity cursor-pointer"
                             >
-                              <MoreVertical className="h-3.5 w-3.5" />
+                              <MoreVertical className="h-3 w-3" />
                             </button>
                           </div>
                         </div>
@@ -733,38 +733,38 @@ export default function DocumentSidebar({
             )}
 
             {/* WORKSPACES SECTION */}
-            <div className="space-y-1.5">
-              <div className="px-2 py-1 text-xs font-semibold tracking-wider text-zinc-500 flex items-center justify-between uppercase">
+            <div className="space-y-1">
+              <div className="px-2 py-0.5 text-[10px] font-semibold tracking-wider text-zinc-500 flex items-center justify-between uppercase">
                 <span>Workspaces</span>
                 {onOpenCreateModal && (
                   <button
                     type="button"
                     onClick={onOpenCreateModal}
                     title="Create New Workspace"
-                    className="text-zinc-400 hover:text-amber-400 px-1.5 py-0.5 rounded transition-colors cursor-pointer flex items-center gap-1 text-[11px] font-medium"
+                    className="text-zinc-400 hover:text-amber-400 px-1 py-0.2 rounded transition-colors cursor-pointer flex items-center gap-1 text-[10.5px] font-medium"
                   >
-                    <Plus className="h-3.5 w-3.5 stroke-[2.5]" />
+                    <Plus className="h-3 w-3 stroke-[2.5]" />
                     <span>New</span>
                   </button>
                 )}
               </div>
 
               {workspaces.length === 0 ? (
-                <div className="px-3 py-6 rounded-xl border border-dashed border-zinc-800/80 text-center flex flex-col items-center justify-center bg-zinc-950/20">
-                  <p className="text-xs text-zinc-400 mb-2.5">No workspaces yet</p>
+                <div className="px-3 py-4 rounded-lg border border-dashed border-zinc-800/80 text-center flex flex-col items-center justify-center bg-zinc-950/20">
+                  <p className="text-[11px] text-zinc-400 mb-2">No workspaces yet</p>
                   {onOpenCreateModal && (
                     <button
                       type="button"
                       onClick={onOpenCreateModal}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-400 hover:bg-amber-300 text-zinc-950 font-semibold text-xs shadow-md shadow-amber-950/30 transition-all cursor-pointer"
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-amber-400 hover:bg-amber-300 text-zinc-950 font-semibold text-[11px] shadow transition-all cursor-pointer"
                     >
-                      <Plus className="h-3.5 w-3.5 stroke-[2.5]" />
+                      <Plus className="h-3 w-3 stroke-[2.5]" />
                       <span>Create Workspace</span>
                     </button>
                   )}
                 </div>
               ) : (
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   {workspaces.map((ws) => {
                     const isExpanded = expandedWorkspaces.has(ws.id);
                     const chats = ws.chats || [];
@@ -773,12 +773,12 @@ export default function DocumentSidebar({
                     const isEditingThisWs = editingWorkspaceId === ws.id;
 
                     return (
-                      <div key={ws.id} className="rounded-xl overflow-hidden bg-zinc-950/40 border border-zinc-800/60">
+                      <div key={ws.id} className="rounded-lg overflow-hidden bg-zinc-950/40 border border-zinc-800/60">
                         {/* Workspace Root Header Row */}
                         <div
                           onClick={() => toggleWorkspaceExpanded(ws.id)}
                           onContextMenu={(e) => handleContextMenu(e, 'workspace', ws.id)}
-                          className={`group flex items-center justify-between px-2.5 py-2 cursor-pointer transition-colors relative ${
+                          className={`group flex items-center justify-between px-2 py-1.5 cursor-pointer transition-colors relative ${
                             isCurrentWorkspace
                               ? 'bg-zinc-800/50 text-zinc-100 font-medium'
                               : 'text-zinc-300 hover:bg-zinc-800/30 hover:text-zinc-100'
@@ -863,9 +863,9 @@ export default function DocumentSidebar({
 
                         {/* Indented Child Chats List */}
                         {isExpanded && (
-                          <div className="pl-3 pr-1.5 pb-1 pt-0.5 space-y-0.5">
+                          <div className="pl-2.5 pr-1 pb-1 pt-0.5 space-y-0.5">
                             {chats.length === 0 ? (
-                              <div className="text-[11.5px] text-zinc-500 italic py-1 px-3">
+                              <div className="text-[10.5px] text-zinc-500 italic py-0.5 px-2">
                                 No chats yet. Click + to add.
                               </div>
                             ) : (
@@ -878,16 +878,16 @@ export default function DocumentSidebar({
                                     key={chat.id}
                                     onClick={() => onSelectWorkspaceChat(ws.id, chat.id)}
                                     onContextMenu={(e) => handleContextMenu(e, 'chat', chat.id, ws.id)}
-                                    className={`group/chat flex items-center justify-between pl-3 pr-1.5 py-1.5 rounded-lg text-[12.5px] cursor-pointer transition-colors relative border-l-2 ${
+                                    className={`group/chat flex items-center justify-between pl-2 pr-1 py-1 rounded-md text-[11px] cursor-pointer transition-colors relative border-l-2 ${
                                       isActive
                                         ? 'bg-amber-500/15 text-amber-300 font-medium border-amber-400'
                                         : 'border-transparent hover:border-zinc-600 text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800/40'
                                     }`}
                                   >
-                                    <div className="flex items-center gap-2 truncate min-w-0 pr-1 flex-1">
-                                      <span className="text-zinc-600 font-mono text-[11px] select-none">|_</span>
+                                    <div className="flex items-center gap-1.5 truncate min-w-0 pr-1 flex-1">
+                                      <span className="text-zinc-600 font-mono text-[10px] select-none">|_</span>
                                       <MessageSquare
-                                        className={`h-3 w-3 shrink-0 ${
+                                        className={`h-2.5 w-2.5 shrink-0 ${
                                           isActive ? 'text-amber-400' : 'text-zinc-500 group-hover/chat:text-zinc-100'
                                         }`}
                                       />

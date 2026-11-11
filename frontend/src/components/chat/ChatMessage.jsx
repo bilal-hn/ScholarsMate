@@ -344,42 +344,42 @@ function ChatMessage({ message, index, onSelectCitation }) {
   return (
     <div 
       id={index !== undefined ? `chat-msg-${index}` : undefined} 
-      className="w-full flex flex-col items-center justify-center my-3 animate-in fade-in duration-200 scroll-mt-6 transition-all"
+      className="w-full flex flex-col items-center justify-center my-2 animate-in fade-in duration-200 scroll-mt-6 transition-all"
     >
       {isBot ? (
         /* ===================================================================
-           BOT RESPONSE CARD (Centralized, Odysseus / OpenWebUI Inspired)
+           BOT RESPONSE CARD (Compact, High-Density Desktop Style)
            =================================================================== */
-        <div className="w-full max-w-2xl bg-zinc-900/90 hover:bg-zinc-900 border border-zinc-800/80 hover:border-zinc-800 rounded-2xl p-4 sm:p-5 shadow-xl transition-all relative backdrop-blur-sm">
+        <div className="w-full max-w-2xl bg-zinc-900/95 border border-zinc-800 rounded-xl p-3.5 sm:p-4 shadow-md transition-all relative">
           {/* Header: Model Badge + Timestamp */}
-          <div className="flex items-center justify-between pb-3 mb-3 border-b border-zinc-800/60 select-none">
+          <div className="flex items-center justify-between pb-2 mb-2 border-b border-zinc-800/60 select-none">
             <div className="flex items-center gap-2">
               {/* Sleek Model Tag with @ prefix */}
-              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-zinc-950/70 border border-zinc-800/80 text-zinc-300 font-mono text-[11.5px] font-medium shadow-2xs">
+              <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-zinc-950 border border-zinc-800 text-zinc-300 font-mono text-[11px] font-medium">
                 <span className="text-amber-400 font-semibold text-xs">@</span>
                 <span className="text-zinc-200 tracking-tight">{cleanModelTag}</span>
               </div>
             </div>
 
             {timeString && (
-              <span className="text-[11px] font-mono text-zinc-500 font-normal">
+              <span className="text-[10.5px] font-mono text-zinc-500 font-normal">
                 {timeString}
               </span>
             )}
           </div>
 
-          <div className="space-y-3">
+          <div className="space-y-2.5">
             {/* Status Pill 1: Sources / Referenced Papers Accordion */}
             {message.sources && message.sources.length > 0 && (
-              <div className="border border-zinc-800/80 rounded-xl overflow-hidden bg-zinc-950/40 shadow-xs">
+              <div className="border border-zinc-800/80 rounded-lg overflow-hidden bg-zinc-950/40">
                 <button
                   type="button"
                   onClick={() => setShowSources((prev) => !prev)}
-                  className="w-full flex items-center justify-between px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 bg-zinc-950/60 hover:bg-zinc-950/90 transition-colors cursor-pointer"
+                  className="w-full flex items-center justify-between px-2.5 py-1 text-xs text-zinc-400 hover:text-zinc-200 bg-zinc-950/60 hover:bg-zinc-950/90 transition-colors cursor-pointer"
                 >
-                  <div className="flex items-center gap-2">
-                    <Layers className="h-3.5 w-3.5 text-amber-400" />
-                    <span className="font-mono text-[11.5px] text-zinc-300">
+                  <div className="flex items-center gap-1.5">
+                    <Layers className="h-3 w-3 text-amber-400" />
+                    <span className="font-mono text-[11px] text-zinc-300">
                       {message.sources.length} Referenced {message.sources.length === 1 ? 'Source' : 'Sources'}
                     </span>
                   </div>
@@ -391,18 +391,18 @@ function ChatMessage({ message, index, onSelectCitation }) {
                 </button>
 
                 {showSources && (
-                  <div className="p-2.5 border-t border-zinc-800/60 bg-zinc-950/80 flex flex-wrap gap-1.5 animate-in fade-in duration-150">
+                  <div className="p-2 border-t border-zinc-800/60 bg-zinc-950/80 flex flex-wrap gap-1 animate-in fade-in duration-150">
                     {message.sources.map((src, sIdx) => (
                       <button
                         key={sIdx}
                         type="button"
                         onClick={() => onSelectCitation && onSelectCitation(src.doc_name, src.page_number)}
-                        className="inline-flex items-center gap-1.5 text-[11px] font-mono bg-zinc-900 border border-zinc-800 hover:border-amber-500/40 text-zinc-200 hover:text-zinc-100 px-2 py-1 rounded-lg transition-colors cursor-pointer group"
+                        className="inline-flex items-center gap-1 text-[10.5px] font-mono bg-zinc-900 border border-zinc-800 hover:border-amber-500/40 text-zinc-200 hover:text-zinc-100 px-1.5 py-0.5 rounded transition-colors cursor-pointer group"
                         title={`Jump to page ${src.page_number} of ${src.doc_name}`}
                       >
-                        <FileText className="h-3 w-3 text-amber-400 shrink-0 group-hover:scale-105 transition-transform" />
-                        <span className="truncate max-w-[180px]">{src.doc_name}</span>
-                        <span className="text-zinc-500 text-[10px]">p.{src.page_number}</span>
+                        <FileText className="h-2.5 w-2.5 text-amber-400 shrink-0" />
+                        <span className="truncate max-w-[160px]">{src.doc_name}</span>
+                        <span className="text-zinc-500 text-[9.5px]">p.{src.page_number}</span>
                       </button>
                     ))}
                   </div>
@@ -412,21 +412,21 @@ function ChatMessage({ message, index, onSelectCitation }) {
 
             {/* Status Pill 2: Thinking / Reasoning Trace Accordion */}
             {message.thinking_process && (
-              <div className="border border-zinc-800/80 rounded-xl overflow-hidden bg-zinc-950/40 shadow-xs">
+              <div className="border border-zinc-800/80 rounded-lg overflow-hidden bg-zinc-950/40">
                 <button
                   type="button"
                   onClick={() => setShowThinking((prev) => !prev)}
-                  className="w-full flex items-center justify-between px-3 py-1.5 text-xs text-zinc-400 hover:text-zinc-200 bg-zinc-950/60 hover:bg-zinc-950/90 transition-colors cursor-pointer"
+                  className="w-full flex items-center justify-between px-2.5 py-1 text-xs text-zinc-400 hover:text-zinc-200 bg-zinc-950/60 hover:bg-zinc-950/90 transition-colors cursor-pointer"
                 >
-                  <div className="flex items-center gap-2">
-                    <Brain className="h-3.5 w-3.5 text-amber-400 animate-pulse" />
-                    <span className="font-sans text-[11.5px] font-medium text-zinc-300">
+                  <div className="flex items-center gap-1.5">
+                    <Brain className="h-3 w-3 text-amber-400 animate-pulse" />
+                    <span className="font-sans text-[11px] font-medium text-zinc-300">
                       View thinking process
                     </span>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
                     {responseTime && (
-                      <span className="text-[10px] font-mono text-zinc-500 bg-zinc-900 px-1.5 py-0.2 rounded border border-zinc-800">
+                      <span className="text-[9.5px] font-mono text-zinc-500 bg-zinc-900 px-1 py-0.2 rounded border border-zinc-800">
                         {responseTime}
                       </span>
                     )}
@@ -439,7 +439,7 @@ function ChatMessage({ message, index, onSelectCitation }) {
                 </button>
 
                 {showThinking && (
-                  <div className="px-3.5 pb-3 pt-2 text-xs text-zinc-400 font-mono whitespace-pre-wrap border-t border-zinc-800/60 bg-zinc-950/90 max-h-56 overflow-y-auto leading-relaxed">
+                  <div className="px-3 pb-2.5 pt-1.5 text-[11px] text-zinc-400 font-mono whitespace-pre-wrap border-t border-zinc-800/60 bg-zinc-950/90 max-h-48 overflow-y-auto leading-relaxed">
                     {message.thinking_process}
                   </div>
                 )}
@@ -447,7 +447,7 @@ function ChatMessage({ message, index, onSelectCitation }) {
             )}
 
             {/* Synthesized Response Body */}
-            <div ref={messageBodyRef} className="prose prose-invert max-w-none text-zinc-200 text-[13.5px] leading-relaxed tracking-normal font-sans pt-1 select-text">
+            <div ref={messageBodyRef} className="prose prose-invert max-w-none text-zinc-200 text-[12.5px] leading-relaxed tracking-normal font-sans pt-0.5 select-text">
               <ReactMarkdown
                 remarkPlugins={[remarkGfm, remarkMath]}
                 rehypePlugins={[rehypeKatex]}
@@ -507,32 +507,32 @@ function ChatMessage({ message, index, onSelectCitation }) {
                     );
                   },
                   h1: ({ children }) => (
-                    <h1 className="text-base font-bold text-zinc-100 mt-4 mb-2 tracking-tight border-b border-zinc-800 pb-1.5">
+                    <h1 className="text-sm font-bold text-zinc-100 mt-3 mb-1.5 tracking-tight border-b border-zinc-800 pb-1">
                       {children}
                     </h1>
                   ),
                   h2: ({ children }) => (
-                    <h2 className="text-sm font-semibold text-zinc-100 mt-3 mb-1.5 tracking-tight border-b border-zinc-800/50 pb-1">
+                    <h2 className="text-[13px] font-semibold text-zinc-100 mt-2.5 mb-1 tracking-tight border-b border-zinc-800/50 pb-0.5">
                       {children}
                     </h2>
                   ),
                   h3: ({ children }) => (
-                    <h3 className="text-xs font-semibold text-amber-400 mt-2.5 mb-1 uppercase tracking-wider">
+                    <h3 className="text-[11.5px] font-semibold text-amber-400 mt-2 mb-0.5 uppercase tracking-wider">
                       {children}
                     </h3>
                   ),
                   p: ({ children }) => (
-                    <p className="my-2 text-zinc-300 leading-relaxed font-normal">
+                    <p className="my-1.5 text-zinc-300 leading-relaxed font-normal">
                       {children}
                     </p>
                   ),
                   ul: ({ children }) => (
-                    <ul className="my-2 space-y-1 pl-4 list-disc marker:text-amber-400/80">
+                    <ul className="my-1.5 space-y-0.5 pl-4 list-disc marker:text-amber-400/80">
                       {children}
                     </ul>
                   ),
                   ol: ({ children }) => (
-                    <ol className="my-2 space-y-1 pl-4 list-decimal marker:text-amber-400/80">
+                    <ol className="my-1.5 space-y-0.5 pl-4 list-decimal marker:text-amber-400/80">
                       {children}
                     </ol>
                   ),
@@ -545,23 +545,23 @@ function ChatMessage({ message, index, onSelectCitation }) {
                     <strong className="font-semibold text-zinc-100">{children}</strong>
                   ),
                   blockquote: ({ children }) => (
-                    <blockquote className="border-l-2 border-amber-500/80 pl-3 py-0.5 my-3 bg-amber-500/5 rounded-r-lg italic text-zinc-400 text-xs">
+                    <blockquote className="border-l-2 border-amber-500/80 pl-2.5 py-0.5 my-2 bg-amber-500/5 rounded-r italic text-zinc-400 text-[11.5px]">
                       {children}
                     </blockquote>
                   ),
 
                   /* --- Native GFM Table Renderers --- */
                   table: ({ children }) => (
-                    <div className="my-4 w-full overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900 shadow-md">
+                    <div className="my-2.5 w-full overflow-hidden rounded-lg border border-zinc-800 bg-zinc-900 shadow-xs">
                       <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse text-xs">
+                        <table className="w-full text-left border-collapse text-[11.5px]">
                           {children}
                         </table>
                       </div>
                     </div>
                   ),
                   thead: ({ children }) => (
-                    <thead className="bg-zinc-800 border-b border-zinc-700/60 text-[10.5px] uppercase tracking-wider text-amber-400 font-semibold">
+                    <thead className="bg-zinc-800/90 border-b border-zinc-700/60 text-[10px] uppercase tracking-wider text-amber-400 font-semibold">
                       {children}
                     </thead>
                   ),
@@ -576,12 +576,12 @@ function ChatMessage({ message, index, onSelectCitation }) {
                     </tr>
                   ),
                   th: ({ children }) => (
-                    <th className="py-2.5 px-3 font-semibold text-amber-400 text-left">
+                    <th className="py-1.5 px-2.5 font-semibold text-amber-400 text-left">
                       {children}
                     </th>
                   ),
                   td: ({ children }) => (
-                    <td className="py-2.5 px-3 leading-relaxed align-top">
+                    <td className="py-1.5 px-2.5 leading-relaxed align-top">
                       {children}
                     </td>
                   ),
@@ -604,17 +604,17 @@ function ChatMessage({ message, index, onSelectCitation }) {
                       }
                     }
                     return inline ? (
-                      <code className="bg-zinc-800/80 text-amber-300 font-mono text-[11.5px] px-1 py-0.5 rounded border border-zinc-700/60" {...props}>
+                      <code className="bg-zinc-800/80 text-amber-300 font-mono text-[11px] px-1 py-0.2 rounded border border-zinc-700/60" {...props}>
                         {children}
                       </code>
                     ) : (
-                      <code className="font-mono text-xs text-zinc-200 block overflow-x-auto whitespace-pre-wrap" {...props}>
+                      <code className="font-mono text-[11.5px] text-zinc-200 block overflow-x-auto whitespace-pre-wrap" {...props}>
                         {children}
                       </code>
                     );
                   },
                   pre: ({ children }) => (
-                    <div className="my-3 rounded-xl border border-zinc-800 bg-zinc-950/70 p-3 overflow-x-auto font-mono text-xs leading-relaxed text-zinc-200">
+                    <div className="my-2 rounded-lg border border-zinc-800 bg-zinc-950/80 p-2.5 overflow-x-auto font-mono text-[11.5px] leading-relaxed text-zinc-200">
                       {children}
                     </div>
                   )
@@ -625,7 +625,7 @@ function ChatMessage({ message, index, onSelectCitation }) {
             </div>
 
             {/* Bottom Telemetry & Actions Footer Toolbar */}
-            <div className="flex items-center justify-between pt-3 mt-3 border-t border-zinc-800/60 text-[11px] text-zinc-500 font-mono select-none">
+            <div className="flex items-center justify-between pt-2 mt-2 border-t border-zinc-800/60 text-[10.5px] text-zinc-500 font-mono select-none">
               {/* Left: Telemetry Data (Tokens, Latency, Speed) */}
               <div className="flex items-center gap-2 flex-wrap">
                 {tokenCount !== null && tokenCount > 0 && (
@@ -655,7 +655,7 @@ function ChatMessage({ message, index, onSelectCitation }) {
                 {appliedModeName && (
                   <>
                     <span className="text-zinc-700">|</span>
-                    <span className="px-1.5 py-0.5 rounded text-[10px] font-sans border font-medium text-zinc-400 border-zinc-800 bg-zinc-900/90">
+                    <span className="px-1.5 py-0.2 rounded text-[9.5px] font-sans border font-medium text-zinc-400 border-zinc-800 bg-zinc-900/90">
                       {appliedModeName}
                     </span>
                   </>
@@ -667,18 +667,18 @@ function ChatMessage({ message, index, onSelectCitation }) {
                 <button
                   type="button"
                   onClick={handleCopy}
-                  className="flex items-center gap-1 px-2 py-0.5 rounded-md hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer"
+                  className="flex items-center gap-1 px-1.5 py-0.5 rounded hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer"
                   title="Copy formatted response to clipboard"
                 >
                   {copied ? (
                     <>
                       <Check className="h-3 w-3 text-emerald-400" />
-                      <span className="text-emerald-400 text-[10px]">Copied</span>
+                      <span className="text-emerald-400 text-[9.5px]">Copied</span>
                     </>
                   ) : (
                     <>
                       <Copy className="h-3 w-3" />
-                      <span className="text-[10px]">Copy</span>
+                      <span className="text-[9.5px]">Copy</span>
                     </>
                   )}
                 </button>
@@ -688,12 +688,12 @@ function ChatMessage({ message, index, onSelectCitation }) {
         </div>
       ) : (
         /* ===================================================================
-           USER PROMPT BUBBLE (Right-Aligned, Odysseus Style with Header)
+           USER PROMPT BUBBLE (Compact, Right-Aligned)
            =================================================================== */
         <div className="w-full max-w-2xl flex flex-col items-end">
-          <div className="w-full max-w-lg">
+          <div className="w-full max-w-md">
             {/* User Message Header */}
-            <div className="flex items-center justify-between px-2 pb-1.5 text-[11px] font-mono text-zinc-500 select-none">
+            <div className="flex items-center justify-between px-2 pb-1 text-[10.5px] font-mono text-zinc-500 select-none">
               <div className="flex items-center gap-1 text-zinc-400 font-medium">
                 <span className="text-amber-400">•</span>
                 <span>You</span>
@@ -704,17 +704,17 @@ function ChatMessage({ message, index, onSelectCitation }) {
             </div>
 
             {/* Bubble Content */}
-            <div className="bg-zinc-900 hover:bg-zinc-900/95 text-zinc-100 border border-zinc-800 font-normal px-4 py-3 rounded-2xl shadow-md text-[13.5px] whitespace-pre-wrap leading-relaxed select-text">
+            <div className="bg-zinc-900 text-zinc-100 border border-zinc-800 font-normal px-3.5 py-2.5 rounded-xl shadow-xs text-[12.5px] whitespace-pre-wrap leading-relaxed select-text">
               {/* Attached Paper Badges in User Bubble */}
               {message.attached_docs && message.attached_docs.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 mb-2.5 pb-2 border-b border-zinc-800/80">
+                <div className="flex flex-wrap gap-1 mb-2 pb-1.5 border-b border-zinc-800/80">
                   {message.attached_docs.map((doc) => (
                     <div
                       key={doc}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-zinc-800/90 border border-zinc-700/80 text-zinc-200 text-xs font-sans shadow-sm"
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-zinc-800 border border-zinc-700/80 text-zinc-200 text-[11px] font-sans"
                     >
-                      <FileText className="h-3 w-3 text-amber-400 shrink-0" />
-                      <span className="truncate max-w-[200px] text-[11.5px] font-medium" title={doc}>
+                      <FileText className="h-2.5 w-2.5 text-amber-400 shrink-0" />
+                      <span className="truncate max-w-[180px] text-[11px] font-medium" title={doc}>
                         {doc}
                       </span>
                     </div>
@@ -725,26 +725,25 @@ function ChatMessage({ message, index, onSelectCitation }) {
               {/* Attached Image Badges in User Bubble */}
               {((message.attached_images && message.attached_images.length > 0) ||
                 (message.meta?.attached_images && message.meta.attached_images.length > 0)) && (
-                <div className="flex flex-wrap gap-2 mb-2.5 pb-2 border-b border-zinc-800/80">
+                <div className="flex flex-wrap gap-1.5 mb-2 pb-1.5 border-b border-zinc-800/80">
                   {(message.attached_images || message.meta.attached_images).map((img, i) => (
                     <div
                       key={i}
-                      className="inline-flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-zinc-800/90 border border-zinc-700/80 text-zinc-200 text-xs font-sans shadow-sm"
+                      className="inline-flex items-center gap-1.5 px-2 py-1 rounded bg-zinc-800 border border-zinc-700/80 text-zinc-200 text-xs font-sans"
                     >
                       {img.previewUrl ? (
                         <img
                           src={img.previewUrl}
                           alt={img.name || 'Image'}
-                          className="h-6 w-6 rounded object-cover border border-zinc-700 shrink-0"
+                          className="h-5 w-5 rounded object-cover border border-zinc-700 shrink-0"
                         />
                       ) : (
-                        <Image className="h-3.5 w-3.5 text-sky-400 shrink-0" />
+                        <Image className="h-3 w-3 text-sky-400 shrink-0" />
                       )}
                       <div className="flex flex-col">
-                        <span className="truncate max-w-[160px] text-[11.5px] font-medium leading-tight" title={img.name}>
+                        <span className="truncate max-w-[140px] text-[11px] font-medium leading-tight" title={img.name}>
                           {img.name || 'Image'}
                         </span>
-                        <span className="text-[9.5px] text-zinc-400 font-mono">Image attached</span>
                       </div>
                     </div>
                   ))}
