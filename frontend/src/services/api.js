@@ -1150,4 +1150,37 @@ export const importLibraryTextAPI = async (content, workspaceId = null, filename
   }
 };
 
+/**
+ * Scans library for duplicate references (FR-17.6).
+ * @returns {Promise<{groups: Array, total_groups: number, total_duplicate_items: number}>}
+ */
+export const getLibraryDuplicatesAPI = async () => {
+  try {
+    const response = await apiClient.get('/library/duplicates');
+    return response.data;
+  } catch (error) {
+    console.error('Failed to detect library duplicates:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+/**
+ * Merges duplicate references into a canonical reference (FR-17.6).
+ * @param {string} canonicalItemId - ID of the record to keep
+ * @param {Array<string>} duplicateItemIds - IDs of duplicate records to merge & remove
+ * @returns {Promise<{success: boolean, message: string, merged_item: Object, deleted_item_ids: Array<string>}>}
+ */
+export const mergeLibraryDuplicatesAPI = async (canonicalItemId, duplicateItemIds) => {
+  try {
+    const response = await apiClient.post('/library/merge-duplicates', {
+      canonical_item_id: canonicalItemId,
+      duplicate_item_ids: duplicateItemIds,
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Failed to merge duplicate items:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
 

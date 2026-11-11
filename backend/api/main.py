@@ -81,11 +81,18 @@ from backend.api.schemas import (
     BibliographicImportResponse,
     DownloadPdfResponse,
     CreateManualItemRequest,
+    DuplicateGroup,
+    DuplicateDetectionResponse,
+    MergeDuplicatesRequest,
+    MergeDuplicatesResponse,
 )
 from backend.ingestion.pipeline import process_path
 from backend.ingestion.bibliographic_extractor import extract_bibliographic_metadata
 from backend.ingestion.oa_pdf_downloader import auto_download_and_attach_oa_pdf
+from backend.ingestion.duplicate_detector import detect_duplicates, merge_duplicate_records
 from backend.ingestion.identifier_resolver import (
+    clean_doi,
+    clean_arxiv_id,
     resolve_identifier,
     fetch_crossref_metadata,
     fetch_arxiv_metadata,
@@ -1946,6 +1953,83 @@ async def list_user_library(
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch library: {str(e)}")
+
+
+@app.get("/api/library/duplicates", response_model=DuplicateDetectionResponse)
+async def detect_library_duplicates_endpoint(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Scans user's library for duplicate references via DOI, arXiv, title, and file hash (FR-17.6).
+    """
+    docs = await crud.get_user_library(db, user_id=current_user.id)
+    duplicate_clusters = detect_duplicates(docs)
+
+    workspaces = await crud.get_user_workspaces(db, user_id=current_user.id)
+    ws_map: Dict[str, List[Dict[str, str]]] = {}
+    for ws in workspaces:
+        for d in (ws.doc_names or []):
+            ws_map.setdefault(d, []).append({"id": ws.id, "name": ws.name})
+
+    groups: List[DuplicateGroup] = []
+    total_items = 0
+    for cluster in duplicate_clusters:
+        group_items = [_build_library_item(doc, ws_map) for doc in cluster["items"]]
+        groups.append(
+            DuplicateGroup(
+                group_id=cluster["group_id"],
+                match_reason=cluster["match_reason"],
+                total_items=len(group_items),
+                items=group_items
+            )
+        )
+        total_items += len(group_items)
+
+    return DuplicateDetectionResponse(
+        groups=groups,
+        total_groups=len(groups),
+        total_duplicate_items=total_items
+    )
+
+
+@app.post("/api/library/merge-duplicates", response_model=MergeDuplicatesResponse)
+async def merge_library_duplicates_endpoint(
+    req: MergeDuplicatesRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Merges multiple duplicate records into a canonical record (FR-17.6).
+    """
+    if not req.canonical_item_id:
+        raise HTTPException(status_code=400, detail="Must provide canonical_item_id to keep.")
+    if not req.duplicate_item_ids:
+        raise HTTPException(status_code=400, detail="Must provide at least one duplicate_item_id to merge.")
+
+    merged_doc = await merge_duplicate_records(
+        db=db,
+        canonical_id=req.canonical_item_id,
+        duplicate_ids=req.duplicate_item_ids,
+        user_id=current_user.id
+    )
+    if not merged_doc:
+        raise HTTPException(status_code=404, detail="Canonical document not found.")
+
+    workspaces = await crud.get_user_workspaces(db, user_id=current_user.id)
+    ws_map: Dict[str, List[Dict[str, str]]] = {}
+    for ws in workspaces:
+        for d in (ws.doc_names or []):
+            ws_map.setdefault(d, []).append({"id": ws.id, "name": ws.name})
+
+    merged_item = _build_library_item(merged_doc, ws_map)
+
+    return MergeDuplicatesResponse(
+        success=True,
+        message=f"Successfully merged {len(req.duplicate_item_ids)} duplicate(s) into canonical item.",
+        merged_item=merged_item,
+        deleted_item_ids=req.duplicate_item_ids
+    )
 
 
 @app.get("/api/library/{doc_id}", response_model=LibraryItem)

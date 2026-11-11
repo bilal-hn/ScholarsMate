@@ -30,6 +30,9 @@ import {
   Filter,
   FileUp,
   Check,
+  GitMerge,
+  Copy,
+  CheckCircle2,
 } from 'lucide-react';
 import {
   getLibraryAPI,
@@ -41,8 +44,10 @@ import {
   importLibraryFileAPI,
   downloadItemPdfAPI,
   createManualLibraryItemAPI,
+  getLibraryDuplicatesAPI,
 } from '../../services/api';
 import LibraryInspector from './LibraryInspector';
+import DuplicateMerger from './DuplicateMerger';
 
 export default function LibraryView({
   workspaces = [],
@@ -81,6 +86,11 @@ export default function LibraryView({
   const [addError, setAddError] = useState(null);
   const [enrichingDocIds, setEnrichingDocIds] = useState(new Set());
   const [downloadingPdfDocIds, setDownloadingPdfDocIds] = useState(new Set());
+
+  // Duplicate Detection & Merger State (FR-17.6)
+  const [duplicateData, setDuplicateData] = useState({ groups: [], total_groups: 0, total_duplicate_items: 0 });
+  const [isLoadingDuplicates, setIsLoadingDuplicates] = useState(false);
+  const [selectedDuplicateGroup, setSelectedDuplicateGroup] = useState(null);
 
   // New Item Menu & Manual Form State (FR-17.5)
   const pdfUploadInputRef = useRef(null);
@@ -269,13 +279,45 @@ export default function LibraryView({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectedDoc, isAddIdentifierOpen, isManualModalOpen, isNewItemMenuOpen, onClose]);
 
+  // Fetch Duplicates (FR-17.6)
+  const fetchDuplicates = async () => {
+    setIsLoadingDuplicates(true);
+    try {
+      const res = await getLibraryDuplicatesAPI();
+      setDuplicateData(res || { groups: [], total_groups: 0, total_duplicate_items: 0 });
+      if (res?.groups && res.groups.length > 0) {
+        setSelectedDuplicateGroup((prev) => {
+          if (!prev) return res.groups[0];
+          const stillExists = res.groups.find((g) => g.group_id === prev.group_id);
+          return stillExists || res.groups[0];
+        });
+      } else {
+        setSelectedDuplicateGroup(null);
+      }
+    } catch (err) {
+      console.error('Failed to load duplicates:', err);
+    } finally {
+      setIsLoadingDuplicates(false);
+    }
+  };
+
+  // Handle successful merge completion
+  const handleMergeComplete = async (mergedItem, deletedIds) => {
+    setImportNotification({
+      type: 'success',
+      message: `Successfully merged duplicate records into master item "${mergedItem?.title || mergedItem?.doc_name || ''}".`,
+    });
+    await fetchDuplicates();
+    await fetchLibrary();
+  };
+
   // Fetch Library Items
   const fetchLibrary = async () => {
     setLoading(true);
     try {
       const data = await getLibraryAPI({
         tag: activeTag,
-        workspace_id: activeWorkspaceFilter,
+        workspace_id: activeWorkspaceFilter === '__duplicates__' ? null : activeWorkspaceFilter,
         search: searchQuery,
       });
       setItems(data.items || []);
@@ -294,7 +336,12 @@ export default function LibraryView({
   };
 
   useEffect(() => {
-    fetchLibrary();
+    if (activeWorkspaceFilter === '__duplicates__') {
+      fetchDuplicates();
+    } else {
+      fetchLibrary();
+      fetchDuplicates();
+    }
   }, [activeTag, activeWorkspaceFilter]);
 
   // Handle Search on Enter or debounce
@@ -813,6 +860,39 @@ export default function LibraryView({
                 );
               })}
 
+              {/* Duplicate Items (FR-17.6) */}
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveWorkspaceFilter('__duplicates__');
+                  setActiveTag(null);
+                  setSelectedDoc(null);
+                  if (duplicateData.groups && duplicateData.groups.length > 0) {
+                    setSelectedDuplicateGroup(duplicateData.groups[0]);
+                  }
+                }}
+                className={`w-full flex items-center gap-1.5 px-2 py-1 rounded text-[11.5px] transition-colors cursor-pointer ${
+                  activeWorkspaceFilter === '__duplicates__'
+                    ? 'bg-blue-600 text-white font-medium'
+                    : 'text-zinc-400 hover:bg-zinc-800/70 hover:text-zinc-200'
+                }`}
+                title="Scan and merge duplicate bibliographic entries"
+              >
+                <Copy className={`h-3.5 w-3.5 shrink-0 ${activeWorkspaceFilter === '__duplicates__' ? 'text-white' : 'text-zinc-400'}`} />
+                <span className="truncate flex-1 text-left">Duplicate Items</span>
+                {duplicateData.total_groups > 0 && (
+                  <span
+                    className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full font-semibold ${
+                      activeWorkspaceFilter === '__duplicates__'
+                        ? 'bg-blue-800 text-white'
+                        : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                    }`}
+                  >
+                    {duplicateData.total_groups}
+                  </span>
+                )}
+              </button>
+
               {/* Unfiled Items */}
               <button
                 type="button"
@@ -820,6 +900,7 @@ export default function LibraryView({
                   // Filter items not in any workspace
                   setActiveWorkspaceFilter('__unfiled__');
                   setActiveTag(null);
+                  setSelectedDoc(null);
                 }}
                 className={`w-full flex items-center gap-1.5 px-2 py-1 rounded text-[11.5px] transition-colors cursor-pointer ${
                   activeWorkspaceFilter === '__unfiled__'
@@ -924,7 +1005,122 @@ export default function LibraryView({
           )}
 
           <div className="flex-1 overflow-auto">
-            {loading ? (
+            {activeWorkspaceFilter === '__duplicates__' ? (
+              isLoadingDuplicates ? (
+                <div className="flex flex-col items-center justify-center h-64 text-zinc-500 space-y-2">
+                  <RefreshCw className="h-4 w-4 animate-spin text-blue-500" />
+                  <p className="text-xs">Scanning library for duplicate items...</p>
+                </div>
+              ) : duplicateData.groups.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-72 text-zinc-500 space-y-2.5 p-6">
+                  <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-full text-emerald-400">
+                    <CheckCircle2 className="h-8 w-8 stroke-[1.7]" />
+                  </div>
+                  <p className="text-xs font-semibold text-zinc-200">No Duplicate Items Found</p>
+                  <p className="text-[11.5px] text-zinc-500 max-w-md text-center leading-relaxed">
+                    There are currently no duplicate references in your library. When items with identical DOIs, arXiv IDs, titles, or file hashes are imported, they will be clustered here for merging.
+                  </p>
+                </div>
+              ) : (
+                <div className="p-3 space-y-3">
+                  <div className="flex items-center justify-between pb-2 border-b border-zinc-800">
+                    <div className="flex items-center gap-2">
+                      <Copy className="h-4 w-4 text-blue-400" />
+                      <span className="text-xs font-semibold text-zinc-200">
+                        {duplicateData.total_groups} Duplicate Set{duplicateData.total_groups === 1 ? '' : 's'} ({duplicateData.total_duplicate_items} Items Total)
+                      </span>
+                    </div>
+                    <span className="text-[11px] text-zinc-400 hidden sm:inline">
+                      Click any set below to open the Zotero Duplicate Merger in the right pane.
+                    </span>
+                  </div>
+
+                  <div className="space-y-3">
+                    {duplicateData.groups.map((group, gIdx) => {
+                      const isGroupSelected = selectedDuplicateGroup?.group_id === group.group_id;
+                      return (
+                        <div
+                          key={group.group_id}
+                          onClick={() => {
+                            setSelectedDuplicateGroup(group);
+                            setSelectedDoc(null);
+                          }}
+                          className={`rounded-lg border transition-all cursor-pointer p-3 select-none ${
+                            isGroupSelected
+                              ? 'bg-blue-950/25 border-blue-500/80 shadow-md ring-1 ring-blue-500/20'
+                              : 'bg-zinc-900/60 border-zinc-800 hover:border-zinc-700 hover:bg-zinc-900/90'
+                          }`}
+                        >
+                          {/* Group Header */}
+                          <div className="flex items-center justify-between gap-2 mb-2">
+                            <div className="flex items-center gap-2 truncate">
+                              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-zinc-800 text-zinc-300 font-mono">
+                                Set #{gIdx + 1}
+                              </span>
+                              <span className="text-xs font-semibold text-zinc-100 flex items-center gap-1.5 truncate">
+                                <GitMerge className="h-3.5 w-3.5 text-blue-400 shrink-0" />
+                                <span className="truncate">{group.items[0]?.title || group.items[0]?.doc_name || 'Duplicate Entry'}</span>
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className="text-[10px] font-mono text-zinc-400 px-2 py-0.5 rounded bg-zinc-950 border border-zinc-800">
+                                {group.match_reason}
+                              </span>
+                              <span className="px-2 py-0.5 rounded text-[10.5px] font-medium bg-blue-600/90 text-white">
+                                {group.total_items} items
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Items preview list in this set */}
+                          <div className="space-y-1.5 pl-3 border-l-2 border-zinc-800">
+                            {group.items.map((item, iIdx) => (
+                              <div
+                                key={item.id}
+                                className="flex items-center justify-between p-2 rounded bg-zinc-950/60 border border-zinc-850 text-xs text-zinc-300"
+                              >
+                                <div className="flex items-center gap-2 truncate flex-1 pr-3">
+                                  <span className="text-[10px] font-mono text-zinc-500 font-bold shrink-0">
+                                    v{iIdx + 1}
+                                  </span>
+                                  {getItemIcon(item, false)}
+                                  <span className="font-medium text-zinc-200 truncate text-[12px]">
+                                    {item.title || item.doc_name}
+                                  </span>
+                                  {item.authors && (
+                                    <span className="text-zinc-400 text-[11px] truncate shrink-0 max-w-[220px]">
+                                      — {item.authors}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0 text-[10.5px]">
+                                  {item.year && (
+                                    <span className="font-mono text-zinc-400 bg-zinc-800 px-1 rounded">
+                                      {item.year}
+                                    </span>
+                                  )}
+                                  {item.has_pdf ? (
+                                    <span className="text-emerald-400 bg-emerald-950/80 border border-emerald-800/60 px-1.5 py-0.2 rounded flex items-center gap-1 font-medium text-[10px]">
+                                      <FileText className="h-2.5 w-2.5" />
+                                      PDF
+                                    </span>
+                                  ) : (
+                                    <span className="text-zinc-500 bg-zinc-850 px-1.5 py-0.2 rounded text-[10px]">
+                                      Metadata
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )
+            ) : loading ? (
               <div className="flex flex-col items-center justify-center h-64 text-zinc-500 space-y-2">
                 <RefreshCw className="h-4 w-4 animate-spin text-blue-500" />
                 <p className="text-xs">Loading library items...</p>
@@ -1325,9 +1521,15 @@ export default function LibraryView({
         </div>
 
         {/* ========================================================================= */}
-        {/* PANE 3: ZOTERO 7-STYLE METADATA INSPECTOR (Right Pane) */}
+        {/* PANE 3: ZOTERO 7-STYLE METADATA INSPECTOR / DUPLICATE MERGER (Right Pane) */}
         {/* ========================================================================= */}
-        {selectedDoc && (
+        {activeWorkspaceFilter === '__duplicates__' && selectedDuplicateGroup ? (
+          <DuplicateMerger
+            group={selectedDuplicateGroup}
+            onClose={() => setSelectedDuplicateGroup(null)}
+            onMergeComplete={handleMergeComplete}
+          />
+        ) : selectedDoc ? (
           <LibraryInspector
             document={selectedDoc}
             onClose={() => setSelectedDoc(null)}
@@ -1338,7 +1540,7 @@ export default function LibraryView({
             onOpenPdf={onOpenPdfViewer}
             onChatWithPaper={onStartChatWithPaper}
           />
-        )}
+        ) : null}
       </div>
 
       {/* ========================================================================= */}

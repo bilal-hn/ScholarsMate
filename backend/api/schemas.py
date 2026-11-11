@@ -415,5 +415,30 @@ class BibliographicImportResponse(BaseModel):
     message: str
 
 
+class DuplicateGroup(BaseModel):
+    group_id: str
+    match_reason: str
+    total_items: int
+    items: List[LibraryItem]
+
+
+class DuplicateDetectionResponse(BaseModel):
+    groups: List[DuplicateGroup] = Field(default_factory=list)
+    total_groups: int
+    total_duplicate_items: int
+
+
+class MergeDuplicatesRequest(BaseModel):
+    canonical_item_id: str
+    duplicate_item_ids: List[str]
+
+
+class MergeDuplicatesResponse(BaseModel):
+    success: bool
+    message: str
+    merged_item: LibraryItem
+    deleted_item_ids: List[str]
+
+
 
 
