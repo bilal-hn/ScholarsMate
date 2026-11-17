@@ -1,0 +1,11 @@
+{
+  "readableLineLength": true,
+  "strictLineBreaks": false,
+  "showLineNumber": true,
+  "useTab": true,
+  "tabSize": 2,
+  "autoConvertHtml": true,
+  "alwaysUpdateLinks": true,
+  "newFileLocation": "root",
+  "attachmentFolderPath": "assets"
+}

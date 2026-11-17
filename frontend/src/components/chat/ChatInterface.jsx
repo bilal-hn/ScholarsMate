@@ -601,6 +601,13 @@ export default function ChatInterface({
                   <ArrowRight className="h-3 w-3" />
                 </button>
               </div>
+            ) : documents && documents.length === 0 ? (
+              <div className="mt-1 p-2.5 rounded-lg bg-zinc-900/60 border border-zinc-800/80 max-w-xs text-center space-y-1">
+                <p className="text-[11px] text-amber-400 font-medium">No documents attached yet</p>
+                <p className="text-[10.5px] text-zinc-400 leading-relaxed font-sans">
+                  Upload a paper (PDF) or select from your library to start chatting. ScholarsMate answers questions strictly from your literature.
+                </p>
+              </div>
             ) : (
               <p className="text-[10.5px] text-zinc-500 max-w-xs leading-relaxed font-mono">
                 Tip: Drag and drop files onto the chat, or type <span className="text-amber-400">@</span> to tag a paper.

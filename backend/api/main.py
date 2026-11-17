@@ -638,14 +638,15 @@ async def query_rag(
         # 1. Resolve target documents
         target_documents = None
         if request.doc_names:
-            target_documents = request.doc_names
+            target_documents = [d for d in request.doc_names if d]
         elif request.selected_docs:
-            target_documents = request.selected_docs
+            target_documents = [d for d in request.selected_docs if d]
 
         # 2. Manage Session Scope
         session_id = request.session_id
         session_exists = False
         target_mode = getattr(request, "mode", None) or "assistant"
+        current_session = None
         
         if session_id:
             user_sessions = await crud.get_all_sessions(db, user_id=current_user.id)
@@ -666,6 +667,23 @@ async def query_rag(
                         current_session.doc_names = merged_docs
                         await db.commit()
                         await db.refresh(current_session)
+                elif current_session.doc_names:
+                    target_documents = [d for d in current_session.doc_names if d]
+
+        # 3. Resolve Workspace Scope & Fetch Brain Context
+        effective_workspace_id = getattr(request, "workspace_id", None)
+        if session_exists and current_session and getattr(current_session, "workspace_id", None):
+            effective_workspace_id = current_session.workspace_id
+
+        # If still no target documents resolved, check if workspace has scoped documents
+        if not target_documents and effective_workspace_id:
+            ws = await crud.get_workspace_by_id(db, effective_workspace_id, user_id=current_user.id)
+            if ws and ws.doc_names:
+                target_documents = [d for d in ws.doc_names if d]
+
+        # Strict isolation: if no documents are attached to this chat or workspace, ensure empty list
+        if target_documents is None:
+            target_documents = []
 
         # Fallback: create fresh session linked to user
         if not session_id or not session_exists:
@@ -678,7 +696,7 @@ async def query_rag(
             )
             session_id = new_session.id
 
-        # 3. Fetch history from DB or fallback to payload
+        # 4. Fetch history from DB or fallback to payload
         db_messages = await crud.get_session_messages(db, session_id)
         if db_messages:
             history_list = [{"sender": m.sender, "text": m.text} for m in db_messages[-6:]]
@@ -687,11 +705,6 @@ async def query_rag(
                 msg.model_dump() if hasattr(msg, "model_dump") else msg.dict() 
                 for msg in (request.chat_history or [])
             ]
-
-        # 4. Resolve Workspace Scope & Fetch Brain Context
-        effective_workspace_id = getattr(request, "workspace_id", None)
-        if session_exists and current_session and getattr(current_session, "workspace_id", None):
-            effective_workspace_id = current_session.workspace_id
 
         brain_context = await build_brain_context(
             db, 

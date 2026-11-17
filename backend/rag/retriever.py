@@ -204,8 +204,8 @@ def retrieve_context(
         f"Effective top_k: {effective_top_k}"
     )
 
-    # Safety net if conversational/meta accidentally reach retrieval
-    if intent == "CONVERSATIONAL" or plan.get("is_meta_query"):
+    # Safety net if conversational/meta/general_knowledge accidentally reach retrieval
+    if intent in {"CONVERSATIONAL", "GENERAL_KNOWLEDGE"} or plan.get("is_meta_query") or retrieval_mode == "none":
         return [], plan
 
     all_chunks = {}

@@ -19,6 +19,7 @@ from backend.embeddings.vector_store import list_indexed_documents
 from backend.rag.router import classify_query_intent
 from backend.rag.runtime import (
     extract_reasoning_and_content,
+    heuristic_intent,
     normalize_litellm_model_id,
     provider_from_model,
     build_fallback_chain,
@@ -337,8 +338,51 @@ def generate_answer(
     # 1. Resolve Target Model
     target_model, _ = resolve_model_and_key(model_name, keys)
 
-    # 2. Scope to Active Workspace
-    active_workspace_docs = explicit_docs if (explicit_docs is not None and len(explicit_docs) > 0) else list_indexed_documents()
+    # 2. Scope to Active Workspace (Strict isolation: empty list if chat has no attached documents)
+    active_workspace_docs = [d for d in explicit_docs if d] if explicit_docs is not None else []
+
+    # -------------------------------------------------------------------------
+    # SCENARIO 1: Empty Chat / No Documents Uploaded or Attached
+    # -------------------------------------------------------------------------
+    if len(active_workspace_docs) == 0 and not attached_images_text:
+        heuristic = heuristic_intent(clean_query, chat_history)
+        is_greeting = heuristic == "CONVERSATIONAL" and not any(
+            clean_query.lower().startswith(w) 
+            for w in ["what", "how", "why", "can", "could", "tell", "explain", "give", "write", "solve", "is", "are", "do", "does", "generate", "code"]
+        )
+        if is_greeting:
+            return {
+                "query": query,
+                "answer": (
+                    "Hello! Welcome to ScholarsMate. To get started, please upload or attach research papers (PDFs) to your chat or workspace.\n\n"
+                    "I am an evidence-grounded research assistant and answer questions strictly based on your uploaded literature."
+                ),
+                "thinking_process": None,
+                "sources_used": [],
+                "mode_applied": mode,
+                "guardrails": {
+                    "input_rails": input_guard.to_dict() if "input_guard" in locals() else None,
+                    "retrieval_rails": None,
+                    "output_rails": None,
+                }
+            }
+
+        # User asked a random question (e.g. "give me a python script", "what is machine learning", etc.) with no papers
+        return {
+            "query": query,
+            "answer": (
+                "Please upload or attach research papers first. ScholarsMate is an evidence-grounded research assistant designed to answer questions strictly from your uploaded literature.\n\n"
+                "Once you upload or attach papers to this chat or workspace, I can help you analyze their methodology, extract findings, compare approaches, and answer questions grounded in your documents."
+            ),
+            "thinking_process": None,
+            "sources_used": [],
+            "mode_applied": mode,
+            "guardrails": {
+                "input_rails": input_guard.to_dict() if "input_guard" in locals() else None,
+                "retrieval_rails": None,
+                "output_rails": None,
+            }
+        }
 
     # 3. Classify Intent (Single Pass)
     plan = classify_query_intent(
@@ -373,12 +417,16 @@ def generate_answer(
             "mode_applied": mode
         }
 
-    # Branch B: CONVERSATIONAL & GENERAL KNOWLEDGE Intents
-    if intent in {"CONVERSATIONAL", "GENERAL_KNOWLEDGE"} and not attached_images_text:
-        if intent == "CONVERSATIONAL":
-            conv_sys = "You are ScholarsMate, a collegiate, intelligent AI research assistant. The user is chatting casually, thinking out loud, or sharing project context/goals (e.g. 'I am working on my bachelor's FYP'). Reply naturally, warmly, and concisely like a brilliant human research colleague. If they share an open-ended goal or context, acknowledge it enthusiastically and ask a natural, relevant clarifying question (e.g. what specific topic, domain, or model they are building) to help them plan. Do not dump unprompted dissertations, tables, or robotic headers."
-        else:
-            conv_sys = "You are ScholarsMate, an elite, helpful academic research AI. Provide a clear, authoritative, and direct answer to the user's question from general scientific and programming knowledge. Avoid repetitive robotic prefixes like 'Academic Synthesis:' and speak naturally. Do not fabricate paper citations."
+    # Branch B: Pure Conversational Greetings & Acknowledgments
+    if intent == "CONVERSATIONAL" and not attached_images_text:
+        docs_summary = ", ".join(active_workspace_docs[:3]) + ("..." if len(active_workspace_docs) > 3 else "")
+        conv_sys = (
+            f"You are ScholarsMate, an academic research assistant dedicated to the user's uploaded documents: {docs_summary}. "
+            "The user is speaking conversationally, thinking out loud, or acknowledging previous points. "
+            "Reply warmly, concisely, and collegially like a human research partner. "
+            "Remind them what papers are active and invite them to explore or ask substantive questions about these papers. "
+            "DO NOT answer general programming, math, or external questions from general pre-trained memory. Always steer back to their papers."
+        )
 
         if brain_context and brain_context.strip():
             conv_sys = f"{conv_sys}\n\n{brain_context.strip()}"
@@ -400,7 +448,7 @@ def generate_answer(
             model_name=target_model,
             messages=conv_messages,
             custom_keys=keys,
-            temperature=0.4 if intent == "GENERAL_KNOWLEDGE" else 0.5,
+            temperature=0.3,
             max_tokens=CONV_MAX_TOKENS,
         )
         extracted = extract_reasoning_and_content(res)
@@ -426,23 +474,13 @@ def generate_answer(
             "mode_applied": mode
         }
 
-    # Early exit safeguard if workspace has no documents
-    if explicit_docs is not None and len(explicit_docs) == 0 and not attached_images_text:
-        return {
-            "query": query,
-            "answer": "There are no documents uploaded in this workspace. Please upload research papers to begin.",
-            "thinking_process": None,
-            "sources_used": [],
-            "mode_applied": mode
-        }
-
     # -------------------------------------------------------------------------
-    # 4. Retrieve Context
+    # 4. Retrieve Context (Strictly Scoped to Active Workspace Documents)
     # -------------------------------------------------------------------------
     retrieved_chunks, plan = retrieve_context(
         query=clean_query,
         top_k=effective_top_k,
-        explicit_docs=explicit_docs,
+        explicit_docs=active_workspace_docs,
         chat_history=chat_history,
         model_name=target_model,
         custom_keys=keys,
@@ -456,6 +494,31 @@ def generate_answer(
         chunks=retrieved_chunks,
         allowed_docs=active_workspace_docs,
     )
+
+    # -------------------------------------------------------------------------
+    # SCENARIO 2: Off-Topic / Uncovered Questions Refusal
+    # If no relevant chunks survived semantic relevance cutoff and no attached images
+    # -------------------------------------------------------------------------
+    if not retrieved_chunks and not attached_images_text:
+        docs_list_str = ", ".join(f"`{d}`" for d in active_workspace_docs[:5])
+        if len(active_workspace_docs) > 5:
+            docs_list_str += f" and {len(active_workspace_docs) - 5} more"
+        return {
+            "query": query,
+            "answer": (
+                f"I can only answer questions grounded in your uploaded research documents ({docs_list_str}). "
+                f"I could not find any relevant information addressing '{clean_query}' in your attached documents.\n\n"
+                f"Please ask a question related to your uploaded literature, or upload papers that cover this topic."
+            ),
+            "thinking_process": None,
+            "sources_used": [],
+            "mode_applied": mode,
+            "guardrails": {
+                "input_rails": input_guard.to_dict() if "input_guard" in locals() else None,
+                "retrieval_rails": ret_guard.to_dict(),
+                "output_rails": None,
+            }
+        }
 
     # Branch D: Map-Reduce Synthesis
     if plan.get("generation_mode") == "map_reduce" and len(retrieved_chunks) >= 8:

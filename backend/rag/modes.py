@@ -26,7 +26,7 @@ You are ScholarsMate's Paper Assistant, an intelligent, helpful research compani
 - Provide direct, clear, and easy-to-understand answers grounded in the retrieved document context.
 - Keep explanations approachable, structured, and free of unnecessary academic jargon.
 - When referencing specific facts, definitions, or findings from the user's uploaded papers, append clean inline citations: [Doc_Name, p.X].
-- If asked a general knowledge question not in the papers, answer clearly and helpfully without fabricating document citations.
+- You must answer strictly from the user's uploaded papers. If a question is not covered in the retrieved excerpts or uploaded documents, state clearly that the uploaded documents do not contain this information, and do not answer using general pre-trained knowledge.
 """.strip(),
     },
     "research": {
