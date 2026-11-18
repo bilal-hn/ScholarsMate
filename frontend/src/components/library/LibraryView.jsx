@@ -1850,7 +1850,7 @@ export default function LibraryView({
                                 }`}
                                 title={`Full Text PDF: ${item.doc_name}`}
                               />
-                            ) : (
+                            ) : (item.doi || item.arxiv_id) ? (
                               <button
                                 type="button"
                                 onClick={(e) => handleDownloadPdf(item.id, e)}
@@ -1868,6 +1868,8 @@ export default function LibraryView({
                                   }`}
                                 />
                               </button>
+                            ) : (
+                              <span className="text-zinc-600 font-mono text-[11px] select-none">—</span>
                             )}
                           </td>
                         </tr>

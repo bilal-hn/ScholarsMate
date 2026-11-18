@@ -1029,10 +1029,12 @@ async def create_workspace(
 
             # Register document in DB
             file_hash = calculate_sha256(file_path)
+            file_size = file_path.stat().st_size if file_path.exists() else 0
             doc_entry = UserDocument(
                 user_id=current_user.id,
                 doc_name=filename,
                 file_hash=file_hash,
+                file_size_bytes=file_size,
             )
             db.add(doc_entry)
 
@@ -1464,10 +1466,12 @@ async def add_papers_to_workspace(
                 total_chunks += len(chunks)
 
             file_hash = calculate_sha256(file_path)
+            file_size = file_path.stat().st_size if file_path.exists() else 0
             doc_entry = UserDocument(
                 user_id=current_user.id,
                 doc_name=filename,
                 file_hash=file_hash,
+                file_size_bytes=file_size,
             )
             db.add(doc_entry)
 
@@ -2098,11 +2102,17 @@ async def clear_all_brain_memories(
 
 def _build_library_item(doc: UserDocument, workspace_map: Dict[str, List[Dict[str, str]]]) -> LibraryItem:
     linked_ws = workspace_map.get(doc.doc_name, [])
+    pdf_path = (UPLOADS_DIR / doc.doc_name) if doc.doc_name else None
+    disk_file_exists = bool(pdf_path and pdf_path.is_file() and pdf_path.stat().st_size > 0)
     has_pdf = bool(
         doc.doc_name
         and doc.doc_name.lower().endswith(".pdf")
-        and (doc.file_size_bytes or 0) > 0
-        and (UPLOADS_DIR / doc.doc_name).exists()
+        and (disk_file_exists or (doc.file_size_bytes or 0) > 0)
+    )
+    actual_file_size = (
+        doc.file_size_bytes
+        if (doc.file_size_bytes or 0) > 0
+        else (pdf_path.stat().st_size if disk_file_exists else 0)
     )
     return LibraryItem(
         id=doc.id,
@@ -2119,7 +2129,7 @@ def _build_library_item(doc: UserDocument, workspace_map: Dict[str, List[Dict[st
         abstract=doc.abstract or doc.summary_cache,
         tags=list(doc.tags or []),
         notes=doc.notes,
-        file_size_bytes=doc.file_size_bytes or 0,
+        file_size_bytes=actual_file_size,
         has_pdf=has_pdf,
         summary_cache=doc.summary_cache,
         summary_generated_at=doc.summary_generated_at,
