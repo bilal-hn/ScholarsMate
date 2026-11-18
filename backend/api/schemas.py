@@ -267,8 +267,9 @@ class BrainMemoryResponse(BaseModel):
     id: str
     user_id: str
     workspace_id: Optional[str] = None
-    scope: str = Field(default="global", description="'global' or 'workspace'")
-    category: str = Field(default="preference", description="'preference', 'profile', 'insight', 'milestone', 'directive'")
+    session_id: Optional[str] = None
+    scope: str = Field(default="workspace", description="'workspace' or 'global'")
+    category: str = Field(default="decision", description="'decision', 'finding', 'constraint', 'milestone', 'preference'")
     thought: str
     is_active: bool = True
     created_at: datetime
@@ -276,10 +277,11 @@ class BrainMemoryResponse(BaseModel):
 
 
 class CreateBrainMemoryRequest(BaseModel):
-    thought: str = Field(..., min_length=3, max_length=2000, json_schema_extra={"example": "Always format citations in IEEE style."})
-    scope: str = Field(default="global", json_schema_extra={"example": "global"})
-    category: str = Field(default="preference", json_schema_extra={"example": "preference"})
+    thought: str = Field(..., min_length=3, max_length=2000, json_schema_extra={"example": "Selected ResNet-50 as baseline."})
+    scope: str = Field(default="workspace", json_schema_extra={"example": "workspace"})
+    category: str = Field(default="decision", json_schema_extra={"example": "decision"})
     workspace_id: Optional[str] = Field(default=None, json_schema_extra={"example": "123e4567-e89b-12d3-a456-426614174000"})
+    session_id: Optional[str] = Field(default=None, json_schema_extra={"example": "123e4567-e89b-12d3-a456-426614174001"})
     is_active: bool = Field(default=True)
 
 

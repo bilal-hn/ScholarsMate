@@ -20,13 +20,18 @@ logger = logging.getLogger("scholarsmate.brain")
 # ---------------------------------------------------------------------------
 # Prompt: used for periodic batch consolidation (multi-turn window)
 # ---------------------------------------------------------------------------
-BRAIN_BATCH_EXTRACTION_PROMPT = """You are the Memory Consolidation Engine for ScholarsMate.
-Analyze the following multi-turn research conversation window and extract 0 to 3 DURABLE facts.
+BRAIN_BATCH_EXTRACTION_PROMPT = """You are the Workspace Research Blueprint Consolidation Engine for ScholarsMate.
+Analyze the following multi-turn research conversation window and extract 0 to 3 DURABLE project decisions, empirical parameters, or paper takeaways.
 
-Focus on:
-1. User Profile: Degree level, thesis/FYP project, field of study, university.
-2. User Preferences: Citation styles, notation, preferred frameworks/languages.
-3. Project Milestones / Decisions: Specific architectural choices, dataset selections, or research conclusions the user committed to.
+Focus strictly on:
+1. Methodological & Architectural Decisions: Baseline architectures, model selections, algorithm choices (e.g. "Selected ResNet-50 as baseline architecture").
+2. Datasets & Experimental Parameters: Specific datasets, benchmarks, evaluation splits, hyperparameters (e.g. "Using ImageNet-1k validation split with batch size 32").
+3. Explicit Constraints & Exclusions: Approaches, models, or techniques discarded or ruled out and why (e.g. "Excluded Vision Transformers due to 4GB VRAM latency constraints").
+4. Verified Document Findings: Concrete empirical takeaways, comparative metrics, or conclusions from papers agreed upon.
+
+Do NOT extract:
+- Personal profile trivia (university name, degree level, personal background, student year).
+- Generic conversational greetings or one-off document quotes.
 
 Recent Dialogue:
 {formatted_dialogue}
@@ -35,27 +40,27 @@ Existing Verified Memories (do NOT repeat or lightly rephrase these):
 {existing_thoughts}
 
 Instructions:
-- Only extract lasting, durable facts. Discard one-off document questions or chit-chat.
-- If a new memory clearly UPDATES an existing one (e.g. citation style changed), include the updated version — the system will supersede the old one automatically.
+- Only extract lasting, durable project facts. Discard one-off document questions or chit-chat.
+- If a new memory clearly UPDATES an existing one (e.g. hyperparameter or model choice changed), include the updated version — the system will supersede the old one automatically.
 - If no durable facts appear in this window, return {{"memories": []}}.
 - Output MUST be valid JSON:
 {{
   "memories": [
     {{
-      "thought": "Clear declarative statement",
-      "scope": "global",
-      "category": "profile"
+      "thought": "Clear declarative statement of project decision, parameter, or finding",
+      "scope": "workspace",
+      "category": "decision"
     }}
   ]
 }}
-Valid scopes: "global" (user profile/preferences), "workspace" (project-specific findings).
-Valid categories: "profile", "preference", "insight", "milestone", "directive".
+Valid scopes: "workspace".
+Valid categories: "decision", "finding", "constraint", "milestone".
 """
 
-# Categories always injected regardless of query topic (identity + output style)
-_ALWAYS_INJECT_CATEGORIES = {"profile", "preference", "directive"}
-# Categories only injected when a workspace is active
-_WORKSPACE_INJECT_CATEGORIES = {"insight", "milestone"}
+# Categories recognized for workspace blueprint injection
+_VALID_BLUEPRINT_CATEGORIES = {
+    "decision", "finding", "constraint", "milestone", "insight", "directive", "preference", "profile"
+}
 
 
 def _is_similar(a: str, b: str, threshold: float = 0.72) -> bool:
@@ -70,12 +75,11 @@ async def build_brain_context(
     session_id: Optional[str] = None
 ) -> str:
     """
-    Retrieves active brain memories and formats them into a compact context block
-    for the RAG system prompt.
+    Retrieves active workspace blueprint memories specifically assigned to or imported into
+    this chat session (or active workspace), formatting them into a clean <workspace_blueprint> block.
 
-    Injection tiers:
-    - Profile / Preference / Directive → always injected (identity + output style, max 5)
-    - Insight / Milestone              → only injected for active chat/workspace context (max 5)
+    If no memories have been imported or active in this workspace, returns empty string to keep
+    the RAG prompt 100% clean and free of unnecessary tokens.
     """
     if not user_id:
         return ""
@@ -89,34 +93,27 @@ async def build_brain_context(
             active_only=True
         )
     except Exception as e:
-        logger.warning(f"Failed to fetch brain memories for user {user_id}: {e}")
+        logger.warning(f"Failed to fetch workspace blueprint for user {user_id}: {e}")
         return ""
 
     if not memories:
         return ""
 
-    # --- Tiered selection ---
-    global_core = [
+    # Priority 1: Memories explicitly seeded/imported into this active session
+    session_specific = [m for m in memories if m.session_id == session_id and m.is_active]
+
+    # Priority 2: Fall back to workspace-level active decisions if no session-specific seed exists
+    target_memories = session_specific if session_specific else [
         m for m in memories
-        if m.scope == "global" and m.category in _ALWAYS_INJECT_CATEGORIES
-    ][:5]
+        if m.is_active and (m.category in _VALID_BLUEPRINT_CATEGORIES or m.scope in ("workspace", "global"))
+    ]
 
-    chat_conditional = []
-    if session_id or workspace_id:
-        chat_conditional = [
-            m for m in memories
-            if m.scope == "workspace"
-            and (m.session_id == session_id or (session_id is None and m.workspace_id == workspace_id))
-            and m.category in _WORKSPACE_INJECT_CATEGORIES
-        ][:5]
-
-    all_injected = global_core + chat_conditional
-    if not all_injected:
+    if not target_memories:
         return ""
 
-    # --- Compact bullet format (~50–80 tokens vs the old ~400-token XML block) ---
-    lines = [f"- {m.thought}" for m in all_injected]
-    return "<ctx>\n" + "\n".join(lines) + "\n</ctx>"
+    # Compact bullet format (~40–80 tokens) with backward-compatible tags
+    lines = [f"- [{m.category.capitalize() if m.category else 'Note'}] {m.thought}" for m in target_memories[:5]]
+    return "<workspace_blueprint>\n" + "\n".join(lines) + "\n</workspace_blueprint>"
 
 
 async def consolidate_batch_memories_async(
@@ -158,10 +155,10 @@ async def consolidate_batch_memories_async(
         # 2. Fetch existing memories (single DB session, reused for both dedup and persist)
         async with SessionLocal() as db:
             current_existing = await crud.get_brain_memories(
-                db, user_id=user_id, workspace_id=session_id
+                db, user_id=user_id, workspace_id=workspace_id, session_id=session_id
             )
             existing_list = [
-                f"- {m.thought} (scope: {m.scope}, category: {m.category})"
+                f"- {m.thought} (category: {m.category})"
                 for m in current_existing[:20]
             ]
             existing_str = "\n".join(existing_list) if existing_list else "None yet."
@@ -206,13 +203,10 @@ async def consolidate_batch_memories_async(
                 if not thought or len(thought) < 6:
                     continue
 
-                scope = mem.get("scope", "global").lower()
-                if scope not in ("global", "workspace"):
-                    scope = "global"
-
-                category = mem.get("category", "preference").lower()
-                if category not in ("preference", "profile", "insight", "milestone", "directive"):
-                    category = "preference"
+                scope = "workspace"
+                category = mem.get("category", "decision").lower()
+                if category not in ("decision", "finding", "constraint", "milestone", "preference", "insight", "directive"):
+                    category = "decision"
 
                 # Check for exact duplicate first (fast path)
                 existing_thoughts_lower = {m.thought.lower().strip() for m in current_existing}
@@ -222,12 +216,12 @@ async def consolidate_batch_memories_async(
                 # Category-scoped superseding: look for a similar memory in the same category
                 same_category = [
                     m for m in current_existing
-                    if m.category == category and m.scope == scope
+                    if m.category == category
                 ]
                 superseded = False
                 for existing_mem in same_category:
                     if _is_similar(thought, existing_mem.thought):
-                        # Overwrite — newer information wins (e.g. APA replaces IEEE)
+                        # Overwrite — newer decision/parameter wins
                         await crud.update_brain_memory(
                             db=db,
                             memory_id=existing_mem.id,
@@ -236,7 +230,7 @@ async def consolidate_batch_memories_async(
                             is_active=True,
                         )
                         logger.info(
-                            f"[Brain] Updated memory for {user_id}: [{category}|{scope}] "
+                            f"[Brain] Updated workspace memory for {user_id}: [{category}] "
                             f"'{existing_mem.thought}' → '{thought}'"
                         )
                         superseded = True
@@ -247,14 +241,14 @@ async def consolidate_batch_memories_async(
                         db=db,
                         user_id=user_id,
                         thought=thought,
-                        scope=scope,
+                        scope="workspace",
                         category=category,
-                        workspace_id=workspace_id if scope == "workspace" else None,
-                        session_id=session_id if scope == "workspace" else None,
+                        workspace_id=workspace_id,
+                        session_id=session_id,
                         is_active=True,
                     )
                     logger.info(
-                        f"[Brain] Learned new memory for {user_id}: [{category}|{scope}] {thought}"
+                        f"[Brain] Learned new workspace decision for {user_id}: [{category}] {thought}"
                     )
 
     except Exception as e:

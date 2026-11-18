@@ -158,6 +158,8 @@ class ReviewRequest(BaseModel):
 class CreateSessionRequest(BaseModel):
     title: str = "New Research Chat"
     doc_names: List[str] = []
+    workspace_id: Optional[str] = None
+    seed_memory_ids: Optional[List[str]] = None
 
 
 def detect_provider(api_key: str) -> str:
@@ -548,13 +550,21 @@ async def create_session(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Creates a new persistent chat session thread scoped to current user."""
+    """Creates a new persistent chat session thread scoped to current user, workspace, and optional seed blueprint."""
     session = await crud.create_chat_session(
         db, 
         title=req.title, 
         doc_names=req.doc_names, 
-        user_id=current_user.id
+        user_id=current_user.id,
+        workspace_id=req.workspace_id
     )
+    if req.seed_memory_ids:
+        await crud.import_context_points(
+            db,
+            target_session_id=session.id,
+            memory_ids=req.seed_memory_ids,
+            user_id=current_user.id
+        )
     return session
 
 
@@ -1949,6 +1959,7 @@ async def list_brain_memories(
                 id=m.id,
                 user_id=m.user_id,
                 workspace_id=m.workspace_id,
+                session_id=m.session_id,
                 scope=m.scope,
                 category=m.category,
                 thought=m.thought,
@@ -1969,21 +1980,23 @@ async def create_brain_memory(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
-    """Manually creates or teaches Brain a new thought, rule, or preference."""
+    """Manually creates or records a workspace decision, parameter, or research finding."""
     try:
         memory = await crud.add_brain_memory(
             db=db,
             user_id=current_user.id,
             thought=request.thought,
-            scope=request.scope,
-            category=request.category,
+            scope=request.scope or "workspace",
+            category=request.category or "decision",
             workspace_id=request.workspace_id,
+            session_id=request.session_id,
             is_active=request.is_active
         )
         return BrainMemoryResponse(
             id=memory.id,
             user_id=memory.user_id,
             workspace_id=memory.workspace_id,
+            session_id=memory.session_id,
             scope=memory.scope,
             category=memory.category,
             thought=memory.thought,
