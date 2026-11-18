@@ -22,6 +22,7 @@ import {
   Check,
   X,
   BookMarked,
+  Home,
 } from 'lucide-react';
 import AppLogo from '../common/AppLogo';
 import { AuthProfile } from '../layout/AuthProfile';
@@ -49,6 +50,8 @@ export default function DocumentSidebar({
   isWriterActive = false,
   onToggleLibrary,
   isLibraryActive = false,
+  currentRoute = 'chat',
+  onNavigate,
   onAuthChange,
   onOpenAuth,
   onOpenSettings,
@@ -346,21 +349,32 @@ export default function DocumentSidebar({
         <div className="flex flex-col items-center justify-between h-full py-3.5 w-full">
           {/* Top Section: System Logo + Feature Navigation Icons */}
           <div className="flex flex-col items-center w-full">
-            {/* Top Brand / Sidebar Toggle: Logo changes to PanelLeftOpen on hover */}
+            {/* Top Brand / Home: Click logo to go Home */}
             <button
               type="button"
-              onClick={onToggleCollapse}
+              onClick={() => onNavigate?.('home')}
               className="relative group p-2 rounded-xl text-amber-500 hover:bg-zinc-800/80 transition-all cursor-pointer flex items-center justify-center"
-              aria-label="Open sidebar"
+              aria-label="ScholarsMate Home"
+              title="ScholarsMate Home (localhost/home)"
             >
               <div className="h-8 w-8 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center group-hover:bg-amber-500/20 group-hover:border-amber-500/40 transition-all">
-                <AppLogo className="h-4.5 w-4.5 block group-hover:hidden transition-all text-amber-500" />
-                <PanelLeftOpen className="h-4.5 w-4.5 hidden group-hover:block transition-all text-zinc-200" />
+                <AppLogo className="h-4.5 w-4.5 text-amber-500 group-hover:scale-105 transition-transform" />
               </div>
               <span className="pointer-events-none absolute left-full top-1/2 -translate-y-1/2 ml-3 px-2.5 py-1.5 bg-zinc-900 border border-zinc-700/80 text-zinc-100 text-[12.5px] font-medium rounded-lg shadow-2xl whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50">
-                Open sidebar
+                Home
               </span>
             </button>
+
+            {onToggleCollapse && (
+              <button
+                type="button"
+                onClick={onToggleCollapse}
+                className="p-1 rounded text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800/60 transition-colors cursor-pointer mt-0.5"
+                title="Expand Sidebar"
+              >
+                <PanelLeftOpen className="h-3.5 w-3.5" />
+              </button>
+            )}
 
             {/* Feature Navigation Icons */}
             <div className="flex flex-col items-center gap-1.5 w-full px-2 mt-4">
@@ -506,19 +520,19 @@ export default function DocumentSidebar({
         <>
           {/* Top Brand Header */}
           <div className="px-3 pt-3 pb-2 flex items-center justify-between">
-            <div 
-              onClick={onToggleCollapse}
-              title="Collapse Sidebar"
-              className="flex items-center gap-2 cursor-pointer group"
+            <button 
+              type="button"
+              onClick={() => onNavigate?.('home')}
+              title="Go to Home (localhost/home)"
+              className="flex items-center gap-2 cursor-pointer group text-left"
             >
-              <div className="h-5.5 w-5.5 rounded-md bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500 group-hover:bg-amber-500/20 transition-colors">
-                <AppLogo className="h-3.5 w-3.5 block group-hover:hidden transition-all text-amber-500" />
-                <PanelLeftClose className="h-3.5 w-3.5 hidden group-hover:block transition-all text-zinc-200" />
+              <div className="h-6 w-6 rounded-md bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500 group-hover:bg-amber-500/20 group-hover:border-amber-500/40 transition-all">
+                <AppLogo className="h-3.5 w-3.5 text-amber-500 group-hover:scale-105 transition-transform" />
               </div>
               <span className="font-semibold text-zinc-100 text-xs tracking-tight group-hover:text-amber-400 transition-colors">
                 {APP_CONFIG.name}
               </span>
-            </div>
+            </button>
 
             {onToggleCollapse && (
               <button

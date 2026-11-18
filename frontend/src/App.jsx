@@ -5,7 +5,6 @@ import ChatInterface from './components/chat/ChatInterface';
 import DocumentWriter from './components/writer/DocumentWriter';
 import CreateWorkspaceModal from './components/document/CreateWorkspaceModal';
 import SettingsModal from './components/layout/SettingsModal';
-import TopNavbar from './components/layout/TopNavbar';
 import LiteratureReviewModal from './components/modals/LiteratureReviewModal';
 import ThemeModal from './components/modals/ThemeModal';
 import GlobalSearchModal from './components/modals/GlobalSearchModal';
@@ -16,6 +15,7 @@ import PdfViewer from './components/viewer/PdfViewer';
 import ErrorBoundary from './components/common/ErrorBoundary';
 import ProfileSettingsModal from './components/layout/ProfileSettingsModal';
 import LibraryView from './components/library/LibraryView';
+import HomeView from './components/home/HomeView';
 import { 
   getDocuments, 
   checkHealth, 
@@ -50,7 +50,45 @@ export default function App() {
   const [newChatWorkspace, setNewChatWorkspace] = useState(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authModalMode, setAuthModalMode] = useState('login');
-  const [isLibraryOpen, setIsLibraryOpen] = useState(false);
+
+  // --------------------------------------------------------------------------
+  // CLIENT-SIDE ROUTING & WINDOW NAVIGATION (localhost/chat, /library, /home)
+  // --------------------------------------------------------------------------
+  const getInitialRoute = () => {
+    if (typeof window === 'undefined') return 'chat';
+    const path = window.location.pathname.toLowerCase();
+    if (path.startsWith('/library')) return 'library';
+    if (path.startsWith('/home')) return 'home';
+    return 'chat';
+  };
+
+  const [currentRoute, setCurrentRoute] = useState(getInitialRoute);
+
+  const navigateTo = useCallback((route) => {
+    setCurrentRoute(route);
+    const targetPath = route === 'chat' ? '/chat' : `/${route}`;
+    if (window.location.pathname !== targetPath) {
+      window.history.pushState(null, '', targetPath);
+    }
+  }, []);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setCurrentRoute(getInitialRoute());
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  useEffect(() => {
+    if (window.location.pathname === '/' || window.location.pathname === '') {
+      window.history.replaceState(null, '', '/chat');
+    }
+  }, []);
+
+  const isLibraryOpen = currentRoute === 'library';
+  const isHomeOpen = currentRoute === 'home';
+  const setIsLibraryOpen = (open) => navigateTo(open ? 'library' : 'chat');
 
   const handleOpenAuth = (mode = 'login') => {
     setAuthModalMode(mode);
@@ -303,7 +341,7 @@ export default function App() {
   };
 
   const handleSelectWorkspaceChat = (workspaceId, sessionId, messageIndex = null) => {
-    setIsLibraryOpen(false);
+    navigateTo('chat');
     if (messageIndex !== null && messageIndex !== undefined) {
       setTargetMessageIndex(messageIndex);
     } else {
@@ -322,7 +360,7 @@ export default function App() {
   };
 
   const handleSelectStandaloneChat = (sessionId, messageIndex = null) => {
-    setIsLibraryOpen(false);
+    navigateTo('chat');
     if (messageIndex !== null && messageIndex !== undefined) {
       setTargetMessageIndex(messageIndex);
     } else {
@@ -503,7 +541,7 @@ export default function App() {
   };
 
   const handleNewChat = () => {
-    setIsLibraryOpen(false);
+    navigateTo('chat');
     setActiveWorkspaceId(null);
     setActiveSessionId(null);
     setSelectedDocs([]);
@@ -540,7 +578,84 @@ export default function App() {
   };
 
   // --------------------------------------------------------------------------
-  // DEDICATED REFERENCE LIBRARY WORKBENCH (Zero sidebar, 100vw x 100vh)
+  // HOME DASHBOARD VIEW (localhost/home)
+  // --------------------------------------------------------------------------
+  if (isHomeOpen) {
+    return (
+      <div 
+        data-theme={currentTheme}
+        className="fixed inset-0 z-50 h-screen w-screen bg-zinc-950 text-zinc-100 overflow-hidden font-sans select-text flex flex-col"
+      >
+        <HomeView
+          onNavigate={navigateTo}
+          workspaces={workspaces}
+          standaloneChats={standaloneChats}
+          currentUser={currentUser}
+          onOpenAuth={handleOpenAuth}
+          onOpenSettings={() => setIsSettingsOpen(true)}
+          onOpenThemeModal={() => setIsThemeModalOpen(true)}
+          onOpenSearchModal={() => setIsSearchModalOpen(true)}
+          onSelectWorkspaceChat={(wsId, chatId) => {
+            handleSelectWorkspaceChat(wsId, chatId);
+            navigateTo('chat');
+          }}
+          onSelectStandaloneChat={(chatId) => {
+            handleSelectStandaloneChat(chatId);
+            navigateTo('chat');
+          }}
+          totalLibraryItems={documents.length}
+        />
+
+        {/* Modals */}
+        <CreateWorkspaceModal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          onWorkspaceCreated={handleWorkspaceCreated}
+        />
+        <SettingsModal
+          isOpen={isSettingsOpen}
+          onClose={() => setIsSettingsOpen(false)}
+          onConfigUpdated={handleConfigUpdated}
+        />
+        <ProfileSettingsModal
+          isOpen={isProfileSettingsOpen}
+          onClose={() => setIsProfileSettingsOpen(false)}
+          currentUser={currentUser}
+          onProfileUpdated={handleAuthChange}
+          onLogout={handleAuthChange}
+        />
+        <ThemeModal
+          isOpen={isThemeModalOpen}
+          onClose={() => setIsThemeModalOpen(false)}
+          currentTheme={currentTheme}
+          onThemeChange={handleThemeChange}
+        />
+        <GlobalSearchModal
+          isOpen={isSearchModalOpen}
+          onClose={() => setIsSearchModalOpen(false)}
+          workspaces={workspaces}
+          standaloneChats={standaloneChats}
+          onSelectWorkspace={(wsId, chatId) => {
+            handleSelectWorkspaceChat(wsId, chatId);
+            navigateTo('chat');
+          }}
+          onSelectStandaloneChat={(chatId) => {
+            handleSelectStandaloneChat(chatId);
+            navigateTo('chat');
+          }}
+        />
+        <AuthModal
+          isOpen={isAuthModalOpen}
+          initialMode={authModalMode}
+          onClose={() => setIsAuthModalOpen(false)}
+          onSuccess={handleAuthChange}
+        />
+      </div>
+    );
+  }
+
+  // --------------------------------------------------------------------------
+  // DEDICATED REFERENCE LIBRARY WORKBENCH (localhost/library)
   // --------------------------------------------------------------------------
   if (isLibraryOpen) {
     return (
@@ -550,18 +665,19 @@ export default function App() {
       >
         <LibraryView
           workspaces={workspaces}
-          onClose={() => setIsLibraryOpen(false)}
+          onNavigate={navigateTo}
+          onClose={() => navigateTo('chat')}
           onStartChatWithPaper={(docName) => {
-            setIsLibraryOpen(false);
+            navigateTo('chat');
             handleSelectCitation(docName, 1);
           }}
           onOpenPdfViewer={(docName, page) => {
-            setIsLibraryOpen(false);
+            navigateTo('chat');
             handleSelectCitation(docName, page);
           }}
           onOpenLitReviewWithDocs={(docNames) => {
             setSelectedDocs(docNames);
-            setIsLibraryOpen(false);
+            navigateTo('chat');
             setIsLitReviewOpen(true);
           }}
         />
@@ -577,6 +693,13 @@ export default function App() {
           onClose={() => setIsSettingsOpen(false)}
           onConfigUpdated={handleConfigUpdated}
         />
+        <ProfileSettingsModal
+          isOpen={isProfileSettingsOpen}
+          onClose={() => setIsProfileSettingsOpen(false)}
+          currentUser={currentUser}
+          onProfileUpdated={handleAuthChange}
+          onLogout={handleAuthChange}
+        />
         <LiteratureReviewModal
           isOpen={isLitReviewOpen}
           onClose={() => setIsLitReviewOpen(false)}
@@ -584,6 +707,18 @@ export default function App() {
           selectedDocs={selectedDocs}
           currentModel={currentModel}
           onGenerateReview={handleGenerateLiteratureReview}
+        />
+        <ThemeModal
+          isOpen={isThemeModalOpen}
+          onClose={() => setIsThemeModalOpen(false)}
+          currentTheme={currentTheme}
+          onThemeChange={handleThemeChange}
+        />
+        <AuthModal
+          isOpen={isAuthModalOpen}
+          initialMode={authModalMode}
+          onClose={() => setIsAuthModalOpen(false)}
+          onSuccess={handleAuthChange}
         />
       </div>
     );
@@ -664,8 +799,10 @@ export default function App() {
         onOpenBrainModal={() => setIsBrainModalOpen(true)}
         onToggleWriter={handleToggleWriter}
         isWriterActive={isWriterOpen}
-        onToggleLibrary={() => setIsLibraryOpen((prev) => !prev)}
-        isLibraryActive={isLibraryOpen}
+        onToggleLibrary={() => navigateTo(currentRoute === 'library' ? 'chat' : 'library')}
+        isLibraryActive={currentRoute === 'library'}
+        currentRoute={currentRoute}
+        onNavigate={navigateTo}
         onAuthChange={handleAuthChange}
         onOpenAuth={handleOpenAuth}
         onOpenSettings={() => setIsSettingsOpen(true)}
@@ -678,16 +815,6 @@ export default function App() {
 
       {/* 2. Main Question / Research Interface Canvas */}
       <div className="flex-1 flex flex-col h-full overflow-hidden relative z-0">
-        {/* Top Navigation Bar */}
-        <TopNavbar
-          isSidebarCollapsed={isSidebarCollapsed}
-          onToggleSidebar={handleToggleSidebar}
-          currentUser={currentUser}
-          onOpenAuth={handleOpenAuth}
-          onDeleteChat={handleDeleteCurrentChat}
-          onOpenSettings={() => setIsSettingsOpen(true)}
-        />
-
         {/* Subtle offline alert bar if backend is disconnected */}
         {backendStatus === 'offline' && (
           <div className="bg-amber-500/10 border-b border-amber-500/20 px-4 py-1.5 flex items-center justify-between text-xs text-amber-400 shrink-0">

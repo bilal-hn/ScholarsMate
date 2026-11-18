@@ -33,7 +33,10 @@ import {
   GitMerge,
   Copy,
   CheckCircle2,
+  Home,
+  BookMarked,
 } from 'lucide-react';
+import AppLogo from '../common/AppLogo';
 import {
   getLibraryAPI,
   deleteLibraryItemAPI,
@@ -59,6 +62,7 @@ export default function LibraryView({
   onStartChatWithPaper,
   onOpenPdfViewer,
   onOpenLitReviewWithDocs,
+  onNavigate,
 }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -682,46 +686,64 @@ export default function LibraryView({
   return (
     <div className="h-full flex flex-col w-full bg-zinc-950 text-zinc-100 overflow-hidden select-text relative z-10 font-sans">
       {/* ========================================================================= */}
-      {/* NATIVE ZOTERO-STYLE APPLICATION TOOLBAR (Height: 38px) */}
+      {/* NATIVE APPLICATION TOOLBAR (VS Code / AGY Style - Height: 40px) */}
       {/* ========================================================================= */}
       <header className="h-10 border-b border-zinc-800 bg-zinc-900/90 px-3 flex items-center justify-between gap-3 shrink-0 select-none text-xs">
-        {/* Left Section: Back to Chat Button + Breadcrumb */}
+        {/* Left Section: Logo (Home) + Your Chats + Collection Label */}
         <div className="flex items-center gap-2 shrink-0">
-          {onClose && (
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex items-center gap-1.5 px-2 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-zinc-100 border border-zinc-700/60 rounded text-[11.5px] font-medium transition-colors cursor-pointer group"
-              title="Return to Chat Interface (Esc)"
-            >
-              <ArrowLeft className="h-3.5 w-3.5 text-zinc-400 group-hover:text-zinc-200" />
-              <span>Back to Chat</span>
-              <kbd className="text-[10px] bg-zinc-900 text-zinc-400 px-1 py-0.2 rounded border border-zinc-700/80 font-mono">Esc</kbd>
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => onNavigate?.('home')}
+            className="flex items-center gap-1.5 pr-2 border-r border-zinc-800 cursor-pointer group text-left"
+            title="ScholarsMate Home (localhost/home)"
+          >
+            <AppLogo className="h-4 w-4 text-amber-500 group-hover:scale-105 transition-transform" />
+            <span className="font-bold text-xs tracking-tight text-zinc-100 group-hover:text-amber-400 transition-colors hidden sm:inline">
+              ScholarsMate
+            </span>
+          </button>
+
+          {/* Clean "Your Chats" button */}
+          <button
+            type="button"
+            onClick={() => onNavigate ? onNavigate('chat') : onClose?.()}
+            className="flex items-center gap-1.5 px-2.5 py-1 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/80 rounded-md transition-colors text-xs cursor-pointer group"
+            title="Return to Your Chats (localhost/chat)"
+          >
+            <MessageSquare className="h-3.5 w-3.5 text-zinc-400 group-hover:text-amber-400 transition-colors" />
+            <span className="font-medium">Your Chats</span>
+          </button>
 
           <div className="h-4 w-px bg-zinc-800 hidden sm:block" />
 
           {/* Collection / Library Brand */}
           <div className="flex items-center gap-1.5 px-1">
-            <Folder className="h-3.5 w-3.5 text-blue-500 fill-blue-500/20 shrink-0" />
-            <span className="font-semibold text-zinc-200 text-xs">My Library</span>
-            <span className="text-[11px] text-zinc-500 font-mono">({items.length})</span>
+            <Folder className="h-3.5 w-3.5 text-blue-400 fill-blue-400/20 shrink-0" />
+            <span className="font-semibold text-zinc-200 text-xs truncate max-w-[140px]">
+              {activeWorkspaceFilter && !activeWorkspaceFilter.startsWith('__')
+                ? localWorkspaces.find(w => w.id === activeWorkspaceFilter)?.name || 'Collection'
+                : activeWorkspaceFilter === '__duplicates__'
+                ? 'Duplicates'
+                : activeWorkspaceFilter === '__unfiled__'
+                ? 'Unfiled Items'
+                : 'My Library'}
+            </span>
+            <span className="text-[10px] text-zinc-500 font-mono">({items.length})</span>
           </div>
 
-          <div className="h-4 w-px bg-zinc-800" />
+          <div className="h-4 w-px bg-zinc-800 hidden md:block" />
 
-          {/* Zotero Desktop Action Buttons */}
+          {/* Action Toolbar */}
           <div className="flex items-center gap-1">
-            {/* New Item Dropdown (Zotero Style - FR-17.5) */}
+            {/* New Item Dropdown */}
             <div className="relative" ref={newItemMenuRef}>
               <button
                 type="button"
                 onClick={() => setIsNewItemMenuOpen(!isNewItemMenuOpen)}
-                className="flex items-center gap-1 px-2 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700/60 rounded text-[11.5px] font-medium transition-colors cursor-pointer select-none"
+                className="flex items-center gap-1 px-2.5 py-1 bg-zinc-800 hover:bg-zinc-750 text-zinc-200 border border-zinc-700/70 rounded text-[11px] font-medium transition-colors cursor-pointer select-none"
                 title="Create New Item or Upload Document"
               >
-                <Plus className="h-3.5 w-3.5 text-blue-400" />
+                <Plus className="h-3 w-3 text-blue-400" />
                 <span>New Item</span>
                 <ChevronDown className="h-2.5 w-2.5 text-zinc-400" />
               </button>
@@ -823,11 +845,11 @@ export default function LibraryView({
                 setIsAddIdentifierOpen(true);
                 setAddError(null);
               }}
-              className="flex items-center gap-1 px-2 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700/60 rounded text-[11.5px] font-medium transition-colors cursor-pointer"
+              className="flex items-center gap-1 px-2 py-1 bg-zinc-850 hover:bg-zinc-750 text-zinc-300 hover:text-zinc-100 border border-zinc-750 rounded text-[11px] font-medium transition-colors cursor-pointer"
               title="Add item by DOI or arXiv identifier"
             >
-              <Wand2 className="h-3.5 w-3.5 text-amber-400" />
-              <span className="hidden md:inline">Add by Identifier</span>
+              <Wand2 className="h-3 w-3 text-amber-400" />
+              <span className="hidden sm:inline">Identifier</span>
             </button>
 
             {/* Import BibTeX / RIS (FR-17.1) */}
@@ -835,11 +857,11 @@ export default function LibraryView({
               type="button"
               onClick={() => bibFileInputRef.current?.click()}
               disabled={isImportingBib}
-              className="flex items-center gap-1 px-2 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700/60 rounded text-[11.5px] font-medium transition-colors cursor-pointer disabled:opacity-50"
+              className="flex items-center gap-1 px-2 py-1 bg-zinc-850 hover:bg-zinc-750 text-zinc-300 hover:text-zinc-100 border border-zinc-750 rounded text-[11px] font-medium transition-colors cursor-pointer disabled:opacity-50"
               title="Bulk import references from BibTeX (.bib) or RIS (.ris) file"
             >
-              <FileUp className="h-3.5 w-3.5 text-blue-400" />
-              <span className="hidden md:inline">{isImportingBib ? 'Importing...' : 'Import (.bib / .ris)'}</span>
+              <FileUp className="h-3 w-3 text-blue-400" />
+              <span className="hidden sm:inline">{isImportingBib ? 'Importing...' : 'Import'}</span>
             </button>
             <input
               ref={bibFileInputRef}
@@ -854,11 +876,11 @@ export default function LibraryView({
             <button
               type="button"
               onClick={handleExportSelectedBibtex}
-              className="flex items-center gap-1 px-2 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-zinc-100 border border-zinc-700/60 rounded text-[11.5px] font-medium transition-colors cursor-pointer"
+              className="flex items-center gap-1 px-2 py-1 bg-zinc-850 hover:bg-zinc-750 text-zinc-300 hover:text-zinc-100 border border-zinc-750 rounded text-[11px] font-medium transition-colors cursor-pointer"
               title="Export to BibTeX format"
             >
-              <Download className="h-3.5 w-3.5 text-zinc-400" />
-              <span className="hidden md:inline">Export (.bib)</span>
+              <Download className="h-3 w-3 text-zinc-400" />
+              <span className="hidden sm:inline">Export</span>
             </button>
 
             {/* Refresh */}
@@ -868,7 +890,7 @@ export default function LibraryView({
               className="p-1 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded transition-colors cursor-pointer"
               title="Refresh Library"
             >
-              <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin text-blue-400' : ''}`} />
+              <RefreshCw className={`h-3 w-3 ${loading ? 'animate-spin text-blue-400' : ''}`} />
             </button>
           </div>
 
@@ -973,14 +995,14 @@ export default function LibraryView({
         </div>
 
         {/* Right Section: Compact Zotero-Style Search Input */}
-        <form onSubmit={handleSearchSubmit} className="relative w-64 shrink-0">
+        <form onSubmit={handleSearchSubmit} className="relative w-44 sm:w-56 shrink-0">
           <Search className="h-3 w-3 text-zinc-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search All Fields & Tags..."
-            className="w-full bg-zinc-950 border border-zinc-750 rounded pl-7 pr-6 py-1 text-[11.5px] text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-blue-500 transition-colors shadow-inner"
+            placeholder="Search library..."
+            className="w-full bg-zinc-950 border border-zinc-800 rounded pl-7 pr-6 py-1 text-[11px] text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-blue-500 transition-colors shadow-inner"
           />
           {searchQuery && (
             <button
