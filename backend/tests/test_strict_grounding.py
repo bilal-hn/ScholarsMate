@@ -13,30 +13,30 @@ def test_system_prompt_strictly_source_locked():
     assert "When answering general conceptual questions not covered by the workspace papers" not in MAIN_RAG_PROMPT
 
     assistant_directive = ACADEMIC_MODES["assistant"]["prompt_directive"]
-    assert "You must answer strictly from the user's uploaded papers" in assistant_directive
+    assert "You must answer strictly from the user's uploaded documents" in assistant_directive
     assert "If asked a general knowledge question not in the papers, answer clearly and helpfully" not in assistant_directive
 
 
 def test_scenario_1_empty_chat_random_question_prompts_upload():
     """
-    Scenario 1: User is given an empty chat on login with no uploaded papers.
+    Scenario 1: User is given an empty chat on login with no uploaded documents.
     When asking a random question like 'give me a python script', the assistant MUST prompt
-    the user to upload papers first, rather than answering with general code/knowledge.
+    the user to upload documents/materials first, rather than answering with general code/knowledge.
     """
     res = generate_answer(
         query="give me a python script for a web scraper",
         explicit_docs=[],
     )
 
-    assert "Please upload or attach research papers first" in res["answer"]
-    assert "ScholarsMate is an evidence-grounded research assistant" in res["answer"]
+    assert "Please upload or attach documents first" in res["answer"]
+    assert "ScholarsMate only answers questions based on your uploaded materials" in res["answer"]
     assert res["sources_used"] == []
 
 
 def test_scenario_1_empty_chat_greeting_guides_upload():
     """
     Scenario 1 (Greeting): User says hello in an empty chat.
-    Assistant should welcome the user and guide them to upload papers.
+    Assistant should welcome the user and guide them to upload documents.
     """
     res = generate_answer(
         query="Hello!",
@@ -44,7 +44,7 @@ def test_scenario_1_empty_chat_greeting_guides_upload():
     )
 
     assert "Welcome to ScholarsMate" in res["answer"]
-    assert "upload or attach research papers" in res["answer"].lower()
+    assert "upload or attach your documents" in res["answer"].lower()
     assert res["sources_used"] == []
 
 
@@ -66,7 +66,7 @@ def test_scenario_2_document_chat_offtopic_question_refused(mock_rails, mock_ret
         explicit_docs=["attention.pdf"],
     )
 
-    assert "I can only answer questions grounded in your uploaded research documents" in res["answer"]
+    assert "I can only answer questions grounded in your uploaded documents" in res["answer"]
     assert "`attention.pdf`" in res["answer"]
     assert "could not find any relevant information" in res["answer"]
     assert res["sources_used"] == []

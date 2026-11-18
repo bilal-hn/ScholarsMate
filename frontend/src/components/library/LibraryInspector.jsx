@@ -260,9 +260,9 @@ export default function LibraryInspector({
       }
     };
     if (isAddWorkspaceOpen) {
-      document.addEventListener('mousedown', handleOutsideClick);
+      window.addEventListener('mousedown', handleOutsideClick);
     }
-    return () => document.removeEventListener('mousedown', handleOutsideClick);
+    return () => window.removeEventListener('mousedown', handleOutsideClick);
   }, [isAddWorkspaceOpen]);
 
   const handleAssignWorkspace = async (workspaceId) => {

@@ -354,8 +354,8 @@ def generate_answer(
             return {
                 "query": query,
                 "answer": (
-                    "Hello! Welcome to ScholarsMate. To get started, please upload or attach research papers (PDFs) to your chat or workspace.\n\n"
-                    "I am an evidence-grounded research assistant and answer questions strictly based on your uploaded literature."
+                    "Hello! Welcome to ScholarsMate. To get started, please upload or attach your documents (PDFs, books, notes, or study materials) to your chat or workspace.\n\n"
+                    "ScholarsMate answers questions strictly based on your uploaded materials."
                 ),
                 "thinking_process": None,
                 "sources_used": [],
@@ -367,12 +367,12 @@ def generate_answer(
                 }
             }
 
-        # User asked a random question (e.g. "give me a python script", "what is machine learning", etc.) with no papers
+        # User asked a random question (e.g. "give me a python script", "what is machine learning", etc.) with no documents
         return {
             "query": query,
             "answer": (
-                "Please upload or attach research papers first. ScholarsMate is an evidence-grounded research assistant designed to answer questions strictly from your uploaded literature.\n\n"
-                "Once you upload or attach papers to this chat or workspace, I can help you analyze their methodology, extract findings, compare approaches, and answer questions grounded in your documents."
+                "Please upload or attach documents first. ScholarsMate only answers questions based on your uploaded materials (books, study materials, notes, or papers).\n\n"
+                "Once you upload or attach documents to this chat or workspace, I can help you analyze, summarize, explain concepts, and answer questions grounded strictly in your content."
             ),
             "thinking_process": None,
             "sources_used": [],
@@ -421,11 +421,11 @@ def generate_answer(
     if intent == "CONVERSATIONAL" and not attached_images_text:
         docs_summary = ", ".join(active_workspace_docs[:3]) + ("..." if len(active_workspace_docs) > 3 else "")
         conv_sys = (
-            f"You are ScholarsMate, an academic research assistant dedicated to the user's uploaded documents: {docs_summary}. "
+            f"You are ScholarsMate, an intelligent assistant dedicated to the user's uploaded documents: {docs_summary}. "
             "The user is speaking conversationally, thinking out loud, or acknowledging previous points. "
-            "Reply warmly, concisely, and collegially like a human research partner. "
-            "Remind them what papers are active and invite them to explore or ask substantive questions about these papers. "
-            "DO NOT answer general programming, math, or external questions from general pre-trained memory. Always steer back to their papers."
+            "Reply warmly, concisely, and collegially. "
+            "Remind them what documents are active and invite them to explore or ask substantive questions about these materials. "
+            "DO NOT answer general programming, math, or external questions from general pre-trained memory. Always steer back to their documents."
         )
 
         if brain_context and brain_context.strip():
@@ -506,9 +506,9 @@ def generate_answer(
         return {
             "query": query,
             "answer": (
-                f"I can only answer questions grounded in your uploaded research documents ({docs_list_str}). "
-                f"I could not find any relevant information addressing '{clean_query}' in your attached documents.\n\n"
-                f"Please ask a question related to your uploaded literature, or upload papers that cover this topic."
+                f"I can only answer questions grounded in your uploaded documents ({docs_list_str}). "
+                f"I could not find any relevant information addressing '{clean_query}' in your attached materials.\n\n"
+                f"Please ask a question related to your uploaded documents, or upload materials that cover this topic."
             ),
             "thinking_process": None,
             "sources_used": [],

@@ -11,14 +11,17 @@
             "id": "53955756193a3ea9",
             "type": "leaf",
             "state": {
-              "type": "markdown",
+              "type": "canvas",
               "state": {
-                "file": "00 - Overview/02_Tech_Stack_Rationale.md",
-                "mode": "source",
-                "source": false
+                "file": "ScholarsMate_Architecture_Map.canvas",
+                "viewState": {
+                  "x": -1226.4899119954487,
+                  "y": 809.6049123722466,
+                  "zoom": -2.051996541883191
+                }
               },
-              "icon": "lucide-file",
-              "title": "02_Tech_Stack_Rationale"
+              "icon": "lucide-layout-dashboard",
+              "title": "ScholarsMate_Architecture_Map"
             }
           }
         ]
@@ -188,6 +191,7 @@
   },
   "active": "53955756193a3ea9",
   "lastOpenFiles": [
+    "00 - Overview/02_Tech_Stack_Rationale.md",
     "00 - Overview/01_System_Architecture_Overview.md",
     "00 - Overview/00_Project_Executive_Summary.md",
     "05 - Advanced Features/52_Assisted_Document_Writer_and_Citation_Drawer.md",
