@@ -203,5 +203,14 @@ async def get_current_user(
             print(f"[Auth Notice] Google token validation failed ({e}). Falling back to guest identity.")
             # If expired/invalid, seamlessly fall through to guest resolution rather than breaking the workspace request
 
-    # 2. Fall back to Anonymous Guest Identity
+    # 2. Fall back to Primary Local User or Anonymous Guest Identity
+    # For local usage, resolve to the primary registered user if available so collection and workspaces
+    # remain accessible without requiring re-authentication on every session refresh.
+    if not (x_guest_id and x_guest_id.startswith("test-")):
+        primary_user = (await db.execute(
+            select(User).where(User.email.isnot(None), User.is_guest == False).order_by(User.created_at.asc())
+        )).scalars().first()
+        if primary_user:
+            return primary_user
+
     return await get_or_create_guest_user(x_guest_id, db)

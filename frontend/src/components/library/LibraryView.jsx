@@ -109,8 +109,13 @@ export default function LibraryView({
   // Selected Document for Right Inspector (Single Click = Select/Inspect)
   const [selectedDoc, setSelectedDoc] = useState(null);
 
-  // Multi-select Checkbox State for Batch Actions
+  // Multi-select Checkbox State for Batch Actions (Click and hold activates selection mode)
   const [selectedIds, setSelectedIds] = useState(new Set());
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const longPressTimerRef = useRef(null);
+  const isLongPressTriggeredRef = useRef(false);
+
+  const showCheckboxes = isSelectionMode || selectedIds.size > 0;
 
   // Expandable sub-rows (Zotero shows attached Full Text PDF as a sub-row)
   const [expandedDocIds, setExpandedDocIds] = useState(new Set());
@@ -610,23 +615,62 @@ export default function LibraryView({
     });
   };
 
-  // Multi-select helpers
+  // Multi-select helpers with Click-and-Hold (long press) support
   const handleToggleSelectAll = () => {
     if (selectedIds.size === sortedItems.length) {
       setSelectedIds(new Set());
+      setIsSelectionMode(false);
     } else {
       setSelectedIds(new Set(sortedItems.map((i) => i.id)));
+      setIsSelectionMode(true);
     }
   };
 
   const handleToggleSelectItem = (id, e) => {
-    e.stopPropagation();
+    if (e && e.stopPropagation) e.stopPropagation();
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
+      if (next.size === 0) {
+        setIsSelectionMode(false);
+      }
       return next;
     });
+  };
+
+  const handleRowPointerDown = (item, e) => {
+    if (e.button !== 0 && e.pointerType === 'mouse') return;
+    isLongPressTriggeredRef.current = false;
+    longPressTimerRef.current = setTimeout(() => {
+      isLongPressTriggeredRef.current = true;
+      setIsSelectionMode(true);
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        next.add(item.id);
+        return next;
+      });
+      setSelectedDoc(item);
+    }, 450);
+  };
+
+  const handleRowPointerUpOrLeave = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
+
+  const handleRowClick = (item, e) => {
+    if (isLongPressTriggeredRef.current) {
+      isLongPressTriggeredRef.current = false;
+      return;
+    }
+    if (showCheckboxes) {
+      handleToggleSelectItem(item.id, e);
+    } else {
+      setSelectedDoc(item);
+    }
   };
 
   // Batch BibTeX Export
@@ -1372,11 +1416,25 @@ export default function LibraryView({
               </button>
 
               {/* Batch Selection Action Icons */}
-              {selectedIds.size > 0 && (
+              {showCheckboxes && (
                 <div className="flex items-center gap-1 ml-1 pl-2 border-l border-zinc-800">
                   <span className="text-[11px] text-zinc-400 font-mono hidden sm:inline mr-1">
                     {selectedIds.size} selected
                   </span>
+
+                  {/* Exit Selection Mode */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedIds(new Set());
+                      setIsSelectionMode(false);
+                    }}
+                    className="p-1 rounded text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition-colors cursor-pointer text-[10.5px] flex items-center gap-1 mr-1"
+                    title="Exit selection mode"
+                  >
+                    <X className="h-3 w-3" />
+                    <span className="hidden sm:inline">Done</span>
+                  </button>
 
                   {/* Synthesize Review Icon */}
                   <button
@@ -1657,21 +1715,23 @@ export default function LibraryView({
               <table className="w-full text-left border-collapse select-none table-fixed">
                 <thead>
                   <tr className="bg-zinc-900 border-b border-zinc-800 text-zinc-400 font-semibold text-[11px] h-7 sticky top-0 z-10 select-none">
-                    {/* Checkbox */}
-                    <th className="w-7 min-w-[28px] px-1.5 text-center">
-                      <button
-                        type="button"
-                        onClick={handleToggleSelectAll}
-                        className="text-zinc-400 hover:text-zinc-200 cursor-pointer align-middle"
-                        title="Select All"
-                      >
-                        {selectedIds.size === sortedItems.length && sortedItems.length > 0 ? (
-                          <CheckSquare className="h-3.5 w-3.5 text-blue-400" />
-                        ) : (
-                          <Square className="h-3.5 w-3.5" />
-                        )}
-                      </button>
-                    </th>
+                    {/* Checkbox (shown only when click-and-hold selection mode is active) */}
+                    {showCheckboxes && (
+                      <th className="w-7 min-w-[28px] px-1.5 text-center">
+                        <button
+                          type="button"
+                          onClick={handleToggleSelectAll}
+                          className="text-zinc-400 hover:text-zinc-200 cursor-pointer align-middle"
+                          title="Select All"
+                        >
+                          {selectedIds.size === sortedItems.length && sortedItems.length > 0 ? (
+                            <CheckSquare className="h-3.5 w-3.5 text-blue-400" />
+                          ) : (
+                            <Square className="h-3.5 w-3.5" />
+                          )}
+                        </button>
+                      </th>
+                    )}
 
                     {/* Expand / Collapse Chevron */}
                     <th className="w-5 min-w-[20px] px-0 text-center"></th>
@@ -1729,7 +1789,11 @@ export default function LibraryView({
                       <React.Fragment key={item.id}>
                         {/* Main Paper Row (Height ~28px - Dense Desktop Style) */}
                         <tr
-                          onClick={() => setSelectedDoc(item)}
+                          onClick={(e) => handleRowClick(item, e)}
+                          onPointerDown={(e) => handleRowPointerDown(item, e)}
+                          onPointerUp={handleRowPointerUpOrLeave}
+                          onPointerLeave={handleRowPointerUpOrLeave}
+                          onPointerCancel={handleRowPointerUpOrLeave}
                           onDoubleClick={() => {
                             if (item.doc_name) {
                               handleOpenPaperTab(item.doc_name, item.title || item.doc_name);
@@ -1745,22 +1809,24 @@ export default function LibraryView({
                               : 'hover:bg-zinc-850/60 text-zinc-300'
                           }`}
                         >
-                          {/* Checkbox */}
-                          <td className="w-7 min-w-[28px] px-1.5 text-center" onClick={(e) => e.stopPropagation()}>
-                            <button
-                              type="button"
-                              onClick={(e) => handleToggleSelectItem(item.id, e)}
-                              className={`cursor-pointer align-middle ${
-                                isInspecting ? 'text-white' : 'text-zinc-500 hover:text-zinc-300'
-                              }`}
-                            >
-                              {isSelected ? (
-                                <CheckSquare className={`h-3.5 w-3.5 ${isInspecting ? 'text-white' : 'text-blue-400'}`} />
-                              ) : (
-                                <Square className="h-3.5 w-3.5" />
-                              )}
-                            </button>
-                          </td>
+                          {/* Checkbox (shown only when selection mode is active) */}
+                          {showCheckboxes && (
+                            <td className="w-7 min-w-[28px] px-1.5 text-center" onClick={(e) => e.stopPropagation()}>
+                              <button
+                                type="button"
+                                onClick={(e) => handleToggleSelectItem(item.id, e)}
+                                className={`cursor-pointer align-middle ${
+                                  isInspecting ? 'text-white' : 'text-zinc-500 hover:text-zinc-300'
+                                }`}
+                              >
+                                {isSelected ? (
+                                  <CheckSquare className={`h-3.5 w-3.5 ${isInspecting ? 'text-white' : 'text-blue-400'}`} />
+                                ) : (
+                                  <Square className="h-3.5 w-3.5" />
+                                )}
+                              </button>
+                            </td>
+                          )}
 
                           {/* Expand/Collapse Chevron (Shows attached PDF sub-row) */}
                           <td className="w-5 min-w-[20px] px-0 text-center" onClick={(e) => toggleRowExpansion(item.id, e)}>
@@ -1877,7 +1943,7 @@ export default function LibraryView({
                         {/* Zotero Sub-Row (Attached PDF child item) */}
                         {isExpanded && (
                           <tr className="bg-zinc-900/60 border-b border-zinc-855/60 text-xs">
-                            <td colSpan={2}></td>
+                            <td colSpan={showCheckboxes ? 2 : 1}></td>
                             <td className="text-center">
                               {item.has_pdf ? (
                                 <FileText className="h-3.5 w-3.5 mx-auto text-red-400" />

@@ -1027,16 +1027,36 @@ async def create_workspace(
                 store_chunks(chunks)
                 total_chunks += len(chunks)
 
-            # Register document in DB
+            # Register document in DB with extracted bibliographic metadata
             file_hash = calculate_sha256(file_path)
             file_size = file_path.stat().st_size if file_path.exists() else 0
-            doc_entry = UserDocument(
-                user_id=current_user.id,
-                doc_name=filename,
-                file_hash=file_hash,
-                file_size_bytes=file_size,
-            )
-            db.add(doc_entry)
+            bib_meta = extract_bibliographic_metadata(str(file_path))
+
+            existing_doc = await crud.get_library_document_by_name(db, filename, current_user.id)
+            if existing_doc:
+                existing_doc.file_hash = file_hash
+                existing_doc.file_size_bytes = file_size
+                if not existing_doc.title and bib_meta.get("title"): existing_doc.title = bib_meta.get("title")
+                if not existing_doc.authors and bib_meta.get("authors"): existing_doc.authors = bib_meta.get("authors")
+                if not existing_doc.year and bib_meta.get("year"): existing_doc.year = bib_meta.get("year")
+                if not existing_doc.doi and bib_meta.get("doi"): existing_doc.doi = bib_meta.get("doi")
+                if not existing_doc.arxiv_id and bib_meta.get("arxiv_id"): existing_doc.arxiv_id = bib_meta.get("arxiv_id")
+                if not existing_doc.venue and bib_meta.get("venue"): existing_doc.venue = bib_meta.get("venue")
+            else:
+                doc_entry = UserDocument(
+                    user_id=current_user.id,
+                    doc_name=filename,
+                    file_hash=file_hash,
+                    file_size_bytes=file_size,
+                    title=bib_meta.get("title"),
+                    authors=bib_meta.get("authors"),
+                    year=bib_meta.get("year"),
+                    venue=bib_meta.get("venue"),
+                    doi=bib_meta.get("doi"),
+                    arxiv_id=bib_meta.get("arxiv_id"),
+                    item_type=bib_meta.get("item_type") or "journal_article",
+                )
+                db.add(doc_entry)
 
             # Dispatch non-blocking background summary worker using user's BYOK keys
             await trigger_async_summary_generation(doc_name=filename, custom_keys=keys_dict)
@@ -1467,13 +1487,33 @@ async def add_papers_to_workspace(
 
             file_hash = calculate_sha256(file_path)
             file_size = file_path.stat().st_size if file_path.exists() else 0
-            doc_entry = UserDocument(
-                user_id=current_user.id,
-                doc_name=filename,
-                file_hash=file_hash,
-                file_size_bytes=file_size,
-            )
-            db.add(doc_entry)
+            bib_meta = extract_bibliographic_metadata(str(file_path))
+
+            existing_doc = await crud.get_library_document_by_name(db, filename, current_user.id)
+            if existing_doc:
+                existing_doc.file_hash = file_hash
+                existing_doc.file_size_bytes = file_size
+                if not existing_doc.title and bib_meta.get("title"): existing_doc.title = bib_meta.get("title")
+                if not existing_doc.authors and bib_meta.get("authors"): existing_doc.authors = bib_meta.get("authors")
+                if not existing_doc.year and bib_meta.get("year"): existing_doc.year = bib_meta.get("year")
+                if not existing_doc.doi and bib_meta.get("doi"): existing_doc.doi = bib_meta.get("doi")
+                if not existing_doc.arxiv_id and bib_meta.get("arxiv_id"): existing_doc.arxiv_id = bib_meta.get("arxiv_id")
+                if not existing_doc.venue and bib_meta.get("venue"): existing_doc.venue = bib_meta.get("venue")
+            else:
+                doc_entry = UserDocument(
+                    user_id=current_user.id,
+                    doc_name=filename,
+                    file_hash=file_hash,
+                    file_size_bytes=file_size,
+                    title=bib_meta.get("title"),
+                    authors=bib_meta.get("authors"),
+                    year=bib_meta.get("year"),
+                    venue=bib_meta.get("venue"),
+                    doi=bib_meta.get("doi"),
+                    arxiv_id=bib_meta.get("arxiv_id"),
+                    item_type=bib_meta.get("item_type") or "journal_article",
+                )
+                db.add(doc_entry)
 
             await trigger_async_summary_generation(doc_name=filename, custom_keys=keys_dict)
             processed_files.append(filename)
