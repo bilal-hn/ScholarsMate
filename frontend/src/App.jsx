@@ -10,6 +10,7 @@ import LiteratureReviewModal from './components/modals/LiteratureReviewModal';
 import ThemeModal from './components/modals/ThemeModal';
 import GlobalSearchModal from './components/modals/GlobalSearchModal';
 import BrainModal from './components/modals/BrainModal';
+import NewChatModal from './components/modals/NewChatModal';
 import AuthModal from './components/modals/AuthModal';
 import PdfViewer from './components/viewer/PdfViewer';
 import ErrorBoundary from './components/common/ErrorBoundary';
@@ -46,6 +47,7 @@ export default function App() {
   const [isThemeModalOpen, setIsThemeModalOpen] = useState(false);
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [isBrainModalOpen, setIsBrainModalOpen] = useState(false);
+  const [newChatWorkspace, setNewChatWorkspace] = useState(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authModalMode, setAuthModalMode] = useState('login');
   const [isLibraryOpen, setIsLibraryOpen] = useState(false);
@@ -341,9 +343,18 @@ export default function App() {
       return;
     }
 
+    if (currentChats.length === 0) {
+      // First chat in workspace: create directly without interruption
+      await executeCreateWorkspaceChat(workspaceId, 'Chat 1', null);
+    } else {
+      // Chat 2 or 3: open NewChatModal to allow blueprint seeding
+      setNewChatWorkspace(ws);
+    }
+  };
+
+  const executeCreateWorkspaceChat = async (workspaceId, title, seedMemoryIds = null) => {
     try {
-      const nextChatNum = currentChats.length + 1;
-      const newChat = await createWorkspaceChatAPI(workspaceId, `Chat ${nextChatNum}`);
+      const newChat = await createWorkspaceChatAPI(workspaceId, title, seedMemoryIds);
       setWorkspaces((prev) =>
         prev.map((w) =>
           w.id === workspaceId
@@ -823,6 +834,18 @@ export default function App() {
         activeWorkspaceId={activeWorkspaceId}
         workspaces={workspaces}
       />
+
+      {newChatWorkspace && (
+        <NewChatModal
+          isOpen={Boolean(newChatWorkspace)}
+          onClose={() => setNewChatWorkspace(null)}
+          workspace={newChatWorkspace}
+          defaultTitle={`Chat ${(newChatWorkspace.chats || []).length + 1}`}
+          onConfirm={({ title, seedMemoryIds }) => {
+            executeCreateWorkspaceChat(newChatWorkspace.id, title, seedMemoryIds);
+          }}
+        />
+      )}
 
       <AuthModal
         isOpen={isAuthModalOpen}

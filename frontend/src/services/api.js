@@ -400,9 +400,13 @@ export const getWorkspacesAPI = async () => {
  * @param {string} workspaceId
  * @param {string|null} [title=null]
  */
-export const createWorkspaceChatAPI = async (workspaceId, title = null) => {
+export const createWorkspaceChatAPI = async (workspaceId, title = null, seedMemoryIds = null) => {
   try {
-    const response = await apiClient.post(`/workspaces/${workspaceId}/chats`, { title });
+    const payload = { title };
+    if (seedMemoryIds && seedMemoryIds.length > 0) {
+      payload.seed_memory_ids = seedMemoryIds;
+    }
+    const response = await apiClient.post(`/workspaces/${workspaceId}/chats`, payload);
     return response.data;
   } catch (error) {
     console.error('Failed to create workspace chat:', error.response?.data || error.message);

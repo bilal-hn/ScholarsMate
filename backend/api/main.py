@@ -1144,6 +1144,13 @@ async def add_chat_to_workspace_endpoint(
             user_id=current_user.id,
             title=title
         )
+        if req and req.seed_memory_ids:
+            await crud.import_context_points(
+                db,
+                target_session_id=new_chat.id,
+                memory_ids=req.seed_memory_ids,
+                user_id=current_user.id
+            )
         return new_chat
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

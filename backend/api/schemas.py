@@ -96,6 +96,7 @@ class RenameWorkspaceRequest(BaseModel):
 
 class CreateWorkspaceChatRequest(BaseModel):
     title: Optional[str] = Field(default=None, json_schema_extra={"example": "Chat 2"})
+    seed_memory_ids: Optional[List[str]] = Field(default=None, json_schema_extra={"example": ["mem-1", "mem-2"]})
 
 
 class WorkspaceChatSummary(BaseModel):

@@ -526,7 +526,7 @@ export default function ChatInterface({
           <div className="flex items-center gap-2 min-w-0">
             <Sparkles className="h-3.5 w-3.5 text-amber-400 shrink-0" />
             <span className="truncate text-[11.5px]">
-              Found <strong>{availableContextPoints.length}</strong> context point{availableContextPoints.length > 1 ? 's' : ''} from sister chats in this workspace.
+              Found <strong>{availableContextPoints.length}</strong> blueprint takeaway{availableContextPoints.length > 1 ? 's' : ''} from prior chats in this workspace.
             </span>
           </div>
           <div className="flex items-center gap-2 shrink-0 ml-2">
@@ -708,7 +708,7 @@ export default function ChatInterface({
               <div className="flex items-center gap-2">
                 <Sparkles className="h-4 w-4 text-amber-400" />
                 <h3 className="text-sm font-bold text-zinc-100">
-                  Pull Context Points from Sister Chats
+                  Pull Blueprint Takeaways from Prior Chats
                 </h3>
               </div>
               <button
@@ -721,7 +721,7 @@ export default function ChatInterface({
             </div>
 
             <p className="text-xs text-zinc-400 mt-2 mb-3">
-              Select verified insights and user preferences discovered in other chats of this workspace to pull into this conversation. (Zero token cost)
+              Select verified project decisions, empirical parameters, and findings discovered in other chats of this workspace to pull into this conversation. (Zero token cost)
             </p>
 
             <div className="flex items-center justify-between text-xs text-zinc-400 mb-2 px-1">
