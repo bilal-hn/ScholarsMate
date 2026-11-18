@@ -35,6 +35,7 @@ import {
   CheckCircle2,
   Home,
   BookMarked,
+  BookOpen,
 } from 'lucide-react';
 import AppLogo from '../common/AppLogo';
 import {
@@ -55,6 +56,7 @@ import {
 } from '../../services/api';
 import LibraryInspector from './LibraryInspector';
 import DuplicateMerger from './DuplicateMerger';
+import PdfViewer from '../viewer/PdfViewer';
 
 export default function LibraryView({
   workspaces = [],
@@ -71,6 +73,35 @@ export default function LibraryView({
   const [activeWorkspaceFilter, setActiveWorkspaceFilter] = useState(null);
   const [availableTags, setAvailableTags] = useState([]);
   const [tagFilterQuery, setTagFilterQuery] = useState('');
+
+  // Multi-tab reading & library workbench (Zotero 7 Desktop style)
+  const [openTabs, setOpenTabs] = useState([
+    { id: 'library', title: 'My Library', type: 'library' }
+  ]);
+  const [activeTabId, setActiveTabId] = useState('library');
+
+  const handleOpenPaperTab = (docName, title) => {
+    if (!docName) return;
+    const tabId = `pdf-${docName}`;
+    setOpenTabs((prev) => {
+      if (prev.some((t) => t.id === tabId)) return prev;
+      return [...prev, { id: tabId, title: title || docName, type: 'pdf', docName }];
+    });
+    setActiveTabId(tabId);
+  };
+
+  const handleCloseTab = (e, tabId) => {
+    if (e) e.stopPropagation();
+    setOpenTabs((prev) => {
+      const idx = prev.findIndex((t) => t.id === tabId);
+      const remaining = prev.filter((t) => t.id !== tabId);
+      if (activeTabId === tabId) {
+        const nextActive = remaining[Math.max(0, idx - 1)] || remaining[0] || { id: 'library' };
+        setActiveTabId(nextActive.id);
+      }
+      return remaining;
+    });
+  };
 
   // Selected Document for Right Inspector (Single Click = Select/Inspect)
   const [selectedDoc, setSelectedDoc] = useState(null);
@@ -686,52 +717,101 @@ export default function LibraryView({
   return (
     <div className="h-full flex flex-col w-full bg-zinc-950 text-zinc-100 overflow-hidden select-text relative z-10 font-sans">
       {/* ========================================================================= */}
-      {/* NATIVE APPLICATION TOOLBAR (VS Code / AGY Style - Height: 40px) */}
+      {/* ROW 1: ZOTERO 7 APPLICATION TAB BAR (Height: 36px) */}
       {/* ========================================================================= */}
-      <header className="h-10 border-b border-zinc-800 bg-zinc-900/90 px-3 flex items-center justify-between gap-3 shrink-0 select-none text-xs">
-        {/* Left Section: Logo (Home) + Your Chats + Collection Label */}
-        <div className="flex items-center gap-2 shrink-0">
+      <div className="h-9 bg-zinc-950 border-b border-zinc-800 flex items-center justify-between px-2 shrink-0 select-none text-xs">
+        {/* Left: Quick Nav (Home & Chats) */}
+        <div className="flex items-center gap-1.5 shrink-0 pr-2 border-r border-zinc-800">
           <button
             type="button"
             onClick={() => onNavigate?.('home')}
-            className="flex items-center gap-1.5 pr-2 border-r border-zinc-800 cursor-pointer group text-left"
-            title="ScholarsMate Home (localhost/home)"
+            className="flex items-center gap-1.5 px-2 py-1 text-zinc-300 hover:text-amber-400 hover:bg-zinc-900 rounded transition-colors cursor-pointer"
+            title="ScholarsMate Home"
           >
-            <AppLogo className="h-4 w-4 text-amber-500 group-hover:scale-105 transition-transform" />
-            <span className="font-bold text-xs tracking-tight text-zinc-100 group-hover:text-amber-400 transition-colors hidden sm:inline">
-              ScholarsMate
-            </span>
+            <AppLogo className="h-3.5 w-3.5 text-amber-500" />
+            <span className="font-bold text-xs tracking-tight text-zinc-100 hidden sm:inline">ScholarsMate</span>
           </button>
-
-          {/* Clean "Your Chats" button */}
           <button
             type="button"
             onClick={() => onNavigate ? onNavigate('chat') : onClose?.()}
-            className="flex items-center gap-1.5 px-2.5 py-1 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/80 rounded-md transition-colors text-xs cursor-pointer group"
-            title="Return to Your Chats (localhost/chat)"
+            className="flex items-center gap-1 px-2 py-1 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-900 rounded transition-colors cursor-pointer group"
+            title="Return to Your Chats"
           >
-            <MessageSquare className="h-3.5 w-3.5 text-zinc-400 group-hover:text-amber-400 transition-colors" />
-            <span className="font-medium">Your Chats</span>
+            <MessageSquare className="h-3 w-3 text-zinc-500 group-hover:text-amber-400 transition-colors" />
+            <span className="font-medium text-[11px]">Your Chats</span>
+          </button>
+        </div>
+
+        {/* Center: Scrollable Open Tabs Strip (Zotero 7 Style) */}
+        <div className="flex-1 flex items-center gap-1 overflow-x-auto no-scrollbar px-2 h-full">
+          {/* Main Library Tab (Permanent) */}
+          <button
+            type="button"
+            onClick={() => setActiveTabId('library')}
+            className={`h-[30px] flex items-center gap-1.5 px-3 rounded-t-md text-[11px] font-medium transition-all cursor-pointer shrink-0 border-t-2 ${
+              activeTabId === 'library'
+                ? 'bg-zinc-900 text-amber-300 border-t-amber-400 border-x border-zinc-800 shadow-sm'
+                : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/40 border-t-transparent'
+            }`}
+          >
+            <BookMarked className="h-3.5 w-3.5 text-amber-400" />
+            <span>My Library</span>
+            <span className="text-[10px] font-mono text-zinc-500 bg-zinc-950 px-1 py-0.2 rounded">
+              {items.length}
+            </span>
           </button>
 
-          <div className="h-4 w-px bg-zinc-800 hidden sm:block" />
+          {/* Open Paper Reading Tabs */}
+          {openTabs.filter(t => t.id !== 'library').map((tab) => {
+            const isActive = activeTabId === tab.id;
+            return (
+              <div
+                key={tab.id}
+                onClick={() => setActiveTabId(tab.id)}
+                className={`h-[30px] flex items-center gap-1.5 px-2.5 rounded-t-md text-[11px] transition-all cursor-pointer shrink-0 border-t-2 group ${
+                  isActive
+                    ? 'bg-zinc-900 text-zinc-100 font-medium border-t-amber-400 border-x border-zinc-800 shadow-sm'
+                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/40 border-t-transparent'
+                }`}
+                title={tab.title}
+              >
+                <FileText className="h-3 w-3 text-red-400 shrink-0" />
+                <span className="max-w-[130px] sm:max-w-[180px] truncate">{tab.title}</span>
+                <button
+                  type="button"
+                  onClick={(e) => handleCloseTab(e, tab.id)}
+                  className="p-0.5 rounded hover:bg-zinc-800 text-zinc-500 hover:text-zinc-200 transition-colors cursor-pointer ml-1"
+                  title="Close Tab"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </div>
 
-          {/* Collection / Library Brand */}
-          <div className="flex items-center gap-1.5 px-1">
-            <Folder className="h-3.5 w-3.5 text-blue-400 fill-blue-400/20 shrink-0" />
-            <span className="font-semibold text-zinc-200 text-xs truncate max-w-[140px]">
-              {activeWorkspaceFilter && !activeWorkspaceFilter.startsWith('__')
-                ? localWorkspaces.find(w => w.id === activeWorkspaceFilter)?.name || 'Collection'
-                : activeWorkspaceFilter === '__duplicates__'
-                ? 'Duplicates'
-                : activeWorkspaceFilter === '__unfiled__'
-                ? 'Unfiled Items'
-                : 'My Library'}
-            </span>
-            <span className="text-[10px] text-zinc-500 font-mono">({items.length})</span>
-          </div>
+      {/* ========================================================================= */}
+      {/* ROW 2: ZOTERO 7 TOOLBAR (Height: 38px, visible on Library Tab) */}
+      {/* ========================================================================= */}
+      {activeTabId === 'library' && (
+        <header className="h-9.5 border-b border-zinc-800 bg-zinc-900/90 px-3 flex items-center justify-between gap-3 shrink-0 select-none text-xs">
+          {/* Left Section: Collection Label */}
+          <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-1.5 px-1">
+              <Folder className="h-3.5 w-3.5 text-blue-400 fill-blue-400/20 shrink-0" />
+              <span className="font-semibold text-zinc-200 text-xs truncate max-w-[140px]">
+                {activeWorkspaceFilter && !activeWorkspaceFilter.startsWith('__')
+                  ? localWorkspaces.find(w => w.id === activeWorkspaceFilter)?.name || 'Collection'
+                  : activeWorkspaceFilter === '__duplicates__'
+                  ? 'Duplicates'
+                  : activeWorkspaceFilter === '__unfiled__'
+                  ? 'Unfiled Items'
+                  : 'My Library'}
+              </span>
+            </div>
 
-          <div className="h-4 w-px bg-zinc-800 hidden md:block" />
+            <div className="h-4 w-px bg-zinc-800" />
 
           {/* Action Toolbar */}
           <div className="flex items-center gap-1">
@@ -1015,11 +1095,13 @@ export default function LibraryView({
           )}
         </form>
       </header>
+      )}
 
       {/* ========================================================================= */}
-      {/* MAIN 3-PANE SPLIT VIEW: COLLECTIONS | DATA TABLE | INSPECTOR */}
+      {/* MAIN CONTENT: 3-PANE WORKBENCH OR OPEN PDF READER TAB */}
       {/* ========================================================================= */}
-      <div className="flex-1 flex w-full overflow-hidden">
+      {activeTabId === 'library' ? (
+        <div className="flex-1 flex w-full overflow-hidden">
         {/* ========================================================================= */}
         {/* PANE 1: ZOTERO TREE SIDEBAR (Collections & Tag Selector) */}
         {/* ========================================================================= */}
@@ -1350,11 +1432,11 @@ export default function LibraryView({
                 </p>
               </div>
             ) : (
-              <table className="w-full text-left border-collapse select-none table-fixed">
+              <table className="w-full text-left border-collapse select-none table-fixed min-w-[720px]">
                 <thead>
                   <tr className="bg-zinc-900 border-b border-zinc-800 text-zinc-400 font-semibold text-[11px] h-7 sticky top-0 z-10 select-none">
                     {/* Checkbox */}
-                    <th className="w-7 px-1.5 text-center">
+                    <th className="w-7 min-w-[28px] px-1.5 text-center">
                       <button
                         type="button"
                         onClick={handleToggleSelectAll}
@@ -1370,15 +1452,15 @@ export default function LibraryView({
                     </th>
 
                     {/* Expand / Collapse Chevron */}
-                    <th className="w-5 px-0 text-center"></th>
+                    <th className="w-5 min-w-[20px] px-0 text-center"></th>
 
                     {/* Item Type Icon */}
-                    <th className="w-6 px-0 text-center"></th>
+                    <th className="w-6 min-w-[24px] px-0 text-center"></th>
 
                     {/* Title */}
                     <th
                       onClick={() => toggleSort('title')}
-                      className="px-2 cursor-pointer hover:text-zinc-200"
+                      className="w-[38%] min-w-[220px] px-2 cursor-pointer hover:text-zinc-200"
                     >
                       <div className="flex items-center gap-1">
                         <span>Title</span>
@@ -1389,7 +1471,7 @@ export default function LibraryView({
                     {/* Creator / Authors */}
                     <th
                       onClick={() => toggleSort('authors')}
-                      className="w-48 px-2 cursor-pointer hover:text-zinc-200"
+                      className="w-[24%] min-w-[130px] px-2 cursor-pointer hover:text-zinc-200"
                     >
                       <div className="flex items-center gap-1">
                         <span>Creator</span>
@@ -1400,7 +1482,7 @@ export default function LibraryView({
                     {/* Year */}
                     <th
                       onClick={() => toggleSort('year')}
-                      className="w-16 px-2 text-center cursor-pointer hover:text-zinc-200"
+                      className="w-14 min-w-[56px] px-2 text-center cursor-pointer hover:text-zinc-200"
                     >
                       <div className="flex items-center justify-center gap-1">
                         <span>Year</span>
@@ -1409,15 +1491,15 @@ export default function LibraryView({
                     </th>
 
                     {/* Venue / Publication */}
-                    <th className="w-40 px-2 hidden lg:table-cell">Publication</th>
+                    <th className="w-[20%] min-w-[110px] px-2">Publication</th>
 
                     {/* Attachment Indicator */}
-                    <th className="w-7 px-1 text-center" title="Has PDF Attachment">
+                    <th className="w-7 min-w-[28px] px-1 text-center" title="Has PDF Attachment">
                       <Paperclip className="h-3 w-3 mx-auto text-zinc-500" />
                     </th>
 
                     {/* Actions */}
-                    <th className="w-24 px-2 text-right">Actions</th>
+                    <th className="w-24 min-w-[96px] px-2 text-right">Actions</th>
                   </tr>
                 </thead>
 
@@ -1433,8 +1515,10 @@ export default function LibraryView({
                         <tr
                           onClick={() => setSelectedDoc(item)}
                           onDoubleClick={() => {
-                            if (item.has_pdf && onOpenPdfViewer) {
-                              onOpenPdfViewer(item.doc_name, 1);
+                            if (item.doc_name) {
+                              handleOpenPaperTab(item.doc_name, item.title || item.doc_name);
+                            } else {
+                              setSelectedDoc(item);
                             }
                           }}
                           className={`h-7.5 transition-colors cursor-pointer group select-none ${
@@ -1446,7 +1530,7 @@ export default function LibraryView({
                           }`}
                         >
                           {/* Checkbox */}
-                          <td className="px-1.5 text-center" onClick={(e) => e.stopPropagation()}>
+                          <td className="w-7 min-w-[28px] px-1.5 text-center" onClick={(e) => e.stopPropagation()}>
                             <button
                               type="button"
                               onClick={(e) => handleToggleSelectItem(item.id, e)}
@@ -1463,7 +1547,7 @@ export default function LibraryView({
                           </td>
 
                           {/* Expand/Collapse Chevron (Shows attached PDF sub-row) */}
-                          <td className="px-0 text-center" onClick={(e) => toggleRowExpansion(item.id, e)}>
+                          <td className="w-5 min-w-[20px] px-0 text-center" onClick={(e) => toggleRowExpansion(item.id, e)}>
                             <button
                               type="button"
                               className={`p-0.5 hover:text-white cursor-pointer ${
@@ -1479,12 +1563,12 @@ export default function LibraryView({
                           </td>
 
                           {/* Item Type Icon */}
-                          <td className="px-0 text-center">
+                          <td className="w-6 min-w-[24px] px-0 text-center">
                             {getItemIcon(item, isInspecting)}
                           </td>
 
                           {/* Title & Metadata Badges */}
-                          <td className="px-2 truncate">
+                          <td className="w-[38%] min-w-[220px] px-2 truncate">
                             <div className="flex items-center gap-1.5 truncate">
                               <span
                                 className={`truncate font-medium text-[12.5px] ${
@@ -1525,7 +1609,7 @@ export default function LibraryView({
 
                           {/* Creator / Authors */}
                           <td
-                            className={`px-2 truncate text-[12px] ${
+                            className={`w-[24%] min-w-[130px] px-2 truncate text-[12px] ${
                               isInspecting ? 'text-blue-100' : 'text-zinc-400'
                             }`}
                           >
@@ -1534,7 +1618,7 @@ export default function LibraryView({
 
                           {/* Year */}
                           <td
-                            className={`px-2 text-center font-mono text-[11.5px] ${
+                            className={`w-14 min-w-[56px] px-2 text-center font-mono text-[11.5px] ${
                               isInspecting ? 'text-blue-100' : 'text-zinc-400'
                             }`}
                           >
@@ -1543,7 +1627,7 @@ export default function LibraryView({
 
                           {/* Publication / Venue */}
                           <td
-                            className={`px-2 truncate text-[12px] hidden lg:table-cell ${
+                            className={`w-[20%] min-w-[110px] px-2 truncate text-[12px] ${
                               isInspecting ? 'text-blue-100' : 'text-zinc-400'
                             }`}
                           >
@@ -1551,7 +1635,7 @@ export default function LibraryView({
                           </td>
 
                           {/* Attachment (PDF) Indicator */}
-                          <td className="px-1 text-center" onClick={(e) => e.stopPropagation()}>
+                          <td className="w-7 min-w-[28px] px-1 text-center" onClick={(e) => e.stopPropagation()}>
                             {item.has_pdf ? (
                               <FileText
                                 className={`h-3.5 w-3.5 mx-auto ${
@@ -1581,7 +1665,7 @@ export default function LibraryView({
                           </td>
 
                           {/* Quick Row Actions */}
-                          <td className="px-2 text-right" onClick={(e) => e.stopPropagation()}>
+                          <td className="w-24 min-w-[96px] px-2 text-right" onClick={(e) => e.stopPropagation()}>
                             <div className="flex items-center justify-end gap-1">
                               {/* Download OA PDF if missing */}
                               {!item.has_pdf && (
@@ -1634,8 +1718,8 @@ export default function LibraryView({
                                 type="button"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  if (item.has_pdf) {
-                                    if (onOpenPdfViewer) onOpenPdfViewer(item.doc_name, 1);
+                                  if (item.has_pdf && item.doc_name) {
+                                    handleOpenPaperTab(item.doc_name, item.title || item.doc_name);
                                   } else {
                                     handleDownloadPdf(item.id, e);
                                   }
@@ -1697,7 +1781,9 @@ export default function LibraryView({
                                       type="button"
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        if (onOpenPdfViewer) onOpenPdfViewer(item.doc_name, 1);
+                                        if (item.doc_name) {
+                                          handleOpenPaperTab(item.doc_name, item.title || item.doc_name);
+                                        }
                                       }}
                                       className="px-2 py-0.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded text-[10.5px] font-medium transition-colors cursor-pointer"
                                     >
@@ -1746,29 +1832,88 @@ export default function LibraryView({
         </div>
 
         {/* ========================================================================= */}
-        {/* PANE 3: ZOTERO 7-STYLE METADATA INSPECTOR / DUPLICATE MERGER (Right Pane) */}
+        {/* PANE 3: RESERVED ZOTERO 7 METADATA INSPECTOR (Always Reserved on Right) */}
         {/* ========================================================================= */}
-        {activeWorkspaceFilter === '__duplicates__' && selectedDuplicateGroup ? (
-          <DuplicateMerger
-            group={selectedDuplicateGroup}
-            onClose={() => setSelectedDuplicateGroup(null)}
-            onMergeComplete={handleMergeComplete}
-          />
-        ) : selectedDoc ? (
-          <LibraryInspector
-            document={selectedDoc}
-            workspaces={localWorkspaces}
-            onClose={() => setSelectedDoc(null)}
-            onUpdateDocument={(updated) => {
-              setSelectedDoc(updated);
-              fetchLibrary();
-              refreshWorkspaces();
-            }}
-            onOpenPdf={onOpenPdfViewer}
-            onChatWithPaper={onStartChatWithPaper}
-          />
-        ) : null}
+        <aside className="w-80 xl:w-96 border-l border-zinc-800 bg-zinc-900/40 flex flex-col shrink-0 h-full overflow-hidden select-text">
+          {activeWorkspaceFilter === '__duplicates__' && selectedDuplicateGroup ? (
+            <DuplicateMerger
+              group={selectedDuplicateGroup}
+              onClose={() => setSelectedDuplicateGroup(null)}
+              onMergeComplete={handleMergeComplete}
+            />
+          ) : selectedDoc ? (
+            <LibraryInspector
+              document={selectedDoc}
+              workspaces={localWorkspaces}
+              onClose={() => setSelectedDoc(null)}
+              onUpdateDocument={(updated) => {
+                setSelectedDoc(updated);
+                fetchLibrary();
+                refreshWorkspaces();
+              }}
+              onOpenPdf={(docName) => handleOpenPaperTab(docName || selectedDoc.doc_name, selectedDoc.title || docName)}
+              onChatWithPaper={onStartChatWithPaper}
+            />
+          ) : (
+            /* Reserved Empty State Placeholder (Ensures right pane stays present at all times) */
+            <div className="flex-1 flex flex-col items-center justify-center p-6 text-center select-none text-zinc-500">
+              <div className="h-12 w-12 rounded-2xl bg-zinc-800/40 border border-zinc-800 flex items-center justify-center mb-3 text-zinc-600">
+                <BookOpen className="h-6 w-6 stroke-[1.5]" />
+              </div>
+              <h4 className="text-xs font-semibold text-zinc-300">No Item Selected</h4>
+              <p className="text-[11px] text-zinc-500 max-w-[210px] mt-1.5 leading-relaxed">
+                Select an item from the library to view bibliographic metadata, abstract, notes, and attached PDF documents.
+              </p>
+              <div className="mt-6 pt-4 border-t border-zinc-800/60 w-full text-[10.5px] text-zinc-500 space-y-2 text-left px-2">
+                <div className="flex items-center gap-2">
+                  <span className="h-1 w-1 rounded-full bg-zinc-600 shrink-0" />
+                  <span>Double-click an item to open it in a reader tab</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="h-1 w-1 rounded-full bg-zinc-600 shrink-0" />
+                  <span>Single-click to inspect bibliographic fields</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="h-1 w-1 rounded-full bg-zinc-600 shrink-0" />
+                  <span>Import references via arXiv / DOI with wand <Wand2 className="h-2.5 w-2.5 inline text-amber-400" /></span>
+                </div>
+              </div>
+            </div>
+          )}
+        </aside>
       </div>
+      ) : (
+        /* ========================================================================= */
+        /* OPEN PDF READER CANVAS (Zotero 7 Tab View) */
+        /* ========================================================================= */
+        (() => {
+          const currentTab = openTabs.find((t) => t.id === activeTabId);
+          if (!currentTab || !currentTab.docName) {
+            return (
+              <div className="flex-1 flex flex-col items-center justify-center bg-zinc-950 text-zinc-400 select-none">
+                <FileText className="h-10 w-10 text-zinc-600 mb-2" />
+                <p className="text-xs">Document not found or tab closed.</p>
+                <button
+                  type="button"
+                  onClick={() => setActiveTabId('library')}
+                  className="mt-3 px-3 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded text-xs transition-colors cursor-pointer"
+                >
+                  Return to Library
+                </button>
+              </div>
+            );
+          }
+          return (
+            <div className="flex-1 h-full overflow-hidden relative bg-zinc-950">
+              <PdfViewer
+                activePdf={currentTab.docName}
+                targetPage={1}
+                onClose={() => handleCloseTab(null, activeTabId)}
+              />
+            </div>
+          );
+        })()
+      )}
 
       {/* ========================================================================= */}
       {/* MODAL: ADD BY DOI OR ARXIV IDENTIFIER */}

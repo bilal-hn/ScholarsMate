@@ -70,7 +70,7 @@ export default function DuplicateMerger({
   ];
 
   return (
-    <div className="h-full flex flex-col bg-zinc-900 border-l border-zinc-800 text-zinc-200 w-96 lg:w-[420px] shadow-2xl relative select-text z-20 font-sans">
+    <div className="h-full w-full flex flex-col bg-zinc-900 text-zinc-200 relative select-text font-sans overflow-hidden">
       {/* ========================================================================= */}
       {/* HEADER: ZOTERO 7 MERGE INSPECTOR */}
       {/* ========================================================================= */}

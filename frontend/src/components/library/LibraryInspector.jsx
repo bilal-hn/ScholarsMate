@@ -299,12 +299,12 @@ export default function LibraryInspector({
   };
 
   return (
-    <div className="h-full flex flex-col bg-zinc-900 border-l border-zinc-800 text-zinc-200 w-96 shadow-xl relative select-text z-20 font-sans">
+    <div className="h-full w-full flex flex-col bg-zinc-900 text-zinc-200 relative select-text font-sans overflow-hidden">
       {/* ========================================================================= */}
       {/* TOP HEADER: TITLE & CLOSE (Zotero 7 Style) */}
       {/* ========================================================================= */}
-      <div className="p-3 border-b border-zinc-800 bg-zinc-900/95 flex items-start justify-between gap-2">
-        <h2 className="font-semibold text-xs text-zinc-100 leading-snug line-clamp-3 select-text">
+      <div className="p-3 border-b border-zinc-800 bg-zinc-900/95 flex items-start justify-between gap-2 shrink-0">
+        <h2 className="font-semibold text-xs text-zinc-100 leading-snug line-clamp-3 select-text min-w-0 flex-1">
           {formData.title || document.doc_name}
         </h2>
         <button
@@ -319,49 +319,49 @@ export default function LibraryInspector({
       {/* ========================================================================= */}
       {/* QUICK ACTIONS BAR: READ PDF / GET OA PDF | CHAT | AUTO-ENRICH */}
       {/* ========================================================================= */}
-      <div className="px-3 py-1.5 bg-zinc-950/70 border-b border-zinc-800 flex items-center gap-1.5 select-none">
+      <div className="px-3 py-1.5 bg-zinc-950/70 border-b border-zinc-800 flex items-center gap-1.5 select-none shrink-0">
         {document.has_pdf ? (
           <button
             type="button"
             onClick={() => onOpenPdf && onOpenPdf(document.doc_name, 1)}
-            className="flex-1 flex items-center justify-center gap-1 py-1 px-2 bg-zinc-800 hover:bg-zinc-750 text-zinc-200 border border-zinc-700/60 rounded text-[11px] font-medium transition-colors cursor-pointer"
+            className="flex-1 min-w-0 flex items-center justify-center gap-1 py-1 px-1.5 bg-zinc-800 hover:bg-zinc-750 text-zinc-200 border border-zinc-700/60 rounded text-[10.5px] font-medium transition-colors cursor-pointer truncate"
             title="Open PDF in integrated viewer"
           >
-            <FileText className="h-3 w-3 text-red-400" />
-            <span>Read PDF</span>
+            <FileText className="h-3 w-3 text-red-400 shrink-0" />
+            <span className="truncate">Read PDF</span>
           </button>
         ) : (
           <button
             type="button"
             onClick={handleDownloadOaPdf}
             disabled={isDownloadingPdf}
-            className="flex-1 flex items-center justify-center gap-1 py-1 px-2 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 rounded text-[11px] font-medium transition-colors cursor-pointer disabled:opacity-50"
+            className="flex-1 min-w-0 flex items-center justify-center gap-1 py-1 px-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 rounded text-[10.5px] font-medium transition-colors cursor-pointer disabled:opacity-50 truncate"
             title="Download Open-Access Full-Text PDF from arXiv or Unpaywall"
           >
-            <Download className={`h-3 w-3 text-emerald-400 ${isDownloadingPdf ? 'animate-bounce' : ''}`} />
-            <span>{isDownloadingPdf ? 'Downloading...' : 'Get OA PDF'}</span>
+            <Download className={`h-3 w-3 text-emerald-400 shrink-0 ${isDownloadingPdf ? 'animate-bounce' : ''}`} />
+            <span className="truncate">{isDownloadingPdf ? '...' : 'Get OA PDF'}</span>
           </button>
         )}
 
         <button
           type="button"
           onClick={() => onChatWithPaper && onChatWithPaper(document.doc_name)}
-          className="flex-1 flex items-center justify-center gap-1 py-1 px-2 bg-zinc-800 hover:bg-zinc-750 text-zinc-200 border border-zinc-700/60 rounded text-[11px] font-medium transition-colors cursor-pointer"
+          className="flex-1 min-w-0 flex items-center justify-center gap-1 py-1 px-1.5 bg-zinc-800 hover:bg-zinc-750 text-zinc-200 border border-zinc-700/60 rounded text-[10.5px] font-medium transition-colors cursor-pointer truncate"
           title="Chat with paper in AI assistant"
         >
-          <MessageSquare className="h-3 w-3 text-blue-400" />
-          <span>Chat</span>
+          <MessageSquare className="h-3 w-3 text-blue-400 shrink-0" />
+          <span className="truncate">Chat</span>
         </button>
 
         <button
           type="button"
           onClick={handleAutoEnrich}
           disabled={isEnriching}
-          className="flex items-center justify-center gap-1 py-1 px-2 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 rounded text-[11px] font-medium transition-colors cursor-pointer"
+          className="flex-1 min-w-0 flex items-center justify-center gap-1 py-1 px-1.5 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 rounded text-[10.5px] font-medium transition-colors cursor-pointer truncate"
           title="Auto-enrich metadata via CrossRef / arXiv"
         >
-          <Wand2 className={`h-3 w-3 text-blue-400 ${isEnriching ? 'animate-spin' : ''}`} />
-          <span>{isEnriching ? '...' : 'Enrich'}</span>
+          <Wand2 className={`h-3 w-3 text-blue-400 shrink-0 ${isEnriching ? 'animate-spin' : ''}`} />
+          <span className="truncate">{isEnriching ? '...' : 'Enrich'}</span>
         </button>
       </div>
 
@@ -406,11 +406,11 @@ export default function LibraryInspector({
       {/* ========================================================================= */}
       {/* TABS SWITCHER (Zotero Info / Abstract / Cite / Notes / Summary) */}
       {/* ========================================================================= */}
-      <div className="flex border-b border-zinc-800 bg-zinc-950/40 text-[11px] font-medium text-zinc-400 select-none">
+      <div className="flex border-b border-zinc-800 bg-zinc-950/40 text-[11px] font-medium text-zinc-400 select-none shrink-0">
         <button
           type="button"
           onClick={() => setActiveTab('info')}
-          className={`flex-1 py-1.5 text-center border-b-2 transition-colors cursor-pointer ${
+          className={`flex-1 min-w-0 py-1.5 text-center border-b-2 transition-colors cursor-pointer truncate ${
             activeTab === 'info'
               ? 'border-blue-500 text-blue-400 bg-zinc-900/60 font-semibold'
               : 'border-transparent hover:text-zinc-200'
@@ -421,7 +421,7 @@ export default function LibraryInspector({
         <button
           type="button"
           onClick={() => setActiveTab('abstract')}
-          className={`flex-1 py-1.5 text-center border-b-2 transition-colors cursor-pointer ${
+          className={`flex-1 min-w-0 py-1.5 text-center border-b-2 transition-colors cursor-pointer truncate ${
             activeTab === 'abstract'
               ? 'border-blue-500 text-blue-400 bg-zinc-900/60 font-semibold'
               : 'border-transparent hover:text-zinc-200'
@@ -432,7 +432,7 @@ export default function LibraryInspector({
         <button
           type="button"
           onClick={() => setActiveTab('cite')}
-          className={`flex-1 py-1.5 text-center border-b-2 transition-colors cursor-pointer ${
+          className={`flex-1 min-w-0 py-1.5 text-center border-b-2 transition-colors cursor-pointer truncate ${
             activeTab === 'cite'
               ? 'border-blue-500 text-blue-400 bg-zinc-900/60 font-semibold'
               : 'border-transparent hover:text-zinc-200'
@@ -443,7 +443,7 @@ export default function LibraryInspector({
         <button
           type="button"
           onClick={() => setActiveTab('notes')}
-          className={`flex-1 py-1.5 text-center border-b-2 transition-colors cursor-pointer ${
+          className={`flex-1 min-w-0 py-1.5 text-center border-b-2 transition-colors cursor-pointer truncate ${
             activeTab === 'notes'
               ? 'border-blue-500 text-blue-400 bg-zinc-900/60 font-semibold'
               : 'border-transparent hover:text-zinc-200'
@@ -454,7 +454,7 @@ export default function LibraryInspector({
         <button
           type="button"
           onClick={() => setActiveTab('ai_summary')}
-          className={`flex-1 py-1.5 text-center border-b-2 transition-colors cursor-pointer ${
+          className={`flex-1 min-w-0 py-1.5 text-center border-b-2 transition-colors cursor-pointer truncate ${
             activeTab === 'ai_summary'
               ? 'border-blue-500 text-blue-400 bg-zinc-900/60 font-semibold'
               : 'border-transparent hover:text-zinc-200'
@@ -467,7 +467,7 @@ export default function LibraryInspector({
       {/* ========================================================================= */}
       {/* TAB CONTENT CONTAINER */}
       {/* ========================================================================= */}
-      <div className="flex-1 overflow-y-auto p-3 text-xs space-y-3">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden p-3 text-xs space-y-3">
         {/* ======================================================================= */}
         {/* TAB 1: ZOTERO TWO-COLUMN KEY-VALUE INFO FORM */}
         {/* ======================================================================= */}
@@ -475,13 +475,13 @@ export default function LibraryInspector({
           <div className="space-y-2 text-[11.5px]">
             {/* Item Type */}
             <div className="flex items-center gap-2">
-              <span className="w-20 text-right text-zinc-400 font-medium select-none shrink-0 text-[11px]">
+              <span className="w-18 text-right text-zinc-400 font-medium select-none shrink-0 text-[11px]">
                 Item Type
               </span>
               <select
                 value={formData.item_type}
                 onChange={(e) => handleInputChange('item_type', e.target.value)}
-                className="flex-1 bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-zinc-200 focus:outline-none focus:border-blue-500"
+                className="flex-1 min-w-0 bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-zinc-200 focus:outline-none focus:border-blue-500"
               >
                 <option value="journal_article">Journal Article</option>
                 <option value="book">Book</option>
@@ -495,7 +495,7 @@ export default function LibraryInspector({
 
             {/* Title */}
             <div className="flex items-start gap-2">
-              <span className="w-20 text-right text-zinc-400 font-medium select-none shrink-0 text-[11px] pt-1">
+              <span className="w-18 text-right text-zinc-400 font-medium select-none shrink-0 text-[11px] pt-1">
                 Title
               </span>
               <textarea
@@ -503,13 +503,13 @@ export default function LibraryInspector({
                 value={formData.title}
                 onChange={(e) => handleInputChange('title', e.target.value)}
                 placeholder="Full paper title..."
-                className="flex-1 bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-zinc-200 focus:outline-none focus:border-blue-500 resize-none leading-snug"
+                className="flex-1 min-w-0 bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-zinc-200 focus:outline-none focus:border-blue-500 resize-none leading-snug"
               />
             </div>
 
             {/* Author */}
             <div className="flex items-start gap-2">
-              <span className="w-20 text-right text-zinc-400 font-medium select-none shrink-0 text-[11px] pt-1">
+              <span className="w-18 text-right text-zinc-400 font-medium select-none shrink-0 text-[11px] pt-1">
                 Author
               </span>
               <textarea
@@ -517,13 +517,13 @@ export default function LibraryInspector({
                 value={formData.authors}
                 onChange={(e) => handleInputChange('authors', e.target.value)}
                 placeholder="Last, First and Last, First"
-                className="flex-1 bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-zinc-200 focus:outline-none focus:border-blue-500 resize-none leading-snug"
+                className="flex-1 min-w-0 bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-zinc-200 focus:outline-none focus:border-blue-500 resize-none leading-snug"
               />
             </div>
 
             {/* Publication / Venue */}
             <div className="flex items-center gap-2">
-              <span className="w-20 text-right text-zinc-400 font-medium select-none shrink-0 text-[11px]">
+              <span className="w-18 text-right text-zinc-400 font-medium select-none shrink-0 text-[11px]">
                 Publication
               </span>
               <input
@@ -531,13 +531,13 @@ export default function LibraryInspector({
                 value={formData.venue}
                 onChange={(e) => handleInputChange('venue', e.target.value)}
                 placeholder="NeurIPS, ICML, Nature..."
-                className="flex-1 bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-zinc-200 focus:outline-none focus:border-blue-500 truncate"
+                className="flex-1 min-w-0 bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-zinc-200 focus:outline-none focus:border-blue-500 truncate"
               />
             </div>
 
             {/* Date / Year */}
             <div className="flex items-center gap-2">
-              <span className="w-20 text-right text-zinc-400 font-medium select-none shrink-0 text-[11px]">
+              <span className="w-18 text-right text-zinc-400 font-medium select-none shrink-0 text-[11px]">
                 Date
               </span>
               <input
@@ -545,29 +545,29 @@ export default function LibraryInspector({
                 value={formData.year}
                 onChange={(e) => handleInputChange('year', e.target.value)}
                 placeholder="YYYY (e.g. 2024)"
-                className="w-28 bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-zinc-200 focus:outline-none focus:border-blue-500 font-mono"
+                className="w-28 min-w-0 bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-zinc-200 focus:outline-none focus:border-blue-500 font-mono"
               />
             </div>
 
             {/* DOI */}
             <div className="flex items-center gap-2">
-              <span className="w-20 text-right text-zinc-400 font-medium select-none shrink-0 text-[11px]">
+              <span className="w-18 text-right text-zinc-400 font-medium select-none shrink-0 text-[11px]">
                 DOI
               </span>
-              <div className="flex-1 flex items-center gap-1">
+              <div className="flex-1 min-w-0 flex items-center gap-1">
                 <input
                   type="text"
                   value={formData.doi}
                   onChange={(e) => handleInputChange('doi', e.target.value)}
                   placeholder="10.xxxx/..."
-                  className="flex-1 bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-zinc-200 focus:outline-none focus:border-blue-500 font-mono text-[11px]"
+                  className="flex-1 min-w-0 w-full bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-zinc-200 focus:outline-none focus:border-blue-500 font-mono text-[11px] truncate"
                 />
                 {formData.doi && (
                   <a
                     href={`https://doi.org/${formData.doi}`}
                     target="_blank"
                     rel="noreferrer"
-                    className="p-1 text-zinc-400 hover:text-blue-400 cursor-pointer"
+                    className="p-1 text-zinc-400 hover:text-blue-400 cursor-pointer shrink-0"
                     title={`Open https://doi.org/${formData.doi}`}
                   >
                     <ExternalLink className="h-3 w-3" />
@@ -578,23 +578,23 @@ export default function LibraryInspector({
 
             {/* arXiv ID */}
             <div className="flex items-center gap-2">
-              <span className="w-20 text-right text-zinc-400 font-medium select-none shrink-0 text-[11px]">
+              <span className="w-18 text-right text-zinc-400 font-medium select-none shrink-0 text-[11px]">
                 arXiv ID
               </span>
-              <div className="flex-1 flex items-center gap-1">
+              <div className="flex-1 min-w-0 flex items-center gap-1">
                 <input
                   type="text"
                   value={formData.arxiv_id}
                   onChange={(e) => handleInputChange('arxiv_id', e.target.value)}
                   placeholder="2305.18290"
-                  className="flex-1 bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-zinc-200 focus:outline-none focus:border-blue-500 font-mono text-[11px]"
+                  className="flex-1 min-w-0 w-full bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-zinc-200 focus:outline-none focus:border-blue-500 font-mono text-[11px] truncate"
                 />
                 {formData.arxiv_id && (
                   <a
                     href={`https://arxiv.org/abs/${formData.arxiv_id}`}
                     target="_blank"
                     rel="noreferrer"
-                    className="p-1 text-zinc-400 hover:text-rose-400 cursor-pointer"
+                    className="p-1 text-zinc-400 hover:text-rose-400 cursor-pointer shrink-0"
                     title={`Open https://arxiv.org/abs/${formData.arxiv_id}`}
                   >
                     <ExternalLink className="h-3 w-3" />
@@ -605,23 +605,23 @@ export default function LibraryInspector({
 
             {/* URL */}
             <div className="flex items-center gap-2">
-              <span className="w-20 text-right text-zinc-400 font-medium select-none shrink-0 text-[11px]">
+              <span className="w-18 text-right text-zinc-400 font-medium select-none shrink-0 text-[11px]">
                 URL
               </span>
-              <div className="flex-1 flex items-center gap-1">
+              <div className="flex-1 min-w-0 flex items-center gap-1">
                 <input
                   type="text"
                   value={formData.url}
                   onChange={(e) => handleInputChange('url', e.target.value)}
                   placeholder="https://..."
-                  className="flex-1 bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-zinc-200 focus:outline-none focus:border-blue-500 truncate"
+                  className="flex-1 min-w-0 w-full bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-zinc-200 focus:outline-none focus:border-blue-500 truncate"
                 />
                 {formData.url && (
                   <a
                     href={formData.url}
                     target="_blank"
                     rel="noreferrer"
-                    className="p-1 text-zinc-400 hover:text-blue-400 cursor-pointer"
+                    className="p-1 text-zinc-400 hover:text-blue-400 cursor-pointer shrink-0"
                   >
                     <ExternalLink className="h-3 w-3" />
                   </a>
@@ -631,7 +631,7 @@ export default function LibraryInspector({
 
             {/* Date Added */}
             <div className="flex items-center gap-2">
-              <span className="w-20 text-right text-zinc-400 font-medium select-none shrink-0 text-[11px]">
+              <span className="w-18 text-right text-zinc-400 font-medium select-none shrink-0 text-[11px]">
                 Date Added
               </span>
               <span className="text-zinc-400 font-mono text-[11px] px-1">
@@ -641,22 +641,22 @@ export default function LibraryInspector({
 
             {/* Workspaces (Collections) */}
             <div className="flex items-start gap-2 pt-1 border-t border-zinc-850">
-              <span className="w-20 text-right text-zinc-400 font-medium select-none shrink-0 text-[11px] pt-0.5">
+              <span className="w-18 text-right text-zinc-400 font-medium select-none shrink-0 text-[11px] pt-0.5">
                 Workspaces
               </span>
-              <div className="flex-1 flex flex-wrap items-center gap-1">
+              <div className="flex-1 min-w-0 flex flex-wrap items-center gap-1">
                 {document.workspaces && document.workspaces.length > 0 ? (
                   document.workspaces.map((ws) => (
                     <span
                       key={ws.id}
-                      className="inline-flex items-center gap-1 text-[10.5px] bg-zinc-800 text-zinc-300 px-1.5 py-0.5 rounded border border-zinc-700/60 group"
+                      className="inline-flex items-center gap-1 text-[10.5px] bg-zinc-800 text-zinc-300 px-1.5 py-0.5 rounded border border-zinc-700/60 group max-w-full"
                     >
-                      <Folder className="h-2.5 w-2.5 text-blue-400" />
-                      <span>{ws.name}</span>
+                      <Folder className="h-2.5 w-2.5 text-blue-400 shrink-0" />
+                      <span className="truncate max-w-[120px]">{ws.name}</span>
                       <button
                         type="button"
                         onClick={() => handleRemoveWorkspace(ws.id)}
-                        className="text-zinc-500 hover:text-red-400 p-0.5 rounded cursor-pointer transition-colors"
+                        className="text-zinc-500 hover:text-red-400 p-0.5 rounded cursor-pointer transition-colors shrink-0"
                         title={`Remove from ${ws.name}`}
                       >
                         <X className="h-2.5 w-2.5" />
@@ -711,21 +711,21 @@ export default function LibraryInspector({
 
             {/* Tags */}
             <div className="flex items-start gap-2 pt-1 border-t border-zinc-850">
-              <span className="w-20 text-right text-zinc-400 font-medium select-none shrink-0 text-[11px] pt-1">
+              <span className="w-18 text-right text-zinc-400 font-medium select-none shrink-0 text-[11px] pt-1">
                 Tags
               </span>
-              <div className="flex-1 space-y-1">
+              <div className="flex-1 min-w-0 space-y-1">
                 <div className="flex flex-wrap gap-1">
                   {formData.tags.map((tag) => (
                     <span
                       key={tag}
-                      className="inline-flex items-center gap-1 text-[10.5px] bg-zinc-800 text-zinc-200 border border-zinc-700/80 px-1.5 py-0.2 rounded"
+                      className="inline-flex items-center gap-1 text-[10.5px] bg-zinc-800 text-zinc-200 border border-zinc-700/80 px-1.5 py-0.2 rounded max-w-full"
                     >
-                      <span>{tag}</span>
+                      <span className="truncate max-w-[120px]">{tag}</span>
                       <button
                         type="button"
                         onClick={() => handleRemoveTag(tag)}
-                        className="text-zinc-400 hover:text-zinc-100 cursor-pointer text-xs leading-none"
+                        className="text-zinc-400 hover:text-zinc-100 cursor-pointer text-xs leading-none shrink-0"
                       >
                         ×
                       </button>
@@ -738,7 +738,7 @@ export default function LibraryInspector({
                   onChange={(e) => setNewTagInput(e.target.value)}
                   onKeyDown={handleAddTag}
                   placeholder="Add #tag and press Enter..."
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded px-2 py-0.5 text-zinc-200 placeholder-zinc-500 text-[11px] focus:outline-none focus:border-blue-500"
+                  className="w-full min-w-0 bg-zinc-950 border border-zinc-800 rounded px-2 py-0.5 text-zinc-200 placeholder-zinc-500 text-[11px] focus:outline-none focus:border-blue-500"
                 />
               </div>
             </div>
