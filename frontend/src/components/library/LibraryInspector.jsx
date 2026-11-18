@@ -27,6 +27,7 @@ import {
   Download,
   Plus,
   Folder,
+  Trash2,
 } from 'lucide-react';
 import {
   updateLibraryItemAPI,
@@ -45,6 +46,7 @@ export default function LibraryInspector({
   onUpdateDocument,
   onOpenPdf,
   onChatWithPaper,
+  onDeleteItem,
 }) {
   const [activeTab, setActiveTab] = useState('info'); // 'info' | 'abstract' | 'cite' | 'notes' | 'ai_summary'
   
@@ -307,13 +309,26 @@ export default function LibraryInspector({
         <h2 className="font-semibold text-xs text-zinc-100 leading-snug line-clamp-3 select-text min-w-0 flex-1">
           {formData.title || document.doc_name}
         </h2>
-        <button
-          onClick={onClose}
-          className="p-1 rounded text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition-colors cursor-pointer shrink-0"
-          title="Close Inspector (Esc)"
-        >
-          <X className="h-3.5 w-3.5" />
-        </button>
+        <div className="flex items-center gap-1 shrink-0">
+          {onDeleteItem && (
+            <button
+              type="button"
+              onClick={() => onDeleteItem(document.id)}
+              className="p-1 rounded text-zinc-500 hover:text-red-400 hover:bg-zinc-800 transition-colors cursor-pointer"
+              title="Delete reference from library"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1 rounded text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition-colors cursor-pointer"
+            title="Close Inspector (Esc)"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
       </div>
 
       {/* ========================================================================= */}
@@ -755,6 +770,21 @@ export default function LibraryInspector({
                 <span>{isSaving ? 'Saving...' : 'Save Metadata Changes'}</span>
               </button>
             </div>
+
+            {/* Remove / Delete Reference Button */}
+            {onDeleteItem && (
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={() => onDeleteItem(document.id)}
+                  className="w-full flex items-center justify-center gap-1.5 py-1 px-3 bg-red-950/25 hover:bg-red-900/40 text-red-400 hover:text-red-300 border border-red-900/40 rounded text-xs font-medium transition-colors cursor-pointer"
+                  title="Remove this paper from library"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  <span>Delete From Library</span>
+                </button>
+              </div>
+            )}
 
             {/* Collapsible Attachment Box (Look at Image 1 Zotero!) */}
             <div className="mt-3 pt-2 border-t border-zinc-850">

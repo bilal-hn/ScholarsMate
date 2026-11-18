@@ -2,6 +2,9 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Folder,
   FolderOpen,
+  FolderPlus,
+  FolderMinus,
+  FilePlus,
   FileText,
   FileCode,
   Book,
@@ -144,6 +147,70 @@ export default function LibraryView({
     } catch (err) {
       console.error('Failed to refresh workspaces:', err);
     }
+  };
+
+  // Workspace Tree Expansion & Collection Management State
+  const [expandedWorkspaceIds, setExpandedWorkspaceIds] = useState(new Set());
+  const [isFilterCollectionsOpen, setIsFilterCollectionsOpen] = useState(false);
+  const [collectionFilterQuery, setCollectionFilterQuery] = useState('');
+  const [isCreateCollectionOpen, setIsCreateCollectionOpen] = useState(false);
+  const [newCollectionName, setNewCollectionName] = useState('');
+  const [isCreatingCollection, setIsCreatingCollection] = useState(false);
+  const newCollectionInputRef = useRef(null);
+
+  const toggleWorkspaceExpansion = (wsId, e) => {
+    e.stopPropagation();
+    setExpandedWorkspaceIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(wsId)) {
+        next.delete(wsId);
+      } else {
+        next.add(wsId);
+      }
+      return next;
+    });
+  };
+
+  const handleCreateCollection = async (e) => {
+    if (e) e.preventDefault();
+    if (!newCollectionName.trim()) {
+      setIsCreateCollectionOpen(false);
+      return;
+    }
+    setIsCreatingCollection(true);
+    try {
+      const created = await createWorkspaceJSONAPI(newCollectionName.trim(), []);
+      setImportNotification({
+        type: 'success',
+        message: `Created collection "${created.name}".`,
+      });
+      setNewCollectionName('');
+      setIsCreateCollectionOpen(false);
+      await refreshWorkspaces();
+      setActiveWorkspaceFilter(created.id);
+      setActiveTag(null);
+    } catch (err) {
+      setImportNotification({
+        type: 'error',
+        message: err.response?.data?.detail || 'Failed to create collection.',
+      });
+    } finally {
+      setIsCreatingCollection(false);
+    }
+  };
+
+  const displayedWorkspaces = useMemo(() => {
+    if (!collectionFilterQuery.trim()) return localWorkspaces;
+    const q = collectionFilterQuery.toLowerCase();
+    return localWorkspaces.filter((ws) => ws.name.toLowerCase().includes(q));
+  }, [localWorkspaces, collectionFilterQuery]);
+
+  const getWorkspacePapers = (ws) => {
+    return items.filter((item) => {
+      if (ws.doc_names && ws.doc_names.includes(item.doc_name)) return true;
+      if (item.workspaces && item.workspaces.some((w) => w.id === ws.id)) return true;
+      return false;
+    });
   };
 
   // Workspace Batch Assignment Menu State (FR-17.7)
@@ -584,7 +651,7 @@ export default function LibraryView({
 
   // Delete single item
   const handleDeleteItem = async (docId, e) => {
-    e.stopPropagation();
+    if (e && e.stopPropagation) e.stopPropagation();
     if (!window.confirm('Are you sure you want to remove this document from your library?')) return;
     try {
       await deleteLibraryItemAPI(docId);
@@ -791,311 +858,7 @@ export default function LibraryView({
         </div>
       </div>
 
-      {/* ========================================================================= */}
-      {/* ROW 2: ZOTERO 7 TOOLBAR (Height: 38px, visible on Library Tab) */}
-      {/* ========================================================================= */}
-      {activeTabId === 'library' && (
-        <header className="h-9.5 border-b border-zinc-800 bg-zinc-900/90 px-3 flex items-center justify-between gap-3 shrink-0 select-none text-xs">
-          {/* Left Section: Collection Label */}
-          <div className="flex items-center gap-2 shrink-0">
-            <div className="flex items-center gap-1.5 px-1">
-              <Folder className="h-3.5 w-3.5 text-blue-400 fill-blue-400/20 shrink-0" />
-              <span className="font-semibold text-zinc-200 text-xs truncate max-w-[140px]">
-                {activeWorkspaceFilter && !activeWorkspaceFilter.startsWith('__')
-                  ? localWorkspaces.find(w => w.id === activeWorkspaceFilter)?.name || 'Collection'
-                  : activeWorkspaceFilter === '__duplicates__'
-                  ? 'Duplicates'
-                  : activeWorkspaceFilter === '__unfiled__'
-                  ? 'Unfiled Items'
-                  : 'My Library'}
-              </span>
-            </div>
 
-            <div className="h-4 w-px bg-zinc-800" />
-
-          {/* Action Toolbar */}
-          <div className="flex items-center gap-1">
-            {/* New Item Dropdown */}
-            <div className="relative" ref={newItemMenuRef}>
-              <button
-                type="button"
-                onClick={() => setIsNewItemMenuOpen(!isNewItemMenuOpen)}
-                className="flex items-center gap-1 px-2.5 py-1 bg-zinc-800 hover:bg-zinc-750 text-zinc-200 border border-zinc-700/70 rounded text-[11px] font-medium transition-colors cursor-pointer select-none"
-                title="Create New Item or Upload Document"
-              >
-                <Plus className="h-3 w-3 text-blue-400" />
-                <span>New Item</span>
-                <ChevronDown className="h-2.5 w-2.5 text-zinc-400" />
-              </button>
-
-              {/* New Item Dropdown Menu */}
-              {isNewItemMenuOpen && (
-                <div className="absolute left-0 top-full mt-1 w-52 bg-zinc-900 border border-zinc-750 rounded-md shadow-2xl py-1 z-50 text-[11.5px] select-none backdrop-blur-sm">
-                  <div className="px-2.5 py-1 text-[10px] uppercase font-semibold text-zinc-500 tracking-wider">
-                    New Blank Item
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleOpenManualModal('book')}
-                    className="w-full flex items-center gap-2 px-3 py-1.5 text-zinc-300 hover:bg-blue-600 hover:text-white transition-colors text-left cursor-pointer"
-                  >
-                    <Book className="h-3.5 w-3.5 text-purple-400" />
-                    <span>Book</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleOpenManualModal('journal_article')}
-                    className="w-full flex items-center gap-2 px-3 py-1.5 text-zinc-300 hover:bg-blue-600 hover:text-white transition-colors text-left cursor-pointer"
-                  >
-                    <FileText className="h-3.5 w-3.5 text-blue-400" />
-                    <span>Journal Article</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleOpenManualModal('conference_paper')}
-                    className="w-full flex items-center gap-2 px-3 py-1.5 text-zinc-300 hover:bg-blue-600 hover:text-white transition-colors text-left cursor-pointer"
-                  >
-                    <Layers className="h-3.5 w-3.5 text-emerald-400" />
-                    <span>Conference Paper</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleOpenManualModal('preprint')}
-                    className="w-full flex items-center gap-2 px-3 py-1.5 text-zinc-300 hover:bg-blue-600 hover:text-white transition-colors text-left cursor-pointer"
-                  >
-                    <FileCode className="h-3.5 w-3.5 text-rose-400" />
-                    <span>Preprint / Working Paper</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleOpenManualModal('book_chapter')}
-                    className="w-full flex items-center gap-2 px-3 py-1.5 text-zinc-300 hover:bg-blue-600 hover:text-white transition-colors text-left cursor-pointer"
-                  >
-                    <Book className="h-3.5 w-3.5 text-amber-400" />
-                    <span>Book Section / Chapter</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleOpenManualModal('thesis')}
-                    className="w-full flex items-center gap-2 px-3 py-1.5 text-zinc-300 hover:bg-blue-600 hover:text-white transition-colors text-left cursor-pointer"
-                  >
-                    <FileText className="h-3.5 w-3.5 text-cyan-400" />
-                    <span>Thesis / Dissertation</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleOpenManualModal('report')}
-                    className="w-full flex items-center gap-2 px-3 py-1.5 text-zinc-300 hover:bg-blue-600 hover:text-white transition-colors text-left cursor-pointer"
-                  >
-                    <FileText className="h-3.5 w-3.5 text-zinc-400" />
-                    <span>Report</span>
-                  </button>
-
-                  <div className="my-1 border-t border-zinc-800" />
-
-                  {/* Upload PDF */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsNewItemMenuOpen(false);
-                      pdfUploadInputRef.current?.click();
-                    }}
-                    className="w-full flex items-center gap-2 px-3 py-1.5 text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 transition-colors text-left cursor-pointer"
-                  >
-                    <Upload className="h-3.5 w-3.5 text-zinc-400" />
-                    <span>{isUploading ? 'Indexing PDF...' : 'Store Copy of File (PDF)...'}</span>
-                  </button>
-                </div>
-              )}
-            </div>
-
-            <input
-              ref={pdfUploadInputRef}
-              type="file"
-              accept=".pdf"
-              onChange={handleFileUpload}
-              disabled={isUploading}
-              className="hidden"
-            />
-
-            {/* Add by Identifier (DOI / arXiv Wand) */}
-            <button
-              type="button"
-              onClick={() => {
-                setIsAddIdentifierOpen(true);
-                setAddError(null);
-              }}
-              className="flex items-center gap-1 px-2 py-1 bg-zinc-850 hover:bg-zinc-750 text-zinc-300 hover:text-zinc-100 border border-zinc-750 rounded text-[11px] font-medium transition-colors cursor-pointer"
-              title="Add item by DOI or arXiv identifier"
-            >
-              <Wand2 className="h-3 w-3 text-amber-400" />
-              <span className="hidden sm:inline">Identifier</span>
-            </button>
-
-            {/* Import BibTeX / RIS (FR-17.1) */}
-            <button
-              type="button"
-              onClick={() => bibFileInputRef.current?.click()}
-              disabled={isImportingBib}
-              className="flex items-center gap-1 px-2 py-1 bg-zinc-850 hover:bg-zinc-750 text-zinc-300 hover:text-zinc-100 border border-zinc-750 rounded text-[11px] font-medium transition-colors cursor-pointer disabled:opacity-50"
-              title="Bulk import references from BibTeX (.bib) or RIS (.ris) file"
-            >
-              <FileUp className="h-3 w-3 text-blue-400" />
-              <span className="hidden sm:inline">{isImportingBib ? 'Importing...' : 'Import'}</span>
-            </button>
-            <input
-              ref={bibFileInputRef}
-              type="file"
-              accept=".bib,.bibtex,.ris,.txt"
-              onChange={handleBibFileInputChange}
-              disabled={isImportingBib}
-              className="hidden"
-            />
-
-            {/* Export BibTeX */}
-            <button
-              type="button"
-              onClick={handleExportSelectedBibtex}
-              className="flex items-center gap-1 px-2 py-1 bg-zinc-850 hover:bg-zinc-750 text-zinc-300 hover:text-zinc-100 border border-zinc-750 rounded text-[11px] font-medium transition-colors cursor-pointer"
-              title="Export to BibTeX format"
-            >
-              <Download className="h-3 w-3 text-zinc-400" />
-              <span className="hidden sm:inline">Export</span>
-            </button>
-
-            {/* Refresh */}
-            <button
-              type="button"
-              onClick={fetchLibrary}
-              className="p-1 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded transition-colors cursor-pointer"
-              title="Refresh Library"
-            >
-              <RefreshCw className={`h-3 w-3 ${loading ? 'animate-spin text-blue-400' : ''}`} />
-            </button>
-          </div>
-
-          {/* Batch Selection Actions */}
-          {selectedIds.size > 0 && (
-            <div className="flex items-center gap-1.5 ml-2 pl-2 border-l border-zinc-800">
-              <span className="text-[11px] text-zinc-400 font-mono hidden xl:inline">
-                {selectedIds.size} selected
-              </span>
-
-              {/* Synthesize Review */}
-              <button
-                type="button"
-                onClick={handleSynthesizeReview}
-                className="flex items-center gap-1 px-2.5 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded text-[11px] font-medium transition-colors shadow-sm cursor-pointer"
-                title="Synthesize Literature Review on selected papers"
-              >
-                <Sparkles className="h-3 w-3" />
-                <span>Review</span>
-              </button>
-
-              {/* Add to Workspace ▾ Dropdown (FR-17.7) */}
-              <div className="relative" ref={assignWsMenuRef}>
-                <button
-                  type="button"
-                  onClick={() => setIsAssignWsMenuOpen(!isAssignWsMenuOpen)}
-                  className="flex items-center gap-1 px-2 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700/60 rounded text-[11px] font-medium transition-colors cursor-pointer"
-                  title="Assign selected papers to a workspace collection"
-                >
-                  <Folder className="h-3 w-3 text-blue-400" />
-                  <span>Add to Workspace</span>
-                  <ChevronDown className="h-3 w-3 text-zinc-400" />
-                </button>
-
-                {isAssignWsMenuOpen && (
-                  <div className="absolute left-0 mt-1 w-56 bg-zinc-900 border border-zinc-750 rounded-lg shadow-2xl py-1 z-30 font-sans">
-                    <div className="px-3 py-1.5 text-[10px] text-zinc-400 font-semibold uppercase tracking-wider border-b border-zinc-800">
-                      Add {selectedIds.size} item(s) to collection:
-                    </div>
-
-                    <div className="max-h-48 overflow-y-auto py-1 space-y-0.5">
-                      {localWorkspaces.length > 0 ? (
-                        localWorkspaces.map((ws) => (
-                          <button
-                            key={ws.id}
-                            type="button"
-                            onClick={() => handleAssignSelectedToWorkspace(ws.id)}
-                            className="w-full flex items-center justify-between px-3 py-1.5 text-xs text-zinc-300 hover:bg-blue-600 hover:text-white transition-colors cursor-pointer text-left"
-                          >
-                            <div className="flex items-center gap-1.5 truncate flex-1 pr-2">
-                              <Folder className="h-3 w-3 shrink-0 text-blue-400" />
-                              <span className="truncate">{ws.name}</span>
-                            </div>
-                            <span className="text-[10px] font-mono text-zinc-500 group-hover:text-white shrink-0">
-                              {ws.doc_names?.length || 0}
-                            </span>
-                          </button>
-                        ))
-                      ) : (
-                        <p className="px-3 py-2 text-[11px] text-zinc-500 italic">No workspaces created yet.</p>
-                      )}
-                    </div>
-
-                    {/* Inline Create New Workspace Form */}
-                    <div className="p-2 border-t border-zinc-800 bg-zinc-950/60">
-                      <form onSubmit={handleCreateWorkspaceAndAssign} className="space-y-1.5">
-                        <input
-                          type="text"
-                          value={newWsInlineName}
-                          onChange={(e) => setNewWsInlineName(e.target.value)}
-                          placeholder="New collection name..."
-                          className="w-full bg-zinc-900 border border-zinc-750 rounded px-2 py-1 text-[11px] text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-blue-500"
-                        />
-                        <button
-                          type="submit"
-                          disabled={!newWsInlineName.trim() || isCreatingInlineWs}
-                          className="w-full flex items-center justify-center gap-1 py-1 px-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white rounded text-[10.5px] font-medium transition-colors cursor-pointer"
-                        >
-                          <Plus className="h-3 w-3" />
-                          <span>{isCreatingInlineWs ? 'Creating...' : 'Create & Add Selected'}</span>
-                        </button>
-                      </form>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Remove from current workspace (if viewing one) */}
-              {activeWorkspaceFilter && !activeWorkspaceFilter.startsWith('__') && (
-                <button
-                  type="button"
-                  onClick={handleRemoveSelectedFromWorkspace}
-                  className="flex items-center gap-1 px-2 py-1 bg-zinc-800 hover:bg-red-950/40 text-zinc-300 hover:text-red-300 border border-zinc-700/60 hover:border-red-800/60 rounded text-[11px] font-medium transition-colors cursor-pointer"
-                  title="Remove selected papers from this workspace collection"
-                >
-                  <X className="h-3 w-3 text-red-400" />
-                  <span>Remove from Collection</span>
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Right Section: Compact Zotero-Style Search Input */}
-        <form onSubmit={handleSearchSubmit} className="relative w-44 sm:w-56 shrink-0">
-          <Search className="h-3 w-3 text-zinc-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search library..."
-            className="w-full bg-zinc-950 border border-zinc-800 rounded pl-7 pr-6 py-1 text-[11px] text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-blue-500 transition-colors shadow-inner"
-          />
-          {searchQuery && (
-            <button
-              type="button"
-              onClick={() => setSearchQuery('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 text-xs cursor-pointer"
-            >
-              ×
-            </button>
-          )}
-        </form>
-      </header>
-      )}
 
       {/* ========================================================================= */}
       {/* MAIN CONTENT: 3-PANE WORKBENCH OR OPEN PDF READER TAB */}
@@ -1105,11 +868,128 @@ export default function LibraryView({
         {/* ========================================================================= */}
         {/* PANE 1: ZOTERO TREE SIDEBAR (Collections & Tag Selector) */}
         {/* ========================================================================= */}
-        <div className="w-56 h-full bg-zinc-900/70 border-r border-zinc-800 flex flex-col shrink-0 select-none">
-          {/* Tree Navigation Header */}
-          <div className="flex-1 overflow-y-auto py-2">
+        <div className="w-60 h-full bg-zinc-900/80 border-r border-zinc-800 flex flex-col shrink-0 select-none">
+          {/* Left Panel Header: Title + Action Icons (Search, Add Folder, Add File) */}
+          <div className="h-9 px-2.5 border-b border-zinc-800 flex items-center justify-between gap-1 shrink-0 bg-zinc-950/60">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <FolderOpen className="h-3.5 w-3.5 text-blue-400 shrink-0" />
+              <span className="font-semibold text-xs text-zinc-200 tracking-tight truncate">Collections</span>
+            </div>
+            <div className="flex items-center gap-0.5">
+              {/* Search collections toggle */}
+              <button
+                type="button"
+                onClick={() => {
+                  setIsFilterCollectionsOpen(!isFilterCollectionsOpen);
+                  if (isFilterCollectionsOpen) setCollectionFilterQuery('');
+                }}
+                className={`p-1 rounded text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors cursor-pointer ${
+                  isFilterCollectionsOpen ? 'bg-zinc-800 text-blue-400' : ''
+                }`}
+                title="Search / Filter Collections"
+              >
+                <Search className="h-3.5 w-3.5" />
+              </button>
+
+              {/* Add Folder / Collection icon */}
+              <button
+                type="button"
+                onClick={() => {
+                  setIsCreateCollectionOpen(true);
+                  setTimeout(() => newCollectionInputRef.current?.focus(), 50);
+                }}
+                className={`p-1 rounded hover:bg-zinc-800 transition-colors cursor-pointer ${
+                  isCreateCollectionOpen ? 'bg-zinc-800 text-blue-400' : 'text-zinc-400 hover:text-blue-400'
+                }`}
+                title="New Collection / Workspace"
+              >
+                <FolderPlus className="h-3.5 w-3.5" />
+              </button>
+
+              {/* Add File / PDF icon */}
+              <button
+                type="button"
+                onClick={() => pdfUploadInputRef.current?.click()}
+                disabled={isUploading}
+                className="p-1 rounded text-zinc-400 hover:text-emerald-400 hover:bg-zinc-800 transition-colors cursor-pointer disabled:opacity-50"
+                title="Add / Upload PDF Document"
+              >
+                <FilePlus className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+
+          {/* Quick Collection Search Input */}
+          {isFilterCollectionsOpen && (
+            <div className="px-2 py-1.5 border-b border-zinc-800 bg-zinc-950/90 shrink-0">
+              <div className="relative">
+                <Search className="h-3 w-3 text-zinc-500 absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  type="text"
+                  autoFocus
+                  value={collectionFilterQuery}
+                  onChange={(e) => setCollectionFilterQuery(e.target.value)}
+                  placeholder="Filter collections..."
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded pl-6 pr-5 py-0.5 text-[10.5px] text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-blue-500"
+                />
+                {collectionFilterQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setCollectionFilterQuery('')}
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-200 text-xs cursor-pointer"
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Inline New Collection Creator */}
+          {isCreateCollectionOpen && (
+            <form onSubmit={handleCreateCollection} className="px-2 py-1.5 border-b border-zinc-800 bg-zinc-950/90 flex items-center gap-1.5 shrink-0">
+              <Folder className="h-3.5 w-3.5 text-blue-400 shrink-0" />
+              <input
+                ref={newCollectionInputRef}
+                type="text"
+                value={newCollectionName}
+                onChange={(e) => setNewCollectionName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    setIsCreateCollectionOpen(false);
+                    setNewCollectionName('');
+                  }
+                }}
+                placeholder="New collection name..."
+                disabled={isCreatingCollection}
+                className="flex-1 bg-zinc-900 border border-zinc-750 rounded px-1.5 py-0.5 text-[11px] text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-blue-500"
+              />
+              <button
+                type="submit"
+                disabled={!newCollectionName.trim() || isCreatingCollection}
+                className="p-1 rounded bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-40 cursor-pointer"
+                title="Create Collection (Enter)"
+              >
+                <Check className="h-3 w-3" />
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsCreateCollectionOpen(false);
+                  setNewCollectionName('');
+                }}
+                className="p-1 rounded text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 cursor-pointer"
+                title="Cancel (Esc)"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </form>
+          )}
+
+          {/* Tree Navigation & Items List */}
+          <div className="flex-1 overflow-y-auto py-1.5 space-y-0.5">
             {/* Root: My Library */}
-            <div className="px-1.5 mb-1">
+            <div className="px-1.5 mb-0.5">
               <button
                 type="button"
                 onClick={() => {
@@ -1122,7 +1002,6 @@ export default function LibraryView({
                     : 'text-zinc-300 hover:bg-zinc-800/80 hover:text-zinc-100'
                 }`}
               >
-                <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-70" />
                 <Folder className={`h-3.5 w-3.5 shrink-0 ${!activeTag && !activeWorkspaceFilter ? 'text-white fill-white/20' : 'text-blue-500 fill-blue-500/20'}`} />
                 <span className="truncate flex-1 text-left">My Library</span>
                 <span className={`text-[10px] font-mono ${!activeTag && !activeWorkspaceFilter ? 'text-blue-100' : 'text-zinc-500'}`}>
@@ -1131,32 +1010,96 @@ export default function LibraryView({
               </button>
             </div>
 
-            {/* Indented Workspace Collections */}
-            <div className="space-y-0.5 px-1.5 pl-4">
-              {localWorkspaces.map((ws) => {
+            {/* Indented Workspace Collections Tree */}
+            <div className="space-y-0.5 px-1.5">
+              {displayedWorkspaces.map((ws) => {
                 const isSelected = activeWorkspaceFilter === ws.id;
+                const isWsExpanded = expandedWorkspaceIds.has(ws.id);
+                const wsPapers = getWorkspacePapers(ws);
+
                 return (
-                  <button
-                    key={ws.id}
-                    type="button"
-                    onClick={() => {
-                      setActiveWorkspaceFilter(isSelected ? null : ws.id);
-                      setActiveTag(null);
-                    }}
-                    className={`w-full flex items-center gap-1.5 px-2 py-1 rounded text-[11.5px] transition-colors cursor-pointer ${
-                      isSelected
-                        ? 'bg-blue-600 text-white font-medium'
-                        : 'text-zinc-400 hover:bg-zinc-800/70 hover:text-zinc-200'
-                    }`}
-                  >
-                    <Folder className={`h-3.5 w-3.5 shrink-0 ${isSelected ? 'text-white fill-white/20' : 'text-blue-400 fill-blue-500/20'}`} />
-                    <span className="truncate flex-1 text-left">{ws.name}</span>
-                    <span className={`text-[10px] font-mono ${isSelected ? 'text-blue-100' : 'text-zinc-500'}`}>
-                      {ws.doc_names?.length || 0}
-                    </span>
-                  </button>
+                  <div key={ws.id} className="select-none">
+                    {/* Workspace Row: Arrow Chevron + Folder + Name + Count */}
+                    <div
+                      onClick={() => {
+                        setActiveWorkspaceFilter(isSelected ? null : ws.id);
+                        setActiveTag(null);
+                      }}
+                      className={`w-full flex items-center gap-1 px-1.5 py-1 rounded text-[11.5px] transition-colors cursor-pointer group ${
+                        isSelected
+                          ? 'bg-blue-600 text-white font-medium'
+                          : 'text-zinc-300 hover:bg-zinc-800/70 hover:text-zinc-100'
+                      }`}
+                    >
+                      {/* Arrow Chevron to expand and show each paper in this workspace */}
+                      <button
+                        type="button"
+                        onClick={(e) => toggleWorkspaceExpansion(ws.id, e)}
+                        className={`p-0.5 rounded hover:bg-zinc-800/60 cursor-pointer ${
+                          isSelected ? 'text-white' : 'text-zinc-400 hover:text-zinc-200'
+                        }`}
+                        title={isWsExpanded ? 'Collapse papers' : 'Expand papers'}
+                      >
+                        {isWsExpanded ? (
+                          <ChevronDown className="h-3 w-3" />
+                        ) : (
+                          <ChevronRight className="h-3 w-3" />
+                        )}
+                      </button>
+
+                      <Folder className={`h-3.5 w-3.5 shrink-0 ${isSelected ? 'text-white fill-white/20' : 'text-blue-400 fill-blue-500/20'}`} />
+                      <span className="truncate flex-1 text-left">{ws.name}</span>
+                      <span className={`text-[10px] font-mono ${isSelected ? 'text-blue-100' : 'text-zinc-500'}`}>
+                        {wsPapers.length}
+                      </span>
+                    </div>
+
+                    {/* Expanded Papers Inside This Workspace */}
+                    {isWsExpanded && (
+                      <div className="pl-4 pr-1 space-y-0.5 border-l border-zinc-800/80 ml-3.5 my-0.5">
+                        {wsPapers.length > 0 ? (
+                          wsPapers.map((paper) => {
+                            const isPaperSelected = selectedDoc?.id === paper.id;
+                            return (
+                              <button
+                                key={paper.id}
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedDoc(paper);
+                                }}
+                                onDoubleClick={(e) => {
+                                  e.stopPropagation();
+                                  if (paper.doc_name) {
+                                    handleOpenPaperTab(paper.doc_name, paper.title || paper.doc_name);
+                                  }
+                                }}
+                                className={`w-full flex items-center gap-1.5 px-2 py-1 rounded text-[11px] transition-colors cursor-pointer text-left truncate group ${
+                                  isPaperSelected
+                                    ? 'bg-blue-600/90 text-white font-medium'
+                                    : 'text-zinc-400 hover:bg-zinc-800/70 hover:text-zinc-200'
+                                }`}
+                                title={`Click to inspect, double-click to read: ${paper.title || paper.doc_name}`}
+                              >
+                                {paper.has_pdf ? (
+                                  <FileText className={`h-3 w-3 shrink-0 ${isPaperSelected ? 'text-white' : 'text-red-400'}`} />
+                                ) : (
+                                  <FileText className={`h-3 w-3 shrink-0 ${isPaperSelected ? 'text-white' : 'text-zinc-500'}`} />
+                                )}
+                                <span className="truncate flex-1">{paper.title || paper.doc_name}</span>
+                              </button>
+                            );
+                          })
+                        ) : (
+                          <div className="px-2 py-1 text-[10px] text-zinc-500 italic">No papers in collection</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 );
               })}
+
+              <div className="my-1.5 border-t border-zinc-800/60" />
 
               {/* Duplicate Items (FR-17.6) */}
               <button
@@ -1205,9 +1148,13 @@ export default function LibraryView({
                     ? 'bg-blue-600 text-white font-medium'
                     : 'text-zinc-400 hover:bg-zinc-800/70 hover:text-zinc-200'
                 }`}
+                title="Items not assigned to any collection"
               >
                 <Inbox className="h-3.5 w-3.5 shrink-0 text-zinc-500" />
                 <span className="truncate flex-1 text-left">Unfiled Items</span>
+                <span className={`text-[10px] font-mono ${activeWorkspaceFilter === '__unfiled__' ? 'text-blue-100' : 'text-zinc-500'}`}>
+                  {items.filter((i) => !i.workspaces || i.workspaces.length === 0).length}
+                </span>
               </button>
             </div>
           </div>
@@ -1266,6 +1213,281 @@ export default function LibraryView({
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
         >
+          {/* Middle Pane Header: Clean Minimalist Zotero 7 Toolbar (Confined strictly to middle pane) */}
+          <header className="h-9 border-b border-zinc-800 bg-zinc-900/90 px-2.5 flex items-center justify-between gap-2 shrink-0 select-none text-xs">
+            {/* Action Toolbar */}
+            <div className="flex items-center gap-1">
+              {/* New Item Dropdown Icon */}
+              <div className="relative" ref={newItemMenuRef}>
+                <button
+                  type="button"
+                  onClick={() => setIsNewItemMenuOpen(!isNewItemMenuOpen)}
+                  className="flex items-center gap-0.5 p-1.5 bg-zinc-850 hover:bg-zinc-750 text-zinc-300 hover:text-zinc-100 border border-zinc-750 rounded text-xs transition-colors cursor-pointer"
+                  title="New Item (Book, Journal Article, Conference Paper, Upload PDF)"
+                >
+                  <FilePlus className="h-3.5 w-3.5 text-blue-400" />
+                  <ChevronDown className="h-2.5 w-2.5 text-zinc-400" />
+                </button>
+
+                {/* New Item Dropdown Menu */}
+                {isNewItemMenuOpen && (
+                  <div className="absolute left-0 top-full mt-1 w-52 bg-zinc-900 border border-zinc-750 rounded-md shadow-2xl py-1 z-50 text-[11.5px] select-none backdrop-blur-sm">
+                    <div className="px-2.5 py-1 text-[10px] uppercase font-semibold text-zinc-500 tracking-wider">
+                      New Blank Item
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleOpenManualModal('book')}
+                      className="w-full flex items-center gap-2 px-3 py-1.5 text-zinc-300 hover:bg-blue-600 hover:text-white transition-colors text-left cursor-pointer"
+                    >
+                      <Book className="h-3.5 w-3.5 text-purple-400" />
+                      <span>Book</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleOpenManualModal('journal_article')}
+                      className="w-full flex items-center gap-2 px-3 py-1.5 text-zinc-300 hover:bg-blue-600 hover:text-white transition-colors text-left cursor-pointer"
+                    >
+                      <FileText className="h-3.5 w-3.5 text-blue-400" />
+                      <span>Journal Article</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleOpenManualModal('conference_paper')}
+                      className="w-full flex items-center gap-2 px-3 py-1.5 text-zinc-300 hover:bg-blue-600 hover:text-white transition-colors text-left cursor-pointer"
+                    >
+                      <Layers className="h-3.5 w-3.5 text-emerald-400" />
+                      <span>Conference Paper</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleOpenManualModal('preprint')}
+                      className="w-full flex items-center gap-2 px-3 py-1.5 text-zinc-300 hover:bg-blue-600 hover:text-white transition-colors text-left cursor-pointer"
+                    >
+                      <FileCode className="h-3.5 w-3.5 text-rose-400" />
+                      <span>Preprint / Working Paper</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleOpenManualModal('book_chapter')}
+                      className="w-full flex items-center gap-2 px-3 py-1.5 text-zinc-300 hover:bg-blue-600 hover:text-white transition-colors text-left cursor-pointer"
+                    >
+                      <Book className="h-3.5 w-3.5 text-amber-400" />
+                      <span>Book Section / Chapter</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleOpenManualModal('thesis')}
+                      className="w-full flex items-center gap-2 px-3 py-1.5 text-zinc-300 hover:bg-blue-600 hover:text-white transition-colors text-left cursor-pointer"
+                    >
+                      <FileText className="h-3.5 w-3.5 text-cyan-400" />
+                      <span>Thesis / Dissertation</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleOpenManualModal('report')}
+                      className="w-full flex items-center gap-2 px-3 py-1.5 text-zinc-300 hover:bg-blue-600 hover:text-white transition-colors text-left cursor-pointer"
+                    >
+                      <FileText className="h-3.5 w-3.5 text-zinc-400" />
+                      <span>Report</span>
+                    </button>
+
+                    <div className="my-1 border-t border-zinc-800" />
+
+                    {/* Upload PDF */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsNewItemMenuOpen(false);
+                        pdfUploadInputRef.current?.click();
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-1.5 text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 transition-colors text-left cursor-pointer"
+                    >
+                      <Upload className="h-3.5 w-3.5 text-zinc-400" />
+                      <span>{isUploading ? 'Indexing PDF...' : 'Store Copy of File (PDF)...'}</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <input
+                ref={pdfUploadInputRef}
+                type="file"
+                accept=".pdf"
+                onChange={handleFileUpload}
+                disabled={isUploading}
+                className="hidden"
+              />
+
+              {/* Add by Identifier Icon (Magic Wand) */}
+              <button
+                type="button"
+                onClick={() => {
+                  setIsAddIdentifierOpen(true);
+                  setAddError(null);
+                }}
+                className="p-1.5 bg-zinc-850 hover:bg-zinc-750 text-zinc-300 hover:text-zinc-100 border border-zinc-750 rounded transition-colors cursor-pointer flex items-center justify-center"
+                title="Add Item by Identifier (DOI, arXiv ID, ISBN, PMID)"
+              >
+                <Wand2 className="h-3.5 w-3.5 text-amber-400" />
+              </button>
+
+              {/* Import BibTeX / RIS Icon */}
+              <button
+                type="button"
+                onClick={() => bibFileInputRef.current?.click()}
+                disabled={isImportingBib}
+                className="p-1.5 bg-zinc-850 hover:bg-zinc-750 text-zinc-300 hover:text-zinc-100 border border-zinc-750 rounded transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-center"
+                title="Import References from BibTeX (.bib) or RIS (.ris)"
+              >
+                <FileUp className="h-3.5 w-3.5 text-blue-400" />
+              </button>
+              <input
+                ref={bibFileInputRef}
+                type="file"
+                accept=".bib,.bibtex,.ris,.txt"
+                onChange={handleBibFileInputChange}
+                disabled={isImportingBib}
+                className="hidden"
+              />
+
+              {/* Export BibTeX Icon */}
+              <button
+                type="button"
+                onClick={handleExportSelectedBibtex}
+                className="p-1.5 bg-zinc-850 hover:bg-zinc-750 text-zinc-300 hover:text-zinc-100 border border-zinc-750 rounded transition-colors cursor-pointer flex items-center justify-center"
+                title="Export References to BibTeX (.bib)"
+              >
+                <Download className="h-3.5 w-3.5 text-zinc-400" />
+              </button>
+
+              {/* Refresh Icon */}
+              <button
+                type="button"
+                onClick={fetchLibrary}
+                className="p-1.5 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded transition-colors cursor-pointer flex items-center justify-center"
+                title="Refresh Library"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin text-blue-400' : ''}`} />
+              </button>
+
+              {/* Batch Selection Action Icons */}
+              {selectedIds.size > 0 && (
+                <div className="flex items-center gap-1 ml-1 pl-2 border-l border-zinc-800">
+                  <span className="text-[11px] text-zinc-400 font-mono hidden sm:inline mr-1">
+                    {selectedIds.size} selected
+                  </span>
+
+                  {/* Synthesize Review Icon */}
+                  <button
+                    type="button"
+                    onClick={handleSynthesizeReview}
+                    className="p-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded transition-colors shadow-sm cursor-pointer flex items-center justify-center"
+                    title={`Synthesize Literature Review on ${selectedIds.size} selected paper(s)`}
+                  >
+                    <Sparkles className="h-3.5 w-3.5" />
+                  </button>
+
+                  {/* Add to Workspace Dropdown Icon */}
+                  <div className="relative" ref={assignWsMenuRef}>
+                    <button
+                      type="button"
+                      onClick={() => setIsAssignWsMenuOpen(!isAssignWsMenuOpen)}
+                      className="p-1.5 bg-zinc-800 hover:bg-zinc-750 text-zinc-200 border border-zinc-750 rounded transition-colors cursor-pointer flex items-center justify-center"
+                      title={`Add ${selectedIds.size} selected paper(s) to collection / workspace`}
+                    >
+                      <FolderPlus className="h-3.5 w-3.5 text-blue-400" />
+                    </button>
+
+                    {isAssignWsMenuOpen && (
+                      <div className="absolute left-0 mt-1 w-56 bg-zinc-900 border border-zinc-750 rounded-lg shadow-2xl py-1 z-30 font-sans">
+                        <div className="px-3 py-1.5 text-[10px] text-zinc-400 font-semibold uppercase tracking-wider border-b border-zinc-800">
+                          Add {selectedIds.size} item(s) to collection:
+                        </div>
+
+                        <div className="max-h-48 overflow-y-auto py-1 space-y-0.5">
+                          {localWorkspaces.length > 0 ? (
+                            localWorkspaces.map((ws) => (
+                              <button
+                                key={ws.id}
+                                type="button"
+                                onClick={() => handleAssignSelectedToWorkspace(ws.id)}
+                                className="w-full flex items-center justify-between px-3 py-1.5 text-xs text-zinc-300 hover:bg-blue-600 hover:text-white transition-colors cursor-pointer text-left"
+                              >
+                                <div className="flex items-center gap-1.5 truncate flex-1 pr-2">
+                                  <Folder className="h-3 w-3 shrink-0 text-blue-400" />
+                                  <span className="truncate">{ws.name}</span>
+                                </div>
+                                <span className="text-[10px] font-mono text-zinc-500 group-hover:text-white shrink-0">
+                                  {ws.doc_names?.length || 0}
+                                </span>
+                              </button>
+                            ))
+                          ) : (
+                            <p className="px-3 py-2 text-[11px] text-zinc-500 italic">No workspaces created yet.</p>
+                          )}
+                        </div>
+
+                        {/* Inline Create New Workspace Form */}
+                        <div className="p-2 border-t border-zinc-800 bg-zinc-950/60">
+                          <form onSubmit={handleCreateWorkspaceAndAssign} className="space-y-1.5">
+                            <input
+                              type="text"
+                              value={newWsInlineName}
+                              onChange={(e) => setNewWsInlineName(e.target.value)}
+                              placeholder="New collection name..."
+                              className="w-full bg-zinc-900 border border-zinc-750 rounded px-2 py-1 text-[11px] text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-blue-500"
+                            />
+                            <button
+                              type="submit"
+                              disabled={!newWsInlineName.trim() || isCreatingInlineWs}
+                              className="w-full flex items-center justify-center gap-1 py-1 px-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white rounded text-[10.5px] font-medium transition-colors cursor-pointer"
+                            >
+                              <Plus className="h-3 w-3" />
+                              <span>{isCreatingInlineWs ? 'Creating...' : 'Create & Add Selected'}</span>
+                            </button>
+                          </form>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Remove from current workspace (Icon Button) */}
+                  {activeWorkspaceFilter && !activeWorkspaceFilter.startsWith('__') && (
+                    <button
+                      type="button"
+                      onClick={handleRemoveSelectedFromWorkspace}
+                      className="p-1.5 bg-zinc-800 hover:bg-red-950/40 text-zinc-300 hover:text-red-400 border border-zinc-700/60 hover:border-red-800/60 rounded transition-colors cursor-pointer flex items-center justify-center"
+                      title="Remove selected papers from this workspace collection"
+                    >
+                      <FolderMinus className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Right: Search Input (Zotero Style) */}
+            <form onSubmit={handleSearchSubmit} className="relative w-40 sm:w-56 shrink-0">
+              <Search className="h-3 w-3 text-zinc-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search library..."
+                className="w-full bg-zinc-950 border border-zinc-800 rounded pl-7 pr-6 py-1 text-[11px] text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-blue-500 transition-colors shadow-inner"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 text-xs cursor-pointer"
+                >
+                  ×
+                </button>
+              )}
+            </form>
+          </header>
           {/* Drag & Drop Visual Indicator Overlay */}
           {isDraggingOver && (
             <div className="absolute inset-0 z-30 bg-blue-950/85 border-2 border-dashed border-blue-500/80 flex flex-col items-center justify-center pointer-events-none backdrop-blur-[2px]">
@@ -1432,7 +1654,7 @@ export default function LibraryView({
                 </p>
               </div>
             ) : (
-              <table className="w-full text-left border-collapse select-none table-fixed min-w-[720px]">
+              <table className="w-full text-left border-collapse select-none table-fixed">
                 <thead>
                   <tr className="bg-zinc-900 border-b border-zinc-800 text-zinc-400 font-semibold text-[11px] h-7 sticky top-0 z-10 select-none">
                     {/* Checkbox */}
@@ -1460,7 +1682,7 @@ export default function LibraryView({
                     {/* Title */}
                     <th
                       onClick={() => toggleSort('title')}
-                      className="w-[38%] min-w-[220px] px-2 cursor-pointer hover:text-zinc-200"
+                      className="w-[62%] px-2 cursor-pointer hover:text-zinc-200"
                     >
                       <div className="flex items-center gap-1">
                         <span>Title</span>
@@ -1471,7 +1693,7 @@ export default function LibraryView({
                     {/* Creator / Authors */}
                     <th
                       onClick={() => toggleSort('authors')}
-                      className="w-[24%] min-w-[130px] px-2 cursor-pointer hover:text-zinc-200"
+                      className="w-[38%] px-2 cursor-pointer hover:text-zinc-200"
                     >
                       <div className="flex items-center gap-1">
                         <span>Creator</span>
@@ -1490,16 +1712,10 @@ export default function LibraryView({
                       </div>
                     </th>
 
-                    {/* Venue / Publication */}
-                    <th className="w-[20%] min-w-[110px] px-2">Publication</th>
-
                     {/* Attachment Indicator */}
-                    <th className="w-7 min-w-[28px] px-1 text-center" title="Has PDF Attachment">
+                    <th className="w-8 min-w-[32px] px-1 pr-2 text-center" title="Has PDF Attachment">
                       <Paperclip className="h-3 w-3 mx-auto text-zinc-500" />
                     </th>
-
-                    {/* Actions */}
-                    <th className="w-24 min-w-[96px] px-2 text-right">Actions</th>
                   </tr>
                 </thead>
 
@@ -1568,7 +1784,7 @@ export default function LibraryView({
                           </td>
 
                           {/* Title & Metadata Badges */}
-                          <td className="w-[38%] min-w-[220px] px-2 truncate">
+                          <td className="w-[62%] px-2 truncate">
                             <div className="flex items-center gap-1.5 truncate">
                               <span
                                 className={`truncate font-medium text-[12.5px] ${
@@ -1609,7 +1825,7 @@ export default function LibraryView({
 
                           {/* Creator / Authors */}
                           <td
-                            className={`w-[24%] min-w-[130px] px-2 truncate text-[12px] ${
+                            className={`w-[38%] px-2 truncate text-[12px] ${
                               isInspecting ? 'text-blue-100' : 'text-zinc-400'
                             }`}
                           >
@@ -1625,17 +1841,8 @@ export default function LibraryView({
                             {item.year || '—'}
                           </td>
 
-                          {/* Publication / Venue */}
-                          <td
-                            className={`w-[20%] min-w-[110px] px-2 truncate text-[12px] ${
-                              isInspecting ? 'text-blue-100' : 'text-zinc-400'
-                            }`}
-                          >
-                            <span className="truncate">{item.venue || '—'}</span>
-                          </td>
-
                           {/* Attachment (PDF) Indicator */}
-                          <td className="w-7 min-w-[28px] px-1 text-center" onClick={(e) => e.stopPropagation()}>
+                          <td className="w-8 min-w-[32px] px-1 pr-2 text-center" onClick={(e) => e.stopPropagation()}>
                             {item.has_pdf ? (
                               <FileText
                                 className={`h-3.5 w-3.5 mx-auto ${
@@ -1663,94 +1870,6 @@ export default function LibraryView({
                               </button>
                             )}
                           </td>
-
-                          {/* Quick Row Actions */}
-                          <td className="w-24 min-w-[96px] px-2 text-right" onClick={(e) => e.stopPropagation()}>
-                            <div className="flex items-center justify-end gap-1">
-                              {/* Download OA PDF if missing */}
-                              {!item.has_pdf && (
-                                <button
-                                  type="button"
-                                  onClick={(e) => handleDownloadPdf(item.id, e)}
-                                  disabled={downloadingPdfDocIds.has(item.id)}
-                                  className={`p-0.5 rounded transition-colors cursor-pointer ${
-                                    isInspecting
-                                      ? 'text-white hover:bg-blue-700'
-                                      : 'text-zinc-400 hover:text-emerald-400 hover:bg-zinc-800'
-                                  }`}
-                                  title="Download Open-Access PDF (arXiv / Unpaywall)"
-                                >
-                                  <Download className={`h-3 w-3 ${downloadingPdfDocIds.has(item.id) ? 'animate-bounce text-emerald-400' : ''}`} />
-                                </button>
-                              )}
-
-                              {/* Auto-enrich */}
-                              <button
-                                type="button"
-                                onClick={(e) => handleQuickEnrich(item.id, e)}
-                                disabled={enrichingDocIds.has(item.id)}
-                                className={`p-0.5 rounded transition-colors cursor-pointer ${
-                                  isInspecting
-                                    ? 'text-white hover:bg-blue-700'
-                                    : 'text-zinc-400 hover:text-amber-400 hover:bg-zinc-800'
-                                }`}
-                                title="Auto-enrich metadata via CrossRef/arXiv"
-                              >
-                                <Sparkles className={`h-3 w-3 ${enrichingDocIds.has(item.id) ? 'animate-spin text-amber-300' : ''}`} />
-                              </button>
-
-                              {/* Chat with paper */}
-                              <button
-                                type="button"
-                                onClick={() => onStartChatWithPaper && onStartChatWithPaper(item.doc_name)}
-                                className={`p-0.5 rounded transition-colors cursor-pointer ${
-                                  isInspecting
-                                    ? 'text-white hover:bg-blue-700'
-                                    : 'text-zinc-400 hover:text-blue-400 hover:bg-zinc-800'
-                                }`}
-                                title="Chat with this paper"
-                              >
-                                <MessageSquare className="h-3 w-3" />
-                              </button>
-
-                              {/* Read PDF */}
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  if (item.has_pdf && item.doc_name) {
-                                    handleOpenPaperTab(item.doc_name, item.title || item.doc_name);
-                                  } else {
-                                    handleDownloadPdf(item.id, e);
-                                  }
-                                }}
-                                className={`p-0.5 rounded transition-colors cursor-pointer ${
-                                  isInspecting
-                                    ? 'text-white hover:bg-blue-700'
-                                    : item.has_pdf
-                                    ? 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800'
-                                    : 'text-zinc-600 hover:text-blue-400 hover:bg-zinc-800'
-                                }`}
-                                title={item.has_pdf ? "Read PDF" : "Download Full-Text PDF"}
-                              >
-                                <FileText className="h-3 w-3" />
-                              </button>
-
-                              {/* Delete */}
-                              <button
-                                type="button"
-                                onClick={(e) => handleDeleteItem(item.id, e)}
-                                className={`p-0.5 rounded transition-colors cursor-pointer ${
-                                  isInspecting
-                                    ? 'text-white hover:bg-blue-700'
-                                    : 'text-zinc-500 hover:text-red-400 hover:bg-zinc-800'
-                                }`}
-                                title="Delete from library"
-                              >
-                                <Trash2 className="h-3 w-3" />
-                              </button>
-                            </div>
-                          </td>
                         </tr>
 
                         {/* Zotero Sub-Row (Attached PDF child item) */}
@@ -1764,7 +1883,7 @@ export default function LibraryView({
                                 <Download className="h-3.5 w-3.5 mx-auto text-zinc-500" />
                               )}
                             </td>
-                            <td colSpan={6} className="py-1.5 px-2">
+                            <td colSpan={4} className="py-1.5 px-2">
                               {item.has_pdf ? (
                                 <div className="flex items-center justify-between text-[11.5px]">
                                   <div className="flex items-center gap-2 truncate">
@@ -1853,6 +1972,7 @@ export default function LibraryView({
               }}
               onOpenPdf={(docName) => handleOpenPaperTab(docName || selectedDoc.doc_name, selectedDoc.title || docName)}
               onChatWithPaper={onStartChatWithPaper}
+              onDeleteItem={handleDeleteItem}
             />
           ) : (
             /* Reserved Empty State Placeholder (Ensures right pane stays present at all times) */
