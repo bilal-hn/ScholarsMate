@@ -4,7 +4,7 @@ import AppLogo from '../common/AppLogo';
 import { GoogleLogin } from '@react-oauth/google';
 import { loginUserAPI, registerUserAPI, setAuthToken } from '../../services/api';
 
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '1006343471088-k89pd7kusa1lasi2i1e04792gb6fghc4.apps.googleusercontent.com';
 
 export default function AuthModal({
   isOpen,

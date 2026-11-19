@@ -9,6 +9,8 @@ RUN npm ci
 
 COPY frontend/ ./
 COPY .env* ./
+ARG VITE_GOOGLE_CLIENT_ID=1006343471088-k89pd7kusa1lasi2i1e04792gb6fghc4.apps.googleusercontent.com
+ENV VITE_GOOGLE_CLIENT_ID=$VITE_GOOGLE_CLIENT_ID
 RUN npm run build
 
 # =============================================================================
