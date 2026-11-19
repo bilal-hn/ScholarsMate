@@ -27,7 +27,7 @@ _resolve_retriever_key = resolve_api_key
 def rewrite_query_with_history(
     query: str, 
     chat_history: list[dict] | None = None,
-    model_name: str = "gemini/gemini-2.5-flash",
+    model_name: str = "bedrock/us.amazon.nova-lite-v1:0",
     custom_keys: dict | None = None
 ) -> str:
     """FR-05.2: Rewrites ambiguous follow-up queries into standalone search queries."""
@@ -77,22 +77,27 @@ Standalone Search Query:
 
     try:
         target_model, active_key = resolve_model_and_key(model_name, custom_keys)
+        is_bedrock = target_model.startswith("bedrock/")
 
-        res = completion(
-            model=target_model,
-            messages=[
+        call_kwargs = {
+            "model": target_model,
+            "messages": [
                 {
                     "role": "system",
                     "content": "Rewrite follow-up questions into standalone search queries. Return only the query string.",
                 },
                 {"role": "user", "content": prompt},
             ],
-            api_key=active_key,
-            temperature=0.0,
-            max_tokens=REWRITE_MAX_TOKENS,
-            drop_params=True,
-            reasoning_effort="none",
-        )
+            "api_key": active_key if not is_bedrock else None,
+            "temperature": 0.0,
+            "max_tokens": REWRITE_MAX_TOKENS,
+            "drop_params": True,
+            "reasoning_effort": "none",
+        }
+        if is_bedrock:
+            call_kwargs["aws_region_name"] = os.getenv("AWS_REGION_NAME", "us-east-1")
+
+        res = completion(**call_kwargs)
         rewritten = extract_reasoning_and_content(res).answer
         rewritten = re.sub(r'^["\']|["\']$', '', rewritten).strip()
 
@@ -108,7 +113,7 @@ Standalone Search Query:
 
 def expand_query(
     original_query: str,
-    model_name: str = "gemini/gemini-2.5-flash",
+    model_name: str = "bedrock/us.amazon.nova-lite-v1:0",
     custom_keys: dict | None = None
 ) -> list[str]:
     """Generates search variations to maximize vector database recall."""
@@ -123,22 +128,27 @@ Return ONLY the queries, one per line. No numbering, no comments.
 
     try:
         target_model, active_key = resolve_model_and_key(model_name, custom_keys)
+        is_bedrock = target_model.startswith("bedrock/")
 
-        res = completion(
-            model=target_model,
-            messages=[
+        call_kwargs = {
+            "model": target_model,
+            "messages": [
                 {
                     "role": "system",
                     "content": "Return only alternative search queries, one per line, with no commentary.",
                 },
                 {"role": "user", "content": prompt},
             ],
-            api_key=active_key,
-            temperature=0.2,
-            max_tokens=REWRITE_MAX_TOKENS,
-            drop_params=True,
-            reasoning_effort="none",
-        )
+            "api_key": active_key if not is_bedrock else None,
+            "temperature": 0.2,
+            "max_tokens": REWRITE_MAX_TOKENS,
+            "drop_params": True,
+            "reasoning_effort": "none",
+        }
+        if is_bedrock:
+            call_kwargs["aws_region_name"] = os.getenv("AWS_REGION_NAME", "us-east-1")
+
+        res = completion(**call_kwargs)
         body = extract_reasoning_and_content(res).answer
         variations = [line.strip(" -•\t") for line in body.split("\n") if line.strip()]
         return [original_query] + variations[:2]
@@ -152,7 +162,7 @@ def retrieve_context(
     collection_name: str = "scholarsmate_docs",
     explicit_docs: list[str] | None = None,
     chat_history: list[dict] | None = None,
-    model_name: str = "gemini/gemini-2.5-flash",
+    model_name: str = "bedrock/us.amazon.nova-lite-v1:0",
     custom_keys: dict | None = None,
     plan: dict | None = None,
 ) -> tuple[list[dict], dict]:

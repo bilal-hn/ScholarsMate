@@ -47,6 +47,7 @@ def estimate_tokens(text: str | None) -> int:
 
 # Provider priority order: best capability / free-tier friendliness first.
 _PROVIDER_PRIORITY = [
+    ("bedrock",    ["bedrock", "aws"],      "bedrock/us.amazon.nova-lite-v1:0",          "AWS_SECRET_ACCESS_KEY"),
     ("gemini",     ["gemini", "google"],    "gemini/gemini-2.5-flash",                  "GEMINI_API_KEY"),
     ("openai",     ["openai"],              "openai/gpt-4o-mini",                        "OPENAI_API_KEY"),
     ("anthropic",  ["anthropic"],           "anthropic/claude-3-5-haiku-20241022",       "ANTHROPIC_API_KEY"),
@@ -59,6 +60,7 @@ _PROVIDER_PRIORITY = [
 # Memory extraction only produces simple JSON — heavy models waste credits and
 # burn Groq's TPM quota immediately after the main RAG call.
 _BRAIN_EXTRACTION_PRIORITY = [
+    ("bedrock",  ["bedrock", "aws"],   "bedrock/us.amazon.nova-lite-v1:0", "AWS_SECRET_ACCESS_KEY"),
     ("gemini",   ["gemini", "google"], "gemini/gemini-2.5-flash",   "GEMINI_API_KEY"),
     ("groq",     ["groq"],             "groq/llama-3.1-8b-instant", "GROQ_API_KEY"),
     ("openai",   ["openai"],           "openai/gpt-4o-mini",        "OPENAI_API_KEY"),
@@ -93,9 +95,8 @@ def pick_best_model_from_keys(custom_keys: dict | None = None) -> tuple[str, str
         if env_key:
             return default_model, env_key
 
-    # 3. Absolute fallback — return Gemini model with no key; LiteLLM will raise
-    #    a clear AuthenticationError rather than silently doing nothing.
-    return "gemini/gemini-2.5-flash", None
+    # 3. Absolute fallback — return default Amazon Nova Lite via Bedrock
+    return "bedrock/us.amazon.nova-lite-v1:0", "iam_role_authenticated"
 
 
 def pick_brain_extraction_model(custom_keys: dict | None = None) -> tuple[str, str | None]:
@@ -105,7 +106,7 @@ def pick_brain_extraction_model(custom_keys: dict | None = None) -> tuple[str, s
     extraction only needs to produce simple JSON and should never burn heavy credits
     or push Groq's TPM over the limit immediately after the main RAG call.
 
-    Priority order: Gemini Flash > Groq 8B-instant > GPT-4o-mini > DeepSeek
+    Priority order: Bedrock Nova Lite > Gemini Flash > Groq 8B-instant > GPT-4o-mini > DeepSeek
     """
     import os
     keys = custom_keys or {}
@@ -122,12 +123,12 @@ def pick_brain_extraction_model(custom_keys: dict | None = None) -> tuple[str, s
         if env_key:
             return default_model, env_key
 
-    return "gemini/gemini-2.5-flash", None
+    return "bedrock/us.amazon.nova-lite-v1:0", "iam_role_authenticated"
 
 
 def provider_from_model(model_name: str | None) -> str:
     if not model_name or "/" not in model_name:
-        return "gemini"
+        return "bedrock"
     return model_name.split("/", 1)[0].lower()
 
 
@@ -142,6 +143,10 @@ def resolve_api_key(provider: str, custom_keys: dict | None = None) -> str | Non
     import os
     prov = provider.lower().strip()
     keys = custom_keys or {}
+
+    # Bedrock models authenticate via AWS IAM Role attached to EC2
+    if prov == "bedrock":
+        return keys.get("aws_secret_access_key") or os.getenv("AWS_SECRET_ACCESS_KEY") or "iam_role_authenticated"
 
     # Check custom_keys (with alias support for google/gemini)
     if prov in ("gemini", "google"):
@@ -235,16 +240,16 @@ def build_fallback_chain(
 
     def _key_ok(model_id: str) -> bool:
         prov = provider_from_model(model_id)
-        if prov in ("gemini", "google"):
-            return bool(keys.get("gemini") or keys.get("google"))
-        if not keys:
+        if prov == "bedrock":
             return True
-        return bool(keys.get(prov))
+        if prov in ("gemini", "google"):
+            return bool(keys.get("gemini") or keys.get("google") or os.getenv("GEMINI_API_KEY"))
+        return bool(keys.get(prov) or os.getenv(f"{prov.upper()}_API_KEY"))
 
     for candidate in same_provider + other:
         if candidate in seen:
             continue
-        if keys and not _key_ok(candidate):
+        if not _key_ok(candidate):
             continue
         chain.append(candidate)
         seen.add(candidate)

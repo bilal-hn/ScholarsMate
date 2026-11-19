@@ -194,7 +194,7 @@ def classify_query_intent(
     query: str,
     available_docs: list[str],
     chat_history: list[dict] | None = None,
-    model_name: str = "gemini/gemini-3.6-flash",
+    model_name: str = "bedrock/us.amazon.nova-lite-v1:0",
     custom_keys: dict | None = None,
 ) -> dict:
     """
@@ -321,14 +321,17 @@ JSON schema:
     ]
 
     try:
+        is_bedrock = model_name.startswith("bedrock/")
         call_kwargs = {
             "model": model_name,
             "messages": messages,
-            "api_key": active_key,
+            "api_key": active_key if not is_bedrock else None,
             "max_tokens": 400,
             "drop_params": True,
             "reasoning_effort": "none",
         }
+        if is_bedrock:
+            call_kwargs["aws_region_name"] = os.getenv("AWS_REGION_NAME", "us-east-1")
         try:
             response = completion(**call_kwargs, response_format={"type": "json_object"})
         except Exception:

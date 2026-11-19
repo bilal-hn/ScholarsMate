@@ -76,13 +76,16 @@ def _execute_review_call(
         messages.append({"role": "system", "content": system_prompt})
     messages.append({"role": "user", "content": prompt})
 
+    is_bedrock = normalized_model.startswith("bedrock/")
     call_kwargs = {
         "model": normalized_model,
         "messages": messages,
-        "api_key": active_key,
+        "api_key": active_key if not is_bedrock else None,
         "max_tokens": max_tokens,
         "drop_params": True,
     }
+    if is_bedrock:
+        call_kwargs["aws_region_name"] = os.getenv("AWS_REGION_NAME", "us-east-1")
     if "o1" not in normalized_model and "o3" not in normalized_model:
         call_kwargs["temperature"] = temperature
 
@@ -92,6 +95,8 @@ def _execute_review_call(
     except Exception as e:
         print(f"[Review Stage Warning] Call failed on '{normalized_model}': {e}")
         fallback_candidates = [
+            "bedrock/us.meta.llama3-3-70b-instruct-v1:0",
+            "bedrock/us.amazon.nova-lite-v1:0",
             "openai/gpt-4o-mini",
             "openai/gpt-4o",
             "gemini/gemini-3.7-flash",
@@ -102,9 +107,14 @@ def _execute_review_call(
         for fb_model in chain[1:]:
             fb_prov = provider_from_model(fb_model)
             fb_key = _resolve_key(fb_prov, custom_keys)
+            is_fb_bedrock = fb_model.startswith("bedrock/")
             try:
                 call_kwargs["model"] = fb_model
-                call_kwargs["api_key"] = fb_key
+                call_kwargs["api_key"] = fb_key if not is_fb_bedrock else None
+                if is_fb_bedrock:
+                    call_kwargs["aws_region_name"] = os.getenv("AWS_REGION_NAME", "us-east-1")
+                else:
+                    call_kwargs.pop("aws_region_name", None)
                 res = completion(**call_kwargs)
                 return extract_reasoning_and_content(res).answer
             except Exception:
