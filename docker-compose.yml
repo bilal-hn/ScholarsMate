@@ -12,6 +12,10 @@ services:
       - "8000"
     env_file:
       - .env
+    environment:
+      - AWS_REGION_NAME=us-east-1
+      - AWS_DEFAULT_REGION=us-east-1
+      - DAILY_TOKEN_LIMIT=100000
     volumes:
       - ./data:/app/data
       - ./chroma_db:/app/chroma_db

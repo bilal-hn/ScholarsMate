@@ -40,7 +40,7 @@ async def get_db():
 async def init_db():
     """Initializes tables and performs automated schema migrations for missing tables/columns."""
     # Ensure all models are registered on Base.metadata before creating tables
-    from backend.db.models import User, Workspace, ChatSession, ChatMessage, UserDocument, WorkspaceDraft, BrainMemory  # noqa
+    from backend.db.models import User, Workspace, ChatSession, ChatMessage, UserDocument, WorkspaceDraft, BrainMemory, DailyTokenUsage  # noqa
 
     async with engine.begin() as conn:
         # Create all registered tables if they do not exist

@@ -28,6 +28,8 @@ from backend.db.session import init_db, get_db, engine, Base
 from backend.db import crud
 from backend.db.models import User, UserDocument
 from backend.db.document_service import update_schema_for_summary_cache
+from backend.rag.token_limiter import check_token_quota, record_token_usage, is_byok_request, DAILY_TOKEN_LIMIT
+from backend.rag.runtime import estimate_tokens
 from backend.api.auth import (
     get_current_user,
     AuthResponse,
@@ -646,6 +648,16 @@ async def query_rag(
     active reasoning mode directives, Brain memory recall, and persists conversation turns to database.
     """
     try:
+        # Check token quota for server-funded models (BYOK requests bypass limits)
+        is_byok = is_byok_request(request.model_name, request.custom_keys)
+        user_identifier = current_user.id if current_user and hasattr(current_user, "id") and current_user.id else "guest"
+        allowed, used, remaining = await check_token_quota(db, user_identifier, is_byok=is_byok)
+        if not allowed:
+            raise HTTPException(
+                status_code=429,
+                detail=f"Daily quota of {DAILY_TOKEN_LIMIT:,} tokens reached. Quota resets at midnight UTC, or add your own free API key in Settings for unlimited queries."
+            )
+
         # 1. Resolve target documents
         target_documents = None
         if request.doc_names:
@@ -742,6 +754,9 @@ async def query_rag(
         prompt_words = len(request.query.split()) + (len(target_documents or []) * 120)
         completion_words = len(result["answer"].split()) + len((result.get("thinking_process") or "").split())
         total_tokens = max(1, int((prompt_words + completion_words) * 1.33))
+        
+        # Record token usage for server-funded models
+        await record_token_usage(db, user_identifier, total_tokens, is_byok=is_byok)
         
         applied_mode = result.get("mode_applied", target_mode)
         telemetry_meta = {
@@ -1686,6 +1701,7 @@ async def get_workspace_papers_endpoint(
 async def create_literature_review(
     request: ReviewRequest,
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Generates a structured academic literature review across workspace documents.
@@ -1694,17 +1710,31 @@ async def create_literature_review(
     event loop is never blocked during the multi-stage LLM pipeline.
     """
     import asyncio
+    is_byok = is_byok_request(request.model_name, request.custom_keys)
+    user_identifier = current_user.id if current_user and hasattr(current_user, "id") and current_user.id else "guest"
+    allowed, used, remaining = await check_token_quota(db, user_identifier, is_byok=is_byok)
+    if not allowed:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Daily quota of {DAILY_TOKEN_LIMIT:,} tokens reached. Quota resets at midnight UTC, or add your own free API key in Settings for unlimited queries."
+        )
+
     try:
         result = await asyncio.to_thread(
             generate_literature_review,
             doc_names=request.doc_names,
             research_focus=request.research_focus or "",
             depth=request.depth or "detailed",
-            model_name=request.model_name or "gemini/gemini-3.7-flash",
+            model_name=request.model_name or "bedrock/us.amazon.nova-lite-v1:0",
             custom_keys=request.custom_keys or {},
         )
         if "error" in result and not result.get("content"):
             raise HTTPException(status_code=400, detail=result["error"])
+
+        # Record token usage for literature review
+        review_tokens = estimate_tokens(result.get("content")) + (len(request.doc_names or []) * 2500)
+        await record_token_usage(db, user_identifier, review_tokens, is_byok=is_byok)
+
         return result
     except HTTPException:
         raise
@@ -1712,6 +1742,22 @@ async def create_literature_review(
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Literature review generation failed: {str(e)}")
+
+
+@app.get("/api/user/token-quota")
+async def get_user_token_quota(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Returns today's token consumption and remaining allowance for server-funded models."""
+    user_identifier = current_user.id if current_user and hasattr(current_user, "id") and current_user.id else "guest"
+    allowed, used, remaining = await check_token_quota(db, user_identifier, is_byok=False)
+    return {
+        "daily_limit": DAILY_TOKEN_LIMIT,
+        "tokens_used": used,
+        "tokens_remaining": remaining,
+        "resets_at": "00:00 UTC",
+    }
 
 
 @app.get("/api/documents", response_model=DocumentListResponse)

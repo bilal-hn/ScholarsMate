@@ -8,6 +8,7 @@ from typing import Any
 
 
 KNOWN_PROVIDERS = (
+    "bedrock",
     "groq",
     "gemini",
     "google",

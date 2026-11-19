@@ -174,3 +174,14 @@ class BrainMemory(Base):
 
     user: Mapped["User"] = relationship("User", back_populates="brain_memories")
     session: Mapped[Optional["ChatSession"]] = relationship("ChatSession")
+
+
+class DailyTokenUsage(Base):
+    """Daily token usage tracker per user/guest for rate-limiting server models."""
+    __tablename__ = "daily_token_usage"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=generate_uuid)
+    user_identifier: Mapped[str] = mapped_column(String, index=True)  # user_id or guest IP
+    usage_date: Mapped[str] = mapped_column(String, index=True)        # "YYYY-MM-DD"
+    tokens_used: Mapped[int] = mapped_column(Integer, default=0)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

@@ -487,6 +487,10 @@ export default function ChatInput({
       .replace(/^openai\//i, '')
       .replace(/^groq\//i, '')
       .replace(/^anthropic\//i, '')
+      .replace(/^bedrock\//i, '')
+      .replace(/^us\./i, '')
+      .replace(/:0$/i, '')
+      .replace(/-v1$/i, '')
       .replace(/-/g, ' ');
 
     cleanTitle = cleanTitle
@@ -497,7 +501,13 @@ export default function ChatInput({
     const lower = (rawId + ' ' + rawName).toLowerCase();
     let subtitle = 'General intelligence';
 
-    if (lower.includes('deep-research') || lower.includes('deep research') || lower.includes('research')) {
+    if (lower.includes('deepseek') || lower.includes('r1')) {
+      subtitle = 'Deep scientific reasoning & critique';
+    } else if (lower.includes('nova-lite') || lower.includes('nova lite')) {
+      subtitle = 'Fastest answers & lowest latency';
+    } else if (lower.includes('llama')) {
+      subtitle = 'Standard RAG & Literature Reviews';
+    } else if (lower.includes('deep-research') || lower.includes('deep research') || lower.includes('research')) {
       subtitle = 'Autonomous research agent';
     } else if (lower.includes('gemma') || lower.includes('llama')) {
       subtitle = 'Open foundation weights';

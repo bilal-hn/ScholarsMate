@@ -76,29 +76,53 @@ export const fetchModelsFromKey = async (apiKey, provider = 'auto') => {
   }
 };
 
+export const DEFAULT_SERVER_MODELS = [
+  {
+    id: 'bedrock/us.amazon.nova-lite-v1:0',
+    name: 'Amazon Nova Lite',
+    provider: 'bedrock',
+    description: 'Fastest answers & lowest latency',
+  },
+  {
+    id: 'bedrock/us.meta.llama3-3-70b-instruct-v1:0',
+    name: 'Meta Llama 3.3 70B',
+    provider: 'bedrock',
+    description: 'Standard RAG & Literature Reviews',
+  },
+  {
+    id: 'bedrock/us.deepseek.r1-v1:0',
+    name: 'DeepSeek-R1',
+    provider: 'bedrock',
+    description: 'Deep scientific reasoning & critique',
+  },
+];
+
 /**
  * Retrieves saved API keys, discovered models, and current active model from localStorage.
- * Does not fall back to unconfigured providers.
+ * Combines default server-funded models with user's personal BYOK models.
  */
 export const getSavedBYOKConfig = () => {
   try {
     const keys = JSON.parse(localStorage.getItem('scholarsmate_byok_keys') || '{}');
-    const discoveredModels = JSON.parse(localStorage.getItem('scholarsmate_discovered_models') || '[]');
+    const customModels = JSON.parse(localStorage.getItem('scholarsmate_discovered_models') || '[]');
+
+    // Merge default server models with user custom BYOK models without duplicates
+    const serverIds = new Set(DEFAULT_SERVER_MODELS.map((m) => m.id));
+    const uniqueCustom = (customModels || []).filter((m) => !serverIds.has(m.id));
+    const allModels = [...DEFAULT_SERVER_MODELS, ...uniqueCustom];
+
     let activeModel = localStorage.getItem('scholarsmate_active_model') || '';
 
-    // If active model is missing or orphaned, sync to first valid discovered model
-    const isValidModel = discoveredModels.some((m) => m.id === activeModel);
-    if (!isValidModel && discoveredModels.length > 0) {
-      activeModel = discoveredModels[0].id;
+    // If active model is missing or orphaned, default to Amazon Nova Lite
+    const isValidModel = allModels.some((m) => m.id === activeModel);
+    if (!isValidModel && allModels.length > 0) {
+      activeModel = allModels[0].id;
       localStorage.setItem('scholarsmate_active_model', activeModel);
-    } else if (discoveredModels.length === 0) {
-      activeModel = '';
-      localStorage.removeItem('scholarsmate_active_model');
     }
 
-    return { keys, discoveredModels, activeModel };
+    return { keys, discoveredModels: allModels, activeModel };
   } catch {
-    return { keys: {}, discoveredModels: [], activeModel: '' };
+    return { keys: {}, discoveredModels: DEFAULT_SERVER_MODELS, activeModel: DEFAULT_SERVER_MODELS[0].id };
   }
 };
 

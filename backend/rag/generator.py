@@ -48,6 +48,12 @@ def _execute_completion_with_fallback(
 
     # Active provider fallback chains
     provider_fallbacks = {
+        "bedrock": [
+            model_name,
+            "bedrock/us.amazon.nova-lite-v1:0",
+            "bedrock/us.meta.llama3-3-70b-instruct-v1:0",
+            "bedrock/us.deepseek.r1-v1:0",
+        ],
         "gemini": [
             model_name,
             "gemini/gemini-3.6-flash",
@@ -85,10 +91,12 @@ def _execute_completion_with_fallback(
         call_kwargs = {
             "model": normalized_target,
             "messages": current_messages,
-            "api_key": active_key,
+            "api_key": active_key if current_provider != "bedrock" else None,
             "max_tokens": max_tokens,
             "drop_params": True,
         }
+        if current_provider == "bedrock":
+            call_kwargs["aws_region_name"] = os.getenv("AWS_REGION_NAME", "us-east-1")
 
         # Avoid setting sampling parameters on models that deprecate them (like Gemini 3+)
         if "gemini-3" not in normalized_target and "o1" not in normalized_target and "o3" not in normalized_target:
