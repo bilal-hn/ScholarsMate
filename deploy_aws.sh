@@ -32,15 +32,12 @@ if ! command -v docker &> /dev/null; then
     rm get-docker.sh
 fi
 
-# 4. Configure Basic Firewall (UFW)
-echo "[4/5] Configuring firewall (ports 22, 80, 443)..."
-sudo ufw allow OpenSSH || true
-sudo ufw allow 80/tcp || true
-sudo ufw allow 443/tcp || true
-echo "y" | sudo ufw enable || true
+# 4. Disable host ufw so it doesn't conflict with Docker port forwarding (AWS Security Group handles the firewall)
+echo "[4/5] Ensuring UFW firewall does not block Docker traffic..."
+sudo ufw disable || true
 
 # 5. Launch Container via Docker Compose
-echo "[5/5] Building and launching ScholarsMate container on port 80..."
+echo "[5/5] Building and launching ScholarsMate & Caddy SSL containers..."
 if [ ! -f .env ]; then
     echo "Creating template .env file..."
     touch .env
@@ -48,9 +45,9 @@ fi
 sudo docker compose down || true
 sudo docker compose up -d --build
 
-SERVER_IP=$(curl -s http://checkip.amazonaws.com || echo "your-server-ip")
+SERVER_IP=$(curl -s http://checkip.amazonaws.com || echo "16.179.193.122")
 echo "=================================================="
-echo "Deployment Finished Successfully!"
-echo "Open ScholarsMate in your browser:"
-echo "http://${SERVER_IP}"
+echo "Deployment Finished Successfully with HTTPS!"
+echo "Open ScholarsMate securely in your browser:"
+echo "https://${SERVER_IP}.sslip.io"
 echo "=================================================="

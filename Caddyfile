@@ -1,0 +1,11 @@
+{
+    email bilal.edu7215@gmail.com
+}
+
+16.179.193.122.sslip.io {
+    reverse_proxy scholarsmate:8000
+}
+
+http://16.179.193.122 {
+    redir https://16.179.193.122.sslip.io{uri}
+}

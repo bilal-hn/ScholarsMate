@@ -8,10 +8,29 @@ services:
     image: scholarsmate:latest
     container_name: scholarsmate_app
     restart: always
-    ports:
-      - "80:8000"
+    expose:
+      - "8000"
     env_file:
       - .env
     volumes:
       - ./data:/app/data
       - ./chroma_db:/app/chroma_db
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: scholarsmate_caddy
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - scholarsmate
+
+volumes:
+  caddy_data:
+  caddy_config:
+
