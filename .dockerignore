@@ -1,0 +1,14 @@
+.git
+.venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+frontend/node_modules
+frontend/dist
+.DS_Store
+*.log
+docs/
+figures/
+obsidian_vault/

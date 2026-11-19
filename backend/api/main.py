@@ -12,7 +12,8 @@ from pathlib import Path
 from typing import List, Optional, Dict, Any
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends, BackgroundTasks
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import PlainTextResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -2853,6 +2854,25 @@ async def import_library_text_endpoint(
 
 
 
+
+
+# =============================================================================
+# SPA FRONTEND STATIC MOUNT (Production Deployment)
+# =============================================================================
+FRONTEND_DIST = Path(__file__).parent.parent.parent / "frontend" / "dist"
+if FRONTEND_DIST.exists():
+    if (FRONTEND_DIST / "assets").exists():
+        app.mount("/assets", StaticFiles(directory=FRONTEND_DIST / "assets"), name="assets")
+
+    @app.get("/{full_path:path}")
+    async def serve_spa_frontend(full_path: str):
+        target = FRONTEND_DIST / full_path
+        if full_path and target.is_file():
+            return FileResponse(target)
+        index_file = FRONTEND_DIST / "index.html"
+        if index_file.is_file():
+            return FileResponse(index_file)
+        raise HTTPException(status_code=404, detail="Frontend dist not built. Run 'npm run build' inside frontend/.")
 
 
 if __name__ == "__main__":

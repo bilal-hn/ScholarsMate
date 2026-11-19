@@ -112,7 +112,7 @@ async def get_or_create_guest_user(guest_id: Optional[str], db: AsyncSession) ->
     # Create new guest user preserving the client's persistent guest ID
     new_guest = User(
         id=resolved_id,
-        name="Guest Researcher",
+        name="Guest",
         email=None,
         avatar_url=None,
         is_guest=True

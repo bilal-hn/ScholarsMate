@@ -49,7 +49,7 @@ async def get_or_create_guest_user(db: AsyncSession, guest_id: str) -> User:
     if not user:
         user = User(
             id=resolved_id,
-            name="Guest Researcher",
+            name="Guest",
             email=None,
             avatar_url=None,
             is_guest=True,
@@ -1062,4 +1062,4 @@ async def update_library_doc_attachment(
     return doc
 
 
-
+

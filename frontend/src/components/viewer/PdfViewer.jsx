@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../../services/api';
 import { Document, Page, pdfjs } from 'react-pdf';
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
@@ -43,7 +44,7 @@ export default function PdfViewer({ activePdf, targetPage, onClose }) {
   }, [activePdf, targetPage]);
 
   const pdfUrl = activePdf 
-    ? `http://localhost:8000/api/documents/${encodeURIComponent(activePdf)}`
+    ? `${API_BASE_URL}/documents/${encodeURIComponent(activePdf)}`
     : null;
 
   const onDocumentLoadSuccess = ({ numPages }) => {

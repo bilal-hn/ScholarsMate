@@ -461,11 +461,11 @@ export default function DocumentSidebar({
                       ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
                       : 'text-zinc-400 hover:text-amber-400 hover:bg-zinc-800/70'
                   }`}
-                  aria-label="Reference Library"
+                  aria-label="My Library"
                 >
                   <BookMarked className="h-4.5 w-4.5" />
                   <span className="pointer-events-none absolute left-full top-1/2 -translate-y-1/2 ml-3 px-2.5 py-1.5 bg-zinc-900 border border-zinc-700/80 text-zinc-100 text-[12.5px] font-medium rounded-lg shadow-2xl whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50">
-                    Reference Library
+                    My Library
                   </span>
                 </button>
               )}
