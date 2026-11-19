@@ -6,28 +6,45 @@ echo "    ScholarsMate AWS Production Deployment        "
 echo "=================================================="
 
 # 1. Update system packages
-echo "[1/4] Updating system packages..."
+echo "[1/5] Updating system packages..."
 sudo apt-get update
 sudo apt-get install -y git curl ufw ca-certificates
 
-# 2. Install Docker & Docker Compose if not installed
+# 2. Configure Swap (Crucial for t2.micro/t3.micro with 1GB RAM to prevent build OOM crashes)
+SWAP_TOTAL=$(free -m | awk '/^Swap:/ {print $2}')
+if [ "${SWAP_TOTAL:-0}" -lt 1024 ]; then
+    echo "[2/5] Creating 2GB swap space for Docker build stability..."
+    sudo fallocate -l 2G /swapfile || sudo dd if=/dev/zero of=/swapfile bs=1M count=2048
+    sudo chmod 600 /swapfile
+    sudo mkswap /swapfile
+    sudo swapon /swapfile
+    if ! grep -q "/swapfile" /etc/fstab; then
+        echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+    fi
+fi
+
+# 3. Install Docker & Docker Compose if not installed
 if ! command -v docker &> /dev/null; then
-    echo "[2/4] Installing Docker Engine..."
+    echo "[3/5] Installing Docker Engine..."
     curl -fsSL https://get.docker.com -o get-docker.sh
     sudo sh get-docker.sh
     sudo usermod -aG docker "$USER"
     rm get-docker.sh
 fi
 
-# 3. Configure Basic Firewall (UFW)
-echo "[3/4] Configuring firewall (ports 22, 80, 443)..."
+# 4. Configure Basic Firewall (UFW)
+echo "[4/5] Configuring firewall (ports 22, 80, 443)..."
 sudo ufw allow OpenSSH || true
 sudo ufw allow 80/tcp || true
 sudo ufw allow 443/tcp || true
 echo "y" | sudo ufw enable || true
 
-# 4. Launch Container via Docker Compose
-echo "[4/4] Building and launching ScholarsMate container on port 80..."
+# 5. Launch Container via Docker Compose
+echo "[5/5] Building and launching ScholarsMate container on port 80..."
+if [ ! -f .env ]; then
+    echo "Creating template .env file..."
+    touch .env
+fi
 sudo docker compose down || true
 sudo docker compose up -d --build
 

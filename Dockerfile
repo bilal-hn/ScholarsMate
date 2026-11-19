@@ -8,7 +8,7 @@ COPY frontend/package*.json ./
 RUN npm ci
 
 COPY frontend/ ./
-COPY .env ./
+COPY .env* ./
 RUN npm run build
 
 # =============================================================================
@@ -34,7 +34,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
 
 # Copy application source code
 COPY backend/ ./backend/
-COPY .env ./.env
+COPY .env* ./
 
 # Copy built frontend assets from Stage 1
 COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
