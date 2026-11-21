@@ -25,7 +25,7 @@ import {
   BookMarked,
   Home,
 } from 'lucide-react';
-import AppLogo from '../common/AppLogo';
+import AppLogo, { BrandName } from '../common/AppLogo';
 import AuthProfile from '../layout/AuthProfile';
 import { APP_CONFIG } from '../../theme/constants';
 
@@ -360,9 +360,7 @@ export default function DocumentSidebar({
               aria-label="ScholarsMate Home"
               title="ScholarsMate Home (localhost/home)"
             >
-              <div className="h-8 w-8 rounded-lg bg-zinc-800 border border-zinc-700 flex items-center justify-center group-hover:bg-zinc-750 group-hover:border-zinc-600 transition-all">
-                <AppLogo className="h-4.5 w-4.5 text-zinc-100 group-hover:scale-105 transition-transform" />
-              </div>
+              <AppLogo className="h-6 w-6 text-zinc-100 group-hover:scale-110 transition-transform" />
               <span className="pointer-events-none absolute left-full top-1/2 -translate-y-1/2 ml-3 px-2.5 py-1.5 bg-zinc-900 border border-zinc-700/80 text-zinc-100 text-[12.5px] font-medium rounded-lg shadow-2xl whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50">
                 Home
               </span>
@@ -532,14 +530,10 @@ export default function DocumentSidebar({
               type="button"
               onClick={() => onNavigate?.('home')}
               title="Go to Home (localhost/home)"
-              className="flex items-center gap-2 cursor-pointer group text-left"
+              className="flex items-center gap-2 cursor-pointer group text-left px-1.5 py-1 rounded-lg hover:bg-zinc-800/50 transition-colors"
             >
-              <div className="h-6 w-6 rounded-md bg-zinc-800 border border-zinc-700 flex items-center justify-center text-zinc-100 group-hover:bg-zinc-750 group-hover:border-zinc-600 transition-all">
-                <AppLogo className="h-3.5 w-3.5 text-zinc-100 group-hover:scale-105 transition-transform" />
-              </div>
-              <span className="font-semibold text-zinc-100 text-xs tracking-tight group-hover:text-zinc-300 transition-colors">
-                {APP_CONFIG.name}
-              </span>
+              <AppLogo className="h-5 w-5 text-zinc-100 group-hover:scale-105 transition-transform shrink-0" />
+              <BrandName className="text-[13px] tracking-tight group-hover:opacity-90 transition-opacity" />
             </button>
 
             {onToggleCollapse && (

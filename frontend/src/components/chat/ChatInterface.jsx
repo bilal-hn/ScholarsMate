@@ -12,7 +12,7 @@ import {
   ArrowRight,
   X
 } from 'lucide-react';
-import AppLogo from '../common/AppLogo';
+import AppLogo, { BrandName } from '../common/AppLogo';
 import ChatMessage from './ChatMessage';
 import ChatInput from './ChatInput';
 import LiteratureReviewModal from '../modals/LiteratureReviewModal';
@@ -564,19 +564,21 @@ export default function ChatInterface({
         /* Minimalist Hero Empty State */
         <div className="flex-1 flex flex-col items-center justify-center p-4 text-center select-none relative">
           <div className="max-w-md w-full flex flex-col items-center animate-in fade-in duration-300 -mt-10">
-            {/* Brand Header */}
-            <div className="flex items-center justify-center gap-2.5 mb-2">
-              <AppLogo className="h-7 w-7 text-zinc-100" />
-              <h1 className="text-2xl font-bold text-zinc-100 tracking-tight font-sans">
-                {APP_CONFIG.name}
-              </h1>
+            {/* Brand Header directly inspired by logo artwork */}
+            <div className="flex items-center justify-center gap-3 mb-2">
+              <AppLogo className="h-10 w-10 text-zinc-100" />
+              <BrandName 
+                className="text-3xl" 
+                scholarsClassName="font-serif font-bold text-zinc-100 tracking-tight"
+                mateClassName="font-serif font-normal text-[#8e8e93] tracking-tight"
+              />
             </div>
 
-            <p className="text-[11px] text-zinc-400 font-mono tracking-wider uppercase mb-1">
+            <p className="text-[11px] text-[#8e8e93] font-mono tracking-[0.25em] uppercase font-semibold mb-2 select-none">
               {APP_CONFIG.tagline}
             </p>
 
-            <p className="text-[11px] text-zinc-500 max-w-sm text-center leading-relaxed mb-4 font-mono">
+            <p className="text-xs text-zinc-400 max-w-sm text-center leading-relaxed mb-4 font-sans">
               Interrogate papers with grounded citations, configure research context, and synthesize findings with precision.
             </p>
 

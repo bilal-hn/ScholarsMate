@@ -10,7 +10,7 @@ import {
   Sun,
   Moon
 } from 'lucide-react';
-import AppLogo from '../common/AppLogo';
+import AppLogo, { BrandName } from '../common/AppLogo';
 
 export default function TopNavbar({
   isSidebarCollapsed,
@@ -48,9 +48,9 @@ export default function TopNavbar({
           </button>
         )}
 
-        <div className="flex items-center gap-1.5 pr-2 border-r border-zinc-800">
-          <AppLogo className="h-4 w-4" />
-          <span className="font-bold text-xs tracking-tight text-zinc-100 hidden sm:inline">ScholarsMate</span>
+        <div className="flex items-center gap-2 pr-2.5 border-r border-zinc-800">
+          <AppLogo className="h-4.5 w-4.5 text-zinc-100" />
+          <BrandName className="hidden sm:inline-flex text-[13px] tracking-tight" />
         </div>
 
         {/* Window Switcher Segmented Tabs (VS Code / Code Editor Style) */}

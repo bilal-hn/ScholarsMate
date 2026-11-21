@@ -2,10 +2,14 @@
 
 @theme {
   /* Font Family Tokens */
+  --font-serif: 'EB Garamond', 'Source Serif 4', 'Merriweather', Georgia, serif;
   --font-sans: 'Source Sans 3', 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-source: 'Source Sans 3', sans-serif;
   --font-dm: 'DM Sans', sans-serif;
   --font-raleway: 'Raleway', sans-serif;
+
+  /* Signature Brand Grey Token */
+  --color-brand-grey: var(--theme-brand-grey, #8e8e93);
 
   /* Dynamic Semantic Color Tokens linked to CSS Variables */
   --color-zinc-950: var(--theme-canvas, #09090b);
@@ -16,13 +20,13 @@
   --color-zinc-700: var(--theme-border-hover, #3f3f46);
   --color-zinc-600: var(--theme-subtle, #52525b);
   --color-zinc-500: var(--theme-muted, #71717a);
-  --color-zinc-400: var(--theme-text-muted, #9ca3af);
+  --color-zinc-400: var(--theme-text-muted, #8e8e93);
   --color-zinc-300: var(--theme-text-body, #d4d4d8);
   --color-zinc-200: var(--theme-text-light, #e4e4e7);
   --color-zinc-100: var(--theme-text-bold, #ffffff);
 
-  --color-amber-100: var(--theme-accent-light, #9ca3af);
-  --color-amber-200: var(--theme-accent-light, #9ca3af);
+  --color-amber-100: var(--theme-accent-light, #8e8e93);
+  --color-amber-200: var(--theme-accent-light, #8e8e93);
   --color-amber-300: var(--theme-accent-light, #d4d4d8);
   --color-amber-400: var(--theme-accent-hover, #ffffff);
   --color-amber-500: var(--theme-accent-primary, #ffffff);
@@ -54,13 +58,14 @@
   --theme-border-hover: #3f3f46;
   --theme-subtle: #52525b;
   --theme-muted: #71717a;
-  --theme-text-muted: #9ca3af;
+  --theme-text-muted: #8e8e93;
   --theme-text-body: #d4d4d8;
   --theme-text-light: #e4e4e7;
   --theme-text-bold: #ffffff;
 
+  --theme-brand-grey: #8e8e93;
   --theme-logo-base: #8e8e93;
-  --theme-accent-light: #9ca3af;
+  --theme-accent-light: #8e8e93;
   --theme-accent-hover: #ffffff;
   --theme-accent-primary: #ffffff;
   --theme-accent-dark: #71717a;

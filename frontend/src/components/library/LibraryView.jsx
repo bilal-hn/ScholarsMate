@@ -40,7 +40,7 @@ import {
   BookMarked,
   BookOpen,
 } from 'lucide-react';
-import AppLogo from '../common/AppLogo';
+import AppLogo, { BrandName } from '../common/AppLogo';
 import {
   getLibraryAPI,
   deleteLibraryItemAPI,
@@ -839,8 +839,8 @@ export default function LibraryView({
             className="flex items-center gap-1.5 px-2 py-1 text-zinc-300 hover:text-zinc-100 hover:bg-zinc-900 rounded transition-colors cursor-pointer"
             title="ScholarsMate Home"
           >
-            <AppLogo className="h-3.5 w-3.5 text-zinc-100" />
-            <span className="font-bold text-xs tracking-tight text-zinc-100 hidden sm:inline">ScholarsMate</span>
+            <AppLogo className="h-4.5 w-4.5 text-zinc-100" />
+            <BrandName className="hidden sm:inline-flex text-[13px] tracking-tight" />
           </button>
           <button
             type="button"

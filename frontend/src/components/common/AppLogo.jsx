@@ -1,18 +1,24 @@
 import React from 'react';
+import BrandName from './BrandName';
 
 /**
  * ScholarsMate Chess Pawn AI Logo
  * Crowned with an AI chat bubble featuring cutout message lines,
- * an architectural pawn collar and flared body, and a signature grey base pedestal.
+ * an architectural pawn collar and flared body, and a signature grey base pedestal (#8e8e93).
  *
+ * Supports optional `withText` and `withTagline` props for complete branding blocks.
  * Tagline: "YOUR RESEARCH, CHECKMATED."
  */
 export default function AppLogo({ 
   className = "h-5 w-5", 
   baseColor = "var(--theme-logo-base, #8e8e93)",
+  withText = false,
+  withTagline = false,
+  textClassName = "text-base",
+  taglineClassName = "text-[10px]",
   ...props 
 }) {
-  return (
+  const icon = (
     <svg
       viewBox="0 0 24 24"
       fill="none"
@@ -41,4 +47,23 @@ export default function AppLogo({
       <rect x="4.4" y="19.3" width="15.2" height="2.5" rx="1.25" fill={baseColor} />
     </svg>
   );
+
+  if (!withText && !withTagline) {
+    return icon;
+  }
+
+  return (
+    <div className="flex flex-col items-center">
+      <div className="flex items-center gap-2">
+        {icon}
+        <BrandName className={textClassName} />
+      </div>
+      {withTagline && (
+        <span className={`font-mono uppercase tracking-[0.22em] text-[#8e8e93] font-medium mt-1 ${taglineClassName}`}>
+          YOUR RESEARCH, CHECKMATED.
+        </span>
+      )}
+    </div>
+  );
 }
+export { BrandName };

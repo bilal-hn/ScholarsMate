@@ -18,7 +18,7 @@ import {
   CheckCircle2,
   ExternalLink
 } from 'lucide-react';
-import AppLogo from '../common/AppLogo';
+import AppLogo, { BrandName } from '../common/AppLogo';
 
 export default function HomeView({
   onNavigate,
@@ -50,9 +50,9 @@ export default function HomeView({
       <header className="h-10 border-b border-zinc-800 bg-zinc-900/90 px-3 flex items-center justify-between gap-3 shrink-0 select-none text-xs z-20">
         {/* Left: Brand */}
         <div className="flex items-center gap-2 shrink-0">
-          <div className="flex items-center gap-1.5 pr-2">
-            <AppLogo className="h-4 w-4 text-zinc-100" />
-            <span className="font-bold text-xs tracking-tight text-zinc-100">ScholarsMate</span>
+          <div className="flex items-center gap-2 pr-2">
+            <AppLogo className="h-4.5 w-4.5 text-zinc-100" />
+            <BrandName className="text-[13px] tracking-tight" />
           </div>
         </div>
 

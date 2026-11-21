@@ -75,31 +75,31 @@ function InlineCitationBadge({ docName, pageNumber, sources = [], onSelectCitati
       <button
         type="button"
         onClick={handleClick}
-        className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-zinc-800/90 hover:bg-zinc-700/90 text-zinc-300 hover:text-zinc-100 border border-zinc-700/60 hover:border-zinc-500/60 text-xs font-sans font-medium leading-normal transition-all cursor-pointer shadow-xs hover:scale-105 active:scale-95 group"
+        className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-zinc-800/90 hover:bg-zinc-700/90 text-zinc-300 hover:text-zinc-100 border border-zinc-700/60 hover:border-[#8e8e93] text-xs font-sans font-medium leading-normal transition-all cursor-pointer shadow-xs hover:scale-105 active:scale-95 group"
         title={`View ${resolvedDoc} (Page ${pageNumber || 1})`}
       >
-        <FileText className="h-3 w-3 text-zinc-400 group-hover:text-amber-400 transition-colors shrink-0" />
+        <FileText className="h-3 w-3 text-zinc-400 group-hover:text-zinc-100 transition-colors shrink-0" />
         <span className="truncate max-w-[120px]">{displayName}</span>
         {pageNumber && (
-          <span className="text-amber-400/90 text-[10.5px] font-mono">p.{pageNumber}</span>
+          <span className="text-[#8e8e93] text-[10.5px] font-mono">p.{pageNumber}</span>
         )}
       </button>
 
-      {/* Floating Hover Card (matching ChatGPT reference: clean name + page) */}
+      {/* Floating Hover Card */}
       {isHovered && (
         <div
           onClick={handleClick}
-          className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 p-2.5 bg-zinc-900/98 border border-zinc-700/90 rounded-xl shadow-2xl backdrop-blur-xl z-50 text-left min-w-[180px] max-w-xs animate-in fade-in zoom-in-95 duration-150 cursor-pointer hover:border-amber-500/50 transition-colors"
+          className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 p-2.5 bg-zinc-900/98 border border-zinc-700/90 rounded-xl shadow-2xl backdrop-blur-xl z-50 text-left min-w-[180px] max-w-xs animate-in fade-in zoom-in-95 duration-150 cursor-pointer hover:border-[#8e8e93] transition-colors"
         >
           <div className="flex items-center gap-2.5">
             <div className="h-7 w-7 rounded-lg bg-zinc-800 border border-zinc-700 flex items-center justify-center text-zinc-300 shrink-0">
-              <FileText className="h-3.5 w-3.5 text-amber-400" />
+              <FileText className="h-3.5 w-3.5 text-zinc-300" />
             </div>
             <div className="min-w-0 flex-1">
               <div className="font-semibold text-zinc-100 text-xs leading-snug truncate" title={resolvedDoc}>
                 {resolvedDoc}
               </div>
-              <div className="text-[11px] font-mono text-amber-400 mt-0.5">
+              <div className="text-[11px] font-mono text-[#8e8e93] mt-0.5">
                 Page {pageNumber || 1}
               </div>
             </div>
@@ -356,7 +356,7 @@ function ChatMessage({ message, index, onSelectCitation }) {
             <div className="flex items-center gap-2">
               {/* Sleek Model Tag with @ prefix */}
               <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-zinc-950 border border-zinc-800 text-zinc-300 font-mono text-[11px] font-medium">
-                <span className="text-amber-400 font-semibold text-xs">@</span>
+                <span className="text-[#8e8e93] font-semibold text-xs">@</span>
                 <span className="text-zinc-200 tracking-tight">{cleanModelTag}</span>
               </div>
             </div>
@@ -378,7 +378,7 @@ function ChatMessage({ message, index, onSelectCitation }) {
                   className="w-full flex items-center justify-between px-2.5 py-1 text-xs text-zinc-400 hover:text-zinc-200 bg-zinc-950/60 hover:bg-zinc-950/90 transition-colors cursor-pointer"
                 >
                   <div className="flex items-center gap-1.5">
-                    <Layers className="h-3 w-3 text-amber-400" />
+                    <Layers className="h-3 w-3 text-[#8e8e93]" />
                     <span className="font-mono text-[11px] text-zinc-300">
                       {message.sources.length} Referenced {message.sources.length === 1 ? 'Source' : 'Sources'}
                     </span>
@@ -397,10 +397,10 @@ function ChatMessage({ message, index, onSelectCitation }) {
                         key={sIdx}
                         type="button"
                         onClick={() => onSelectCitation && onSelectCitation(src.doc_name, src.page_number)}
-                        className="inline-flex items-center gap-1 text-[10.5px] font-mono bg-zinc-900 border border-zinc-800 hover:border-amber-500/40 text-zinc-200 hover:text-zinc-100 px-1.5 py-0.5 rounded transition-colors cursor-pointer group"
+                        className="inline-flex items-center gap-1 text-[10.5px] font-mono bg-zinc-900 border border-zinc-800 hover:border-[#8e8e93] text-zinc-200 hover:text-zinc-100 px-1.5 py-0.5 rounded transition-colors cursor-pointer group"
                         title={`Jump to page ${src.page_number} of ${src.doc_name}`}
                       >
-                        <FileText className="h-2.5 w-2.5 text-amber-400 shrink-0" />
+                        <FileText className="h-2.5 w-2.5 text-[#8e8e93] shrink-0" />
                         <span className="truncate max-w-[160px]">{src.doc_name}</span>
                         <span className="text-zinc-500 text-[9.5px]">p.{src.page_number}</span>
                       </button>
@@ -419,7 +419,7 @@ function ChatMessage({ message, index, onSelectCitation }) {
                   className="w-full flex items-center justify-between px-2.5 py-1 text-xs text-zinc-400 hover:text-zinc-200 bg-zinc-950/60 hover:bg-zinc-950/90 transition-colors cursor-pointer"
                 >
                   <div className="flex items-center gap-1.5">
-                    <Brain className="h-3 w-3 text-amber-400 animate-pulse" />
+                    <Brain className="h-3 w-3 text-[#8e8e93] animate-pulse" />
                     <span className="font-sans text-[11px] font-medium text-zinc-300">
                       View thinking process
                     </span>
@@ -499,7 +499,7 @@ function ChatMessage({ message, index, onSelectCitation }) {
                         href={href}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-amber-400 hover:text-amber-300 underline underline-offset-2 transition-colors"
+                        className="text-zinc-100 hover:text-white underline underline-offset-2 transition-colors"
                         {...props}
                       >
                         {children}
@@ -517,7 +517,7 @@ function ChatMessage({ message, index, onSelectCitation }) {
                     </h2>
                   ),
                   h3: ({ children }) => (
-                    <h3 className="text-[11.5px] font-semibold text-amber-400 mt-2 mb-0.5 uppercase tracking-wider">
+                    <h3 className="text-[11.5px] font-semibold text-[#8e8e93] mt-2 mb-0.5 uppercase tracking-wider">
                       {children}
                     </h3>
                   ),
@@ -527,12 +527,12 @@ function ChatMessage({ message, index, onSelectCitation }) {
                     </p>
                   ),
                   ul: ({ children }) => (
-                    <ul className="my-1.5 space-y-0.5 pl-4 list-disc marker:text-amber-400/80">
+                    <ul className="my-1.5 space-y-0.5 pl-4 list-disc marker:text-[#8e8e93]">
                       {children}
                     </ul>
                   ),
                   ol: ({ children }) => (
-                    <ol className="my-1.5 space-y-0.5 pl-4 list-decimal marker:text-amber-400/80">
+                    <ol className="my-1.5 space-y-0.5 pl-4 list-decimal marker:text-[#8e8e93]">
                       {children}
                     </ol>
                   ),
@@ -545,7 +545,7 @@ function ChatMessage({ message, index, onSelectCitation }) {
                     <strong className="font-semibold text-zinc-100">{children}</strong>
                   ),
                   blockquote: ({ children }) => (
-                    <blockquote className="border-l-2 border-amber-500/80 pl-2.5 py-0.5 my-2 bg-amber-500/5 rounded-r italic text-zinc-400 text-[11.5px]">
+                    <blockquote className="border-l-2 border-[#8e8e93] pl-2.5 py-0.5 my-2 bg-zinc-800/40 rounded-r italic text-zinc-300 text-[11.5px]">
                       {children}
                     </blockquote>
                   ),
@@ -561,7 +561,7 @@ function ChatMessage({ message, index, onSelectCitation }) {
                     </div>
                   ),
                   thead: ({ children }) => (
-                    <thead className="bg-zinc-800/90 border-b border-zinc-700/60 text-[10px] uppercase tracking-wider text-amber-400 font-semibold">
+                    <thead className="bg-zinc-800/90 border-b border-zinc-700/60 text-[10px] uppercase tracking-wider text-zinc-300 font-semibold">
                       {children}
                     </thead>
                   ),
@@ -576,7 +576,7 @@ function ChatMessage({ message, index, onSelectCitation }) {
                     </tr>
                   ),
                   th: ({ children }) => (
-                    <th className="py-1.5 px-2.5 font-semibold text-amber-400 text-left">
+                    <th className="py-1.5 px-2.5 font-semibold text-zinc-200 text-left">
                       {children}
                     </th>
                   ),
@@ -604,7 +604,7 @@ function ChatMessage({ message, index, onSelectCitation }) {
                       }
                     }
                     return inline ? (
-                      <code className="bg-zinc-800/80 text-amber-300 font-mono text-[11px] px-1 py-0.2 rounded border border-zinc-700/60" {...props}>
+                      <code className="bg-zinc-800 text-zinc-200 font-mono text-[11px] px-1 py-0.2 rounded border border-zinc-700/60" {...props}>
                         {children}
                       </code>
                     ) : (
@@ -647,7 +647,7 @@ function ChatMessage({ message, index, onSelectCitation }) {
                   <>
                     <span className="text-zinc-700">|</span>
                     <span className="text-zinc-500 flex items-center gap-0.5">
-                      <Zap className="h-2.5 w-2.5 text-amber-400/80" />
+                      <Zap className="h-2.5 w-2.5 text-[#8e8e93]" />
                       <span>{speed} tok/s</span>
                     </span>
                   </>
@@ -695,7 +695,7 @@ function ChatMessage({ message, index, onSelectCitation }) {
             {/* User Message Header */}
             <div className="flex items-center justify-between px-2 pb-1 text-[10.5px] font-mono text-zinc-500 select-none">
               <div className="flex items-center gap-1 text-zinc-400 font-medium">
-                <span className="text-amber-400">•</span>
+                <span className="text-[#8e8e93]">•</span>
                 <span>You</span>
               </div>
               {timeString && (
@@ -713,7 +713,7 @@ function ChatMessage({ message, index, onSelectCitation }) {
                       key={doc}
                       className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-zinc-800 border border-zinc-700/80 text-zinc-200 text-[11px] font-sans"
                     >
-                      <FileText className="h-2.5 w-2.5 text-amber-400 shrink-0" />
+                      <FileText className="h-2.5 w-2.5 text-[#8e8e93] shrink-0" />
                       <span className="truncate max-w-[180px] text-[11px] font-medium" title={doc}>
                         {doc}
                       </span>
