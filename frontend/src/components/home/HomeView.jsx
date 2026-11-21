@@ -51,7 +51,7 @@ export default function HomeView({
         {/* Left: Brand */}
         <div className="flex items-center gap-2 shrink-0">
           <div className="flex items-center gap-1.5 pr-2">
-            <AppLogo className="h-4 w-4 text-amber-500" />
+            <AppLogo className="h-4 w-4 text-zinc-100" />
             <span className="font-bold text-xs tracking-tight text-zinc-100">ScholarsMate</span>
           </div>
         </div>
@@ -106,7 +106,7 @@ export default function HomeView({
             <button
               type="button"
               onClick={() => onOpenAuth && onOpenAuth('login')}
-              className="px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold rounded text-[11px] transition-colors cursor-pointer shadow-xs"
+              className="px-2.5 py-1 bg-zinc-100 hover:bg-white text-zinc-950 font-bold rounded text-[11px] transition-colors cursor-pointer shadow-xs"
             >
               Sign In
             </button>
@@ -120,11 +120,11 @@ export default function HomeView({
       <div className="flex-1 overflow-y-auto px-6 py-8">
         <div className="max-w-5xl mx-auto space-y-8">
           {/* Hero Welcome Banner */}
-          <div className="relative p-6 sm:p-8 rounded-2xl bg-gradient-to-br from-zinc-900 via-zinc-900/90 to-zinc-950 border border-zinc-800/80 shadow-2xl overflow-hidden">
-            <div className="absolute top-0 right-0 w-96 h-96 bg-amber-500/5 rounded-full blur-3xl pointer-events-none" />
+          <div className="relative p-6 sm:p-8 rounded-2xl bg-zinc-900 border border-zinc-800 shadow-2xl overflow-hidden">
+            <div className="absolute top-0 right-0 w-96 h-96 bg-zinc-700/5 rounded-full blur-3xl pointer-events-none" />
             <div className="relative z-10 space-y-3">
-              <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-300 text-[11px] font-medium">
-                <Sparkles className="h-3 w-3" />
+              <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-zinc-800 border border-zinc-700 text-zinc-300 text-[11px] font-medium">
+                <Sparkles className="h-3 w-3 text-zinc-400" />
                 <span>ScholarsMate Workspace v2.0</span>
               </div>
               <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
@@ -137,17 +137,17 @@ export default function HomeView({
               {/* Quick Metrics Strip */}
               <div className="pt-2 flex flex-wrap items-center gap-4 text-xs text-zinc-400">
                 <div className="flex items-center gap-1.5">
-                  <Folder className="h-3.5 w-3.5 text-blue-400" />
+                  <Folder className="h-3.5 w-3.5 text-zinc-400" />
                   <span><strong>{workspaces.length}</strong> Workspaces</span>
                 </div>
                 <div className="h-3 w-px bg-zinc-800" />
                 <div className="flex items-center gap-1.5">
-                  <MessageSquare className="h-3.5 w-3.5 text-emerald-400" />
+                  <MessageSquare className="h-3.5 w-3.5 text-zinc-400" />
                   <span><strong>{totalChats}</strong> Chats</span>
                 </div>
                 <div className="h-3 w-px bg-zinc-800" />
                 <div className="flex items-center gap-1.5">
-                  <FileText className="h-3.5 w-3.5 text-amber-400" />
+                  <FileText className="h-3.5 w-3.5 text-zinc-400" />
                   <span><strong>{totalPapers}</strong> Workspace Papers</span>
                 </div>
               </div>
@@ -159,20 +159,20 @@ export default function HomeView({
             {/* Card 1: Your Chats */}
             <div 
               onClick={() => onNavigate?.('chat')}
-              className="group p-5 rounded-xl bg-zinc-900/70 hover:bg-zinc-850/80 border border-zinc-800 hover:border-zinc-700 transition-all cursor-pointer flex flex-col justify-between shadow-lg hover:shadow-xl hover:-translate-y-0.5"
+              className="group p-5 rounded-xl bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 hover:border-zinc-700 transition-all cursor-pointer flex flex-col justify-between shadow-lg hover:shadow-xl hover:-translate-y-0.5"
             >
               <div className="space-y-3">
-                <div className="h-10 w-10 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 group-hover:bg-blue-500/20 transition-colors">
+                <div className="h-10 w-10 rounded-lg bg-zinc-800 border border-zinc-700 flex items-center justify-center text-zinc-200 group-hover:bg-zinc-750 group-hover:text-white transition-colors">
                   <MessageSquare className="h-5 w-5" />
                 </div>
-                <h2 className="text-base font-bold text-zinc-100 group-hover:text-blue-300 transition-colors">
+                <h2 className="text-base font-bold text-zinc-100 group-hover:text-white transition-colors">
                   Your Chats & Canvas
                 </h2>
                 <p className="text-xs text-zinc-400 leading-relaxed">
                   Active research threads with split-screen PDF viewing, 4 academic reasoning lenses, and page-exact citations.
                 </p>
               </div>
-              <div className="pt-4 mt-2 border-t border-zinc-800/80 flex items-center justify-between text-xs text-blue-400 font-semibold group-hover:text-blue-300">
+              <div className="pt-4 mt-2 border-t border-zinc-800 flex items-center justify-between text-xs text-zinc-300 font-semibold group-hover:text-white">
                 <span>Open Your Chats</span>
                 <ArrowRight className="h-3.5 w-3.5 transform group-hover:translate-x-1 transition-transform" />
               </div>
@@ -181,20 +181,20 @@ export default function HomeView({
             {/* Card 2: Reference Library */}
             <div 
               onClick={() => onNavigate?.('library')}
-              className="group p-5 rounded-xl bg-zinc-900/70 hover:bg-zinc-850/80 border border-zinc-800 hover:border-zinc-700 transition-all cursor-pointer flex flex-col justify-between shadow-lg hover:shadow-xl hover:-translate-y-0.5"
+              className="group p-5 rounded-xl bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 hover:border-zinc-700 transition-all cursor-pointer flex flex-col justify-between shadow-lg hover:shadow-xl hover:-translate-y-0.5"
             >
               <div className="space-y-3">
-                <div className="h-10 w-10 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 group-hover:bg-amber-500/20 transition-colors">
+                <div className="h-10 w-10 rounded-lg bg-zinc-800 border border-zinc-700 flex items-center justify-center text-zinc-200 group-hover:bg-zinc-750 group-hover:text-white transition-colors">
                   <BookMarked className="h-5 w-5" />
                 </div>
-                <h2 className="text-base font-bold text-zinc-100 group-hover:text-amber-300 transition-colors">
+                <h2 className="text-base font-bold text-zinc-100 group-hover:text-white transition-colors">
                   Reference Library
                 </h2>
                 <p className="text-xs text-zinc-400 leading-relaxed">
                   Zotero-style reference manager. Auto-fetch paper metadata & PDFs via arXiv/DOI, manage collections, and export BibTeX.
                 </p>
               </div>
-              <div className="pt-4 mt-2 border-t border-zinc-800/80 flex items-center justify-between text-xs text-amber-400 font-semibold group-hover:text-amber-300">
+              <div className="pt-4 mt-2 border-t border-zinc-800 flex items-center justify-between text-xs text-zinc-300 font-semibold group-hover:text-white">
                 <span>Open Library</span>
                 <ArrowRight className="h-3.5 w-3.5 transform group-hover:translate-x-1 transition-transform" />
               </div>
@@ -203,20 +203,20 @@ export default function HomeView({
             {/* Card 3: Academic Writer */}
             <div 
               onClick={() => onNavigate?.('chat')}
-              className="group p-5 rounded-xl bg-zinc-900/70 hover:bg-zinc-850/80 border border-zinc-800 hover:border-zinc-700 transition-all cursor-pointer flex flex-col justify-between shadow-lg hover:shadow-xl hover:-translate-y-0.5"
+              className="group p-5 rounded-xl bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 hover:border-zinc-700 transition-all cursor-pointer flex flex-col justify-between shadow-lg hover:shadow-xl hover:-translate-y-0.5"
             >
               <div className="space-y-3">
-                <div className="h-10 w-10 rounded-lg bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400 group-hover:bg-purple-500/20 transition-colors">
+                <div className="h-10 w-10 rounded-lg bg-zinc-800 border border-zinc-700 flex items-center justify-center text-zinc-200 group-hover:bg-zinc-750 group-hover:text-white transition-colors">
                   <PenTool className="h-5 w-5" />
                 </div>
-                <h2 className="text-base font-bold text-zinc-100 group-hover:text-purple-300 transition-colors">
+                <h2 className="text-base font-bold text-zinc-100 group-hover:text-white transition-colors">
                   Academic Writer
                 </h2>
                 <p className="text-xs text-zinc-400 leading-relaxed">
                   Draft papers side-by-side with your active chat thread. Insert live citations and export clean DOCX and PDF manuscripts.
                 </p>
               </div>
-              <div className="pt-4 mt-2 border-t border-zinc-800/80 flex items-center justify-between text-xs text-purple-400 font-semibold group-hover:text-purple-300">
+              <div className="pt-4 mt-2 border-t border-zinc-800 flex items-center justify-between text-xs text-zinc-300 font-semibold group-hover:text-white">
                 <span>Open Writer</span>
                 <ArrowRight className="h-3.5 w-3.5 transform group-hover:translate-x-1 transition-transform" />
               </div>
@@ -232,7 +232,7 @@ export default function HomeView({
               <button
                 type="button"
                 onClick={() => onNavigate?.('chat')}
-                className="text-xs text-zinc-400 hover:text-amber-400 transition-colors flex items-center gap-1 cursor-pointer"
+                className="text-xs text-zinc-400 hover:text-zinc-100 transition-colors flex items-center gap-1 cursor-pointer"
               >
                 <span>View all in Chats</span>
                 <ArrowRight className="h-3 w-3" />
@@ -254,7 +254,7 @@ export default function HomeView({
                   >
                     <div className="space-y-1.5">
                       <div className="flex items-center gap-2">
-                        <Folder className="h-4 w-4 text-amber-400 shrink-0" />
+                        <Folder className="h-4 w-4 text-zinc-400 shrink-0" />
                         <span className="font-semibold text-xs text-zinc-200 group-hover:text-white truncate">
                           {ws.name}
                         </span>
@@ -268,7 +268,7 @@ export default function HomeView({
                       <span className="truncate">
                         {ws.chats?.[0]?.title || 'New Workspace'}
                       </span>
-                      <ArrowRight className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity text-amber-400" />
+                      <ArrowRight className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity text-zinc-300" />
                     </div>
                   </div>
                 ))}
@@ -280,7 +280,7 @@ export default function HomeView({
                 <button
                   type="button"
                   onClick={() => onNavigate?.('chat')}
-                  className="px-3 py-1 bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold rounded text-xs transition-colors cursor-pointer"
+                  className="px-3 py-1 bg-zinc-100 hover:bg-white text-zinc-950 font-bold rounded text-xs transition-colors cursor-pointer"
                 >
                   Create Your First Workspace in Chats
                 </button>

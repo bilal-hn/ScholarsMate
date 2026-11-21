@@ -26,7 +26,7 @@ import {
   Home,
 } from 'lucide-react';
 import AppLogo from '../common/AppLogo';
-import { AuthProfile } from '../layout/AuthProfile';
+import AuthProfile from '../layout/AuthProfile';
 import { APP_CONFIG } from '../../theme/constants';
 
 export default function DocumentSidebar({
@@ -269,9 +269,9 @@ export default function DocumentSidebar({
               <button
                 type="button"
                 onClick={() => handleTriggerAddPaper(menuState.id)}
-                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-zinc-300 hover:text-amber-300 hover:bg-zinc-800/70 transition-colors cursor-pointer text-left"
+                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800/70 transition-colors cursor-pointer text-left"
               >
-                <FileUp className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                <FileUp className="h-3.5 w-3.5 text-zinc-300 shrink-0" />
                 <span>Add Papers</span>
               </button>
 
@@ -356,12 +356,12 @@ export default function DocumentSidebar({
             <button
               type="button"
               onClick={() => onNavigate?.('home')}
-              className="relative group p-2 rounded-xl text-amber-500 hover:bg-zinc-800/80 transition-all cursor-pointer flex items-center justify-center"
+              className="relative group p-2 rounded-xl text-zinc-100 hover:bg-zinc-800/80 transition-all cursor-pointer flex items-center justify-center"
               aria-label="ScholarsMate Home"
               title="ScholarsMate Home (localhost/home)"
             >
-              <div className="h-8 w-8 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center group-hover:bg-amber-500/20 group-hover:border-amber-500/40 transition-all">
-                <AppLogo className="h-4.5 w-4.5 text-amber-500 group-hover:scale-105 transition-transform" />
+              <div className="h-8 w-8 rounded-lg bg-zinc-800 border border-zinc-700 flex items-center justify-center group-hover:bg-zinc-750 group-hover:border-zinc-600 transition-all">
+                <AppLogo className="h-4.5 w-4.5 text-zinc-100 group-hover:scale-105 transition-transform" />
               </div>
               <span className="pointer-events-none absolute left-full top-1/2 -translate-y-1/2 ml-3 px-2.5 py-1.5 bg-zinc-900 border border-zinc-700/80 text-zinc-100 text-[12.5px] font-medium rounded-lg shadow-2xl whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50">
                 Home
@@ -385,7 +385,7 @@ export default function DocumentSidebar({
               <button
                 type="button"
                 onClick={onNewChat}
-                className="relative group p-2.5 rounded-xl text-amber-400 hover:text-amber-300 hover:bg-zinc-800/70 transition-all cursor-pointer flex items-center justify-center"
+                className="relative group p-2.5 rounded-xl text-zinc-100 hover:text-white hover:bg-zinc-800/70 transition-all cursor-pointer flex items-center justify-center"
                 aria-label="New chat"
               >
                 <SquarePen className="h-4.5 w-4.5 stroke-[2.2]" />
@@ -426,7 +426,7 @@ export default function DocumentSidebar({
               <button
                 type="button"
                 onClick={onOpenLitReview}
-                className="relative group p-2.5 rounded-xl text-zinc-400 hover:text-amber-400 hover:bg-zinc-800/70 transition-all cursor-pointer flex items-center justify-center"
+                className="relative group p-2.5 rounded-xl text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/70 transition-all cursor-pointer flex items-center justify-center"
                 aria-label="Literature Review Studio"
               >
                 <BookOpen className="h-4.5 w-4.5" />
@@ -442,8 +442,8 @@ export default function DocumentSidebar({
                   onClick={onToggleWriter}
                   className={`relative group p-2.5 rounded-xl transition-all cursor-pointer flex items-center justify-center ${
                     isWriterActive
-                      ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
-                      : 'text-zinc-400 hover:text-amber-400 hover:bg-zinc-800/70'
+                      ? 'bg-zinc-800 text-zinc-100 border border-zinc-700'
+                      : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/70'
                   }`}
                   aria-label="Academic Writer"
                 >
@@ -461,8 +461,8 @@ export default function DocumentSidebar({
                   onClick={onToggleLibrary}
                   className={`relative group p-2.5 rounded-xl transition-all cursor-pointer flex items-center justify-center ${
                     isLibraryActive
-                      ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
-                      : 'text-zinc-400 hover:text-amber-400 hover:bg-zinc-800/70'
+                      ? 'bg-zinc-800 text-zinc-100 border border-zinc-700'
+                      : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/70'
                   }`}
                   aria-label="My Library"
                 >
@@ -534,10 +534,10 @@ export default function DocumentSidebar({
               title="Go to Home (localhost/home)"
               className="flex items-center gap-2 cursor-pointer group text-left"
             >
-              <div className="h-6 w-6 rounded-md bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500 group-hover:bg-amber-500/20 group-hover:border-amber-500/40 transition-all">
-                <AppLogo className="h-3.5 w-3.5 text-amber-500 group-hover:scale-105 transition-transform" />
+              <div className="h-6 w-6 rounded-md bg-zinc-800 border border-zinc-700 flex items-center justify-center text-zinc-100 group-hover:bg-zinc-750 group-hover:border-zinc-600 transition-all">
+                <AppLogo className="h-3.5 w-3.5 text-zinc-100 group-hover:scale-105 transition-transform" />
               </div>
-              <span className="font-semibold text-zinc-100 text-xs tracking-tight group-hover:text-amber-400 transition-colors">
+              <span className="font-semibold text-zinc-100 text-xs tracking-tight group-hover:text-zinc-300 transition-colors">
                 {APP_CONFIG.name}
               </span>
             </button>
@@ -560,7 +560,7 @@ export default function DocumentSidebar({
             <button
               type="button"
               onClick={onNewChat}
-              className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-xs font-semibold text-amber-400 hover:text-amber-300 hover:bg-zinc-800/50 transition-colors cursor-pointer group text-left"
+              className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-xs font-semibold text-zinc-100 hover:text-white hover:bg-zinc-800/60 transition-colors cursor-pointer group text-left"
             >
               <SquarePen className="h-3.5 w-3.5 stroke-[2.2] group-hover:scale-105 transition-transform" />
               <span>New Chat</span>
@@ -581,9 +581,9 @@ export default function DocumentSidebar({
               <button
                 type="button"
                 onClick={onOpenBrainModal}
-                className="w-full flex items-center gap-2 px-2.5 py-1 rounded-md text-xs text-zinc-400 hover:text-red-400 hover:bg-zinc-800/40 transition-colors cursor-pointer group text-left"
+                className="w-full flex items-center gap-2 px-2.5 py-1 rounded-md text-xs text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/40 transition-colors cursor-pointer group text-left"
               >
-                <Brain className="h-3 w-3 text-zinc-500 group-hover:text-red-400 transition-colors" />
+                <Brain className="h-3 w-3 text-zinc-500 group-hover:text-zinc-300 transition-colors" />
                 <span>Brain</span>
               </button>
             )}
@@ -592,9 +592,9 @@ export default function DocumentSidebar({
             <button
               type="button"
               onClick={onOpenLitReview}
-              className="w-full flex items-center gap-2 px-2.5 py-1 rounded-md text-xs text-zinc-400 hover:text-amber-400 hover:bg-zinc-800/40 transition-colors cursor-pointer group text-left"
+              className="w-full flex items-center gap-2 px-2.5 py-1 rounded-md text-xs text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/40 transition-colors cursor-pointer group text-left"
             >
-              <BookOpen className="h-3 w-3 text-zinc-500 group-hover:text-amber-400 transition-colors" />
+              <BookOpen className="h-3 w-3 text-zinc-500 group-hover:text-zinc-300 transition-colors" />
               <span>Literature Review Studio</span>
             </button>
 
@@ -605,11 +605,11 @@ export default function DocumentSidebar({
                 onClick={onToggleWriter}
                 className={`w-full flex items-center gap-2 px-2.5 py-1 rounded-md text-xs transition-colors cursor-pointer group text-left ${
                   isWriterActive
-                    ? 'bg-amber-500/15 text-amber-300 font-medium border border-amber-500/30'
-                    : 'text-zinc-400 hover:text-amber-400 hover:bg-zinc-800/40'
+                    ? 'bg-zinc-800 text-zinc-100 font-medium border border-zinc-700'
+                    : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/40'
                 }`}
               >
-                <PenTool className={`h-3 w-3 ${isWriterActive ? 'text-amber-400' : 'text-zinc-500 group-hover:text-amber-400'} transition-colors`} />
+                <PenTool className={`h-3 w-3 ${isWriterActive ? 'text-zinc-200' : 'text-zinc-500 group-hover:text-zinc-200'} transition-colors`} />
                 <span>Academic Writer</span>
               </button>
             )}
@@ -621,11 +621,11 @@ export default function DocumentSidebar({
                 onClick={onToggleLibrary}
                 className={`w-full flex items-center gap-2 px-2.5 py-1 rounded-md text-xs transition-colors cursor-pointer group text-left ${
                   isLibraryActive
-                    ? 'bg-amber-500/15 text-amber-300 font-medium border border-amber-500/30'
-                    : 'text-zinc-400 hover:text-amber-400 hover:bg-zinc-800/40'
+                    ? 'bg-zinc-800 text-zinc-100 font-medium border border-zinc-700'
+                    : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/40'
                 }`}
               >
-                <BookMarked className={`h-3 w-3 ${isLibraryActive ? 'text-amber-400' : 'text-zinc-500 group-hover:text-amber-400'} transition-colors`} />
+                <BookMarked className={`h-3 w-3 ${isLibraryActive ? 'text-zinc-200' : 'text-zinc-500 group-hover:text-zinc-200'} transition-colors`} />
                 <span>Reference Library</span>
               </button>
             )}
@@ -657,7 +657,7 @@ export default function DocumentSidebar({
                   className="w-full flex items-center justify-between px-2 py-0.5 text-[10px] font-semibold tracking-wider text-zinc-500 hover:text-zinc-300 transition-colors uppercase cursor-pointer text-left"
                 >
                   <div className="flex items-center gap-1.5 min-w-0">
-                    <History className="h-3 w-3 text-amber-400 shrink-0" />
+                    <History className="h-3 w-3 text-zinc-400 shrink-0" />
                     <span className="truncate">Recent Activity</span>
                   </div>
                   <div className="flex items-center gap-1 shrink-0 text-zinc-500">
@@ -685,14 +685,14 @@ export default function DocumentSidebar({
                           onContextMenu={(e) => handleContextMenu(e, 'chat', chat.id, chat.workspaceId)}
                           className={`group flex items-center justify-between px-2 py-1 rounded-md text-[11.5px] cursor-pointer transition-colors relative border-l-2 ${
                             isActive
-                              ? 'bg-amber-500/15 text-amber-300 font-medium border-amber-400'
+                              ? 'bg-zinc-800 text-zinc-100 font-medium border-zinc-400'
                               : 'border-transparent hover:border-zinc-700 text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800/40'
                           }`}
                         >
                           <div className="flex items-center gap-1.5 truncate min-w-0 pr-1 flex-1">
                             <MessageSquare
                               className={`h-3 w-3 shrink-0 ${
-                                isActive ? 'text-amber-400' : 'text-zinc-500 group-hover:text-zinc-100'
+                                isActive ? 'text-zinc-100' : 'text-zinc-500 group-hover:text-zinc-100'
                               }`}
                             />
 
@@ -708,7 +708,7 @@ export default function DocumentSidebar({
                                     if (e.key === 'Escape') setEditingChatId(null);
                                   }}
                                   onBlur={() => handleSaveChatRename(chat.id, chat.workspaceId)}
-                                  className="w-full bg-zinc-950 border border-amber-500/80 rounded px-1.5 py-0.5 text-xs text-zinc-100 focus:outline-none"
+                                  className="w-full bg-zinc-950 border border-zinc-600 rounded px-1.5 py-0.5 text-xs text-zinc-100 focus:outline-none"
                                 />
                                 <button
                                   type="button"
@@ -732,7 +732,7 @@ export default function DocumentSidebar({
                                 </span>
                                 {chat.workspaceName && (
                                   <span className="text-[9.5px] text-zinc-500 truncate leading-tight mt-0.5 flex items-center gap-1">
-                                    <Folder className="h-2 w-2 text-amber-400/60 shrink-0" />
+                                    <Folder className="h-2 w-2 text-zinc-400 shrink-0" />
                                     <span className="truncate">{chat.workspaceName}</span>
                                   </span>
                                 )}
@@ -768,7 +768,7 @@ export default function DocumentSidebar({
                     type="button"
                     onClick={onOpenCreateModal}
                     title="Create New Workspace"
-                    className="text-zinc-400 hover:text-amber-400 px-1 py-0.2 rounded transition-colors cursor-pointer flex items-center gap-1 text-[10.5px] font-medium"
+                    className="text-zinc-400 hover:text-zinc-100 px-1 py-0.2 rounded transition-colors cursor-pointer flex items-center gap-1 text-[10.5px] font-medium"
                   >
                     <Plus className="h-3 w-3 stroke-[2.5]" />
                     <span>New</span>
@@ -783,7 +783,7 @@ export default function DocumentSidebar({
                     <button
                       type="button"
                       onClick={onOpenCreateModal}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-amber-400 hover:bg-amber-300 text-zinc-950 font-semibold text-[11px] shadow transition-all cursor-pointer"
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-zinc-100 hover:bg-white text-zinc-950 font-semibold text-[11px] shadow transition-all cursor-pointer"
                     >
                       <Plus className="h-3 w-3 stroke-[2.5]" />
                       <span>Create Workspace</span>
@@ -820,9 +820,9 @@ export default function DocumentSidebar({
                               )}
                             </span>
                             {isExpanded ? (
-                              <FolderOpen className="h-4 w-4 text-amber-400/90 shrink-0" />
+                              <FolderOpen className="h-4 w-4 text-zinc-300 shrink-0" />
                             ) : (
-                              <Folder className="h-4 w-4 text-amber-400/70 shrink-0" />
+                              <Folder className="h-4 w-4 text-zinc-400 shrink-0" />
                             )}
 
                             {/* Workspace Title: Inline Edit or Text */}
@@ -838,7 +838,7 @@ export default function DocumentSidebar({
                                     if (e.key === 'Escape') setEditingWorkspaceId(null);
                                   }}
                                   onBlur={() => handleSaveWorkspaceRename(ws.id)}
-                                  className="w-full bg-zinc-950 border border-amber-500/80 rounded px-1.5 py-0.5 text-xs text-zinc-100 focus:outline-none"
+                                  className="w-full bg-zinc-950 border border-zinc-600 rounded px-1.5 py-0.5 text-xs text-zinc-100 focus:outline-none"
                                 />
                                 <button
                                   type="button"
@@ -870,7 +870,7 @@ export default function DocumentSidebar({
                                 type="button"
                                 onClick={() => onAddWorkspaceChat(ws.id)}
                                 title={`Add Chat (${chatCount}/3)`}
-                                className="p-1 rounded text-zinc-400 hover:text-amber-400 hover:bg-zinc-800 transition-colors cursor-pointer"
+                                className="p-1 rounded text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors cursor-pointer"
                               >
                                 <Plus className="h-3.5 w-3.5 stroke-[2.2]" />
                               </button>
@@ -907,7 +907,7 @@ export default function DocumentSidebar({
                                     onContextMenu={(e) => handleContextMenu(e, 'chat', chat.id, ws.id)}
                                     className={`group/chat flex items-center justify-between pl-2 pr-1 py-1 rounded-md text-[11px] cursor-pointer transition-colors relative border-l-2 ${
                                       isActive
-                                        ? 'bg-amber-500/15 text-amber-300 font-medium border-amber-400'
+                                        ? 'bg-zinc-800 text-zinc-100 font-medium border-zinc-400'
                                         : 'border-transparent hover:border-zinc-600 text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800/40'
                                     }`}
                                   >
@@ -915,7 +915,7 @@ export default function DocumentSidebar({
                                       <span className="text-zinc-600 font-mono text-[10px] select-none">|_</span>
                                       <MessageSquare
                                         className={`h-2.5 w-2.5 shrink-0 ${
-                                          isActive ? 'text-amber-400' : 'text-zinc-500 group-hover/chat:text-zinc-100'
+                                          isActive ? 'text-zinc-100' : 'text-zinc-500 group-hover/chat:text-zinc-100'
                                         }`}
                                       />
 
@@ -932,7 +932,7 @@ export default function DocumentSidebar({
                                               if (e.key === 'Escape') setEditingChatId(null);
                                             }}
                                             onBlur={() => handleSaveChatRename(chat.id, ws.id)}
-                                            className="w-full bg-zinc-950 border border-amber-500/80 rounded px-1.5 py-0.5 text-xs text-zinc-100 focus:outline-none"
+                                            className="w-full bg-zinc-950 border border-zinc-600 rounded px-1.5 py-0.5 text-xs text-zinc-100 focus:outline-none"
                                           />
                                           <button
                                             type="button"

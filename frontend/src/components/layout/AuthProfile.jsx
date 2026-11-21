@@ -17,14 +17,14 @@ const getUserInitials = (name) => {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 };
 
-export const AuthProfile = ({ 
+export default function AuthProfile({ 
   currentUser, 
   onAuthChange, 
   onOpenAuth, 
-  onOpenSettings,
-  onOpenProfileSettings,
-  isCollapsed = false,
-}) => {
+  onOpenSettings, 
+  onOpenProfileSettings, 
+  isCollapsed = false, 
+}) {
   const [localUser, setLocalUser] = useState(null);
   const [loading, setLoading] = useState(currentUser === undefined);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -310,4 +310,6 @@ export const AuthProfile = ({
       />
     </div>
   );
-};
+}
+
+export { AuthProfile };

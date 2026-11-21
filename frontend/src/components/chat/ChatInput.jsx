@@ -684,7 +684,7 @@ export default function ChatInput({
         onDrop={handleDrop}
         className={`max-w-3xl mx-auto bg-zinc-900 hover:bg-zinc-900/95 border ${
           isDragging
-            ? 'border-amber-400 bg-amber-500/5 ring-1 ring-amber-400/20'
+            ? 'border-zinc-500 bg-zinc-800/20 ring-1 ring-zinc-500/20'
             : 'border-zinc-800 hover:border-zinc-700/80 focus-within:border-zinc-650'
         } rounded-xl p-2.5 flex flex-col gap-1.5 transition-all shadow-lg relative`}
       >
@@ -709,11 +709,11 @@ export default function ChatInput({
                     onMouseEnter={() => setSlashIndex(idx)}
                     className={`w-full flex items-start gap-2 px-2.5 py-1.5 rounded-lg text-left text-xs transition-colors cursor-pointer ${
                       isFocused
-                        ? 'bg-zinc-800 text-amber-300 font-medium'
+                        ? 'bg-zinc-800 text-zinc-100 font-medium'
                         : 'text-zinc-300 hover:bg-zinc-800/50'
                     }`}
                   >
-                    <span className="font-mono text-amber-400 font-bold shrink-0 text-[11.5px] mt-0.5">{item.cmd}</span>
+                    <span className="font-mono text-zinc-100 font-bold shrink-0 text-[11.5px] mt-0.5">{item.cmd}</span>
                     <div className="flex-1 min-w-0">
                       <div className="text-[11.5px] font-semibold text-zinc-200">{item.label}</div>
                       <div className="text-[10.5px] text-zinc-400 truncate">{item.desc}</div>
@@ -746,7 +746,7 @@ export default function ChatInput({
                     onMouseEnter={() => setMentionIndex(idx)}
                     className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-left text-xs transition-colors cursor-pointer ${
                       isFocused
-                        ? 'bg-zinc-800 text-amber-300 font-medium'
+                        ? 'bg-zinc-800 text-zinc-100 font-medium'
                         : 'text-zinc-300 hover:bg-zinc-800/50'
                     }`}
                   >
@@ -768,11 +768,11 @@ export default function ChatInput({
             {uploadingFiles.map((name) => (
               <div
                 key={`uploading-${name}`}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-mono animate-pulse"
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-zinc-800 border border-zinc-700 text-zinc-300 text-xs font-mono animate-pulse"
               >
-                <Loader2 className="h-3 w-3 animate-spin text-amber-400 shrink-0" />
+                <Loader2 className="h-3 w-3 animate-spin text-zinc-300 shrink-0" />
                 <span className="truncate max-w-[180px]">{name}</span>
-                <span className="text-[10px] text-amber-400/80">indexing...</span>
+                <span className="text-[10px] text-zinc-400">indexing...</span>
               </div>
             ))}
 
@@ -782,7 +782,7 @@ export default function ChatInput({
                 key={docName}
                 className="group flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-zinc-800/90 border border-zinc-700/60 text-zinc-200 text-xs font-sans hover:border-zinc-600 transition-colors shadow-sm"
               >
-                <FileText className="h-3 w-3 text-amber-400 shrink-0" />
+                <FileText className="h-3 w-3 text-zinc-300 shrink-0" />
                 <span className="truncate max-w-[200px] text-[11.5px]" title={docName}>{docName}</span>
                 <button
                   type="button"
@@ -848,15 +848,15 @@ export default function ChatInput({
 
         {/* Vision Notice / Tip Banner */}
         {visionNotice && (
-          <div className="mx-2 px-3 py-1.5 rounded-md bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex items-center justify-between gap-2 shadow-sm">
+          <div className="mx-2 px-3 py-1.5 rounded-md bg-zinc-800 border border-zinc-700 text-zinc-300 text-xs flex items-center justify-between gap-2 shadow-sm">
             <div className="flex items-center gap-1.5 truncate">
-              <Sparkles className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+              <Sparkles className="h-3.5 w-3.5 text-zinc-400 shrink-0" />
               <span className="truncate">{visionNotice}</span>
               {onOpenSettings && (
                 <button
                   type="button"
                   onClick={onOpenSettings}
-                  className="underline font-semibold text-amber-400 hover:text-amber-300 shrink-0 cursor-pointer ml-1"
+                  className="underline font-semibold text-zinc-200 hover:text-white shrink-0 cursor-pointer ml-1"
                 >
                   Settings
                 </button>
@@ -865,7 +865,7 @@ export default function ChatInput({
             <button
               type="button"
               onClick={() => setVisionNotice(null)}
-              className="text-amber-400 hover:text-zinc-100 p-0.5 cursor-pointer shrink-0"
+              className="text-zinc-400 hover:text-white p-0.5 cursor-pointer shrink-0"
             >
               <X className="h-3 w-3" />
             </button>
@@ -913,7 +913,7 @@ export default function ChatInput({
                 title="Workspace Tools & Scoped Documents"
                 className={`p-1 rounded-md transition-colors cursor-pointer ${
                   isMatrixMenuOpen
-                    ? 'text-amber-400 bg-zinc-800'
+                    ? 'text-zinc-100 bg-zinc-800'
                     : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/60'
                 }`}
               >
@@ -955,7 +955,7 @@ export default function ChatInput({
                             }`}
                           >
                             {isSelected ? (
-                              <CheckSquare className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                              <CheckSquare className="h-3.5 w-3.5 text-zinc-200 shrink-0" />
                             ) : (
                               <Square className="h-3.5 w-3.5 text-zinc-600 shrink-0" />
                             )}
@@ -975,7 +975,7 @@ export default function ChatInput({
                         if (onOpenLitReview) onOpenLitReview();
                         setIsMatrixMenuOpen(false);
                       }}
-                      className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-zinc-300 hover:text-amber-300 hover:bg-zinc-800/60 transition-colors cursor-pointer text-left"
+                      className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800/60 transition-colors cursor-pointer text-left"
                     >
                       <BookOpen className="h-3.5 w-3.5 text-zinc-400" />
                       <span>Literature Review Studio</span>
@@ -1055,17 +1055,17 @@ export default function ChatInput({
                 disabled={uploadingFiles.length > 0}
                 className={`p-1 rounded-md transition-colors cursor-pointer ${
                   isAttachMenuOpen
-                    ? 'text-amber-400 bg-zinc-800'
+                    ? 'text-zinc-100 bg-zinc-800'
                     : uploadingFiles.length > 0
-                    ? 'text-amber-400 bg-amber-500/10 animate-pulse'
+                    ? 'text-zinc-300 bg-zinc-800 animate-pulse'
                     : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800/60'
                 }`}
                 title="Add attachment"
               >
                 {uploadingFiles.length > 0 ? (
-                  <Loader2 className="h-3 w-3 animate-spin text-amber-400" />
+                  <Loader2 className="h-3 w-3 animate-spin text-zinc-300" />
                 ) : (
-                  <Plus className={`h-3 w-3 transition-transform duration-150 ${isAttachMenuOpen ? 'rotate-45 text-amber-400' : ''}`} />
+                  <Plus className={`h-3 w-3 transition-transform duration-150 ${isAttachMenuOpen ? 'rotate-45 text-zinc-100' : ''}`} />
                 )}
               </button>
 
@@ -1085,7 +1085,7 @@ export default function ChatInput({
                     }}
                     className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800/80 transition-colors cursor-pointer text-left group"
                   >
-                    <div className="p-1 rounded-md bg-amber-500/10 text-amber-400 group-hover:bg-amber-500/20 shrink-0">
+                    <div className="p-1 rounded-md bg-zinc-800 border border-zinc-700 text-zinc-300 group-hover:bg-zinc-750 shrink-0">
                       <FileText className="h-4 w-4" />
                     </div>
                     <div className="min-w-0">
@@ -1127,7 +1127,7 @@ export default function ChatInput({
                 title={`Active Lens: ${activeModeObj?.name || 'Academic Lens'}`}
               >
                 <span>{activeModeObj?.short_name || activeModeObj?.name || 'Research'}</span>
-                <ChevronDown className={`h-2.5 w-2.5 text-zinc-500 transition-transform duration-150 ${isLensDropdownOpen ? 'rotate-180 text-amber-400' : ''}`} />
+                <ChevronDown className={`h-2.5 w-2.5 text-zinc-500 transition-transform duration-150 ${isLensDropdownOpen ? 'rotate-180 text-zinc-200' : ''}`} />
               </button>
 
               {/* Lens Selector Popover */}
@@ -1332,7 +1332,7 @@ export default function ChatInput({
                                       </div>
 
                                       {isSelected && (
-                                        <Check className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+                                        <Check className="h-3.5 w-3.5 text-zinc-100 shrink-0" />
                                       )}
                                     </div>
                                   );
@@ -1350,7 +1350,7 @@ export default function ChatInput({
               <button
                 type="button"
                 onClick={onOpenSettings}
-                className="flex items-center gap-1.5 text-xs text-amber-400 hover:text-amber-300 font-medium px-2.5 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 transition-colors cursor-pointer"
+                className="flex items-center gap-1.5 text-xs text-zinc-200 hover:text-white font-medium px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-750 border border-zinc-700 transition-colors cursor-pointer"
               >
                 <Key className="h-3 w-3" />
                 <span>Add API Key</span>
@@ -1361,7 +1361,7 @@ export default function ChatInput({
             <button
               type="submit"
               disabled={loading || (!effectiveInput.trim() && (!effectiveAttachedImages || effectiveAttachedImages.length === 0))}
-              className="h-6.5 w-6.5 rounded-full bg-amber-500 hover:bg-amber-400 disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-950 flex items-center justify-center transition-all cursor-pointer shadow-xs active:scale-95 shrink-0"
+              className="h-6.5 w-6.5 rounded-full bg-zinc-100 hover:bg-white disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-950 flex items-center justify-center transition-all cursor-pointer shadow-xs active:scale-95 shrink-0"
               title="Send Message"
             >
               <ArrowUp className="h-3 w-3 stroke-[2.5]" />

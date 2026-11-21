@@ -565,24 +565,24 @@ export default function ChatInterface({
         <div className="flex-1 flex flex-col items-center justify-center p-4 text-center select-none relative">
           <div className="max-w-md w-full flex flex-col items-center animate-in fade-in duration-300 -mt-10">
             {/* Brand Header */}
-            <div className="flex items-center justify-center gap-2.5 mb-1.5">
-              <AppLogo className="h-6 w-6 text-amber-500" />
+            <div className="flex items-center justify-center gap-2.5 mb-2">
+              <AppLogo className="h-7 w-7 text-zinc-100" />
               <h1 className="text-2xl font-bold text-zinc-100 tracking-tight font-sans">
                 {APP_CONFIG.name}
               </h1>
             </div>
 
-            <p className="text-xs text-zinc-300 font-mono mb-1">
-              Type <span className="text-amber-400 font-medium">/action</span> or <span className="text-amber-400 font-medium">@</span> to get started.
+            <p className="text-[11px] text-zinc-400 font-mono tracking-wider uppercase mb-1">
+              {APP_CONFIG.tagline}
             </p>
 
             <p className="text-[11px] text-zinc-500 max-w-sm text-center leading-relaxed mb-4 font-mono">
-              welcome to ScholarsMate! From setting up your context, to search to generation, may this voyage be easy.
+              Interrogate papers with grounded citations, configure research context, and synthesize findings with precision.
             </p>
 
             {(!availableModels || availableModels.length === 0) ? (
               <div className="mt-1 w-full max-w-xs rounded-xl border border-zinc-800 bg-zinc-900/90 p-4 shadow-lg text-center flex flex-col items-center animate-in fade-in zoom-in-95 duration-200">
-                <div className="mb-2 flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-400 shadow-inner">
+                <div className="mb-2 flex h-8 w-8 items-center justify-center rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-200 shadow-inner">
                   <Key className="h-4 w-4 stroke-[2]" />
                 </div>
                 <h2 className="text-xs font-semibold text-zinc-100 tracking-tight">
@@ -594,7 +594,7 @@ export default function ChatInterface({
                 <button
                   type="button"
                   onClick={onOpenSettings}
-                  className="mt-3 inline-flex items-center justify-center gap-1.5 rounded-md bg-amber-500 px-3 py-1.5 text-xs font-semibold text-zinc-950 hover:bg-amber-400 transition-all shadow cursor-pointer"
+                  className="mt-3 inline-flex items-center justify-center gap-1.5 rounded-md bg-zinc-100 hover:bg-white text-zinc-950 px-3 py-1.5 text-xs font-semibold transition-all shadow cursor-pointer"
                 >
                   <Plus className="h-3 w-3 stroke-[2.5]" />
                   <span>Configure API Key</span>
@@ -603,14 +603,14 @@ export default function ChatInterface({
               </div>
             ) : documents && documents.length === 0 ? (
               <div className="mt-1 p-2.5 rounded-lg bg-zinc-900/60 border border-zinc-800/80 max-w-xs text-center space-y-1">
-                <p className="text-[11px] text-amber-400 font-medium">No documents attached yet</p>
+                <p className="text-[11px] text-zinc-200 font-medium">No documents attached yet</p>
                 <p className="text-[10.5px] text-zinc-400 leading-relaxed font-sans">
                   Upload documents (PDFs, books, notes) or select from your library to start chatting. ScholarsMate answers questions strictly from your uploaded materials.
                 </p>
               </div>
             ) : (
               <p className="text-[10.5px] text-zinc-500 max-w-xs leading-relaxed font-mono">
-                Tip: Drag and drop files onto the chat, or type <span className="text-amber-400">@</span> to tag a paper.
+                Tip: Drag and drop files onto the chat, or type <span className="text-zinc-300">@</span> to tag a paper.
               </p>
             )}
           </div>
@@ -629,7 +629,7 @@ export default function ChatInterface({
 
           {loading && (
             <div className="flex gap-3.5 items-start animate-in fade-in duration-200">
-              <div className="h-7 w-7 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 shrink-0 mt-0.5 animate-float-orb">
+              <div className="h-7 w-7 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center text-zinc-100 shrink-0 mt-0.5">
                 <AppLogo className="h-4 w-4" />
               </div>
               <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl px-4 py-3 text-zinc-300 text-xs shadow-xl space-y-2.5 max-w-md w-full">

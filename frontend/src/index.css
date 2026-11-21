@@ -8,30 +8,32 @@
   --font-raleway: 'Raleway', sans-serif;
 
   /* Dynamic Semantic Color Tokens linked to CSS Variables */
-  --color-zinc-950: var(--theme-canvas, #101114);
-  --color-zinc-900: var(--theme-surface, #18191d);
-  --color-zinc-800: var(--theme-elevated, #22242a);
-  --color-zinc-700: var(--theme-border-hover, #343741);
-  --color-zinc-600: var(--theme-subtle, #4b5262);
+  --color-zinc-950: var(--theme-canvas, #09090b);
+  --color-zinc-900: var(--theme-surface, #121215);
+  --color-zinc-850: var(--theme-elevated, #18181b);
+  --color-zinc-800: var(--theme-elevated, #1c1c20);
+  --color-zinc-750: var(--theme-border, #27272a);
+  --color-zinc-700: var(--theme-border-hover, #3f3f46);
+  --color-zinc-600: var(--theme-subtle, #52525b);
   --color-zinc-500: var(--theme-muted, #71717a);
-  --color-zinc-400: var(--theme-text-muted, #a1a1aa);
+  --color-zinc-400: var(--theme-text-muted, #9ca3af);
   --color-zinc-300: var(--theme-text-body, #d4d4d8);
   --color-zinc-200: var(--theme-text-light, #e4e4e7);
   --color-zinc-100: var(--theme-text-bold, #ffffff);
 
-  --color-amber-100: var(--theme-accent-light, #f4f4f5);
-  --color-amber-200: var(--theme-accent-light, #f4f4f5);
-  --color-amber-300: var(--theme-accent-light, #f4f4f5);
+  --color-amber-100: var(--theme-accent-light, #9ca3af);
+  --color-amber-200: var(--theme-accent-light, #9ca3af);
+  --color-amber-300: var(--theme-accent-light, #d4d4d8);
   --color-amber-400: var(--theme-accent-hover, #ffffff);
-  --color-amber-500: var(--theme-accent-primary, #f4f4f5);
-  --color-amber-600: var(--theme-accent-dark, #e4e4e7);
+  --color-amber-500: var(--theme-accent-primary, #ffffff);
+  --color-amber-600: var(--theme-accent-dark, #8e8e93);
 }
 
 /* =============================================================================
    THEME DEFINITIONS (Dark Mode + Light Mode)
    ============================================================================= */
 
-/* 1. Dark Mode (Minimalist Charcoal / Black Canvas - Zero Red Tones) */
+/* 1. Dark Mode (Sharper Obsidian Black Canvas + Signature Slate Grey Accents) */
 :root,
 [data-theme="original"],
 [data-theme="dark"],
@@ -45,24 +47,26 @@
 [data-theme="emerald"],
 [data-theme="ocean"],
 [data-theme="nordic"] {
-  --theme-canvas: #101114;
-  --theme-surface: #18191d;
-  --theme-elevated: #22242a;
-  --theme-border-hover: #343741;
-  --theme-subtle: #4b5262;
+  --theme-canvas: #09090b;
+  --theme-surface: #121215;
+  --theme-elevated: #1a1a1e;
+  --theme-border: #27272a;
+  --theme-border-hover: #3f3f46;
+  --theme-subtle: #52525b;
   --theme-muted: #71717a;
-  --theme-text-muted: #a1a1aa;
+  --theme-text-muted: #9ca3af;
   --theme-text-body: #d4d4d8;
   --theme-text-light: #e4e4e7;
   --theme-text-bold: #ffffff;
 
-  --theme-accent-light: #f4f4f5;
+  --theme-logo-base: #8e8e93;
+  --theme-accent-light: #9ca3af;
   --theme-accent-hover: #ffffff;
-  --theme-accent-primary: #f4f4f5;
-  --theme-accent-dark: #e4e4e7;
+  --theme-accent-primary: #ffffff;
+  --theme-accent-dark: #71717a;
 }
 
-/* 2. Light Mode (Clean Daylight Studio Porcelain - Neutral Charcoal Ink, Zero Royal Blue) */
+/* 2. Light Mode (Clean Studio Porcelain + Sharp Charcoal Ink & Grey Accents) */
 [data-theme="clarity"],
 [data-theme="light"],
 [data-theme="parchment"],
@@ -82,20 +86,22 @@
 [data-theme="retrowave"],
 [data-theme="ume"] {
   --theme-canvas: #ffffff;
-  --theme-surface: #f8f9fa;
-  --theme-elevated: #f1f3f5;
-  --theme-border-hover: #e2e8f0;
-  --theme-subtle: #94a3b8;
-  --theme-muted: #64748b;
-  --theme-text-muted: #475569;
-  --theme-text-body: #1e293b;
-  --theme-text-light: #0f172a;
-  --theme-text-bold: #020617;
+  --theme-surface: #f4f4f5;
+  --theme-elevated: #e4e4e7;
+  --theme-border: #e4e4e7;
+  --theme-border-hover: #d4d4d8;
+  --theme-subtle: #a1a1aa;
+  --theme-muted: #71717a;
+  --theme-text-muted: #52525b;
+  --theme-text-body: #27272a;
+  --theme-text-light: #18181b;
+  --theme-text-bold: #09090b;
 
-  --theme-accent-light: #09090b;
-  --theme-accent-hover: #27272a;
-  --theme-accent-primary: #18181b;
-  --theme-accent-dark: #000000;
+  --theme-logo-base: #8e8e93;
+  --theme-accent-light: #71717a;
+  --theme-accent-hover: #18181b;
+  --theme-accent-primary: #09090b;
+  --theme-accent-dark: #27272a;
 }
 
 /* =============================================================================

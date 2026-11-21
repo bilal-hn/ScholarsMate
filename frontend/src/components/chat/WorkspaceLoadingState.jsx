@@ -5,7 +5,7 @@ export default function WorkspaceLoadingState() {
   return (
     <div className="flex-1 flex flex-col items-center justify-center px-6 py-8 select-none relative overflow-hidden animate-in fade-in duration-200">
       {/* Background Ambient Glow */}
-      <div className="absolute w-96 h-96 bg-amber-500/5 rounded-full blur-3xl pointer-events-none -top-12 -left-12" />
+      <div className="absolute w-96 h-96 bg-zinc-700/5 rounded-full blur-3xl pointer-events-none -top-12 -left-12" />
       <div className="absolute w-80 h-80 bg-zinc-700/5 rounded-full blur-3xl pointer-events-none -bottom-8 -right-8" />
 
       <div className="w-full max-w-2xl flex flex-col items-center z-10 space-y-6">
@@ -17,13 +17,13 @@ export default function WorkspaceLoadingState() {
 
           {/* Inner Counter-Rotating Ring with Accent Satellite Nodes */}
           <div className="absolute w-16 h-16 rounded-full border border-zinc-800 animate-orbit-reverse">
-            <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-amber-400/80 shadow-sm shadow-amber-500/50" />
+            <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full bg-zinc-300 shadow-sm shadow-zinc-400/50" />
             <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-zinc-500" />
           </div>
 
           {/* Center Pulsing Icon Badge */}
-          <div className="relative z-10 h-12 w-12 rounded-2xl bg-zinc-900 border border-zinc-700/80 shadow-2xl flex items-center justify-center text-amber-400 animate-float-orb">
-            <AppLogo className="h-6 w-6 text-amber-400" />
+          <div className="relative z-10 h-12 w-12 rounded-2xl bg-zinc-900 border border-zinc-750 shadow-2xl flex items-center justify-center text-zinc-100 animate-float-orb">
+            <AppLogo className="h-6 w-6 text-zinc-100" />
           </div>
         </div>
 

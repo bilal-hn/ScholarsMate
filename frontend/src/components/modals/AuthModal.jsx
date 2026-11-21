@@ -95,7 +95,7 @@ export default function AuthModal({
 
         {/* Brand header */}
         <div className="text-center space-y-1.5 pt-1">
-          <div className="h-10 w-10 mx-auto rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500 shadow-inner">
+          <div className="h-10 w-10 mx-auto rounded-xl bg-zinc-800 border border-zinc-700 flex items-center justify-center text-zinc-100 shadow-inner">
             <AppLogo className="h-5 w-5" />
           </div>
           <h2 className="text-lg font-bold text-zinc-100 tracking-tight">
@@ -115,7 +115,7 @@ export default function AuthModal({
             onClick={() => { setMode('login'); setError(null); }}
             className={`flex-1 h-full flex items-center justify-center text-sm font-semibold rounded-lg transition-all cursor-pointer ${
               mode === 'login'
-                ? 'bg-zinc-800 text-amber-400 shadow-sm'
+                ? 'bg-zinc-800 text-zinc-100 shadow-sm'
                 : 'text-zinc-400 hover:text-zinc-200'
             }`}
           >
@@ -126,7 +126,7 @@ export default function AuthModal({
             onClick={() => { setMode('signup'); setError(null); }}
             className={`flex-1 h-full flex items-center justify-center text-sm font-semibold rounded-lg transition-all cursor-pointer ${
               mode === 'signup'
-                ? 'bg-zinc-800 text-amber-400 shadow-sm'
+                ? 'bg-zinc-800 text-zinc-100 shadow-sm'
                 : 'text-zinc-400 hover:text-zinc-200'
             }`}
           >
@@ -227,7 +227,7 @@ export default function AuthModal({
           <button
             type="submit"
             disabled={loading}
-            className="w-full h-12 mt-3 bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold py-3 rounded-xl text-sm flex items-center justify-center gap-2 cursor-pointer transition-all disabled:opacity-50 shadow-sm"
+            className="w-full h-12 mt-3 bg-zinc-100 hover:bg-white text-zinc-950 font-bold py-3 rounded-xl text-sm flex items-center justify-center gap-2 cursor-pointer transition-all disabled:opacity-50 shadow-sm"
           >
             {loading ? (
               <>

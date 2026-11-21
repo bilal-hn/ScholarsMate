@@ -2,18 +2,19 @@
 
 export const APP_CONFIG = {
   name: "ScholarsMate",
-  tagline: "Yours for the voyage of research.",
+  tagline: "YOUR RESEARCH, CHECKMATED.",
   welcomeMessage: "Hello! I'm ScholarsMate. Ask me questions about your uploaded research papers or type @ to tag a file.",
   apiBaseUrl: "http://127.0.0.1:8000/api",
 };
 
 export const BRAND_CONFIG = {
   name: "ScholarsMate",
-  subtitle: "Yours for the voyage of research.",
-  tagline: "Source-Locked Research Intelligence",
+  subtitle: "YOUR RESEARCH, CHECKMATED.",
+  tagline: "YOUR RESEARCH, CHECKMATED.",
   logo: {
-    icon: "Sailboat",
-    primaryColor: "#f4f4f5",
+    icon: "ChessPawn",
+    primaryColor: "#ffffff",
+    baseColor: "#8e8e93",
   },
 };
 
@@ -23,11 +24,11 @@ export const THEMES = [
     shortId: "original",
     name: "Dark",
     mode: "dark",
-    canvasPreview: "#101114",
-    surfacePreview: "#18191d",
-    accentColor: "#f4f4f5",
-    accentHover: "#ffffff",
-    description: "Sleek, distraction-free minimalist dark mode with zero red tones.",
+    canvasPreview: "#09090b",
+    surfacePreview: "#121215",
+    accentColor: "#ffffff",
+    accentHover: "#8e8e93",
+    description: "Sleek, sharp obsidian dark mode with signature slate grey accents.",
   },
   {
     id: "clarity",
@@ -35,10 +36,10 @@ export const THEMES = [
     name: "Light",
     mode: "light",
     canvasPreview: "#ffffff",
-    surfacePreview: "#f8f9fa",
-    accentColor: "#18181b",
-    accentHover: "#27272a",
-    description: "Clean daylight studio porcelain with neutral charcoal ink.",
+    surfacePreview: "#f4f4f5",
+    accentColor: "#09090b",
+    accentHover: "#8e8e93",
+    description: "Clean daylight studio porcelain with sharp black ink and grey accents.",
   },
 ];
 

@@ -5,7 +5,7 @@ import {
   createChatSession,
   deleteChatSession,
 } from '../../services/api';
-import { AuthProfile } from '../layout/AuthProfile';
+import AuthProfile from '../layout/AuthProfile';
 
 export default function ChatSidebar({
   activeSessionId,
@@ -73,7 +73,7 @@ export default function ChatSidebar({
       {/* New Chat Button */}
       <button
         onClick={handleCreateNewChat}
-        className="w-full flex items-center justify-center gap-2 bg-amber-400 hover:bg-amber-300 text-zinc-950 font-semibold py-2.5 px-4 rounded-xl text-[13.5px] transition-all shadow-md active:scale-95 cursor-pointer mb-5"
+        className="w-full flex items-center justify-center gap-2 bg-zinc-100 hover:bg-white text-zinc-950 font-semibold py-2.5 px-4 rounded-xl text-[13.5px] transition-all shadow-md active:scale-95 cursor-pointer mb-5"
       >
         <Plus className="h-4 w-4 stroke-[2.5]" />
         <span>New Research Chat</span>
@@ -88,7 +88,7 @@ export default function ChatSidebar({
       <div className="flex-1 overflow-y-auto space-y-1 pr-1">
         {loading && sessions.length === 0 ? (
           <div className="flex items-center justify-center gap-2 text-xs text-zinc-500 py-6">
-            <Loader2 className="h-3.5 w-3.5 animate-spin text-amber-400" />
+            <Loader2 className="h-3.5 w-3.5 animate-spin text-zinc-400" />
             <span>Loading history...</span>
           </div>
         ) : sessions.length === 0 ? (
@@ -111,7 +111,7 @@ export default function ChatSidebar({
                 <div className="flex items-center gap-2.5 truncate min-w-0 pr-2">
                   <MessageSquare
                     className={`h-3.5 w-3.5 shrink-0 ${
-                      isActive ? 'text-amber-400' : 'text-zinc-600'
+                      isActive ? 'text-zinc-100' : 'text-zinc-500'
                     }`}
                   />
                   <span className="truncate" title={session.title}>

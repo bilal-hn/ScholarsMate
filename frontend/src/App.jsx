@@ -826,14 +826,14 @@ export default function App() {
       <div className="flex-1 flex flex-col h-full overflow-hidden relative z-0">
         {/* Subtle offline alert bar if backend is disconnected */}
         {backendStatus === 'offline' && (
-          <div className="bg-amber-500/10 border-b border-amber-500/20 px-4 py-1.5 flex items-center justify-between text-xs text-amber-400 shrink-0">
+          <div className="bg-zinc-900 border-b border-zinc-800 px-4 py-1.5 flex items-center justify-between text-xs text-zinc-300 shrink-0">
             <div className="flex items-center gap-2">
-              <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-              <span>Backend server is offline (FastAPI port 8000). Start backend with <code className="bg-zinc-900 px-1.5 py-0.5 rounded text-[11px] font-mono text-zinc-200">uvicorn backend.api.main:app --port 8000</code></span>
+              <AlertCircle className="h-3.5 w-3.5 text-zinc-400 shrink-0" />
+              <span>Backend server is offline (FastAPI port 8000). Start backend with <code className="bg-zinc-950 px-1.5 py-0.5 rounded text-[11px] font-mono text-zinc-200">uvicorn backend.api.main:app --port 8000</code></span>
             </div>
             <button
               onClick={checkStatus}
-              className="flex items-center gap-1 hover:text-zinc-100 font-medium cursor-pointer transition-colors"
+              className="flex items-center gap-1 hover:text-white font-medium cursor-pointer transition-colors"
             >
               <RefreshCw className="h-3 w-3" />
               <span>Retry</span>
@@ -892,7 +892,7 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => setIsWriterFullscreen(true)}
-                  className="absolute top-1/2 -translate-y-1/2 -left-4 z-50 p-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700/90 rounded-full shadow-2xl text-zinc-300 hover:text-amber-400 transition-all cursor-pointer flex items-center justify-center hover:scale-110"
+                  className="absolute top-1/2 -translate-y-1/2 -left-4 z-50 p-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700/90 rounded-full shadow-2xl text-zinc-300 hover:text-white transition-all cursor-pointer flex items-center justify-center hover:scale-110"
                   title="Expand to Fullscreen"
                 >
                   <ChevronLeft className="h-4 w-4" />

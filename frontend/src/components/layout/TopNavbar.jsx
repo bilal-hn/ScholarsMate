@@ -60,7 +60,7 @@ export default function TopNavbar({
             onClick={() => onNavigate?.('home')}
             className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md transition-colors cursor-pointer ${
               currentRoute === 'home'
-                ? 'bg-zinc-800 text-amber-300 font-semibold shadow-xs border border-zinc-750'
+                ? 'bg-zinc-800 text-zinc-100 font-semibold shadow-xs border border-zinc-700'
                 : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-850'
             }`}
             title="Home (localhost/home)"
@@ -74,7 +74,7 @@ export default function TopNavbar({
             onClick={() => onNavigate?.('chat')}
             className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md transition-colors cursor-pointer ${
               currentRoute === 'chat'
-                ? 'bg-zinc-800 text-amber-300 font-semibold shadow-xs border border-zinc-750'
+                ? 'bg-zinc-800 text-zinc-100 font-semibold shadow-xs border border-zinc-700'
                 : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-850'
             }`}
             title="Your Chats (localhost/chat)"
@@ -88,7 +88,7 @@ export default function TopNavbar({
             onClick={() => onNavigate?.('library')}
             className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md transition-colors cursor-pointer ${
               currentRoute === 'library'
-                ? 'bg-zinc-800 text-amber-300 font-semibold shadow-xs border border-zinc-750'
+                ? 'bg-zinc-800 text-zinc-100 font-semibold shadow-xs border border-zinc-700'
                 : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-850'
             }`}
             title="Reference Library (localhost/library)"
@@ -96,7 +96,7 @@ export default function TopNavbar({
             <BookMarked className="h-3.5 w-3.5" />
             <span>Library</span>
             {totalLibraryItems > 0 && (
-              <span className="text-[10px] font-mono text-zinc-500 bg-zinc-900 px-1 rounded">
+              <span className="text-[10px] font-mono text-zinc-400 bg-zinc-900 border border-zinc-800 px-1 rounded">
                 {totalLibraryItems}
               </span>
             )}

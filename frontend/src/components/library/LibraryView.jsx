@@ -836,10 +836,10 @@ export default function LibraryView({
           <button
             type="button"
             onClick={() => onNavigate?.('home')}
-            className="flex items-center gap-1.5 px-2 py-1 text-zinc-300 hover:text-amber-400 hover:bg-zinc-900 rounded transition-colors cursor-pointer"
+            className="flex items-center gap-1.5 px-2 py-1 text-zinc-300 hover:text-zinc-100 hover:bg-zinc-900 rounded transition-colors cursor-pointer"
             title="ScholarsMate Home"
           >
-            <AppLogo className="h-3.5 w-3.5 text-amber-500" />
+            <AppLogo className="h-3.5 w-3.5 text-zinc-100" />
             <span className="font-bold text-xs tracking-tight text-zinc-100 hidden sm:inline">ScholarsMate</span>
           </button>
           <button
@@ -848,7 +848,7 @@ export default function LibraryView({
             className="flex items-center gap-1 px-2 py-1 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-900 rounded transition-colors cursor-pointer group"
             title="Return to Your Chats"
           >
-            <MessageSquare className="h-3 w-3 text-zinc-500 group-hover:text-amber-400 transition-colors" />
+            <MessageSquare className="h-3 w-3 text-zinc-500 group-hover:text-zinc-200 transition-colors" />
             <span className="font-medium text-[11px]">Your Chats</span>
           </button>
         </div>
@@ -861,13 +861,13 @@ export default function LibraryView({
             onClick={() => setActiveTabId('library')}
             className={`h-[30px] flex items-center gap-1.5 px-3 rounded-t-md text-[11px] font-medium transition-all cursor-pointer shrink-0 border-t-2 ${
               activeTabId === 'library'
-                ? 'bg-zinc-900 text-amber-300 border-t-amber-400 border-x border-zinc-800 shadow-sm'
+                ? 'bg-zinc-850 text-zinc-100 border-t-zinc-300 border-x border-zinc-750 shadow-sm'
                 : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/40 border-t-transparent'
             }`}
           >
-            <BookMarked className="h-3.5 w-3.5 text-amber-400" />
+            <BookMarked className="h-3.5 w-3.5 text-zinc-300" />
             <span>My Library</span>
-            <span className="text-[10px] font-mono text-zinc-500 bg-zinc-950 px-1 py-0.2 rounded">
+            <span className="text-[10px] font-mono text-zinc-400 bg-zinc-950 px-1 py-0.2 rounded">
               {items.length}
             </span>
           </button>
@@ -881,12 +881,12 @@ export default function LibraryView({
                 onClick={() => setActiveTabId(tab.id)}
                 className={`h-[30px] flex items-center gap-1.5 px-2.5 rounded-t-md text-[11px] transition-all cursor-pointer shrink-0 border-t-2 group ${
                   isActive
-                    ? 'bg-zinc-900 text-zinc-100 font-medium border-t-amber-400 border-x border-zinc-800 shadow-sm'
+                    ? 'bg-zinc-850 text-zinc-100 font-medium border-t-zinc-300 border-x border-zinc-750 shadow-sm'
                     : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/40 border-t-transparent'
                 }`}
                 title={tab.title}
               >
-                <FileText className="h-3 w-3 text-red-400 shrink-0" />
+                <FileText className="h-3 w-3 text-zinc-400 shrink-0" />
                 <span className="max-w-[130px] sm:max-w-[180px] truncate">{tab.title}</span>
                 <button
                   type="button"
@@ -2059,7 +2059,7 @@ export default function LibraryView({
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="h-1 w-1 rounded-full bg-zinc-600 shrink-0" />
-                  <span>Import references via arXiv / DOI with wand <Wand2 className="h-2.5 w-2.5 inline text-amber-400" /></span>
+                  <span>Import references via arXiv / DOI with wand <Wand2 className="h-2.5 w-2.5 inline text-zinc-300" /></span>
                 </div>
               </div>
             </div>
@@ -2107,7 +2107,7 @@ export default function LibraryView({
           <div className="bg-zinc-900 border border-zinc-800 rounded-lg max-w-md w-full p-4 shadow-2xl space-y-3">
             <div className="flex items-center justify-between border-b border-zinc-800 pb-2.5">
               <div className="flex items-center gap-2 text-zinc-100 font-semibold text-xs">
-                <Wand2 className="h-4 w-4 text-amber-400" />
+                <Wand2 className="h-4 w-4 text-zinc-300" />
                 <span>Add Item by Academic Identifier</span>
               </div>
               <button
