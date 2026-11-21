@@ -7,7 +7,8 @@ import {
   PanelLeftOpen, 
   Search, 
   Settings, 
-  Palette 
+  Sun,
+  Moon
 } from 'lucide-react';
 import AppLogo from '../common/AppLogo';
 
@@ -18,12 +19,15 @@ export default function TopNavbar({
   onOpenAuth,
   onOpenSettings,
   onOpenThemeModal,
+  currentTheme = 'original',
+  onToggleTheme,
   onOpenSearchModal,
   currentRoute = 'chat',
   onNavigate,
   totalLibraryItems = 0,
 }) {
   const isAuthenticated = currentUser && !currentUser.is_guest;
+  const isLight = currentTheme === 'clarity';
 
   return (
     <header className="h-10 border-b border-zinc-800 bg-zinc-900/90 px-3 flex items-center justify-between gap-3 shrink-0 select-none text-xs z-30 font-sans">
@@ -119,16 +123,20 @@ export default function TopNavbar({
 
       {/* Right: Actions & User Status */}
       <div className="flex items-center gap-1.5 shrink-0">
-        {onOpenThemeModal && (
-          <button
-            type="button"
-            onClick={onOpenThemeModal}
-            className="p-1.5 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded transition-colors cursor-pointer"
-            title="Theme Settings"
-          >
-            <Palette className="h-3.5 w-3.5" />
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={onToggleTheme || onOpenThemeModal}
+          className="p-1.5 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded transition-colors cursor-pointer"
+          title={isLight ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
+          aria-label="Toggle Theme"
+        >
+          {isLight ? (
+            <Moon className="h-3.5 w-3.5" />
+          ) : (
+            <Sun className="h-3.5 w-3.5" />
+          )}
+        </button>
+
         {onOpenSettings && (
           <button
             type="button"

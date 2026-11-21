@@ -8,124 +8,69 @@
   --font-raleway: 'Raleway', sans-serif;
 
   /* Dynamic Semantic Color Tokens linked to CSS Variables */
-  --color-zinc-950: var(--theme-canvas, #292c33);
-  --color-zinc-900: var(--theme-surface, #111216);
-  --color-zinc-800: var(--theme-elevated, #1b1e25);
-  --color-zinc-700: var(--theme-border-hover, #393e4a);
-  --color-zinc-600: var(--theme-subtle, #4d5464);
-  --color-zinc-500: var(--theme-muted, #727a8c);
-  --color-zinc-400: var(--theme-text-muted, #9aa3b2);
-  --color-zinc-300: var(--theme-text-body, #c5cdd8);
-  --color-zinc-200: var(--theme-text-light, #e9ecf2);
+  --color-zinc-950: var(--theme-canvas, #101114);
+  --color-zinc-900: var(--theme-surface, #18191d);
+  --color-zinc-800: var(--theme-elevated, #22242a);
+  --color-zinc-700: var(--theme-border-hover, #343741);
+  --color-zinc-600: var(--theme-subtle, #4b5262);
+  --color-zinc-500: var(--theme-muted, #71717a);
+  --color-zinc-400: var(--theme-text-muted, #a1a1aa);
+  --color-zinc-300: var(--theme-text-body, #d4d4d8);
+  --color-zinc-200: var(--theme-text-light, #e4e4e7);
   --color-zinc-100: var(--theme-text-bold, #ffffff);
 
-  --color-amber-100: var(--theme-accent-light, #fef3c7);
-  --color-amber-200: var(--theme-accent-light, #fde68a);
-  --color-amber-300: var(--theme-accent-light, #fed7d7);
-  --color-amber-400: var(--theme-accent-hover, #ea8282);
-  --color-amber-500: var(--theme-accent-primary, #e06c67);
-  --color-amber-600: var(--theme-accent-dark, #c44e49);
+  --color-amber-100: var(--theme-accent-light, #f4f4f5);
+  --color-amber-200: var(--theme-accent-light, #f4f4f5);
+  --color-amber-300: var(--theme-accent-light, #f4f4f5);
+  --color-amber-400: var(--theme-accent-hover, #ffffff);
+  --color-amber-500: var(--theme-accent-primary, #f4f4f5);
+  --color-amber-600: var(--theme-accent-dark, #e4e4e7);
 }
 
 /* =============================================================================
-   THEME DEFINITIONS (Original + Nexus + Parchment + Clarity)
+   THEME DEFINITIONS (Dark Mode + Light Mode)
    ============================================================================= */
 
-/* 1. Original (Signature Odysseus Slate & Coral Terracotta - Dark Mode) */
+/* 1. Dark Mode (Minimalist Charcoal / Black Canvas - Zero Red Tones) */
 :root,
 [data-theme="original"],
+[data-theme="dark"],
 [data-theme="odysseus"],
 [data-theme="midnight"],
 [data-theme="blaze"],
-[data-theme="crimson"] {
-  --theme-canvas: #292c33;
-  --theme-surface: #111216;
-  --theme-elevated: #1b1e25;
-  --theme-border-hover: #393e4a;
-  --theme-subtle: #4d5464;
-  --theme-muted: #727a8c;
-  --theme-text-muted: #9aa3b2;
-  --theme-text-body: #c5cdd8;
-  --theme-text-light: #e9ecf2;
-  --theme-text-bold: #ffffff;
-
-  --theme-accent-light: #fed7d7;
-  --theme-accent-hover: #ea8282;
-  --theme-accent-primary: #e06c67;
-  --theme-accent-dark: #c44e49;
-}
-
-/* 2. Nexus (Minimalist Carbon Charcoal & OpenAI-Inspired Mint Teal - Dark Mode) */
+[data-theme="crimson"],
 [data-theme="nexus"],
 [data-theme="gpt"],
 [data-theme="chatgpt"],
 [data-theme="emerald"],
-[data-theme="forest"],
-[data-theme="terminal"] {
-  --theme-canvas: #212121;
-  --theme-surface: #171717;
-  --theme-elevated: #2f2f2f;
-  --theme-border-hover: #424242;
-  --theme-subtle: #565656;
-  --theme-muted: #8e8e8e;
-  --theme-text-muted: #b4b4b4;
-  --theme-text-body: #cdcdcd;
-  --theme-text-light: #ececec;
-  --theme-text-bold: #ffffff;
-
-  --theme-accent-light: #6ee7b7;
-  --theme-accent-hover: #34d399;
-  --theme-accent-primary: #10a37f;
-  --theme-accent-dark: #059669;
-}
-
-/* 3. Ocean (Nordic Slate Abyss & Electric Sky Azure - Dark Mode) */
 [data-theme="ocean"],
 [data-theme="nordic"] {
-  --theme-canvas: #1c232d;
-  --theme-surface: #10141a;
-  --theme-elevated: #242d3a;
-  --theme-border-hover: #354254;
-  --theme-subtle: #4a5c74;
-  --theme-muted: #6c7f99;
-  --theme-text-muted: #94a5bd;
-  --theme-text-body: #c2cfdf;
-  --theme-text-light: #e6edf5;
+  --theme-canvas: #101114;
+  --theme-surface: #18191d;
+  --theme-elevated: #22242a;
+  --theme-border-hover: #343741;
+  --theme-subtle: #4b5262;
+  --theme-muted: #71717a;
+  --theme-text-muted: #a1a1aa;
+  --theme-text-body: #d4d4d8;
+  --theme-text-light: #e4e4e7;
   --theme-text-bold: #ffffff;
 
-  --theme-accent-light: #bae6fd;
-  --theme-accent-hover: #38bdf8;
-  --theme-accent-primary: #0ea5e9;
-  --theme-accent-dark: #0284c7;
+  --theme-accent-light: #f4f4f5;
+  --theme-accent-hover: #ffffff;
+  --theme-accent-primary: #f4f4f5;
+  --theme-accent-dark: #e4e4e7;
 }
 
-/* 4. Parchment (Soothing Archival Manuscript Paper & Tuscan Terracotta - Light Mode) */
+/* 2. Light Mode (Clean Daylight Studio Porcelain - Neutral Charcoal Ink, Zero Royal Blue) */
+[data-theme="clarity"],
+[data-theme="light"],
 [data-theme="parchment"],
 [data-theme="paper"],
 [data-theme="copper"],
 [data-theme="solar"],
 [data-theme="origins"],
-[data-theme="claude"] {
-  --theme-canvas: #fbf8f2;
-  --theme-surface: #f1ede4;
-  --theme-elevated: #e5ded2;
-  --theme-border-hover: #d5cbba;
-  --theme-subtle: #82725c;
-  --theme-muted: #6b5c47;
-  --theme-text-muted: #544634;
-  --theme-text-body: #33291d;
-  --theme-text-light: #201912;
-  --theme-text-bold: #0e0a07;
-
-  --theme-accent-light: #5a2107;
-  --theme-accent-hover: #b44f1e;
-  --theme-accent-primary: #943d14;
-  --theme-accent-dark: #6e2a0b;
-}
-
-/* 5. Clarity (Clean Daylight Studio Porcelain & Deep Sapphire Slate - Light Mode) */
-[data-theme="clarity"],
-[data-theme="light"],
+[data-theme="claude"],
 [data-theme="cute"],
 [data-theme="celestial"],
 [data-theme="gemini"],
@@ -136,21 +81,21 @@
 [data-theme="discord"],
 [data-theme="retrowave"],
 [data-theme="ume"] {
-  --theme-canvas: #f8f9fb;
-  --theme-surface: #eef1f5;
-  --theme-elevated: #e0e5ed;
-  --theme-border-hover: #ccd4e0;
-  --theme-subtle: #5a6e87;
-  --theme-muted: #475a73;
-  --theme-text-muted: #33445c;
+  --theme-canvas: #ffffff;
+  --theme-surface: #f8f9fa;
+  --theme-elevated: #f1f3f5;
+  --theme-border-hover: #e2e8f0;
+  --theme-subtle: #94a3b8;
+  --theme-muted: #64748b;
+  --theme-text-muted: #475569;
   --theme-text-body: #1e293b;
   --theme-text-light: #0f172a;
   --theme-text-bold: #020617;
 
-  --theme-accent-light: #172554;
-  --theme-accent-hover: #2563eb;
-  --theme-accent-primary: #1d4ed8;
-  --theme-accent-dark: #1e3a8a;
+  --theme-accent-light: #09090b;
+  --theme-accent-hover: #27272a;
+  --theme-accent-primary: #18181b;
+  --theme-accent-dark: #000000;
 }
 
 /* =============================================================================
@@ -159,54 +104,42 @@
 
 ::selection {
   background-color: var(--color-amber-500);
-  color: #ffffff;
-}
-
-[data-theme="parchment"] ::selection {
-  background-color: #d8cebf;
-  color: #120e0a;
+  color: #101114;
 }
 
 [data-theme="clarity"] ::selection {
-  background-color: #cdd9e8;
-  color: #020617;
+  background-color: #e2e8f0;
+  color: #09090b;
 }
 
 /* Active chat, badge backgrounds & text contrast protection in light mode */
-[data-theme="parchment"] .bg-amber-400\/10,
 [data-theme="clarity"] .bg-amber-400\/10,
-[data-theme="parchment"] .bg-amber-500\/10,
 [data-theme="clarity"] .bg-amber-500\/10,
-[data-theme="parchment"] .bg-amber-500\/15,
 [data-theme="clarity"] .bg-amber-500\/15,
-[data-theme="parchment"] .bg-amber-500\/20,
 [data-theme="clarity"] .bg-amber-500\/20 {
   background-color: rgba(0, 0, 0, 0.05) !important;
   color: var(--theme-accent-light) !important;
-  border-color: rgba(0, 0, 0, 0.12) !important;
+  border-color: rgba(0, 0, 0, 0.1) !important;
 }
 
-[data-theme="parchment"] .text-amber-100,
 [data-theme="clarity"] .text-amber-100,
-[data-theme="parchment"] .text-amber-200,
 [data-theme="clarity"] .text-amber-200,
-[data-theme="parchment"] .text-amber-300,
-[data-theme="clarity"] .text-amber-300 {
-  color: var(--theme-accent-light) !important;
+[data-theme="clarity"] .text-amber-300,
+[data-theme="clarity"] .text-amber-400,
+[data-theme="clarity"] .text-amber-500 {
+  color: #1e293b !important;
   font-weight: 500;
 }
 
-[data-theme="parchment"] .hover\:text-amber-100:hover,
 [data-theme="clarity"] .hover\:text-amber-100:hover,
-[data-theme="parchment"] .hover\:text-amber-200:hover,
 [data-theme="clarity"] .hover\:text-amber-200:hover,
-[data-theme="parchment"] .hover\:text-amber-300:hover,
-[data-theme="clarity"] .hover\:text-amber-300:hover {
-  color: var(--theme-accent-hover) !important;
+[data-theme="clarity"] .hover\:text-amber-300:hover,
+[data-theme="clarity"] .hover\:text-amber-400:hover,
+[data-theme="clarity"] .hover\:text-amber-500:hover {
+  color: #0f172a !important;
 }
 
 /* Guard against hover:text-white vanishing in light mode */
-[data-theme="parchment"] .hover\:text-white:hover,
 [data-theme="clarity"] .hover\:text-white:hover {
   color: var(--theme-text-bold) !important;
 }
@@ -251,7 +184,7 @@ body,
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-amber-500);
+  background: var(--color-zinc-700);
 }
 
 /* =============================================================================
@@ -475,10 +408,10 @@ body,
 .word-page-break .page-gap-bar,
 .page-break .page-gap-bar {
   height: 36px;
-  background-color: var(--theme-canvas, #131417) !important;
+  background-color: var(--theme-canvas, #101114) !important;
   box-shadow: inset 0 8px 12px -4px rgba(0, 0, 0, 0.15), inset 0 -8px 12px -4px rgba(0, 0, 0, 0.15);
-  border-top: 1px solid var(--theme-elevated, #24262b);
-  border-bottom: 1px solid var(--theme-elevated, #24262b);
+  border-top: 1px solid var(--theme-elevated, #22242a);
+  border-bottom: 1px solid var(--theme-elevated, #22242a);
   position: relative;
 }
 
@@ -545,5 +478,3 @@ body,
 .animate-float-orb {
   animation: floatOrb 3.5s ease-in-out infinite;
 }
-
-

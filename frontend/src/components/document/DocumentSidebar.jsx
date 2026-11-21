@@ -5,7 +5,8 @@ import {
   Trash2, 
   BookOpen, 
   PenTool, 
-  Palette, 
+  Sun,
+  Moon, 
   PanelLeftClose, 
   PanelLeftOpen, 
   SquarePen, 
@@ -57,6 +58,8 @@ export default function DocumentSidebar({
   onOpenSettings,
   onOpenProfileSettings,
   onOpenThemeModal,
+  currentTheme = 'original',
+  onToggleTheme,
   onOpenSearchModal,
   isCollapsed = false,
   onToggleCollapse,
@@ -470,16 +473,21 @@ export default function DocumentSidebar({
                 </button>
               )}
 
-              {/* Theme */}
+              {/* Theme Toggle (Dark / Light) */}
               <button
                 type="button"
-                onClick={onOpenThemeModal}
+                onClick={onToggleTheme || onOpenThemeModal}
                 className="relative group p-2.5 rounded-xl text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/70 transition-all cursor-pointer flex items-center justify-center"
-                aria-label="Theme"
+                aria-label="Toggle Theme"
+                title={currentTheme === 'clarity' ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
               >
-                <Palette className="h-4.5 w-4.5" />
+                {currentTheme === 'clarity' ? (
+                  <Moon className="h-4.5 w-4.5" />
+                ) : (
+                  <Sun className="h-4.5 w-4.5" />
+                )}
                 <span className="pointer-events-none absolute left-full top-1/2 -translate-y-1/2 ml-3 px-2.5 py-1.5 bg-zinc-900 border border-zinc-700/80 text-zinc-100 text-[12.5px] font-medium rounded-lg shadow-2xl whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50">
-                  Theme
+                  {currentTheme === 'clarity' ? 'Dark Mode' : 'Light Mode'}
                 </span>
               </button>
 
@@ -622,14 +630,19 @@ export default function DocumentSidebar({
               </button>
             )}
 
-            {/* Theme Selector Navigation Item */}
+            {/* Theme Toggle Item (Dark / Light) */}
             <button
               type="button"
-              onClick={onOpenThemeModal}
+              onClick={onToggleTheme || onOpenThemeModal}
               className="w-full flex items-center gap-2 px-2.5 py-1 rounded-md text-xs transition-colors cursor-pointer text-left text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/40"
+              title={currentTheme === 'clarity' ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
             >
-              <Palette className="h-3 w-3 text-zinc-500 shrink-0" />
-              <span>Theme</span>
+              {currentTheme === 'clarity' ? (
+                <Moon className="h-3 w-3 text-zinc-500 shrink-0" />
+              ) : (
+                <Sun className="h-3 w-3 text-zinc-500 shrink-0" />
+              )}
+              <span>{currentTheme === 'clarity' ? 'Dark Mode' : 'Light Mode'}</span>
             </button>
           </div>
 

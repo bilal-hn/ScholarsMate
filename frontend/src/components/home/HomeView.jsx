@@ -7,7 +7,8 @@ import {
   Sparkles, 
   Search, 
   Settings, 
-  Palette, 
+  Sun,
+  Moon, 
   Folder, 
   FileText, 
   ArrowRight, 
@@ -27,12 +28,15 @@ export default function HomeView({
   onOpenAuth,
   onOpenSettings,
   onOpenThemeModal,
+  currentTheme = 'original',
+  onToggleTheme,
   onOpenSearchModal,
   onSelectWorkspaceChat,
   onSelectStandaloneChat,
   totalLibraryItems = 0,
 }) {
   const isAuthenticated = currentUser && !currentUser.is_guest;
+  const isLight = currentTheme === 'clarity';
 
   // Calculate high-level workspace stats
   const totalChats = workspaces.reduce((acc, ws) => acc + (ws.chats?.length || 0), 0) + standaloneChats.length;
@@ -71,11 +75,16 @@ export default function HomeView({
         <div className="flex items-center gap-1.5 shrink-0">
           <button
             type="button"
-            onClick={onOpenThemeModal}
+            onClick={onToggleTheme || onOpenThemeModal}
             className="p-1.5 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded transition-colors cursor-pointer"
-            title="Theme Settings"
+            title={isLight ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
+            aria-label="Toggle Theme"
           >
-            <Palette className="h-3.5 w-3.5" />
+            {isLight ? (
+              <Moon className="h-3.5 w-3.5" />
+            ) : (
+              <Sun className="h-3.5 w-3.5" />
+            )}
           </button>
           <button
             type="button"

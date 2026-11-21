@@ -22,6 +22,7 @@ from backend.rag.runtime import (
     pack_chunks,
     parse_json_object,
     pick_best_model_from_keys,
+    sanitize_messages_for_llm,
     RAG_MAX_TOKENS,
 )
 from backend.rag.prompt_templates import MAIN_RAG_PROMPT
@@ -75,11 +76,12 @@ def _execute_review_call(
     if system_prompt:
         messages.append({"role": "system", "content": system_prompt})
     messages.append({"role": "user", "content": prompt})
+    sanitized_messages = sanitize_messages_for_llm(messages)
 
     is_bedrock = normalized_model.startswith("bedrock/")
     call_kwargs = {
         "model": normalized_model,
-        "messages": messages,
+        "messages": sanitized_messages,
         "api_key": active_key if not is_bedrock else None,
         "max_tokens": max_tokens,
         "drop_params": True,
@@ -95,13 +97,15 @@ def _execute_review_call(
     except Exception as e:
         print(f"[Review Stage Warning] Call failed on '{normalized_model}': {e}")
         fallback_candidates = [
-            "bedrock/us.meta.llama3-3-70b-instruct-v1:0",
+            "bedrock/us.deepseek.r1-v1:0",
             "bedrock/us.amazon.nova-lite-v1:0",
+            "bedrock/us.meta.llama3-3-70b-instruct-v1:0",
+            "groq/llama-3.3-70b-versatile",
+            "gemini/gemini-2.5-flash",
             "openai/gpt-4o-mini",
             "openai/gpt-4o",
             "gemini/gemini-3.7-flash",
             "gemini/gemini-3.6-flash",
-            "groq/llama-3.3-70b-versatile"
         ]
         chain = build_fallback_chain(normalized_model, fallback_candidates, custom_keys)
         for fb_model in chain[1:]:

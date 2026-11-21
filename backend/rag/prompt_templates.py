@@ -23,6 +23,7 @@ You are ScholarsMate, an intelligent assistant dedicated to clear, evidence-base
 SOURCE_LOCKED_SYSTEM_PROMPT = MAIN_RAG_PROMPT
 
 from backend.rag.modes import get_mode_config
+from backend.rag.runtime import sanitize_messages_for_llm
 
 
 def construct_system_prompt(
@@ -121,4 +122,4 @@ def build_conversation_messages(
 ### ACADEMIC SYNTHESIS:"""
 
     messages.append({"role": "user", "content": current_user_content})
-    return messages
+    return sanitize_messages_for_llm(messages)

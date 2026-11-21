@@ -13,7 +13,7 @@ export const BRAND_CONFIG = {
   tagline: "Source-Locked Research Intelligence",
   logo: {
     icon: "Sailboat",
-    primaryColor: "#e06c67",
+    primaryColor: "#f4f4f5",
   },
 };
 
@@ -21,101 +21,49 @@ export const THEMES = [
   {
     id: "original",
     shortId: "original",
-    name: "Original",
+    name: "Dark",
     mode: "dark",
-    canvasPreview: "#292c33",
-    surfacePreview: "#111216",
-    accentColor: "#e06c67",
-    accentHover: "#ea8282",
-    description: "Signature Odysseus slate charcoal with coral terracotta accents.",
-  },
-  {
-    id: "nexus",
-    shortId: "nexus",
-    name: "Nexus",
-    mode: "dark",
-    canvasPreview: "#212121",
-    surfacePreview: "#171717",
-    accentColor: "#10a37f",
-    accentHover: "#34d399",
-    description: "Deep carbon charcoal with OpenAI-inspired emerald teal.",
-  },
-  {
-    id: "ocean",
-    shortId: "ocean",
-    name: "Ocean",
-    mode: "dark",
-    canvasPreview: "#1c232d",
-    surfacePreview: "#10141a",
-    accentColor: "#0ea5e9",
-    accentHover: "#38bdf8",
-    description: "Deep Nordic slate navy with electric sky azure accents.",
-  },
-  {
-    id: "parchment",
-    shortId: "parchment",
-    name: "Parchment",
-    mode: "light",
-    canvasPreview: "#fbf8f2",
-    surfacePreview: "#f1ede4",
-    accentColor: "#943d14",
-    accentHover: "#b44f1e",
-    description: "Soothing archival manuscript paper with warm book ink and terracotta.",
+    canvasPreview: "#101114",
+    surfacePreview: "#18191d",
+    accentColor: "#f4f4f5",
+    accentHover: "#ffffff",
+    description: "Sleek, distraction-free minimalist dark mode with zero red tones.",
   },
   {
     id: "clarity",
     shortId: "clarity",
-    name: "Clarity",
+    name: "Light",
     mode: "light",
-    canvasPreview: "#f8f9fb",
-    surfacePreview: "#eef1f5",
-    accentColor: "#1d4ed8",
-    accentHover: "#2563eb",
-    description: "Clean daylight studio porcelain with slate graphite and royal sapphire.",
+    canvasPreview: "#ffffff",
+    surfacePreview: "#f8f9fa",
+    accentColor: "#18181b",
+    accentHover: "#27272a",
+    description: "Clean daylight studio porcelain with neutral charcoal ink.",
   },
 ];
 
 export const getSavedTheme = () => {
   try {
     const saved = localStorage.getItem("scholarsmate_theme");
-    if (saved === 'odysseus' || saved === 'midnight' || saved === 'blaze' || saved === 'crimson') return 'original';
-    if (saved === 'gpt' || saved === 'chatgpt' || saved === 'emerald' || saved === 'forest' || saved === 'terminal') return 'nexus';
-    if (saved === 'ocean' || saved === 'nordic') return 'ocean';
-    if (saved === 'claude' || saved === 'copper' || saved === 'origins' || saved === 'solar' || saved === 'paper') return 'parchment';
-    if (saved === 'light' || saved === 'cute' || saved === 'celestial' || saved === 'gemini' || saved === 'aurora') return 'clarity';
-    return THEMES.some((t) => t.id === saved) ? saved : "original";
+    if (saved === 'clarity' || saved === 'light' || saved === 'parchment' || saved === 'paper') {
+      return 'clarity';
+    }
+    return 'original';
   } catch {
-    return "original";
+    return 'original';
   }
 };
 
 export const saveTheme = (themeId) => {
   try {
-    localStorage.setItem("scholarsmate_theme", themeId);
-    document.documentElement.setAttribute("data-theme", themeId);
+    const canonical = themeId === 'clarity' ? 'clarity' : 'original';
+    localStorage.setItem("scholarsmate_theme", canonical);
+    document.documentElement.setAttribute("data-theme", canonical);
   } catch (e) {
     console.error("Failed to save theme:", e);
   }
 };
 
-export const THEME_COLORS = {
-  bg: {
-    primary: "bg-zinc-950",
-    secondary: "bg-zinc-900",
-    sidebar: "bg-zinc-900",
-    hover: "hover:bg-zinc-800/70",
-    accent: "bg-amber-500",
-    accentHover: "hover:bg-amber-400",
-  },
-  border: {
-    primary: "border-zinc-800",
-    subtle: "border-zinc-800/60",
-    accent: "border-amber-500/40",
-  },
-  text: {
-    primary: "text-zinc-100",
-    secondary: "text-zinc-400",
-    muted: "text-zinc-500",
-    accent: "text-amber-400",
-  },
+export const toggleTheme = (currentTheme) => {
+  return currentTheme === 'clarity' ? 'original' : 'clarity';
 };

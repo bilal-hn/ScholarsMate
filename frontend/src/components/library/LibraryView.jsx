@@ -793,12 +793,12 @@ export default function LibraryView({
   }, [availableTags, tagFilterQuery]);
 
   // Determine item icon based on type
-  const getItemIcon = (item, isSelected) => {
+  const getItemIcon = (item, isInspecting) => {
     if (item.arxiv_id || item.item_type === 'preprint') {
       return (
         <FileCode
           className={`h-3.5 w-3.5 shrink-0 ${
-            isSelected ? 'text-white' : 'text-rose-500'
+            isInspecting ? 'text-zinc-100' : 'text-zinc-400 group-hover:text-zinc-200'
           }`}
           title="Preprint (arXiv)"
         />
@@ -808,7 +808,7 @@ export default function LibraryView({
       return (
         <Book
           className={`h-3.5 w-3.5 shrink-0 ${
-            isSelected ? 'text-white' : 'text-purple-500'
+            isInspecting ? 'text-zinc-100' : 'text-zinc-400 group-hover:text-zinc-200'
           }`}
           title="Book / Chapter"
         />
@@ -818,7 +818,7 @@ export default function LibraryView({
     return (
       <FileText
         className={`h-3.5 w-3.5 shrink-0 ${
-          isSelected ? 'text-white' : 'text-blue-500'
+          isInspecting ? 'text-zinc-100' : 'text-zinc-400 group-hover:text-zinc-200'
         }`}
         title="Journal Article"
       />
@@ -974,7 +974,7 @@ export default function LibraryView({
                   value={collectionFilterQuery}
                   onChange={(e) => setCollectionFilterQuery(e.target.value)}
                   placeholder="Filter collections..."
-                  className="w-full bg-zinc-900 border border-zinc-800 rounded pl-6 pr-5 py-0.5 text-[10.5px] text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-blue-500"
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded pl-6 pr-5 py-0.5 text-[10.5px] text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-zinc-700"
                 />
                 {collectionFilterQuery && (
                   <button
@@ -1006,7 +1006,7 @@ export default function LibraryView({
                 }}
                 placeholder="New collection name..."
                 disabled={isCreatingCollection}
-                className="flex-1 bg-zinc-900 border border-zinc-750 rounded px-1.5 py-0.5 text-[11px] text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-blue-500"
+                className="flex-1 bg-zinc-900 border border-zinc-750 rounded px-1.5 py-0.5 text-[11px] text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-zinc-700"
               />
               <button
                 type="submit"
@@ -1042,13 +1042,13 @@ export default function LibraryView({
                 }}
                 className={`w-full flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-colors cursor-pointer ${
                   !activeTag && !activeWorkspaceFilter
-                    ? 'bg-blue-600 text-white font-medium'
+                    ? 'bg-zinc-800 text-zinc-100 font-medium'
                     : 'text-zinc-300 hover:bg-zinc-800/80 hover:text-zinc-100'
                 }`}
               >
-                <Folder className={`h-3.5 w-3.5 shrink-0 ${!activeTag && !activeWorkspaceFilter ? 'text-white fill-white/20' : 'text-blue-500 fill-blue-500/20'}`} />
+                <Folder className={`h-3.5 w-3.5 shrink-0 ${!activeTag && !activeWorkspaceFilter ? 'text-zinc-100' : 'text-zinc-400'}`} />
                 <span className="truncate flex-1 text-left">My Library</span>
-                <span className={`text-[10px] font-mono ${!activeTag && !activeWorkspaceFilter ? 'text-blue-100' : 'text-zinc-500'}`}>
+                <span className={`text-[10px] font-mono ${!activeTag && !activeWorkspaceFilter ? 'text-zinc-300' : 'text-zinc-500'}`}>
                   {items.length}
                 </span>
               </button>
@@ -1071,7 +1071,7 @@ export default function LibraryView({
                       }}
                       className={`w-full flex items-center gap-1 px-1.5 py-1 rounded text-[11.5px] transition-colors cursor-pointer group ${
                         isSelected
-                          ? 'bg-blue-600 text-white font-medium'
+                          ? 'bg-zinc-800 text-zinc-100 font-medium'
                           : 'text-zinc-300 hover:bg-zinc-800/70 hover:text-zinc-100'
                       }`}
                     >
@@ -1080,7 +1080,7 @@ export default function LibraryView({
                         type="button"
                         onClick={(e) => toggleWorkspaceExpansion(ws.id, e)}
                         className={`p-0.5 rounded hover:bg-zinc-800/60 cursor-pointer ${
-                          isSelected ? 'text-white' : 'text-zinc-400 hover:text-zinc-200'
+                          isSelected ? 'text-zinc-100' : 'text-zinc-400 hover:text-zinc-200'
                         }`}
                         title={isWsExpanded ? 'Collapse papers' : 'Expand papers'}
                       >
@@ -1091,9 +1091,9 @@ export default function LibraryView({
                         )}
                       </button>
 
-                      <Folder className={`h-3.5 w-3.5 shrink-0 ${isSelected ? 'text-white fill-white/20' : 'text-blue-400 fill-blue-500/20'}`} />
+                      <Folder className={`h-3.5 w-3.5 shrink-0 ${isSelected ? 'text-zinc-100' : 'text-zinc-400'}`} />
                       <span className="truncate flex-1 text-left">{ws.name}</span>
-                      <span className={`text-[10px] font-mono ${isSelected ? 'text-blue-100' : 'text-zinc-500'}`}>
+                      <span className={`text-[10px] font-mono ${isSelected ? 'text-zinc-300' : 'text-zinc-500'}`}>
                         {wsPapers.length}
                       </span>
                     </div>
@@ -1120,16 +1120,12 @@ export default function LibraryView({
                                 }}
                                 className={`w-full flex items-center gap-1.5 px-2 py-1 rounded text-[11px] transition-colors cursor-pointer text-left truncate group ${
                                   isPaperSelected
-                                    ? 'bg-blue-600/90 text-white font-medium'
+                                    ? 'bg-zinc-800 text-zinc-100 font-medium'
                                     : 'text-zinc-400 hover:bg-zinc-800/70 hover:text-zinc-200'
                                 }`}
                                 title={`Click to inspect, double-click to read: ${paper.title || paper.doc_name}`}
                               >
-                                {paper.has_pdf ? (
-                                  <FileText className={`h-3 w-3 shrink-0 ${isPaperSelected ? 'text-white' : 'text-red-400'}`} />
-                                ) : (
-                                  <FileText className={`h-3 w-3 shrink-0 ${isPaperSelected ? 'text-white' : 'text-zinc-500'}`} />
-                                )}
+                                <FileText className={`h-3 w-3 shrink-0 ${isPaperSelected ? 'text-zinc-100' : 'text-zinc-400'}`} />
                                 <span className="truncate flex-1">{paper.title || paper.doc_name}</span>
                               </button>
                             );
@@ -1158,19 +1154,19 @@ export default function LibraryView({
                 }}
                 className={`w-full flex items-center gap-1.5 px-2 py-1 rounded text-[11.5px] transition-colors cursor-pointer ${
                   activeWorkspaceFilter === '__duplicates__'
-                    ? 'bg-blue-600 text-white font-medium'
+                    ? 'bg-zinc-800 text-zinc-100 font-medium'
                     : 'text-zinc-400 hover:bg-zinc-800/70 hover:text-zinc-200'
                 }`}
                 title="Scan and merge duplicate bibliographic entries"
               >
-                <Copy className={`h-3.5 w-3.5 shrink-0 ${activeWorkspaceFilter === '__duplicates__' ? 'text-white' : 'text-zinc-400'}`} />
+                <Copy className={`h-3.5 w-3.5 shrink-0 ${activeWorkspaceFilter === '__duplicates__' ? 'text-zinc-100' : 'text-zinc-400'}`} />
                 <span className="truncate flex-1 text-left">Duplicate Items</span>
                 {duplicateData.total_groups > 0 && (
                   <span
                     className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full font-semibold ${
                       activeWorkspaceFilter === '__duplicates__'
-                        ? 'bg-blue-800 text-white'
-                        : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                        ? 'bg-zinc-700 text-zinc-200'
+                        : 'bg-zinc-800 text-zinc-300 border border-zinc-700'
                     }`}
                   >
                     {duplicateData.total_groups}
@@ -1189,14 +1185,14 @@ export default function LibraryView({
                 }}
                 className={`w-full flex items-center gap-1.5 px-2 py-1 rounded text-[11.5px] transition-colors cursor-pointer ${
                   activeWorkspaceFilter === '__unfiled__'
-                    ? 'bg-blue-600 text-white font-medium'
+                    ? 'bg-zinc-800 text-zinc-100 font-medium'
                     : 'text-zinc-400 hover:bg-zinc-800/70 hover:text-zinc-200'
                 }`}
                 title="Items not assigned to any collection"
               >
                 <Inbox className="h-3.5 w-3.5 shrink-0 text-zinc-500" />
                 <span className="truncate flex-1 text-left">Unfiled Items</span>
-                <span className={`text-[10px] font-mono ${activeWorkspaceFilter === '__unfiled__' ? 'text-blue-100' : 'text-zinc-500'}`}>
+                <span className={`text-[10px] font-mono ${activeWorkspaceFilter === '__unfiled__' ? 'text-zinc-300' : 'text-zinc-500'}`}>
                   {items.filter((i) => !i.workspaces || i.workspaces.length === 0).length}
                 </span>
               </button>
@@ -1213,7 +1209,7 @@ export default function LibraryView({
                 value={tagFilterQuery}
                 onChange={(e) => setTagFilterQuery(e.target.value)}
                 placeholder="Filter Tags..."
-                className="w-full bg-zinc-900 border border-zinc-800 rounded pl-6 pr-2 py-0.5 text-[10.5px] text-zinc-300 placeholder-zinc-500 focus:outline-none focus:border-blue-500"
+                className="w-full bg-zinc-900 border border-zinc-800 rounded pl-6 pr-2 py-0.5 text-[10.5px] text-zinc-300 placeholder-zinc-500 focus:outline-none focus:border-zinc-700"
               />
             </div>
 
@@ -1232,7 +1228,7 @@ export default function LibraryView({
                       }}
                       className={`w-full flex items-center gap-1.5 px-1.5 py-0.5 rounded text-[11px] text-left transition-colors cursor-pointer truncate ${
                         isSelected
-                          ? 'bg-blue-600 text-white font-medium'
+                          ? 'bg-zinc-800 text-zinc-100 font-medium'
                           : 'text-zinc-400 hover:bg-zinc-850 hover:text-zinc-200'
                       }`}
                     >
@@ -1266,71 +1262,71 @@ export default function LibraryView({
                 <button
                   type="button"
                   onClick={() => setIsNewItemMenuOpen(!isNewItemMenuOpen)}
-                  className="flex items-center gap-0.5 p-1.5 bg-zinc-850 hover:bg-zinc-750 text-zinc-300 hover:text-zinc-100 border border-zinc-750 rounded text-xs transition-colors cursor-pointer"
+                  className="flex items-center gap-0.5 p-1.5 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded text-xs transition-colors cursor-pointer"
                   title="New Item (Book, Journal Article, Conference Paper, Upload PDF)"
                 >
-                  <FilePlus className="h-3.5 w-3.5 text-blue-400" />
-                  <ChevronDown className="h-2.5 w-2.5 text-zinc-400" />
+                  <FilePlus className="h-3.5 w-3.5" />
+                  <ChevronDown className="h-2.5 w-2.5 text-zinc-500" />
                 </button>
 
                 {/* New Item Dropdown Menu */}
                 {isNewItemMenuOpen && (
-                  <div className="absolute left-0 top-full mt-1 w-52 bg-zinc-900 border border-zinc-750 rounded-md shadow-2xl py-1 z-50 text-[11.5px] select-none backdrop-blur-sm">
+                  <div className="absolute left-0 top-full mt-1 w-52 bg-zinc-900 border border-zinc-800 rounded-md shadow-2xl py-1 z-50 text-[11.5px] select-none backdrop-blur-sm">
                     <div className="px-2.5 py-1 text-[10px] uppercase font-semibold text-zinc-500 tracking-wider">
                       New Blank Item
                     </div>
                     <button
                       type="button"
                       onClick={() => handleOpenManualModal('book')}
-                      className="w-full flex items-center gap-2 px-3 py-1.5 text-zinc-300 hover:bg-blue-600 hover:text-white transition-colors text-left cursor-pointer"
+                      className="w-full flex items-center gap-2 px-3 py-1.5 text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 transition-colors text-left cursor-pointer"
                     >
-                      <Book className="h-3.5 w-3.5 text-purple-400" />
+                      <Book className="h-3.5 w-3.5 text-zinc-400" />
                       <span>Book</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => handleOpenManualModal('journal_article')}
-                      className="w-full flex items-center gap-2 px-3 py-1.5 text-zinc-300 hover:bg-blue-600 hover:text-white transition-colors text-left cursor-pointer"
+                      className="w-full flex items-center gap-2 px-3 py-1.5 text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 transition-colors text-left cursor-pointer"
                     >
-                      <FileText className="h-3.5 w-3.5 text-blue-400" />
+                      <FileText className="h-3.5 w-3.5 text-zinc-400" />
                       <span>Journal Article</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => handleOpenManualModal('conference_paper')}
-                      className="w-full flex items-center gap-2 px-3 py-1.5 text-zinc-300 hover:bg-blue-600 hover:text-white transition-colors text-left cursor-pointer"
+                      className="w-full flex items-center gap-2 px-3 py-1.5 text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 transition-colors text-left cursor-pointer"
                     >
-                      <Layers className="h-3.5 w-3.5 text-emerald-400" />
+                      <Layers className="h-3.5 w-3.5 text-zinc-400" />
                       <span>Conference Paper</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => handleOpenManualModal('preprint')}
-                      className="w-full flex items-center gap-2 px-3 py-1.5 text-zinc-300 hover:bg-blue-600 hover:text-white transition-colors text-left cursor-pointer"
+                      className="w-full flex items-center gap-2 px-3 py-1.5 text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 transition-colors text-left cursor-pointer"
                     >
-                      <FileCode className="h-3.5 w-3.5 text-rose-400" />
+                      <FileCode className="h-3.5 w-3.5 text-zinc-400" />
                       <span>Preprint / Working Paper</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => handleOpenManualModal('book_chapter')}
-                      className="w-full flex items-center gap-2 px-3 py-1.5 text-zinc-300 hover:bg-blue-600 hover:text-white transition-colors text-left cursor-pointer"
+                      className="w-full flex items-center gap-2 px-3 py-1.5 text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 transition-colors text-left cursor-pointer"
                     >
-                      <Book className="h-3.5 w-3.5 text-amber-400" />
+                      <Book className="h-3.5 w-3.5 text-zinc-400" />
                       <span>Book Section / Chapter</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => handleOpenManualModal('thesis')}
-                      className="w-full flex items-center gap-2 px-3 py-1.5 text-zinc-300 hover:bg-blue-600 hover:text-white transition-colors text-left cursor-pointer"
+                      className="w-full flex items-center gap-2 px-3 py-1.5 text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 transition-colors text-left cursor-pointer"
                     >
-                      <FileText className="h-3.5 w-3.5 text-cyan-400" />
+                      <FileText className="h-3.5 w-3.5 text-zinc-400" />
                       <span>Thesis / Dissertation</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => handleOpenManualModal('report')}
-                      className="w-full flex items-center gap-2 px-3 py-1.5 text-zinc-300 hover:bg-blue-600 hover:text-white transition-colors text-left cursor-pointer"
+                      className="w-full flex items-center gap-2 px-3 py-1.5 text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 transition-colors text-left cursor-pointer"
                     >
                       <FileText className="h-3.5 w-3.5 text-zinc-400" />
                       <span>Report</span>
@@ -1370,10 +1366,10 @@ export default function LibraryView({
                   setIsAddIdentifierOpen(true);
                   setAddError(null);
                 }}
-                className="p-1.5 bg-zinc-850 hover:bg-zinc-750 text-zinc-300 hover:text-zinc-100 border border-zinc-750 rounded transition-colors cursor-pointer flex items-center justify-center"
+                className="p-1.5 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded transition-colors cursor-pointer flex items-center justify-center"
                 title="Add Item by Identifier (DOI, arXiv ID, ISBN, PMID)"
               >
-                <Wand2 className="h-3.5 w-3.5 text-amber-400" />
+                <Wand2 className="h-3.5 w-3.5" />
               </button>
 
               {/* Import BibTeX / RIS Icon */}
@@ -1381,10 +1377,10 @@ export default function LibraryView({
                 type="button"
                 onClick={() => bibFileInputRef.current?.click()}
                 disabled={isImportingBib}
-                className="p-1.5 bg-zinc-850 hover:bg-zinc-750 text-zinc-300 hover:text-zinc-100 border border-zinc-750 rounded transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-center"
+                className="p-1.5 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-center"
                 title="Import References from BibTeX (.bib) or RIS (.ris)"
               >
-                <FileUp className="h-3.5 w-3.5 text-blue-400" />
+                <FileUp className="h-3.5 w-3.5" />
               </button>
               <input
                 ref={bibFileInputRef}
@@ -1399,20 +1395,20 @@ export default function LibraryView({
               <button
                 type="button"
                 onClick={handleExportSelectedBibtex}
-                className="p-1.5 bg-zinc-850 hover:bg-zinc-750 text-zinc-300 hover:text-zinc-100 border border-zinc-750 rounded transition-colors cursor-pointer flex items-center justify-center"
+                className="p-1.5 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded transition-colors cursor-pointer flex items-center justify-center"
                 title="Export References to BibTeX (.bib)"
               >
-                <Download className="h-3.5 w-3.5 text-zinc-400" />
+                <Download className="h-3.5 w-3.5" />
               </button>
 
               {/* Refresh Icon */}
               <button
                 type="button"
                 onClick={fetchLibrary}
-                className="p-1.5 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 rounded transition-colors cursor-pointer flex items-center justify-center"
+                className="p-1.5 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded transition-colors cursor-pointer flex items-center justify-center"
                 title="Refresh Library"
               >
-                <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin text-blue-400' : ''}`} />
+                <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin text-zinc-200' : ''}`} />
               </button>
 
               {/* Batch Selection Action Icons */}
@@ -1494,7 +1490,7 @@ export default function LibraryView({
                               value={newWsInlineName}
                               onChange={(e) => setNewWsInlineName(e.target.value)}
                               placeholder="New collection name..."
-                              className="w-full bg-zinc-900 border border-zinc-750 rounded px-2 py-1 text-[11px] text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-blue-500"
+                              className="w-full bg-zinc-900 border border-zinc-750 rounded px-2 py-1 text-[11px] text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-zinc-700"
                             />
                             <button
                               type="submit"
@@ -1533,7 +1529,7 @@ export default function LibraryView({
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search library..."
-                className="w-full bg-zinc-950 border border-zinc-800 rounded pl-7 pr-6 py-1 text-[11px] text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-blue-500 transition-colors shadow-inner"
+                className="w-full bg-zinc-950 border border-zinc-800 rounded pl-7 pr-6 py-1 text-[11px] text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-zinc-700 transition-colors shadow-inner"
               />
               {searchQuery && (
                 <button
@@ -1803,7 +1799,7 @@ export default function LibraryView({
                           }}
                           className={`h-7.5 transition-colors cursor-pointer group select-none ${
                             isInspecting
-                              ? 'bg-blue-600 text-white font-normal'
+                              ? 'bg-zinc-800 text-zinc-100 font-normal'
                               : isSelected
                               ? 'bg-zinc-850 text-zinc-100'
                               : 'hover:bg-zinc-850/60 text-zinc-300'
@@ -1820,7 +1816,7 @@ export default function LibraryView({
                                 }`}
                               >
                                 {isSelected ? (
-                                  <CheckSquare className={`h-3.5 w-3.5 ${isInspecting ? 'text-white' : 'text-blue-400'}`} />
+                                  <CheckSquare className={`h-3.5 w-3.5 ${isInspecting ? 'text-white' : 'text-zinc-300'}`} />
                                 ) : (
                                   <Square className="h-3.5 w-3.5" />
                                 )}
@@ -1833,7 +1829,7 @@ export default function LibraryView({
                             <button
                               type="button"
                               className={`p-0.5 hover:text-white cursor-pointer ${
-                                isInspecting ? 'text-blue-100' : 'text-zinc-500'
+                                isInspecting ? 'text-zinc-300' : 'text-zinc-500'
                               }`}
                             >
                               {isExpanded ? (
@@ -1854,7 +1850,7 @@ export default function LibraryView({
                             <div className="flex items-center gap-1.5 truncate">
                               <span
                                 className={`truncate font-medium text-[12.5px] ${
-                                  isInspecting ? 'text-white' : 'text-zinc-100 group-hover:text-blue-400'
+                                  isInspecting ? 'text-white' : 'text-zinc-100 group-hover:text-zinc-200'
                                 }`}
                                 title={item.title || item.doc_name}
                               >
@@ -1864,10 +1860,10 @@ export default function LibraryView({
                               {/* Subtle DOI / arXiv Tags */}
                               {item.doi && (
                                 <span
-                                  className={`text-[9.5px] px-1 py-0.2 rounded font-mono shrink-0 ${
+                                  className={`text-[9.5px] px-1.5 py-0.2 rounded font-mono shrink-0 border ${
                                     isInspecting
-                                      ? 'bg-blue-700 text-blue-100'
-                                      : 'bg-zinc-800 text-blue-400'
+                                      ? 'bg-zinc-700 text-zinc-200 border-zinc-600'
+                                      : 'bg-zinc-900 text-zinc-400 border-zinc-800'
                                   }`}
                                   title={`DOI: ${item.doi}`}
                                 >
@@ -1876,10 +1872,10 @@ export default function LibraryView({
                               )}
                               {item.arxiv_id && (
                                 <span
-                                  className={`text-[9.5px] px-1 py-0.2 rounded font-mono shrink-0 ${
+                                  className={`text-[9.5px] px-1.5 py-0.2 rounded font-mono shrink-0 border ${
                                     isInspecting
-                                      ? 'bg-blue-700 text-blue-100'
-                                      : 'bg-zinc-800 text-rose-400'
+                                      ? 'bg-zinc-700 text-zinc-200 border-zinc-600'
+                                      : 'bg-zinc-900 text-zinc-400 border-zinc-800'
                                   }`}
                                   title={`arXiv: ${item.arxiv_id}`}
                                 >
@@ -1892,7 +1888,7 @@ export default function LibraryView({
                           {/* Creator / Authors */}
                           <td
                             className={`w-[38%] px-2 truncate text-[12px] ${
-                              isInspecting ? 'text-blue-100' : 'text-zinc-400'
+                              isInspecting ? 'text-zinc-300' : 'text-zinc-400'
                             }`}
                           >
                             <span className="truncate">{item.authors || '—'}</span>
@@ -1901,7 +1897,7 @@ export default function LibraryView({
                           {/* Year */}
                           <td
                             className={`w-14 min-w-[56px] px-2 text-center font-mono text-[11.5px] ${
-                              isInspecting ? 'text-blue-100' : 'text-zinc-400'
+                              isInspecting ? 'text-zinc-300' : 'text-zinc-400'
                             }`}
                           >
                             {item.year || '—'}
@@ -1912,7 +1908,7 @@ export default function LibraryView({
                             {item.has_pdf ? (
                               <FileText
                                 className={`h-3.5 w-3.5 mx-auto ${
-                                  isInspecting ? 'text-white' : 'text-red-400'
+                                  isInspecting ? 'text-white' : 'text-zinc-400 group-hover:text-zinc-200'
                                 }`}
                                 title={`Full Text PDF: ${item.doc_name}`}
                               />
@@ -1923,14 +1919,14 @@ export default function LibraryView({
                                 disabled={downloadingPdfDocIds.has(item.id)}
                                 className={`p-0.5 rounded transition-colors cursor-pointer ${
                                   isInspecting
-                                    ? 'text-blue-200 hover:text-white'
-                                    : 'text-zinc-500 hover:text-emerald-400 hover:bg-zinc-800'
+                                    ? 'text-zinc-300 hover:text-white'
+                                    : 'text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800'
                                 }`}
                                 title="Download Open-Access Full-Text PDF (arXiv / Unpaywall)"
                               >
                                 <Download
                                   className={`h-3 w-3 mx-auto ${
-                                    downloadingPdfDocIds.has(item.id) ? 'animate-bounce text-blue-400' : ''
+                                    downloadingPdfDocIds.has(item.id) ? 'animate-bounce text-zinc-300' : ''
                                   }`}
                                 />
                               </button>
@@ -1946,7 +1942,7 @@ export default function LibraryView({
                             <td colSpan={showCheckboxes ? 2 : 1}></td>
                             <td className="text-center">
                               {item.has_pdf ? (
-                                <FileText className="h-3.5 w-3.5 mx-auto text-red-400" />
+                                <FileText className="h-3.5 w-3.5 mx-auto text-zinc-400" />
                               ) : (
                                 <Download className="h-3.5 w-3.5 mx-auto text-zinc-500" />
                               )}
@@ -1972,14 +1968,14 @@ export default function LibraryView({
                                           handleOpenPaperTab(item.doc_name, item.title || item.doc_name);
                                         }
                                       }}
-                                      className="px-2 py-0.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded text-[10.5px] font-medium transition-colors cursor-pointer"
+                                      className="px-2 py-0.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded text-[10.5px] font-medium transition-colors cursor-pointer border border-zinc-750"
                                     >
                                       Read PDF
                                     </button>
                                     <button
                                       type="button"
                                       onClick={() => onStartChatWithPaper && onStartChatWithPaper(item.doc_name)}
-                                      className="px-2 py-0.5 bg-blue-600/80 hover:bg-blue-600 text-white rounded text-[10.5px] font-medium transition-colors cursor-pointer"
+                                      className="px-2 py-0.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-750 rounded text-[10.5px] font-medium transition-colors cursor-pointer"
                                     >
                                       Chat
                                     </button>
@@ -1990,7 +1986,7 @@ export default function LibraryView({
                                   <div className="flex items-center gap-2">
                                     <span className="text-zinc-400">No PDF attached to this reference yet.</span>
                                     {(item.doi || item.arxiv_id) && (
-                                      <span className="text-[10.5px] text-blue-400 font-mono">
+                                      <span className="text-[10.5px] text-zinc-400 font-mono">
                                         (Open access via {item.arxiv_id ? 'arXiv' : 'Unpaywall'})
                                       </span>
                                     )}
@@ -1999,7 +1995,7 @@ export default function LibraryView({
                                     type="button"
                                     onClick={(e) => handleDownloadPdf(item.id, e)}
                                     disabled={downloadingPdfDocIds.has(item.id)}
-                                    className="flex items-center gap-1.5 px-2.5 py-0.5 bg-blue-600/85 hover:bg-blue-600 text-white rounded text-[10.5px] font-medium transition-colors cursor-pointer disabled:opacity-50"
+                                    className="flex items-center gap-1.5 px-2.5 py-0.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-750 rounded text-[10.5px] font-medium transition-colors cursor-pointer disabled:opacity-50"
                                   >
                                     <Download className={`h-3 w-3 ${downloadingPdfDocIds.has(item.id) ? 'animate-bounce' : ''}`} />
                                     <span>{downloadingPdfDocIds.has(item.id) ? 'Downloading OA PDF...' : 'Download Open-Access PDF'}</span>
@@ -2124,7 +2120,7 @@ export default function LibraryView({
             </div>
 
             <p className="text-[11.5px] text-zinc-400 leading-relaxed">
-              Enter any DOI (e.g. <code className="bg-zinc-950 px-1 py-0.2 rounded text-blue-400 font-mono text-[10.5px]">10.1145/3292500.3330964</code>) or arXiv ID (e.g. <code className="bg-zinc-950 px-1 py-0.2 rounded text-rose-400 font-mono text-[10.5px]">2305.18290</code>) to import full bibliographic metadata into your library.
+              Enter any DOI (e.g. <code className="bg-zinc-950 px-1 py-0.2 rounded text-zinc-300 font-mono text-[10.5px]">10.1145/3292500.3330964</code>) or arXiv ID (e.g. <code className="bg-zinc-950 px-1 py-0.2 rounded text-zinc-300 font-mono text-[10.5px]">2305.18290</code>) to import full bibliographic metadata into your library.
             </p>
 
             <form onSubmit={handleAddIdentifierSubmit} className="space-y-3">
@@ -2135,7 +2131,7 @@ export default function LibraryView({
                   value={identifierInput}
                   onChange={(e) => setIdentifierInput(e.target.value)}
                   placeholder="Paste DOI (10.xxxx/...) or arXiv ID (2305.18290)..."
-                  className="w-full bg-zinc-950 border border-zinc-750 rounded px-2.5 py-1.5 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-blue-500 font-mono"
+                  className="w-full bg-zinc-950 border border-zinc-750 rounded px-2.5 py-1.5 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-zinc-700 font-mono"
                 />
               </div>
 
@@ -2145,7 +2141,7 @@ export default function LibraryView({
                   type="checkbox"
                   checked={autoDownloadPdfCheckbox}
                   onChange={(e) => setAutoDownloadPdfCheckbox(e.target.checked)}
-                  className="rounded border-zinc-700 bg-zinc-950 text-blue-600 focus:ring-0 focus:ring-offset-0 h-3.5 w-3.5"
+                  className="rounded border-zinc-700 bg-zinc-950 accent-zinc-300 h-3.5 w-3.5"
                 />
                 <span>Auto-download Open-Access PDF if available (arXiv / Unpaywall)</span>
               </label>
@@ -2168,7 +2164,7 @@ export default function LibraryView({
                 <button
                   type="submit"
                   disabled={isAddingIdentifier || !identifierInput.trim()}
-                  className="flex items-center gap-1.5 px-3 py-1 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded text-xs font-medium shadow transition-colors cursor-pointer"
+                  className="flex items-center gap-1.5 px-3 py-1 bg-zinc-100 hover:bg-white text-zinc-950 disabled:opacity-50 font-semibold rounded text-xs shadow transition-colors cursor-pointer"
                 >
                   <RefreshCw className={`h-3 w-3 ${isAddingIdentifier ? 'animate-spin' : ''}`} />
                   <span>
@@ -2193,7 +2189,7 @@ export default function LibraryView({
           <div className="bg-zinc-900 border border-zinc-800 rounded-lg max-w-lg w-full p-4 shadow-2xl space-y-3">
             <div className="flex items-center justify-between border-b border-zinc-800 pb-2.5">
               <div className="flex items-center gap-2 text-zinc-100 font-semibold text-xs">
-                <Plus className="h-4 w-4 text-blue-400" />
+                <Plus className="h-4 w-4 text-zinc-300" />
                 <span>New Item from Scratch (Blank Form)</span>
               </div>
               <button
@@ -2214,7 +2210,7 @@ export default function LibraryView({
                 <select
                   value={manualForm.item_type}
                   onChange={(e) => setManualForm({ ...manualForm, item_type: e.target.value })}
-                  className="flex-1 bg-zinc-950 border border-zinc-750 rounded px-2.5 py-1 text-zinc-200 focus:outline-none focus:border-blue-500 text-xs"
+                  className="flex-1 bg-zinc-950 border border-zinc-750 rounded px-2.5 py-1 text-zinc-200 focus:outline-none focus:border-zinc-700 text-xs"
                 >
                   <option value="book">Book</option>
                   <option value="journal_article">Journal Article</option>
@@ -2238,7 +2234,7 @@ export default function LibraryView({
                   value={manualForm.title}
                   onChange={(e) => setManualForm({ ...manualForm, title: e.target.value })}
                   placeholder="e.g. Design Patterns: Elements of Reusable Object-Oriented Software"
-                  className="flex-1 bg-zinc-950 border border-zinc-750 rounded px-2.5 py-1 text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-blue-500 text-xs"
+                  className="flex-1 bg-zinc-950 border border-zinc-750 rounded px-2.5 py-1 text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-zinc-700 text-xs"
                 />
               </div>
 
@@ -2252,7 +2248,7 @@ export default function LibraryView({
                   value={manualForm.authors}
                   onChange={(e) => setManualForm({ ...manualForm, authors: e.target.value })}
                   placeholder="e.g. Gamma, Erich; Helm, Richard"
-                  className="flex-1 bg-zinc-950 border border-zinc-750 rounded px-2.5 py-1 text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-blue-500 text-xs"
+                  className="flex-1 bg-zinc-950 border border-zinc-750 rounded px-2.5 py-1 text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-zinc-700 text-xs"
                 />
               </div>
 
@@ -2267,14 +2263,14 @@ export default function LibraryView({
                     value={manualForm.year}
                     onChange={(e) => setManualForm({ ...manualForm, year: e.target.value })}
                     placeholder="Year (e.g. 1994)"
-                    className="w-24 bg-zinc-950 border border-zinc-750 rounded px-2 py-1 text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-blue-500 font-mono text-xs"
+                    className="w-24 bg-zinc-950 border border-zinc-750 rounded px-2 py-1 text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-zinc-700 font-mono text-xs"
                   />
                   <input
                     type="text"
                     value={manualForm.venue}
                     onChange={(e) => setManualForm({ ...manualForm, venue: e.target.value })}
                     placeholder="Publisher / Journal / Conference"
-                    className="flex-1 bg-zinc-950 border border-zinc-750 rounded px-2.5 py-1 text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-blue-500 text-xs"
+                    className="flex-1 bg-zinc-950 border border-zinc-750 rounded px-2.5 py-1 text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-zinc-700 text-xs"
                   />
                 </div>
               </div>
@@ -2290,14 +2286,14 @@ export default function LibraryView({
                     value={manualForm.doi}
                     onChange={(e) => setManualForm({ ...manualForm, doi: e.target.value })}
                     placeholder="DOI (optional)"
-                    className="flex-1 bg-zinc-950 border border-zinc-750 rounded px-2.5 py-1 text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-blue-500 font-mono text-xs"
+                    className="flex-1 bg-zinc-950 border border-zinc-750 rounded px-2.5 py-1 text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-zinc-700 font-mono text-xs"
                   />
                   <input
                     type="text"
                     value={manualForm.url}
                     onChange={(e) => setManualForm({ ...manualForm, url: e.target.value })}
                     placeholder="https://... (optional)"
-                    className="flex-1 bg-zinc-950 border border-zinc-750 rounded px-2.5 py-1 text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-blue-500 text-xs"
+                    className="flex-1 bg-zinc-950 border border-zinc-750 rounded px-2.5 py-1 text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-zinc-700 text-xs"
                   />
                 </div>
               </div>
@@ -2312,7 +2308,7 @@ export default function LibraryView({
                   value={manualForm.notes}
                   onChange={(e) => setManualForm({ ...manualForm, notes: e.target.value })}
                   placeholder="Optional personal research notes..."
-                  className="flex-1 bg-zinc-950 border border-zinc-750 rounded px-2.5 py-1 text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-blue-500 resize-none text-xs"
+                  className="flex-1 bg-zinc-950 border border-zinc-750 rounded px-2.5 py-1 text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-zinc-700 resize-none text-xs"
                 />
               </div>
 
@@ -2334,7 +2330,7 @@ export default function LibraryView({
                 <button
                   type="submit"
                   disabled={isCreatingManualItem || !manualForm.title.trim()}
-                  className="flex items-center gap-1.5 px-3 py-1 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded text-xs font-medium shadow transition-colors cursor-pointer"
+                  className="flex items-center gap-1.5 px-3 py-1 bg-zinc-100 hover:bg-white text-zinc-950 disabled:opacity-50 font-semibold rounded text-xs shadow transition-colors cursor-pointer"
                 >
                   <Plus className="h-3.5 w-3.5" />
                   <span>{isCreatingManualItem ? 'Creating...' : 'Create Item'}</span>

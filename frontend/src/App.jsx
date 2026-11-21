@@ -158,6 +158,11 @@ export default function App() {
     saveTheme(newTheme);
   };
 
+  const handleToggleTheme = () => {
+    const next = currentTheme === 'clarity' ? 'original' : 'clarity';
+    handleThemeChange(next);
+  };
+
   const handleToggleWriter = () => {
     if (!isWriterOpen) {
       setIsWriterOpen(true);
@@ -594,6 +599,8 @@ export default function App() {
           onOpenAuth={handleOpenAuth}
           onOpenSettings={() => setIsSettingsOpen(true)}
           onOpenThemeModal={() => setIsThemeModalOpen(true)}
+          currentTheme={currentTheme}
+          onToggleTheme={handleToggleTheme}
           onOpenSearchModal={() => setIsSearchModalOpen(true)}
           onSelectWorkspaceChat={(wsId, chatId) => {
             handleSelectWorkspaceChat(wsId, chatId);
@@ -808,6 +815,8 @@ export default function App() {
         onOpenSettings={() => setIsSettingsOpen(true)}
         onOpenProfileSettings={() => setIsProfileSettingsOpen(true)}
         onOpenThemeModal={() => setIsThemeModalOpen(true)}
+        currentTheme={currentTheme}
+        onToggleTheme={handleToggleTheme}
         onOpenSearchModal={() => setIsSearchModalOpen(true)}
         isCollapsed={isSidebarCollapsed}
         onToggleCollapse={handleToggleSidebar}

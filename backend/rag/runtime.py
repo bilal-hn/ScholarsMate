@@ -5,6 +5,11 @@ import json
 import re
 from dataclasses import dataclass
 from typing import Any
+import litellm
+
+# Enforce provider compatibility adjustments globally (e.g., Bedrock message formatting)
+litellm.modify_params = True
+litellm.drop_params = True
 
 
 KNOWN_PROVIDERS = (
@@ -28,8 +33,8 @@ THINK_BLOCK_RE = re.compile(
 )
 
 MAX_CONTEXT_TOKENS = 6000
-CONV_MAX_TOKENS = 2048
-RAG_MAX_TOKENS = 4096
+CONV_MAX_TOKENS = 1024
+RAG_MAX_TOKENS = 2560
 REWRITE_MAX_TOKENS = 256
 
 
@@ -257,6 +262,63 @@ def build_fallback_chain(
             break
 
     return chain or [primary_norm]
+
+
+def sanitize_messages_for_llm(messages: list[dict] | None) -> list[dict]:
+    """Sanitizes chat completion messages for strict provider compliance (Bedrock Converse, Anthropic, etc.).
+
+    Guarantees:
+    1. Retains top-level system messages.
+    2. Strips leading assistant messages so non-system turns strictly begin with a user turn.
+    3. Merges consecutive turns of identical roles (user-user or assistant-assistant).
+    4. Guarantees alternating user/assistant turns.
+    5. Ensures there is at least one user message and the final message is a user message.
+    """
+    if not messages:
+        return [{"role": "user", "content": "Hello"}]
+
+    system_msgs: list[dict] = []
+    convo_msgs: list[dict] = []
+
+    for m in messages:
+        if not isinstance(m, dict):
+            continue
+        role = (m.get("role") or "user").strip().lower()
+        content = m.get("content") or ""
+        if role == "system":
+            system_msgs.append({"role": "system", "content": content})
+        elif role in ("assistant", "bot"):
+            convo_msgs.append({"role": "assistant", "content": content})
+        else:
+            convo_msgs.append({"role": "user", "content": content})
+
+    # Strip leading assistant messages so conversation history strictly starts with user
+    while convo_msgs and convo_msgs[0]["role"] == "assistant":
+        convo_msgs.pop(0)
+
+    # Merge consecutive identical roles
+    merged: list[dict] = []
+    for msg in convo_msgs:
+        if not merged:
+            merged.append(msg)
+            continue
+        if merged[-1]["role"] == msg["role"]:
+            prev_content = merged[-1]["content"]
+            new_content = msg["content"]
+            if isinstance(prev_content, str) and isinstance(new_content, str):
+                merged[-1]["content"] = f"{prev_content}\n\n{new_content}"
+            else:
+                merged[-1]["content"] = new_content
+        else:
+            merged.append(msg)
+
+    if not merged:
+        merged = [{"role": "user", "content": "Please proceed."}]
+
+    if merged[-1]["role"] != "user":
+        merged.append({"role": "user", "content": "Please continue."})
+
+    return system_msgs + merged
 
 
 def _split_inline_think(text: str) -> tuple[str, str]:

@@ -17,6 +17,7 @@ from backend.rag.runtime import (
     pack_chunks,
     resolve_api_key,
     resolve_model_and_key,
+    sanitize_messages_for_llm,
     REWRITE_MAX_TOKENS,
 )
 
@@ -81,19 +82,20 @@ Standalone Search Query:
 
         call_kwargs = {
             "model": target_model,
-            "messages": [
+            "messages": sanitize_messages_for_llm([
                 {
                     "role": "system",
                     "content": "Rewrite follow-up questions into standalone search queries. Return only the query string.",
                 },
                 {"role": "user", "content": prompt},
-            ],
+            ]),
             "api_key": active_key if not is_bedrock else None,
             "temperature": 0.0,
             "max_tokens": REWRITE_MAX_TOKENS,
             "drop_params": True,
-            "reasoning_effort": "none",
         }
+        if "deepseek" not in target_model.lower():
+            call_kwargs["reasoning_effort"] = "none"
         if is_bedrock:
             call_kwargs["aws_region_name"] = os.getenv("AWS_REGION_NAME", "us-east-1")
 
@@ -132,19 +134,20 @@ Return ONLY the queries, one per line. No numbering, no comments.
 
         call_kwargs = {
             "model": target_model,
-            "messages": [
+            "messages": sanitize_messages_for_llm([
                 {
                     "role": "system",
                     "content": "Return only alternative search queries, one per line, with no commentary.",
                 },
                 {"role": "user", "content": prompt},
-            ],
+            ]),
             "api_key": active_key if not is_bedrock else None,
             "temperature": 0.2,
             "max_tokens": REWRITE_MAX_TOKENS,
             "drop_params": True,
-            "reasoning_effort": "none",
         }
+        if "deepseek" not in target_model.lower():
+            call_kwargs["reasoning_effort"] = "none"
         if is_bedrock:
             call_kwargs["aws_region_name"] = os.getenv("AWS_REGION_NAME", "us-east-1")
 

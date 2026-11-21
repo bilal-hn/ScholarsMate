@@ -17,6 +17,7 @@ from backend.rag.runtime import (
     provider_from_model,
     resolve_api_key,
     resolve_model_and_key,
+    sanitize_messages_for_llm,
 )
 
 # Alias for backward compatibility
@@ -324,12 +325,13 @@ JSON schema:
         is_bedrock = model_name.startswith("bedrock/")
         call_kwargs = {
             "model": model_name,
-            "messages": messages,
+            "messages": sanitize_messages_for_llm(messages),
             "api_key": active_key if not is_bedrock else None,
             "max_tokens": 400,
             "drop_params": True,
-            "reasoning_effort": "none",
         }
+        if "deepseek" not in model_name.lower():
+            call_kwargs["reasoning_effort"] = "none"
         if is_bedrock:
             call_kwargs["aws_region_name"] = os.getenv("AWS_REGION_NAME", "us-east-1")
         try:

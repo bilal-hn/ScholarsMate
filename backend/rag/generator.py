@@ -25,6 +25,7 @@ from backend.rag.runtime import (
     build_fallback_chain,
     resolve_api_key,
     resolve_model_and_key,
+    sanitize_messages_for_llm,
     CONV_MAX_TOKENS,
     RAG_MAX_TOKENS,
 )
@@ -50,27 +51,30 @@ def _execute_completion_with_fallback(
     provider_fallbacks = {
         "bedrock": [
             model_name,
+            "bedrock/us.deepseek.r1-v1:0",
             "bedrock/us.amazon.nova-lite-v1:0",
             "bedrock/us.meta.llama3-3-70b-instruct-v1:0",
-            "bedrock/us.deepseek.r1-v1:0",
+            "groq/llama-3.3-70b-versatile",
+            "gemini/gemini-2.5-flash",
         ],
         "gemini": [
             model_name,
-            "gemini/gemini-3.6-flash",
             "gemini/gemini-2.5-flash",
             "gemini/gemini-3.7-flash",
+            "groq/llama-3.3-70b-versatile",
         ],
         "groq": [
             model_name,
             "groq/llama-3.3-70b-versatile",
             "groq/llama-3.1-8b-instant",
-            "groq/qwen/qwen-2.5-32b",
             "groq/deepseek-r1-distill-llama-70b",
+            "gemini/gemini-2.5-flash",
         ],
         "openai": [
             model_name,
             "openai/gpt-4o-mini",
             "openai/gpt-4o",
+            "gemini/gemini-2.5-flash",
         ],
     }
 
@@ -81,7 +85,7 @@ def _execute_completion_with_fallback(
         custom_keys=custom_keys,
     )
 
-    current_messages = list(messages) if messages else []
+    current_messages = sanitize_messages_for_llm(messages) if messages else []
     last_error = None
     for model in fallback_chain:
         normalized_target = normalize_litellm_model_id(model)
@@ -111,10 +115,11 @@ def _execute_completion_with_fallback(
 
             is_recoverable = any(
                 code in err_str for code in [
-                    "404", "429", "503", 
+                    "400", "404", "429", "503", 
                     "RESOURCE_EXHAUSTED", "RateLimitError", 
                     "ServiceUnavailableError", "NotFoundError", "quota", "no longer available",
-                    "tokens per minute", "TPM", "Request too large"
+                    "tokens per minute", "TPM", "Request too large", "Too many tokens per day",
+                    "ThrottlingException", "BedrockException", "BadRequestError", "user message"
                 ]
             )
             if is_recoverable:
@@ -451,6 +456,8 @@ def generate_answer(
                     conv_messages.append({"role": role, "content": text.strip()})
         if not conv_messages or conv_messages[-1]["role"] != "user":
             conv_messages.append({"role": "user", "content": clean_query})
+
+        conv_messages = sanitize_messages_for_llm(conv_messages)
 
         res = _execute_completion_with_fallback(
             model_name=target_model,

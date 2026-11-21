@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { Palette, X, Minus } from 'lucide-react';
+import { Sun, Moon, X, Minus } from 'lucide-react';
 import { THEMES } from '../../theme/constants';
 
 export default function ThemeModal({ isOpen, onClose, currentTheme, onThemeChange }) {
@@ -33,15 +33,19 @@ export default function ThemeModal({ isOpen, onClose, currentTheme, onThemeChang
       {/* Odysseus-Style Window Frame */}
       <div
         ref={modalRef}
-        className="w-full max-w-xl bg-zinc-900/95 border border-zinc-800/90 rounded-2xl shadow-2xl overflow-hidden backdrop-blur-xl animate-in zoom-in-95 duration-150 text-zinc-200"
+        className="w-full max-w-md bg-zinc-900/95 border border-zinc-800/90 rounded-2xl shadow-2xl overflow-hidden backdrop-blur-xl animate-in zoom-in-95 duration-150 text-zinc-200"
       >
         {/* Window Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800/80 bg-zinc-900/40">
           <div className="flex items-center gap-2.5">
-            <div className="w-5 h-5 rounded-full bg-red-500/10 border border-red-500/30 flex items-center justify-center text-red-500">
-              <Palette className="h-3 w-3" />
+            <div className="w-5 h-5 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center text-zinc-300">
+              {currentTheme === 'clarity' ? (
+                <Sun className="h-3 w-3" />
+              ) : (
+                <Moon className="h-3 w-3" />
+              )}
             </div>
-            <span className="font-semibold text-sm text-red-500 tracking-tight">Theme</span>
+            <span className="font-semibold text-sm text-zinc-100 tracking-tight">Theme Mode</span>
           </div>
 
           {/* Window Control Buttons */}
@@ -66,41 +70,35 @@ export default function ThemeModal({ isOpen, onClose, currentTheme, onThemeChang
         </div>
 
         {/* Themes Grid Body */}
-        <div className="p-4 sm:p-5 max-h-[70vh] overflow-y-auto space-y-4">
+        <div className="p-4 sm:p-5 space-y-4">
           <div>
             <div className="text-[11px] font-mono uppercase tracking-wider text-zinc-500 mb-3 font-semibold">
-              Available Themes
+              Select Appearance
             </div>
 
-            {/* Curated Theme Swatch Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {/* Curated Theme Swatch Grid (Dark & Light) */}
+            <div className="grid grid-cols-2 gap-3">
               {THEMES.map((theme) => {
                 const isSelected = theme.id === currentTheme;
+                const isLight = theme.mode === 'light';
+
                 return (
                   <button
                     key={theme.id}
                     type="button"
                     onClick={() => onThemeChange(theme.id)}
-                    className={`flex flex-col items-center justify-center p-3.5 rounded-xl border transition-all cursor-pointer group relative ${
+                    className={`flex flex-col items-center justify-center p-4 rounded-xl border transition-all cursor-pointer group relative ${
                       isSelected
-                        ? 'border-red-500 bg-red-500/10 shadow-lg shadow-red-500/5 ring-1 ring-red-500/50'
+                        ? 'border-zinc-300 bg-zinc-800/90 shadow-lg ring-1 ring-zinc-400/50'
                         : 'border-zinc-800/80 bg-zinc-900/50 hover:bg-zinc-800/60 hover:border-zinc-700'
                     }`}
                   >
-                    {/* Interlocking 3-Circle Theme Swatches */}
-                    <div className="flex -space-x-1.5 items-center justify-center mb-2.5">
-                      <div
-                        className="w-4 h-4 rounded-full border border-black/40 shadow-xs"
-                        style={{ backgroundColor: theme.canvasPreview || '#131417' }}
-                      />
-                      <div
-                        className="w-4 h-4 rounded-full border border-black/40 shadow-xs"
-                        style={{ backgroundColor: theme.surfacePreview || '#23252c' }}
-                      />
-                      <div
-                        className="w-4 h-4 rounded-full border border-black/40 shadow-xs ring-1 ring-white/10"
-                        style={{ backgroundColor: theme.accentColor }}
-                      />
+                    <div className="p-2 rounded-full mb-2 bg-zinc-950/60 border border-zinc-800 flex items-center justify-center">
+                      {isLight ? (
+                        <Sun className="h-5 w-5 text-zinc-200" />
+                      ) : (
+                        <Moon className="h-5 w-5 text-zinc-200" />
+                      )}
                     </div>
 
                     {/* Theme Name & Mode */}
@@ -111,7 +109,7 @@ export default function ThemeModal({ isOpen, onClose, currentTheme, onThemeChang
                     >
                       {theme.name}
                     </span>
-                    <span className="text-[10px] text-zinc-500 capitalize mt-0.5">
+                    <span className="text-[10.5px] text-zinc-500 capitalize mt-0.5">
                       {theme.mode} mode
                     </span>
                   </button>

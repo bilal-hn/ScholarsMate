@@ -135,3 +135,41 @@ class TestDefaultModelSelection:
             custom_keys={"groq": "gsk_fake", "openai": "sk_fake"}
         )
         assert result == "openai/gpt-4o-mini"
+
+
+# ─── Tests: Message Sanitization for Bedrock / Strict LLM Providers ──────────
+
+class TestMessageSanitization:
+
+    def test_strip_leading_assistant_message(self):
+        from backend.rag.runtime import sanitize_messages_for_llm
+        raw = [
+            {"role": "system", "content": "You are ScholarsMate."},
+            {"role": "assistant", "content": "Hello! How can I help?"},
+            {"role": "user", "content": "Tell me about quantum computing."}
+        ]
+        sanitized = sanitize_messages_for_llm(raw)
+        assert len(sanitized) == 2
+        assert sanitized[0]["role"] == "system"
+        assert sanitized[1]["role"] == "user"
+        assert sanitized[1]["content"] == "Tell me about quantum computing."
+
+    def test_merge_consecutive_user_turns(self):
+        from backend.rag.runtime import sanitize_messages_for_llm
+        raw = [
+            {"role": "user", "content": "Part 1"},
+            {"role": "user", "content": "Part 2"}
+        ]
+        sanitized = sanitize_messages_for_llm(raw)
+        assert len(sanitized) == 1
+        assert sanitized[0]["role"] == "user"
+        assert "Part 1\n\nPart 2" in sanitized[0]["content"]
+
+    def test_guarantees_final_user_turn(self):
+        from backend.rag.runtime import sanitize_messages_for_llm
+        raw = [
+            {"role": "user", "content": "Query"},
+            {"role": "assistant", "content": "Answer"}
+        ]
+        sanitized = sanitize_messages_for_llm(raw)
+        assert sanitized[-1]["role"] == "user"

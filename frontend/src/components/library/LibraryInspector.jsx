@@ -342,7 +342,7 @@ export default function LibraryInspector({
             className="flex-1 min-w-0 flex items-center justify-center gap-1 py-1 px-1.5 bg-zinc-800 hover:bg-zinc-750 text-zinc-200 border border-zinc-700/60 rounded text-[10.5px] font-medium transition-colors cursor-pointer truncate"
             title="Open PDF in integrated viewer"
           >
-            <FileText className="h-3 w-3 text-red-400 shrink-0" />
+            <FileText className="h-3 w-3 text-zinc-400 shrink-0" />
             <span className="truncate">Read PDF</span>
           </button>
         ) : (
@@ -350,10 +350,10 @@ export default function LibraryInspector({
             type="button"
             onClick={handleDownloadOaPdf}
             disabled={isDownloadingPdf}
-            className="flex-1 min-w-0 flex items-center justify-center gap-1 py-1 px-1.5 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 rounded text-[10.5px] font-medium transition-colors cursor-pointer disabled:opacity-50 truncate"
+            className="flex-1 min-w-0 flex items-center justify-center gap-1 py-1 px-1.5 bg-zinc-800 hover:bg-zinc-750 text-zinc-200 border border-zinc-700/60 rounded text-[10.5px] font-medium transition-colors cursor-pointer disabled:opacity-50 truncate"
             title="Download Open-Access Full-Text PDF from arXiv or Unpaywall"
           >
-            <Download className={`h-3 w-3 text-emerald-400 shrink-0 ${isDownloadingPdf ? 'animate-bounce' : ''}`} />
+            <Download className={`h-3 w-3 text-zinc-400 shrink-0 ${isDownloadingPdf ? 'animate-bounce' : ''}`} />
             <span className="truncate">{isDownloadingPdf ? '...' : 'Get OA PDF'}</span>
           </button>
         )}
@@ -364,7 +364,7 @@ export default function LibraryInspector({
           className="flex-1 min-w-0 flex items-center justify-center gap-1 py-1 px-1.5 bg-zinc-800 hover:bg-zinc-750 text-zinc-200 border border-zinc-700/60 rounded text-[10.5px] font-medium transition-colors cursor-pointer truncate"
           title="Chat with paper in AI assistant"
         >
-          <MessageSquare className="h-3 w-3 text-blue-400 shrink-0" />
+          <MessageSquare className="h-3 w-3 text-zinc-400 shrink-0" />
           <span className="truncate">Chat</span>
         </button>
 
@@ -372,10 +372,10 @@ export default function LibraryInspector({
           type="button"
           onClick={handleAutoEnrich}
           disabled={isEnriching}
-          className="flex-1 min-w-0 flex items-center justify-center gap-1 py-1 px-1.5 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 rounded text-[10.5px] font-medium transition-colors cursor-pointer truncate"
+          className="flex-1 min-w-0 flex items-center justify-center gap-1 py-1 px-1.5 bg-zinc-800 hover:bg-zinc-750 text-zinc-200 border border-zinc-700/60 rounded text-[10.5px] font-medium transition-colors cursor-pointer truncate"
           title="Auto-enrich metadata via CrossRef / arXiv"
         >
-          <Wand2 className={`h-3 w-3 text-blue-400 shrink-0 ${isEnriching ? 'animate-spin' : ''}`} />
+          <Wand2 className={`h-3 w-3 text-zinc-400 shrink-0 ${isEnriching ? 'animate-spin' : ''}`} />
           <span className="truncate">{isEnriching ? '...' : 'Enrich'}</span>
         </button>
       </div>
@@ -427,7 +427,7 @@ export default function LibraryInspector({
           onClick={() => setActiveTab('info')}
           className={`flex-1 min-w-0 py-1.5 text-center border-b-2 transition-colors cursor-pointer truncate ${
             activeTab === 'info'
-              ? 'border-blue-500 text-blue-400 bg-zinc-900/60 font-semibold'
+              ? 'border-zinc-300 text-zinc-100 bg-zinc-900/60 font-semibold'
               : 'border-transparent hover:text-zinc-200'
           }`}
         >
@@ -438,7 +438,7 @@ export default function LibraryInspector({
           onClick={() => setActiveTab('abstract')}
           className={`flex-1 min-w-0 py-1.5 text-center border-b-2 transition-colors cursor-pointer truncate ${
             activeTab === 'abstract'
-              ? 'border-blue-500 text-blue-400 bg-zinc-900/60 font-semibold'
+              ? 'border-zinc-300 text-zinc-100 bg-zinc-900/60 font-semibold'
               : 'border-transparent hover:text-zinc-200'
           }`}
         >
@@ -449,7 +449,7 @@ export default function LibraryInspector({
           onClick={() => setActiveTab('cite')}
           className={`flex-1 min-w-0 py-1.5 text-center border-b-2 transition-colors cursor-pointer truncate ${
             activeTab === 'cite'
-              ? 'border-blue-500 text-blue-400 bg-zinc-900/60 font-semibold'
+              ? 'border-zinc-300 text-zinc-100 bg-zinc-900/60 font-semibold'
               : 'border-transparent hover:text-zinc-200'
           }`}
         >
@@ -460,7 +460,7 @@ export default function LibraryInspector({
           onClick={() => setActiveTab('notes')}
           className={`flex-1 min-w-0 py-1.5 text-center border-b-2 transition-colors cursor-pointer truncate ${
             activeTab === 'notes'
-              ? 'border-blue-500 text-blue-400 bg-zinc-900/60 font-semibold'
+              ? 'border-zinc-300 text-zinc-100 bg-zinc-900/60 font-semibold'
               : 'border-transparent hover:text-zinc-200'
           }`}
         >
@@ -471,7 +471,7 @@ export default function LibraryInspector({
           onClick={() => setActiveTab('ai_summary')}
           className={`flex-1 min-w-0 py-1.5 text-center border-b-2 transition-colors cursor-pointer truncate ${
             activeTab === 'ai_summary'
-              ? 'border-blue-500 text-blue-400 bg-zinc-900/60 font-semibold'
+              ? 'border-zinc-300 text-zinc-100 bg-zinc-900/60 font-semibold'
               : 'border-transparent hover:text-zinc-200'
           }`}
         >
@@ -496,7 +496,7 @@ export default function LibraryInspector({
               <select
                 value={formData.item_type}
                 onChange={(e) => handleInputChange('item_type', e.target.value)}
-                className="flex-1 min-w-0 bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-zinc-200 focus:outline-none focus:border-blue-500"
+                className="flex-1 min-w-0 bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-zinc-200 focus:outline-none focus:border-zinc-700"
               >
                 <option value="journal_article">Journal Article</option>
                 <option value="book">Book</option>
@@ -518,7 +518,7 @@ export default function LibraryInspector({
                 value={formData.title}
                 onChange={(e) => handleInputChange('title', e.target.value)}
                 placeholder="Full paper title..."
-                className="flex-1 min-w-0 bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-zinc-200 focus:outline-none focus:border-blue-500 resize-none leading-snug"
+                className="flex-1 min-w-0 bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-zinc-200 focus:outline-none focus:border-zinc-700 resize-none leading-snug"
               />
             </div>
 
@@ -532,7 +532,7 @@ export default function LibraryInspector({
                 value={formData.authors}
                 onChange={(e) => handleInputChange('authors', e.target.value)}
                 placeholder="Last, First and Last, First"
-                className="flex-1 min-w-0 bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-zinc-200 focus:outline-none focus:border-blue-500 resize-none leading-snug"
+                className="flex-1 min-w-0 bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-zinc-200 focus:outline-none focus:border-zinc-700 resize-none leading-snug"
               />
             </div>
 
@@ -546,7 +546,7 @@ export default function LibraryInspector({
                 value={formData.venue}
                 onChange={(e) => handleInputChange('venue', e.target.value)}
                 placeholder="NeurIPS, ICML, Nature..."
-                className="flex-1 min-w-0 bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-zinc-200 focus:outline-none focus:border-blue-500 truncate"
+                className="flex-1 min-w-0 bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-zinc-200 focus:outline-none focus:border-zinc-700 truncate"
               />
             </div>
 
@@ -560,7 +560,7 @@ export default function LibraryInspector({
                 value={formData.year}
                 onChange={(e) => handleInputChange('year', e.target.value)}
                 placeholder="YYYY (e.g. 2024)"
-                className="w-28 min-w-0 bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-zinc-200 focus:outline-none focus:border-blue-500 font-mono"
+                className="w-28 min-w-0 bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-zinc-200 focus:outline-none focus:border-zinc-700 font-mono"
               />
             </div>
 
@@ -575,14 +575,14 @@ export default function LibraryInspector({
                   value={formData.doi}
                   onChange={(e) => handleInputChange('doi', e.target.value)}
                   placeholder="10.xxxx/..."
-                  className="flex-1 min-w-0 w-full bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-zinc-200 focus:outline-none focus:border-blue-500 font-mono text-[11px] truncate"
+                  className="flex-1 min-w-0 w-full bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-zinc-200 focus:outline-none focus:border-zinc-700 font-mono text-[11px] truncate"
                 />
                 {formData.doi && (
                   <a
                     href={`https://doi.org/${formData.doi}`}
                     target="_blank"
                     rel="noreferrer"
-                    className="p-1 text-zinc-400 hover:text-blue-400 cursor-pointer shrink-0"
+                    className="p-1 text-zinc-400 hover:text-zinc-100 cursor-pointer shrink-0"
                     title={`Open https://doi.org/${formData.doi}`}
                   >
                     <ExternalLink className="h-3 w-3" />
@@ -602,14 +602,14 @@ export default function LibraryInspector({
                   value={formData.arxiv_id}
                   onChange={(e) => handleInputChange('arxiv_id', e.target.value)}
                   placeholder="2305.18290"
-                  className="flex-1 min-w-0 w-full bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-zinc-200 focus:outline-none focus:border-blue-500 font-mono text-[11px] truncate"
+                  className="flex-1 min-w-0 w-full bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-zinc-200 focus:outline-none focus:border-zinc-700 font-mono text-[11px] truncate"
                 />
                 {formData.arxiv_id && (
                   <a
                     href={`https://arxiv.org/abs/${formData.arxiv_id}`}
                     target="_blank"
                     rel="noreferrer"
-                    className="p-1 text-zinc-400 hover:text-rose-400 cursor-pointer shrink-0"
+                    className="p-1 text-zinc-400 hover:text-zinc-100 cursor-pointer shrink-0"
                     title={`Open https://arxiv.org/abs/${formData.arxiv_id}`}
                   >
                     <ExternalLink className="h-3 w-3" />
@@ -629,14 +629,14 @@ export default function LibraryInspector({
                   value={formData.url}
                   onChange={(e) => handleInputChange('url', e.target.value)}
                   placeholder="https://..."
-                  className="flex-1 min-w-0 w-full bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-zinc-200 focus:outline-none focus:border-blue-500 truncate"
+                  className="flex-1 min-w-0 w-full bg-zinc-950 border border-zinc-800 rounded px-2 py-1 text-zinc-200 focus:outline-none focus:border-zinc-700 truncate"
                 />
                 {formData.url && (
                   <a
                     href={formData.url}
                     target="_blank"
                     rel="noreferrer"
-                    className="p-1 text-zinc-400 hover:text-blue-400 cursor-pointer shrink-0"
+                    className="p-1 text-zinc-400 hover:text-zinc-100 cursor-pointer shrink-0"
                   >
                     <ExternalLink className="h-3 w-3" />
                   </a>
@@ -666,12 +666,12 @@ export default function LibraryInspector({
                       key={ws.id}
                       className="inline-flex items-center gap-1 text-[10.5px] bg-zinc-800 text-zinc-300 px-1.5 py-0.5 rounded border border-zinc-700/60 group max-w-full"
                     >
-                      <Folder className="h-2.5 w-2.5 text-blue-400 shrink-0" />
+                      <Folder className="h-2.5 w-2.5 text-zinc-400 shrink-0" />
                       <span className="truncate max-w-[120px]">{ws.name}</span>
                       <button
                         type="button"
                         onClick={() => handleRemoveWorkspace(ws.id)}
-                        className="text-zinc-500 hover:text-red-400 p-0.5 rounded cursor-pointer transition-colors shrink-0"
+                        className="text-zinc-500 hover:text-zinc-300 p-0.5 rounded cursor-pointer transition-colors shrink-0"
                         title={`Remove from ${ws.name}`}
                       >
                         <X className="h-2.5 w-2.5" />
@@ -707,9 +707,9 @@ export default function LibraryInspector({
                               key={ws.id}
                               type="button"
                               onClick={() => handleAssignWorkspace(ws.id)}
-                              className="w-full flex items-center gap-1.5 px-2 py-1 text-left text-xs text-zinc-300 hover:bg-blue-600 hover:text-white transition-colors cursor-pointer truncate"
+                              className="w-full flex items-center gap-1.5 px-2 py-1 text-left text-xs text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 transition-colors cursor-pointer truncate"
                             >
-                              <Folder className="h-3 w-3 shrink-0 text-blue-400" />
+                              <Folder className="h-3 w-3 shrink-0 text-zinc-400" />
                               <span className="truncate">{ws.name}</span>
                             </button>
                           ))
@@ -753,7 +753,7 @@ export default function LibraryInspector({
                   onChange={(e) => setNewTagInput(e.target.value)}
                   onKeyDown={handleAddTag}
                   placeholder="Add #tag and press Enter..."
-                  className="w-full min-w-0 bg-zinc-950 border border-zinc-800 rounded px-2 py-0.5 text-zinc-200 placeholder-zinc-500 text-[11px] focus:outline-none focus:border-blue-500"
+                  className="w-full min-w-0 bg-zinc-950 border border-zinc-800 rounded px-2 py-0.5 text-zinc-200 placeholder-zinc-500 text-[11px] focus:outline-none focus:border-zinc-700"
                 />
               </div>
             </div>
@@ -766,7 +766,7 @@ export default function LibraryInspector({
                 disabled={isSaving}
                 className="w-full flex items-center justify-center gap-1.5 py-1 px-3 bg-zinc-800 hover:bg-zinc-750 text-zinc-200 border border-zinc-700/60 rounded text-xs font-medium transition-colors cursor-pointer shadow-sm"
               >
-                <Save className="h-3.5 w-3.5 text-blue-400" />
+                <Save className="h-3.5 w-3.5 text-zinc-300" />
                 <span>{isSaving ? 'Saving...' : 'Save Metadata Changes'}</span>
               </button>
             </div>
@@ -808,7 +808,7 @@ export default function LibraryInspector({
                 document.has_pdf ? (
                   <div className="mt-1 p-2 bg-zinc-950/80 border border-zinc-800 rounded flex items-center justify-between">
                     <div className="flex items-center gap-2 truncate">
-                      <FileText className="h-4 w-4 text-red-400 shrink-0" />
+                      <FileText className="h-4 w-4 text-zinc-400 shrink-0" />
                       <div className="truncate">
                         <p className="text-[11.5px] font-medium text-zinc-200 truncate">
                           Full Text PDF
@@ -831,7 +831,7 @@ export default function LibraryInspector({
                     <div className="flex items-center justify-between">
                       <span className="text-[11px] text-zinc-400">No PDF attached</span>
                       {(document.doi || document.arxiv_id) && (
-                        <span className="text-[10px] text-blue-400 font-mono">
+                        <span className="text-[10px] text-zinc-400 font-mono">
                           {document.arxiv_id ? 'arXiv' : 'Unpaywall'} OA
                         </span>
                       )}
@@ -840,9 +840,9 @@ export default function LibraryInspector({
                       type="button"
                       onClick={handleDownloadOaPdf}
                       disabled={isDownloadingPdf}
-                      className="w-full flex items-center justify-center gap-1.5 py-1 px-2.5 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 rounded text-[11px] font-medium transition-colors cursor-pointer disabled:opacity-50"
+                      className="w-full flex items-center justify-center gap-1.5 py-1 px-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 rounded text-[11px] font-medium transition-colors cursor-pointer disabled:opacity-50"
                     >
-                      <Download className={`h-3 w-3 text-blue-400 ${isDownloadingPdf ? 'animate-bounce' : ''}`} />
+                      <Download className={`h-3 w-3 text-zinc-300 ${isDownloadingPdf ? 'animate-bounce' : ''}`} />
                       <span>{isDownloadingPdf ? 'Downloading OA Full-Text...' : 'Download Open-Access PDF'}</span>
                     </button>
                   </div>
@@ -871,7 +871,7 @@ export default function LibraryInspector({
                 <button
                   type="button"
                   onClick={handleAutoEnrich}
-                  className="mt-2 text-[10.5px] text-blue-400 hover:underline"
+                  className="mt-2 text-[10.5px] text-zinc-300 hover:text-white hover:underline cursor-pointer"
                 >
                   Lookup via CrossRef / arXiv
                 </button>
@@ -896,7 +896,7 @@ export default function LibraryInspector({
                 {/* APA 7th */}
                 <div className="bg-zinc-950 border border-zinc-800 rounded p-2">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="font-semibold text-blue-400 text-[10.5px]">APA 7th</span>
+                    <span className="font-semibold text-zinc-300 text-[10.5px]">APA 7th</span>
                     <button
                       type="button"
                       onClick={() => handleCopyCitation('apa', citations.apa)}
@@ -914,7 +914,7 @@ export default function LibraryInspector({
                 {/* IEEE */}
                 <div className="bg-zinc-950 border border-zinc-800 rounded p-2">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="font-semibold text-blue-400 text-[10.5px]">IEEE</span>
+                    <span className="font-semibold text-zinc-300 text-[10.5px]">IEEE</span>
                     <button
                       type="button"
                       onClick={() => handleCopyCitation('ieee', citations.ieee)}
@@ -932,7 +932,7 @@ export default function LibraryInspector({
                 {/* BibTeX */}
                 <div className="bg-zinc-950 border border-zinc-800 rounded p-2">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="font-semibold text-blue-400 text-[10.5px]">BibTeX (Overleaf)</span>
+                    <span className="font-semibold text-zinc-300 text-[10.5px]">BibTeX (Overleaf)</span>
                     <button
                       type="button"
                       onClick={() => handleCopyCitation('bibtex', citations.bibtex)}
@@ -964,7 +964,7 @@ export default function LibraryInspector({
               value={formData.notes}
               onChange={(e) => handleInputChange('notes', e.target.value)}
               placeholder="Record your observations, takeaways, and methodology notes for this paper..."
-              className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-zinc-200 focus:outline-none focus:border-blue-500 text-xs resize-none leading-relaxed"
+              className="w-full bg-zinc-950 border border-zinc-800 rounded p-2 text-zinc-200 focus:outline-none focus:border-zinc-700 text-xs resize-none leading-relaxed"
             />
             <button
               type="button"
@@ -972,7 +972,7 @@ export default function LibraryInspector({
               disabled={isSaving}
               className="w-full flex items-center justify-center gap-1.5 py-1 px-3 bg-zinc-800 hover:bg-zinc-750 text-zinc-200 border border-zinc-700/60 rounded text-xs font-medium transition-colors cursor-pointer"
             >
-              <Save className="h-3.5 w-3.5 text-blue-400" />
+              <Save className="h-3.5 w-3.5 text-zinc-300" />
               <span>{isSaving ? 'Saving...' : 'Save Notes'}</span>
             </button>
           </div>
@@ -983,8 +983,8 @@ export default function LibraryInspector({
         {/* ======================================================================= */}
         {activeTab === 'ai_summary' && (
           <div className="space-y-2 text-[11.5px]">
-            <div className="flex items-center gap-1.5 text-blue-400 font-semibold text-xs">
-              <Sparkles className="h-3.5 w-3.5" />
+            <div className="flex items-center gap-1.5 text-zinc-200 font-semibold text-xs">
+              <Sparkles className="h-3.5 w-3.5 text-zinc-300" />
               <span>Instant AI Executive Summary</span>
             </div>
 
