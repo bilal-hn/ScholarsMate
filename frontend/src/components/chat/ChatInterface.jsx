@@ -570,7 +570,7 @@ export default function ChatInterface({
               <BrandName 
                 className="text-3xl" 
                 scholarsClassName="font-serif font-bold text-zinc-100 tracking-tight"
-                mateClassName="font-serif font-normal text-[#8e8e93] tracking-tight"
+                mateClassName="font-serif font-bold text-[#8e8e93] tracking-tight"
               />
             </div>
 

@@ -10,7 +10,9 @@ import {
   LogOut, 
   Calendar,
   Layers,
-  FileText
+  FileText,
+  Sun,
+  Moon
 } from 'lucide-react';
 import { 
   updateUserProfileAPI, 
@@ -18,6 +20,7 @@ import {
   saveProfilePreferences,
   logoutUser 
 } from '../../services/api';
+import { getSavedTheme, saveTheme } from '../../theme/constants';
 
 const CITATION_STYLES = [
   { id: 'APA 7th', name: 'APA 7th Edition (Author, Year)' },
@@ -50,6 +53,8 @@ export default function ProfileSettingsModal({
   currentUser,
   onProfileUpdated,
   onLogout,
+  currentTheme: propTheme,
+  onThemeChange
 }) {
   const [name, setName] = useState('');
   const [savingName, setSavingName] = useState(false);
@@ -58,6 +63,13 @@ export default function ProfileSettingsModal({
 
   const [preferences, setPreferences] = useState(() => getSavedProfilePreferences());
   const [prefsSavedSuccess, setPrefsSavedSuccess] = useState(false);
+  const [activeTheme, setActiveTheme] = useState(() => propTheme || getSavedTheme());
+
+  useEffect(() => {
+    if (propTheme) {
+      setActiveTheme(propTheme);
+    }
+  }, [propTheme]);
 
   useEffect(() => {
     if (isOpen) {
@@ -66,10 +78,19 @@ export default function ProfileSettingsModal({
       setNameSavedSuccess(false);
       setNameError(null);
       setPrefsSavedSuccess(false);
+      setActiveTheme(propTheme || getSavedTheme());
     }
-  }, [isOpen, currentUser]);
+  }, [isOpen, currentUser, propTheme]);
 
   if (!isOpen) return null;
+
+  const handleSelectTheme = (themeId) => {
+    setActiveTheme(themeId);
+    saveTheme(themeId);
+    if (onThemeChange) {
+      onThemeChange(themeId);
+    }
+  };
 
   const handleSaveName = async (e) => {
     e?.preventDefault();
@@ -152,7 +173,7 @@ export default function ProfileSettingsModal({
               <span className="text-sm font-semibold text-zinc-100 truncate">
                 {currentUser?.name || 'Academic Scholar'}
               </span>
-              <span className="text-[10px] font-mono uppercase bg-amber-500/10 text-amber-400 border border-amber-500/20 px-1.5 py-0.5 rounded">
+              <span className="text-[10px] font-mono uppercase bg-zinc-800 text-zinc-300 border border-zinc-700 px-1.5 py-0.5 rounded">
                 Free
               </span>
             </div>
@@ -173,12 +194,12 @@ export default function ProfileSettingsModal({
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Your full academic name..."
-              className="flex-1 bg-zinc-950/70 border border-zinc-800 rounded-xl px-3.5 py-2 text-xs text-zinc-100 focus:outline-none focus:border-amber-500/80 transition-colors"
+              className="flex-1 bg-zinc-950/70 border border-zinc-800 rounded-xl px-3.5 py-2 text-xs text-zinc-100 focus:outline-none focus:border-zinc-500 transition-colors"
             />
             <button
               type="submit"
               disabled={savingName || !name.trim() || name.trim() === currentUser?.name}
-              className="bg-amber-500 hover:bg-amber-400 disabled:opacity-40 disabled:hover:bg-amber-500 text-zinc-950 font-semibold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer transition-colors"
+              className="bg-zinc-100 hover:bg-white disabled:opacity-40 disabled:hover:bg-zinc-100 text-zinc-950 font-semibold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 cursor-pointer transition-colors"
             >
               {savingName ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -203,7 +224,73 @@ export default function ProfileSettingsModal({
           )}
         </form>
 
-        {/* Section 2: Academic & Research Defaults */}
+        {/* Section 2: Theme & Appearance */}
+        <div className="space-y-2 pt-2 border-t border-zinc-800/80">
+          <div className="flex items-center justify-between">
+            <label className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
+              Theme &amp; Appearance
+            </label>
+            <span className="text-[10.5px] font-mono text-[#8e8e93]">
+              {activeTheme === 'clarity' ? 'Daylight Light' : 'Obsidian Dark'}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2.5">
+            {/* Dark Mode Card */}
+            <button
+              type="button"
+              onClick={() => handleSelectTheme('original')}
+              className={`flex items-center gap-2.5 p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                activeTheme !== 'clarity'
+                  ? 'bg-zinc-800/90 border-[#8e8e93] text-white shadow-sm ring-1 ring-[#8e8e93]/50'
+                  : 'bg-zinc-950/60 border-zinc-800 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-850'
+              }`}
+            >
+              <div className={`p-1.5 rounded-lg border ${
+                activeTheme !== 'clarity'
+                  ? 'bg-zinc-900 border-zinc-700 text-white'
+                  : 'bg-zinc-900 border-zinc-800 text-zinc-500'
+              }`}>
+                <Moon className="h-4 w-4" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-xs font-semibold leading-tight">Dark Mode</div>
+                <div className="text-[10px] text-zinc-400 truncate mt-0.5">Obsidian black &amp; slate grey</div>
+              </div>
+              {activeTheme !== 'clarity' && (
+                <Check className="h-3.5 w-3.5 text-zinc-100 shrink-0" />
+              )}
+            </button>
+
+            {/* Light Mode Card */}
+            <button
+              type="button"
+              onClick={() => handleSelectTheme('clarity')}
+              className={`flex items-center gap-2.5 p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                activeTheme === 'clarity'
+                  ? 'bg-zinc-200 border-zinc-400 text-zinc-950 shadow-sm ring-1 ring-zinc-400'
+                  : 'bg-zinc-950/60 border-zinc-800 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-850'
+              }`}
+            >
+              <div className={`p-1.5 rounded-lg border ${
+                activeTheme === 'clarity'
+                  ? 'bg-white border-zinc-300 text-zinc-900'
+                  : 'bg-zinc-900 border-zinc-800 text-zinc-500'
+              }`}>
+                <Sun className="h-4 w-4" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-xs font-semibold leading-tight">Light Mode</div>
+                <div className="text-[10px] text-zinc-500 truncate mt-0.5">Studio porcelain daylight</div>
+              </div>
+              {activeTheme === 'clarity' && (
+                <Check className="h-3.5 w-3.5 text-zinc-950 shrink-0" />
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Section 3: Academic & Research Defaults */}
         <div className="space-y-3 pt-2 border-t border-zinc-800/80">
           <div className="flex items-center justify-between">
             <label className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
@@ -225,7 +312,7 @@ export default function ProfileSettingsModal({
             <select
               value={preferences.citationStyle || 'APA 7th'}
               onChange={(e) => handlePreferenceChange('citationStyle', e.target.value)}
-              className="w-full bg-zinc-950/70 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-200 focus:outline-none focus:border-amber-500/80 transition-colors cursor-pointer"
+              className="w-full bg-zinc-950/70 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-200 focus:outline-none focus:border-zinc-500 transition-colors cursor-pointer"
             >
               {CITATION_STYLES.map((c) => (
                 <option key={c.id} value={c.id} className="bg-zinc-900 text-zinc-200">
@@ -244,7 +331,7 @@ export default function ProfileSettingsModal({
             <select
               value={preferences.academicField || ACADEMIC_FIELDS[0]}
               onChange={(e) => handlePreferenceChange('academicField', e.target.value)}
-              className="w-full bg-zinc-950/70 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-200 focus:outline-none focus:border-amber-500/80 transition-colors cursor-pointer"
+              className="w-full bg-zinc-950/70 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-200 focus:outline-none focus:border-zinc-500 transition-colors cursor-pointer"
             >
               {ACADEMIC_FIELDS.map((field) => (
                 <option key={field} value={field} className="bg-zinc-900 text-zinc-200">

@@ -623,6 +623,8 @@ export default function App() {
           isOpen={isSettingsOpen}
           onClose={() => setIsSettingsOpen(false)}
           onConfigUpdated={handleConfigUpdated}
+          currentTheme={currentTheme}
+          onThemeChange={handleThemeChange}
         />
         <ProfileSettingsModal
           isOpen={isProfileSettingsOpen}
@@ -630,6 +632,8 @@ export default function App() {
           currentUser={currentUser}
           onProfileUpdated={handleAuthChange}
           onLogout={handleAuthChange}
+          currentTheme={currentTheme}
+          onThemeChange={handleThemeChange}
         />
         <ThemeModal
           isOpen={isThemeModalOpen}
@@ -699,6 +703,8 @@ export default function App() {
           isOpen={isSettingsOpen}
           onClose={() => setIsSettingsOpen(false)}
           onConfigUpdated={handleConfigUpdated}
+          currentTheme={currentTheme}
+          onThemeChange={handleThemeChange}
         />
         <ProfileSettingsModal
           isOpen={isProfileSettingsOpen}
@@ -706,6 +712,8 @@ export default function App() {
           currentUser={currentUser}
           onProfileUpdated={handleAuthChange}
           onLogout={handleAuthChange}
+          currentTheme={currentTheme}
+          onThemeChange={handleThemeChange}
         />
         <LiteratureReviewModal
           isOpen={isLitReviewOpen}
@@ -929,6 +937,8 @@ export default function App() {
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         onConfigUpdated={handleConfigUpdated}
+        currentTheme={currentTheme}
+        onThemeChange={handleThemeChange}
       />
 
       <ProfileSettingsModal
@@ -937,6 +947,8 @@ export default function App() {
         currentUser={currentUser}
         onProfileUpdated={handleAuthChange}
         onLogout={handleAuthChange}
+        currentTheme={currentTheme}
+        onThemeChange={handleThemeChange}
       />
 
       <LiteratureReviewModal
