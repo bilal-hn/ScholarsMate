@@ -12,10 +12,19 @@ import {
   Minimize2,
   RotateCcw,
   Plus,
+  FileCode,
+  FileText,
+  Layers,
+  AlertCircle,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
 import rehypeRaw from 'rehype-raw';
-import { formatCitations, preprocessTables, exportElementToPDF } from '../../utils/exportMonographPdf';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
+import { formatCitations, preprocessTables } from '../../utils/exportMonographPdf';
+import { exportLiteratureReviewPdfAPI, exportLiteratureReviewZipAPI, fetchLiteratureReviewPdfBlobAPI } from '../../services/api';
 
 const DEFAULT_HEADINGS = [
   'Introduction & Background',
@@ -58,14 +67,50 @@ export default function LiteratureReviewModal({
   const [customHeadings, setCustomHeadings] = useState([...DEFAULT_HEADINGS]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [isExportingZip, setIsExportingZip] = useState(false);
   const [currentStage, setCurrentStage] = useState('');
   const [monograph, setMonograph] = useState(() => initialMonograph || null);
+  const [docDisplayMode, setDocDisplayMode] = useState('pdf'); // 'pdf' (compiled XeTeX vector PDF) | 'web' (HTML reader)
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState(null);
+  const [isCompilingPreview, setIsCompilingPreview] = useState(false);
+  const [previewCompileError, setPreviewCompileError] = useState(null);
 
   useEffect(() => {
     if (initialMonograph !== undefined) {
       setMonograph(initialMonograph);
     }
   }, [initialMonograph]);
+
+  // Automatically compile or fetch the XeTeX vector PDF for in-panel preview whenever monograph is ready
+  useEffect(() => {
+    let active = true;
+    if (monograph && monograph.sections && monograph.sections.length > 0) {
+      setIsCompilingPreview(true);
+      setPreviewCompileError(null);
+      fetchLiteratureReviewPdfBlobAPI(monograph)
+        .then((blob) => {
+          if (active) {
+            const url = URL.createObjectURL(blob);
+            setPdfPreviewUrl(url);
+          }
+        })
+        .catch((err) => {
+          if (active) {
+            console.error('Failed to compile XeTeX PDF for preview:', err);
+            setPreviewCompileError(err.response?.data?.detail || err.message || 'XeTeX Compilation error');
+          }
+        })
+        .finally(() => {
+          if (active) setIsCompilingPreview(false);
+        });
+    } else {
+      setPdfPreviewUrl(null);
+      setPreviewCompileError(null);
+    }
+    return () => {
+      active = false;
+    };
+  }, [monograph]);
 
   // Keep papers synced if documents load after mount
   useEffect(() => {
@@ -92,19 +137,33 @@ export default function LiteratureReviewModal({
 
   const handleNewReview = () => {
     setMonograph(null);
+    setPdfPreviewUrl(null);
   };
 
   const handleDownloadPDF = async () => {
-    if (!printDocumentRef.current || isExporting) return;
+    if (!monograph || isExporting) return;
     setIsExporting(true);
-    const filename = `${(monograph?.title || 'Literature_Review').replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
     try {
-      await exportElementToPDF(printDocumentRef.current, filename);
+      // 1. Compile crisp vector XeTeX PDF via backend Tectonic
+      await exportLiteratureReviewPdfAPI(monograph);
     } catch (err) {
-      console.error('PDF export failed:', err);
-      alert('Failed to export PDF: ' + (err.message || 'Rendering error'));
+      console.error('XeTeX PDF download failed:', err);
+      alert('Failed to compile publication-grade XeTeX PDF: ' + (err.response?.data?.detail || err.message));
     } finally {
       setIsExporting(false);
+    }
+  };
+
+  const handleDownloadZip = async () => {
+    if (!monograph || isExportingZip) return;
+    setIsExportingZip(true);
+    try {
+      await exportLiteratureReviewZipAPI(monograph);
+    } catch (err) {
+      console.error('LaTeX zip download failed:', err);
+      alert('Failed to package LaTeX project: ' + (err.message || 'Server error'));
+    } finally {
+      setIsExportingZip(false);
     }
   };
 
@@ -168,6 +227,36 @@ export default function LiteratureReviewModal({
         <div className="flex items-center gap-1.5 shrink-0">
           {viewMode === 'monograph' && (
             <>
+              {/* Segmented display switch: XeTeX PDF Preview vs Web Reader */}
+              <div className="flex items-center bg-zinc-900 border border-zinc-800 rounded-lg p-0.5 text-[11px] mr-1">
+                <button
+                  type="button"
+                  onClick={() => setDocDisplayMode('pdf')}
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-md transition-colors cursor-pointer ${
+                    docDisplayMode === 'pdf'
+                      ? 'bg-amber-400 text-zinc-950 font-semibold shadow-xs'
+                      : 'text-zinc-400 hover:text-zinc-200 font-medium'
+                  }`}
+                  title="View compiled publication-grade vector XeTeX PDF"
+                >
+                  <FileText className="h-3 w-3" />
+                  <span>XeTeX PDF</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDocDisplayMode('web')}
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-md transition-colors cursor-pointer ${
+                    docDisplayMode === 'web'
+                      ? 'bg-amber-400 text-zinc-950 font-semibold shadow-xs'
+                      : 'text-zinc-400 hover:text-zinc-200 font-medium'
+                  }`}
+                  title="View interactive HTML document reader"
+                >
+                  <Layers className="h-3 w-3" />
+                  <span>Web Reader</span>
+                </button>
+              </div>
+
               <button
                 type="button"
                 onClick={handleNewReview}
@@ -182,10 +271,20 @@ export default function LiteratureReviewModal({
                 onClick={handleDownloadPDF}
                 disabled={isExporting}
                 className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-zinc-950 bg-amber-400 hover:bg-amber-300 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
-                title="Download publication-grade monograph PDF"
+                title="Download publication-grade vector XeTeX PDF (compiled with Tectonic)"
               >
                 {isExporting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
-                <span>{isExporting ? 'Exporting…' : 'PDF'}</span>
+                <span>{isExporting ? 'Compiling…' : 'Download PDF'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleDownloadZip}
+                disabled={isExportingZip}
+                className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium text-zinc-300 hover:text-white bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+                title="Download complete LaTeX Project (.zip) for Overleaf / TeXStudio"
+              >
+                {isExportingZip ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileCode className="h-3 w-3 text-emerald-400" />}
+                <span>{isExportingZip ? 'Packaging…' : 'LaTeX (.zip)'}</span>
               </button>
             </>
           )}
@@ -236,9 +335,54 @@ export default function LiteratureReviewModal({
         )}
 
         {/* ============================================================== */}
-        {/* VIEW 2: MONOGRAPH DOCUMENT                                    */}
+        {/* VIEW 2: MONOGRAPH DOCUMENT (XeTeX PDF Preview & Web Reader)     */}
         {/* ============================================================== */}
         {viewMode === 'monograph' && monograph && (
+          docDisplayMode === 'pdf' ? (
+            <div className="flex-1 w-full h-full bg-zinc-950 flex flex-col overflow-hidden relative">
+              {isCompilingPreview && !pdfPreviewUrl && (
+                <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-zinc-950/90 text-center p-6 space-y-4 animate-in fade-in duration-200">
+                  <div className="h-14 w-14 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shadow-lg shadow-amber-500/5">
+                    <Loader2 className="h-7 w-7 animate-spin" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-semibold text-zinc-100">Compiling XeTeX Vector Monograph</h4>
+                    <p className="text-xs text-amber-400/90 font-mono mt-1.5">Executing Tectonic engine with publication page breaks...</p>
+                  </div>
+                  <p className="text-[11px] text-zinc-500 max-w-xs leading-relaxed">
+                    Generating Latin Modern Roman typography, dynamic table of contents, and booktabs tables.
+                  </p>
+                </div>
+              )}
+
+              {previewCompileError && !pdfPreviewUrl && (
+                <div className="flex-1 flex flex-col items-center justify-center p-6 text-center max-w-md mx-auto space-y-4 animate-in fade-in duration-200">
+                  <div className="h-12 w-12 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-400">
+                    <AlertCircle className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-semibold text-zinc-100">XeTeX Compilation Notice</h4>
+                    <p className="text-xs text-zinc-400 mt-1.5 leading-relaxed">{previewCompileError}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setDocDisplayMode('web')}
+                    className="px-3.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs font-medium text-zinc-200 transition-colors cursor-pointer"
+                  >
+                    Switch to Web Reader
+                  </button>
+                </div>
+              )}
+
+              {pdfPreviewUrl && (
+                <iframe
+                  src={pdfPreviewUrl}
+                  title="XeTeX Compiled Monograph PDF"
+                  className="w-full h-full border-0 bg-zinc-900"
+                />
+              )}
+            </div>
+          ) : (
           <div className={`flex-1 overflow-y-auto ${isPanel ? 'p-3 md:p-6' : 'p-8'} flex justify-center bg-zinc-900/30`}>
             <div
               ref={printDocumentRef}
@@ -340,15 +484,16 @@ export default function LiteratureReviewModal({
                   </h2>
                   <div className="text-justify leading-relaxed text-black space-y-3">
                     <ReactMarkdown
-                      rehypePlugins={[rehypeRaw]}
+                      remarkPlugins={[remarkGfm, remarkMath]}
+                      rehypePlugins={[rehypeRaw, rehypeKatex]}
                       components={{
                         h3: ({ children }) => (
-                          <h3 className="text-[11pt] font-bold text-black mt-5 mb-2">
+                          <h3 className="text-[12pt] font-bold text-black mt-6 mb-2 border-b border-black/15 pb-0.5 tracking-tight">
                             {children}
                           </h3>
                         ),
                         h4: ({ children }) => (
-                          <h4 className="text-[10pt] font-bold italic text-black mt-4 mb-1">
+                          <h4 className="text-[10.5pt] font-bold italic text-black mt-4 mb-1">
                             {children}
                           </h4>
                         ),
@@ -393,6 +538,8 @@ export default function LiteratureReviewModal({
                   </h2>
                   <div className="text-justify leading-relaxed text-black space-y-3">
                     <ReactMarkdown
+                      remarkPlugins={[remarkGfm, remarkMath]}
+                      rehypePlugins={[rehypeRaw, rehypeKatex]}
                       components={{
                         h3: ({ children }) => (
                           <h3 className="text-[11pt] font-bold text-black mt-5 mb-2">
@@ -433,6 +580,7 @@ export default function LiteratureReviewModal({
               </div>
             </div>
           </div>
+          )
         )}
 
         {/* ============================================================== */}

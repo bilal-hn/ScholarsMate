@@ -581,6 +581,71 @@ export const generateLiteratureReviewAPI = async ({
   }
 };
 
+/**
+ * Compiles and returns the raw PDF Blob using backend Tectonic XeTeX engine for in-app preview.
+ * @param {Object} monograph - The synthesized monograph data structure.
+ * @returns {Promise<Blob>}
+ */
+export const fetchLiteratureReviewPdfBlobAPI = async (monograph) => {
+  try {
+    const response = await apiClient.post('/workspace/literature-review/pdf', monograph, {
+      responseType: 'blob',
+    });
+    return new Blob([response.data], { type: 'application/pdf' });
+  } catch (error) {
+    console.error('Fetch Tectonic PDF blob failed:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+/**
+ * Compiles and downloads a publication-grade vector PDF using backend Tectonic XeTeX engine.
+ * @param {Object} monograph - The synthesized monograph data structure.
+ */
+export const exportLiteratureReviewPdfAPI = async (monograph) => {
+  try {
+    const response = await apiClient.post('/workspace/literature-review/pdf', monograph, {
+      responseType: 'blob',
+    });
+    const title = (monograph?.title || 'Literature_Review').replace(/[^a-zA-Z0-9]/g, '_');
+    const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `${title}.pdf`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  } catch (error) {
+    console.error('Tectonic PDF export failed:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+/**
+ * Packages and downloads an Overleaf-ready LaTeX project (.zip) containing main.tex, sections/, and references.bib.
+ * @param {Object} monograph - The synthesized monograph data structure.
+ */
+export const exportLiteratureReviewZipAPI = async (monograph) => {
+  try {
+    const response = await apiClient.post('/workspace/literature-review/latex-zip', monograph, {
+      responseType: 'blob',
+    });
+    const title = (monograph?.title || 'Literature_Review').replace(/[^a-zA-Z0-9]/g, '_');
+    const url = window.URL.createObjectURL(new Blob([response.data], { type: 'application/zip' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `${title}_latex.zip`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  } catch (error) {
+    console.error('LaTeX zip export failed:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
 // =============================================================================
 // CHAT SESSION & PERSISTENCE API METHODS
 // =============================================================================

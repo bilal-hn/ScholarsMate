@@ -21,7 +21,9 @@ import {
   BookOpen,
   Download,
   Loader2,
+  FileCode,
 } from 'lucide-react';
+import { exportLiteratureReviewPdfAPI, exportLiteratureReviewZipAPI } from '../../services/api';
 
 /**
  * Interactive inline citation badge matching ChatGPT style with hover card popover and click-to-open split PDF viewer.
@@ -198,6 +200,7 @@ const transformCitations = (rawText) => {
  */
 function MonographArtifactCard({ monograph, onOpenMonograph, onDownloadMonograph }) {
   const [isExporting, setIsExporting] = useState(false);
+  const [isExportingZip, setIsExportingZip] = useState(false);
   const docCount = monograph?.doc_names?.length || 0;
   const paperText = docCount === 1 ? '1 paper' : `${docCount} papers`;
   const title = monograph?.title || 'Academic Literature Review Monograph';
@@ -218,13 +221,31 @@ function MonographArtifactCard({ monograph, onOpenMonograph, onDownloadMonograph
     try {
       if (onDownloadMonograph) {
         await onDownloadMonograph(monograph);
-      } else if (onOpenMonograph) {
-        onOpenMonograph(monograph);
+      } else {
+        await exportLiteratureReviewPdfAPI(monograph);
       }
     } catch (err) {
-      console.error('Monograph download failed:', err);
+      console.error('Monograph PDF download failed:', err);
+      if (onOpenMonograph) {
+        onOpenMonograph(monograph);
+      }
     } finally {
       setIsExporting(false);
+    }
+  };
+
+  const handleDownloadZip = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (isExportingZip) return;
+    setIsExportingZip(true);
+    try {
+      await exportLiteratureReviewZipAPI(monograph);
+    } catch (err) {
+      console.error('LaTeX zip export failed:', err);
+      alert('Failed to package LaTeX project: ' + (err.message || 'Server error'));
+    } finally {
+      setIsExportingZip(false);
     }
   };
 
@@ -246,7 +267,7 @@ function MonographArtifactCard({ monograph, onOpenMonograph, onDownloadMonograph
             <span>•</span>
             <span>{paperText}</span>
             <span>•</span>
-            <span className="text-zinc-500">Academic Monograph</span>
+            <span className="text-zinc-500">XeTeX Vector Monograph</span>
           </div>
         </div>
       </div>
@@ -266,10 +287,20 @@ function MonographArtifactCard({ monograph, onOpenMonograph, onDownloadMonograph
           onClick={handleDownload}
           disabled={isExporting}
           className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-zinc-950 bg-amber-400 hover:bg-amber-300 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
-          title="Download Monograph PDF"
+          title="Download Vector XeTeX PDF (compiled via Tectonic)"
         >
           {isExporting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
-          <span>{isExporting ? 'PDF…' : 'PDF'}</span>
+          <span>{isExporting ? 'Compiling…' : 'PDF'}</span>
+        </button>
+        <button
+          type="button"
+          onClick={handleDownloadZip}
+          disabled={isExportingZip}
+          className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-zinc-300 hover:text-white bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+          title="Download complete LaTeX Project (.zip) for Overleaf / TeXStudio"
+        >
+          {isExportingZip ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileCode className="h-3 w-3 text-emerald-400" />}
+          <span>{isExportingZip ? 'Zip…' : 'LaTeX'}</span>
         </button>
       </div>
     </div>

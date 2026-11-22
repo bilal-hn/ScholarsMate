@@ -12,7 +12,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends, BackgroundTasks
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends, BackgroundTasks, Response
 from fastapi.responses import PlainTextResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -1944,6 +1944,64 @@ async def create_literature_review(
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Literature review generation failed: {str(e)}")
+
+
+@app.post("/api/workspace/literature-review/pdf")
+async def export_literature_review_pdf(
+    monograph: Dict[str, Any],
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Compiles an academic monograph into a publication-grade vector XeTeX PDF using Tectonic.
+    """
+    import asyncio
+    import re
+    from backend.rag.latex_compiler import compile_monograph_to_pdf_bytes
+
+    try:
+        pdf_bytes = await asyncio.to_thread(compile_monograph_to_pdf_bytes, monograph)
+        title = monograph.get("title", "Literature_Review")
+        safe_title = re.sub(r"[^a-zA-Z0-9_\-]", "_", title)[:60]
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f'attachment; filename="{safe_title}.pdf"'
+            }
+        )
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"LaTeX compilation failed: {str(e)}")
+
+
+@app.post("/api/workspace/literature-review/latex-zip")
+async def export_literature_review_zip(
+    monograph: Dict[str, Any],
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Packages monograph into an Overleaf-ready LaTeX project (.zip) containing main.tex, sections/, and references.bib.
+    """
+    import asyncio
+    import re
+    from backend.rag.latex_compiler import create_latex_project_zip_bytes
+
+    try:
+        zip_bytes = await asyncio.to_thread(create_latex_project_zip_bytes, monograph)
+        title = monograph.get("title", "Literature_Review")
+        safe_title = re.sub(r"[^a-zA-Z0-9_\-]", "_", title)[:60]
+        return Response(
+            content=zip_bytes,
+            media_type="application/zip",
+            headers={
+                "Content-Disposition": f'attachment; filename="{safe_title}_latex.zip"'
+            }
+        )
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"LaTeX zip packaging failed: {str(e)}")
 
 
 @app.get("/api/user/token-quota")

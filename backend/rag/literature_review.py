@@ -2,9 +2,12 @@ import sys
 import os
 import json
 import re
+import time
 from datetime import datetime
 from typing import List, Dict, Any, Tuple, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
+os.environ["LITELLM_LOCAL_MODEL_COST_MAP"] = "True"
 from litellm import completion
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
@@ -97,6 +100,7 @@ def _execute_review_call(
         "api_key": active_key if not is_bedrock else None,
         "max_tokens": max_tokens,
         "drop_params": True,
+        "timeout": 180,  # 3 minute safety timeout to prevent hanging indefinitely on congested third-party providers
     }
     if is_bedrock:
         call_kwargs["aws_region_name"] = os.getenv("AWS_REGION_NAME", "us-east-1")
@@ -108,11 +112,15 @@ def _execute_review_call(
     if "gemini-3" not in normalized_model and "o1" not in normalized_model and "o3" not in normalized_model:
         call_kwargs["temperature"] = temperature
 
+    t0 = time.time()
     try:
         res = completion(**call_kwargs)
+        duration = time.time() - t0
+        print(f"[Review Call Success] Model '{normalized_model}' responded in {duration:.1f}s.")
         return extract_reasoning_and_content(res).answer
     except Exception as e:
-        print(f"[Review Stage Warning] Call failed on '{normalized_model}': {e}")
+        duration = time.time() - t0
+        print(f"[Review Stage Warning] Call failed or timed out on '{normalized_model}' after {duration:.1f}s: {e}")
         fallback_candidates = [
             "bedrock/us.deepseek.r1-v1:0",
             "bedrock/us.amazon.nova-lite-v1:0",
@@ -143,7 +151,10 @@ def _execute_review_call(
                 else:
                     call_kwargs.pop("aws_region_name", None)
                     call_kwargs.pop("api_base", None)
+                fb_t0 = time.time()
                 res = completion(**call_kwargs)
+                fb_duration = time.time() - fb_t0
+                print(f"[Review Fallback Success] Fallback to '{fb_model}' succeeded in {fb_duration:.1f}s.")
                 return extract_reasoning_and_content(res).answer
             except Exception:
                 continue
@@ -302,11 +313,15 @@ SECTION DIRECTIVE:
 {section_meta.get('focus_directive', 'Synthesize and contrast the evidence across papers.')}
 
 STRICT ACADEMIC STYLING RULES:
-1. Write 600-900 words of formal, academic prose with full paragraphs (no incomplete endings).
-2. Use clear subheadings (### Subtitle) to categorize different themes.
+1. Write 800-1200 words of formal, publication-grade academic prose with exhaustive paragraphs.
+2. Structure this section into at least 2 to 3 explicit, numbered sub-headings using Markdown H3:
+   - `### {section_meta.get('section_number', 1)}.1 <Thematic Conceptual Framework / Methodological Paradigm>`
+   - `### {section_meta.get('section_number', 1)}.2 <Empirical Evidence, Quantitative Benchmarks & Mechanistic Analysis>`
+   - `### {section_meta.get('section_number', 1)}.3 <Comparative Contradictions, Trade-offs & Unresolved Questions>`
 3. Cite sources inline using LaTeX-style numbered bracket notation matching the reference map: e.g. `[1]`, `[2]`, `[1, p. 4]`, or `[1, 2]`. Do NOT write out raw filenames like `[paper.pdf]`.
-4. Use bold text for key terms, metrics, and taxonomy names.
-5. Do NOT output a top-level '# Section' or '## Section' title. Start directly with the narrative or first subsection.
+4. Use bold text for key terms, metrics, taxonomy names, and physiological/algorithmic mechanisms.
+5. If presenting comparative properties or performance numbers, format them inside a clean Markdown table.
+6. Do NOT output a top-level '# Section' or '## Section' title. Start directly with the first subsection `### {section_meta.get('section_number', 1)}.1`.
 """.strip()
 
     section_text = _execute_review_call(
@@ -415,36 +430,67 @@ def _generate_direct_literature_review(
     all_used_chunks = []
     rolling_memory = ""
 
-    # 2. Sequential Drafting
-    for idx, sec in enumerate(sections_plan):
-        sec_title = sec.get("title", f"Section {idx + 1}")
-        print(f"[Review Pipeline] Drafting Section {idx + 1}/5: '{sec_title}'...")
+    # 2. Concurrently draft sections and comparative matrix in parallel
+    print(f"[Review Pipeline] Concurrently drafting {len(sections_plan)} sections and comparative matrix in parallel...")
+    sections_results = [None] * len(sections_plan)
+    matrix_table = ""
 
+    outline_context = "Monograph Editorial Roadmap: " + "; ".join(
+        [f"Section {s.get('section_number', i+1)}: {s.get('title')}" for i, s in enumerate(sections_plan)]
+    )
+
+    def draft_task(index, sec):
+        sec_title = sec.get("title", f"Section {index + 1}")
+        print(f"[Review Pipeline] Drafting Section {index + 1}/{len(sections_plan)}: '{sec_title}'...")
         raw_sec_text, used_chunks = _draft_section(
             section_meta=sec,
             target_docs=target_docs,
-            rolling_memory=rolling_memory,
+            rolling_memory=outline_context,
             research_focus=research_focus,
             model_name=model_name,
             custom_keys=keys
         )
-
         clean_sec_body = _clean_markdown_section_output(raw_sec_text)
-        compiled_sections.append({
-            "section_number": idx + 1,
+        return index, {
+            "section_number": sec.get("section_number", index + 1),
             "title": sec_title,
             "content": clean_sec_body
-        })
-        all_used_chunks.extend(used_chunks)
+        }, used_chunks
 
-        summary_snippet = clean_sec_body[:350] + "..." if len(clean_sec_body) > 350 else clean_sec_body
-        rolling_memory += f"\n- Section {idx + 1} ({sec_title}): {summary_snippet}"
+    def matrix_task():
+        print("[Review Pipeline] Extracting Comparative Matrix Table in parallel...")
+        return _generate_comparison_matrix(target_docs, model_name, keys)
 
-    # 3. Comparative Matrix
-    print("[Review Pipeline] Extracting Comparative Matrix Table...")
-    matrix_table = _generate_comparison_matrix(target_docs, model_name, keys)
+    max_workers = min(6, len(sections_plan) + 1)
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_to_type = {}
+        for idx, sec in enumerate(sections_plan):
+            f = executor.submit(draft_task, idx, sec)
+            future_to_type[f] = ("section", idx)
+        f_matrix = executor.submit(matrix_task)
+        future_to_type[f_matrix] = ("matrix", None)
 
-    # 4. Integrative Conclusion
+        for future in as_completed(future_to_type):
+            task_type, idx = future_to_type[future]
+            try:
+                if task_type == "section":
+                    sec_idx, sec_data, used_chunks = future.result()
+                    sections_results[sec_idx] = sec_data
+                    all_used_chunks.extend(used_chunks)
+                elif task_type == "matrix":
+                    matrix_table = future.result()
+            except Exception as e:
+                print(f"[Review Pipeline Warning] Parallel task ({task_type}) failed: {e}")
+
+    compiled_sections = [s for s in sections_results if s is not None]
+
+    # Build rolling memory summary across drafted sections for Conclusion
+    rolling_memory = ""
+    for sec in compiled_sections:
+        summary_snippet = sec["content"][:350] + "..." if len(sec["content"]) > 350 else sec["content"]
+        rolling_memory += f"\n- Section {sec['section_number']} ({sec['title']}): {summary_snippet}"
+
+    # 3. Integrative Conclusion
     print("[Review Pipeline] Generating Integrative Conclusion...")
     conclusion_text = _generate_conclusion(target_docs, rolling_memory, research_focus, model_name, keys)
 
@@ -834,12 +880,16 @@ SECTION DIRECTIVE:
 {section_meta.get('focus_directive', 'Synthesize and contrast the evidence across papers.')}
 
 STRICT ACADEMIC STYLING RULES:
-1. Write 700-1100 words of formal, publication-grade academic prose with full paragraphs.
+1. Write 800-1200 words of formal, publication-grade academic prose with exhaustive paragraphs.
 2. Cross-reference and contrast multiple papers and thematic paradigms within every subsection.
-3. Use clear subheadings (### Subtitle) to organize thematic sub-topics.
+3. Structure this section into at least 2 to 3 explicit, numbered sub-headings using Markdown H3:
+   - `### {section_meta.get('section_number', 1)}.1 <Thematic Conceptual Framework / Methodological Paradigm>`
+   - `### {section_meta.get('section_number', 1)}.2 <Empirical Evidence, Quantitative Benchmarks & Mechanistic Analysis>`
+   - `### {section_meta.get('section_number', 1)}.3 <Comparative Contradictions, Trade-offs & Unresolved Questions>`
 4. Cite sources inline using LaTeX-style numbered bracket notation matching the reference map above: e.g. `[1]`, `[2]`, `[1, p. 4]`, or `[1, 2]`. Do NOT write out raw filenames like `[paper.pdf]`.
-5. Bold key terms, mechanisms, dataset names, and performance metrics.
-6. Do NOT output a top-level '# Section' or '## Section' title. Start directly with the first subsection or introductory narrative.
+5. Bold key terms, mechanisms, dataset names, benchmark numbers, and physiological/algorithmic paradigms.
+6. If presenting comparative properties, include a Markdown table.
+7. Do NOT output a top-level '# Section' or '## Section' title. Start directly with the first subsection `### {section_meta.get('section_number', 1)}.1`.
 """.strip()
 
     section_text = _execute_review_call(
@@ -894,31 +944,53 @@ def _generate_batched_literature_review(
     all_used_chunks = []
     rolling_memory = ""
 
-    # Stage 3: Clustered Section Drafting
-    for idx, sec in enumerate(sections_plan):
-        sec_title = sec.get("title", f"Section {idx + 1}")
-        print(f"[Batched Review Pipeline] Drafting Section {idx + 1}/5: '{sec_title}'...")
+    # Stage 3: Clustered Section Drafting in Parallel
+    print(f"[Batched Review Pipeline] Concurrently drafting {len(sections_plan)} clustered sections in parallel...")
+    sections_results = [None] * len(sections_plan)
 
+    outline_context = "Monograph Editorial Roadmap: " + "; ".join(
+        [f"Section {s.get('section_number', i+1)}: {s.get('title')}" for i, s in enumerate(sections_plan)]
+    )
+
+    def batched_draft_task(index, sec):
+        sec_title = sec.get("title", f"Section {index + 1}")
+        print(f"[Batched Review Pipeline] Drafting Section {index + 1}/{len(sections_plan)}: '{sec_title}'...")
         raw_sec_text, used_chunks = _draft_batched_section(
             section_meta=sec,
             profiles_by_doc=profiles_by_doc,
             target_docs=target_docs,
-            rolling_memory=rolling_memory,
+            rolling_memory=outline_context,
             research_focus=research_focus,
             model_name=model_name,
             custom_keys=keys
         )
-
         clean_sec_body = _clean_markdown_section_output(raw_sec_text)
-        compiled_sections.append({
-            "section_number": idx + 1,
+        return index, {
+            "section_number": sec.get("section_number", index + 1),
             "title": sec_title,
             "content": clean_sec_body
-        })
-        all_used_chunks.extend(used_chunks)
+        }, used_chunks
 
-        summary_snippet = clean_sec_body[:350] + "..." if len(clean_sec_body) > 350 else clean_sec_body
-        rolling_memory += f"\n- Section {idx + 1} ({sec_title}): {summary_snippet}"
+    with ThreadPoolExecutor(max_workers=min(5, len(sections_plan))) as executor:
+        future_to_idx = {
+            executor.submit(batched_draft_task, idx, sec): idx
+            for idx, sec in enumerate(sections_plan)
+        }
+        for future in as_completed(future_to_idx):
+            sec_idx = future_to_idx[future]
+            try:
+                res_idx, sec_data, used_chunks = future.result()
+                sections_results[res_idx] = sec_data
+                all_used_chunks.extend(used_chunks)
+            except Exception as e:
+                print(f"[Batched Review Pipeline Warning] Drafting Section {sec_idx + 1} failed: {e}")
+
+    compiled_sections = [s for s in sections_results if s is not None]
+
+    rolling_memory = ""
+    for sec in compiled_sections:
+        summary_snippet = sec["content"][:350] + "..." if len(sec["content"]) > 350 else sec["content"]
+        rolling_memory += f"\n- Section {sec['section_number']} ({sec['title']}): {summary_snippet}"
 
     # Stage 4: Guaranteed Full Comparative Matrix
     print(f"[Batched Review Pipeline] Assembling Complete Matrix Table for {len(target_docs)} papers...")
