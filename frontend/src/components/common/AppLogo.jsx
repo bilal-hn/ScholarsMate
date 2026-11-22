@@ -66,4 +66,7 @@ export default function AppLogo({
     </div>
   );
 }
-export { BrandName };
+import ScholarsMateIntro from './ScholarsMateIntro';
+import ChessPieceLoader from './ChessPieceLoader';
+
+export { BrandName, ScholarsMateIntro, ChessPieceLoader };

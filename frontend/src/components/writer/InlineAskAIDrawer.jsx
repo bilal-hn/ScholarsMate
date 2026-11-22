@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { X, Sparkles, Send, ArrowRight, CornerDownLeft, Copy, Check, ChevronDown, ChevronRight, Loader2, Brain } from 'lucide-react';
+import ChessPieceLoader from '../common/ChessPieceLoader';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
@@ -98,7 +99,7 @@ export default function InlineAskAIDrawer({
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-16 text-center text-zinc-400 gap-3">
-            <Loader2 className="h-6 w-6 animate-spin text-purple-400" />
+            <ChessPieceLoader size="md" />
             <p className="text-xs">Generating response bounded to workspace documents...</p>
           </div>
         ) : aiResult ? (

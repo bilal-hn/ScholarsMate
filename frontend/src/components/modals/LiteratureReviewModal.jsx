@@ -23,6 +23,7 @@ import remarkMath from 'remark-math';
 import rehypeRaw from 'rehype-raw';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
+import ChessPieceLoader from '../common/ChessPieceLoader';
 import { formatCitations, preprocessTables } from '../../utils/exportMonographPdf';
 import { exportLiteratureReviewPdfAPI, exportLiteratureReviewZipAPI, fetchLiteratureReviewPdfBlobAPI } from '../../services/api';
 
@@ -318,8 +319,8 @@ export default function LiteratureReviewModal({
         {/* ============================================================== */}
         {viewMode === 'loading' && (
           <div className="flex-1 flex flex-col items-center justify-center text-center p-6 max-w-md mx-auto space-y-5 animate-in fade-in duration-200">
-            <div className="h-16 w-16 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shadow-lg shadow-amber-500/5">
-              <Loader2 className="h-8 w-8 animate-spin" />
+            <div className="h-20 w-20 rounded-3xl bg-zinc-900/90 border border-zinc-800 flex items-center justify-center shadow-2xl">
+              <ChessPieceLoader size="lg" />
             </div>
             <div>
               <h3 className="text-base font-semibold text-zinc-100">Synthesizing Literature Review</h3>
@@ -342,8 +343,8 @@ export default function LiteratureReviewModal({
             <div className="flex-1 w-full h-full bg-zinc-950 flex flex-col overflow-hidden relative">
               {isCompilingPreview && !pdfPreviewUrl && (
                 <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-zinc-950/90 text-center p-6 space-y-4 animate-in fade-in duration-200">
-                  <div className="h-14 w-14 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shadow-lg shadow-amber-500/5">
-                    <Loader2 className="h-7 w-7 animate-spin" />
+                  <div className="h-16 w-16 rounded-2xl bg-zinc-900/90 border border-zinc-800 flex items-center justify-center shadow-xl">
+                    <ChessPieceLoader size="md" />
                   </div>
                   <div>
                     <h4 className="text-sm font-semibold text-zinc-100">Compiling XeTeX Vector Monograph</h4>

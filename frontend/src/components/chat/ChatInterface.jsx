@@ -12,7 +12,7 @@ import {
   ArrowRight,
   X
 } from 'lucide-react';
-import AppLogo, { BrandName } from '../common/AppLogo';
+import AppLogo, { BrandName, ScholarsMateIntro, ChessPieceLoader } from '../common/AppLogo';
 import ChatMessage from './ChatMessage';
 import ChatInput from './ChatInput';
 import CustomLensModal from '../modals/CustomLensModal';
@@ -556,24 +556,13 @@ export default function ChatInterface({
       {isSessionLoading ? (
         <WorkspaceLoadingState />
       ) : isHeroEmpty ? (
-        /* Minimalist Hero Empty State */
+        /* Minimalist Hero Empty State with Signature Intro Animation */
         <div className="flex-1 flex flex-col items-center justify-center p-4 text-center select-none relative">
-          <div className="max-w-md w-full flex flex-col items-center animate-in fade-in duration-300 -mt-10">
-            {/* Brand Header directly inspired by logo artwork */}
-            <div className="flex items-center justify-center gap-3 mb-2">
-              <AppLogo className="h-10 w-10 text-zinc-100" />
-              <BrandName 
-                className="text-3xl" 
-                scholarsClassName="font-serif font-bold text-zinc-100 tracking-tight"
-                mateClassName="font-serif font-bold text-[#8e8e93] tracking-tight"
-              />
-            </div>
+          <div className="max-w-md w-full flex flex-col items-center -mt-6">
+            {/* Signature ScholarsMate Intro Animation */}
+            <ScholarsMateIntro key={activeSessionId || 'empty-chat-intro'} />
 
-            <p className="text-[11px] text-[#8e8e93] font-mono tracking-[0.25em] uppercase font-semibold mb-2 select-none">
-              {APP_CONFIG.tagline}
-            </p>
-
-            <p className="text-xs text-zinc-400 max-w-sm text-center leading-relaxed mb-4 font-sans">
+            <p className="text-xs text-zinc-400 max-w-sm text-center leading-relaxed mt-4 mb-4 font-sans">
               Interrogate papers with grounded citations, configure research context, and synthesize findings with precision.
             </p>
 
@@ -627,12 +616,16 @@ export default function ChatInterface({
 
           {loading && (
             <div className="flex gap-3.5 items-start animate-in fade-in duration-200">
-              <div className="h-7 w-7 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center text-zinc-100 shrink-0 mt-0.5">
-                <AppLogo className="h-4 w-4" />
+              <div className="h-8 w-8 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-100 shrink-0 mt-0.5 shadow-sm">
+                <ChessPieceLoader size="xs" />
               </div>
-              <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl px-4 py-3 text-zinc-300 text-xs shadow-xl space-y-2.5 max-w-md w-full">
-                <div className="flex items-center gap-2">
-                  
+              <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl px-5 py-3.5 text-zinc-300 text-xs shadow-xl space-y-2.5 max-w-md w-full">
+                <div className="flex items-center gap-2.5 text-zinc-300">
+                  <ChessPieceLoader size="sm" />
+                  <div className="flex flex-col">
+                    <span className="text-xs font-semibold text-zinc-200">Thinking...</span>
+                    <span className="text-[10px] text-zinc-500 font-mono">Synthesizing citations &amp; response</span>
+                  </div>
                 </div>
                 <div className="space-y-1.5 pt-0.5">
                   <div className="h-2 w-full rounded-full animate-shimmer-wave" />

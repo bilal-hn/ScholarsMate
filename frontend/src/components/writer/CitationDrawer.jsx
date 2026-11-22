@@ -1,5 +1,6 @@
 import React from 'react';
 import { X, BookmarkPlus, FileText, Check, Sparkles, ExternalLink, Loader2 } from 'lucide-react';
+import ChessPieceLoader from '../common/ChessPieceLoader';
 
 /**
  * Slide-over drawer displaying vector similarity citation candidates for a highlighted claim.
@@ -50,7 +51,7 @@ export default function CitationDrawer({
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-16 text-center text-zinc-400 gap-3">
-            <Loader2 className="h-6 w-6 animate-spin text-amber-400" />
+            <ChessPieceLoader size="md" />
             <p className="text-xs">Searching ChromaDB vector embeddings across workspace papers...</p>
           </div>
         ) : candidates && candidates.length > 0 ? (

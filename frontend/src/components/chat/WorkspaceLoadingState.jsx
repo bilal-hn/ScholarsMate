@@ -1,5 +1,5 @@
 import React from 'react';
-import AppLogo from '../common/AppLogo';
+import ChessPieceLoader from '../common/ChessPieceLoader';
 
 export default function WorkspaceLoadingState() {
   return (
@@ -21,9 +21,9 @@ export default function WorkspaceLoadingState() {
             <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-zinc-500" />
           </div>
 
-          {/* Center Pulsing Icon Badge */}
-          <div className="relative z-10 h-12 w-12 rounded-2xl bg-zinc-900 border border-zinc-750 shadow-2xl flex items-center justify-center text-zinc-100 animate-float-orb">
-            <AppLogo className="h-6 w-6 text-zinc-100" />
+          {/* Center Pulsing Icon Badge with Signature Animated Chess Piece */}
+          <div className="relative z-10 h-14 w-14 rounded-2xl bg-zinc-900 border border-zinc-750 shadow-2xl flex items-center justify-center text-zinc-100">
+            <ChessPieceLoader size="md" />
           </div>
         </div>
 

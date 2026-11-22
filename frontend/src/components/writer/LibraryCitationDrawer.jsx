@@ -13,6 +13,7 @@ import {
   Folder,
 } from 'lucide-react';
 import { getLibraryAPI } from '../../services/api';
+import ChessPieceLoader from '../common/ChessPieceLoader';
 
 /**
  * Format helper for in-text author string (e.g. "Vaswani et al." or "Smith & Jones")
@@ -216,7 +217,7 @@ export default function LibraryCitationDrawer({
       <div className="flex-1 overflow-y-auto p-3 space-y-2.5">
         {loading ? (
           <div className="flex flex-col items-center justify-center py-20 text-center text-zinc-400 gap-3">
-            <Loader2 className="h-6 w-6 animate-spin text-amber-400" />
+            <ChessPieceLoader size="md" />
             <p className="text-xs">Loading reference library...</p>
           </div>
         ) : filteredItems.length === 0 ? (

@@ -18,6 +18,7 @@ import {
   Loader2,
   Maximize2
 } from 'lucide-react';
+import ChessPieceLoader from '../common/ChessPieceLoader';
 
 // Configure PDF worker locally via Vite asset bundling (eliminates unpkg cross-origin worker errors)
 pdfjs.GlobalWorkerOptions.workerSrc = pdfWorker;
@@ -241,9 +242,9 @@ export default function PdfViewer({ activePdf, targetPage, onClose }) {
                 onLoadSuccess={onDocumentLoadSuccess}
                 onLoadError={onDocumentLoadError}
                 loading={
-                  <div className="my-20 flex flex-col items-center justify-center gap-2 text-zinc-400 text-xs">
-                    <Loader2 className="h-6 w-6 animate-spin text-amber-500" />
-                    <span>Rendering PDF pages...</span>
+                  <div className="my-20 flex flex-col items-center justify-center gap-3 text-zinc-400 text-xs">
+                    <ChessPieceLoader size="md" />
+                    <span className="font-mono text-[11px] text-zinc-400">Rendering vector PDF pages...</span>
                   </div>
                 }
                 error={
