@@ -559,6 +559,7 @@ export const generateLiteratureReviewAPI = async ({
   depth = 'detailed',
   model_name = null,
   custom_keys = null,
+  session_id = null,
 }) => {
   const { keys, activeModel } = getSavedBYOKConfig();
   const selectedModel = model_name || activeModel;
@@ -571,6 +572,7 @@ export const generateLiteratureReviewAPI = async ({
       depth: depth || 'detailed',
       model_name: selectedModel || null,
       custom_keys: activeKeys || {},
+      session_id: session_id || null,
     });
     return response.data;
   } catch (error) {

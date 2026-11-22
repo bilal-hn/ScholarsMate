@@ -77,7 +77,7 @@ export default function App() {
       setCurrentRoute(getInitialRoute());
     };
     window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
+return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
   useEffect(() => {
@@ -107,7 +107,7 @@ export default function App() {
       }
     };
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
   // Sidebar collapsed state
@@ -136,6 +136,32 @@ export default function App() {
 
   // Literature review generated content handler
   const [reviewTriggerMessage, setReviewTriggerMessage] = useState(null);
+
+  // Track which sessions have lit review panel open (per-session persistence)
+  const [litReviewOpenSessions, setLitReviewOpenSessions] = useState(() => new Set());
+  const [isLitReviewFullscreen, setIsLitReviewFullscreen] = useState(false);
+  const [activeMonograph, setActiveMonograph] = useState(null);
+  const [savedReviewsBySession, setSavedReviewsBySession] = useState(() => {
+    try {
+      const raw = localStorage.getItem('scholarsmate_saved_lit_reviews');
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  const handleSaveMonograph = (sessionId, data) => {
+    const key = sessionId || '__default__';
+    setSavedReviewsBySession((prev) => {
+      const updated = { ...prev, [key]: data };
+      try {
+        localStorage.setItem('scholarsmate_saved_lit_reviews', JSON.stringify(updated));
+      } catch (e) {
+        console.warn('Could not cache review in localStorage:', e);
+      }
+      return updated;
+    });
+  };
 
   // Workspaces & Sessions state
   const [workspaces, setWorkspaces] = useState([]);
@@ -168,6 +194,16 @@ export default function App() {
       setIsWriterOpen(true);
       setIsWriterFullscreen(false);
       setActivePdf(null);
+      // Close lit review for this session when writer opens
+      if (activeSessionId) {
+        setLitReviewOpenSessions((prev) => {
+          const next = new Set(prev);
+          next.delete(activeSessionId);
+          return next;
+        });
+      }
+      setIsLitReviewOpen(false);
+      setIsLitReviewFullscreen(false);
       if (activeSessionId) {
         setOpenedWriterSessions((prev) => new Set(prev).add(activeSessionId));
       }
@@ -355,6 +391,7 @@ export default function App() {
 
     setActiveWorkspaceId(workspaceId);
     setActiveSessionId(sessionId);
+    setActiveMonograph(null);
 
     const wsObj = workspaces.find((w) => w.id === workspaceId);
     if (wsObj?.doc_names && wsObj.doc_names.length > 0) {
@@ -374,6 +411,7 @@ export default function App() {
 
     setActiveWorkspaceId(null);
     setActiveSessionId(sessionId);
+    setActiveMonograph(null);
     setSelectedDocs([]);
   };
 
@@ -552,11 +590,18 @@ export default function App() {
     setSelectedDocs([]);
     setActivePdf(null);
     setIsWriterOpen(false);
+    setIsWriterFullscreen(false);
+    setIsLitReviewOpen(false);
+    setIsLitReviewFullscreen(false);
     window.dispatchEvent(new CustomEvent('scholarsmate:clear-chat'));
   };
 
   const handleSessionCreated = async (newSessionId) => {
     setActiveSessionId(newSessionId);
+    if (isLitReviewOpen) {
+      setLitReviewOpenSessions((prev) => new Set(prev).add(newSessionId));
+      setIsLitReviewOpen(false);
+    }
     await syncUserData();
   };
 
@@ -582,11 +627,98 @@ export default function App() {
     return await generateLiteratureReviewAPI(config);
   };
 
+  // Literature Review right-panel toggle (per-session)
+  const isLitReviewPanelOpen = activeSessionId
+    ? litReviewOpenSessions.has(activeSessionId)
+    : isLitReviewOpen;
+
+  const handleToggleLitReview = () => {
+    if (activeSessionId) {
+      setLitReviewOpenSessions((prev) => {
+        const next = new Set(prev);
+        if (next.has(activeSessionId)) {
+          next.delete(activeSessionId);
+          setIsLitReviewFullscreen(false);
+        } else {
+          next.add(activeSessionId);
+          // Sidebar button always opens a fresh empty studio
+          setActiveMonograph(null);
+          // Close other right-panel occupants
+          setActivePdf(null);
+          setIsWriterOpen(false);
+          setIsWriterFullscreen(false);
+        }
+        return next;
+      });
+    } else {
+      // No active session: toggle the global modal/panel fallback
+      setIsLitReviewOpen((prev) => {
+        const next = !prev;
+        if (next) {
+          setActiveMonograph(null);
+          setActivePdf(null);
+          setIsWriterOpen(false);
+          setIsWriterFullscreen(false);
+        } else {
+          setIsLitReviewFullscreen(false);
+        }
+        return next;
+      });
+    }
+  };
+
+  const handleOpenMonograph = (monograph) => {
+    setActiveMonograph(monograph);
+    if (activeSessionId) {
+      setLitReviewOpenSessions((prev) => new Set(prev).add(activeSessionId));
+    } else {
+      setIsLitReviewOpen(true);
+    }
+    setActivePdf(null);
+    setIsWriterOpen(false);
+    setIsWriterFullscreen(false);
+  };
+
+  const handleReviewGenerated = (monograph) => {
+    setActiveMonograph(monograph);
+    handleSaveMonograph(activeSessionId, monograph);
+
+    const docCount = monograph?.doc_names?.length || 0;
+    const paperText = docCount === 1 ? '1 paper' : `${docCount} papers`;
+    const title = monograph?.title || 'Academic Literature Review Monograph';
+
+    setReviewTriggerMessage({
+      id: `lit-review-${Date.now()}`,
+      sender: 'bot',
+      text: `I have synthesized a comprehensive literature review monograph across ${paperText}: **${title}**.\n\nYou can open the full monograph in the Studio or download the publication-grade PDF.`,
+      sources: (monograph?.doc_names || []).map((d) => ({ doc_name: d, page_number: 1 })),
+      meta: {
+        type: 'literature_review',
+        monograph: monograph,
+        docCount,
+      },
+      timestamp: new Date().toISOString(),
+    });
+  };
+
+  const handleCloseLitReviewPanel = () => {
+    setIsLitReviewFullscreen(false);
+    if (activeSessionId) {
+      setLitReviewOpenSessions((prev) => {
+        const next = new Set(prev);
+        next.delete(activeSessionId);
+        return next;
+      });
+    } else {
+      setIsLitReviewOpen(false);
+    }
+  };
+
   // --------------------------------------------------------------------------
   // HOME DASHBOARD VIEW (localhost/home)
   // --------------------------------------------------------------------------
   if (isHomeOpen) {
-    return (
+return (
       <div 
         data-theme={currentTheme}
         className="fixed inset-0 z-50 h-screen w-screen bg-zinc-950 text-zinc-100 overflow-hidden font-sans select-text flex flex-col"
@@ -669,7 +801,7 @@ export default function App() {
   // DEDICATED REFERENCE LIBRARY WORKBENCH (localhost/library)
   // --------------------------------------------------------------------------
   if (isLibraryOpen) {
-    return (
+return (
       <div 
         data-theme={currentTheme}
         className="fixed inset-0 z-50 h-screen w-screen bg-zinc-950 text-zinc-100 overflow-hidden font-sans select-text flex flex-col"
@@ -785,6 +917,39 @@ export default function App() {
     );
   }
 
+  // --------------------------------------------------------------------------
+  // FULLSCREEN LITERATURE REVIEW VIEW (Zero sidebar, 100vw x 100vh)
+  // --------------------------------------------------------------------------
+  if (isLitReviewPanelOpen && isLitReviewFullscreen) {
+    return (
+      <div 
+        data-theme={currentTheme}
+        className="fixed inset-0 z-50 h-screen w-screen bg-zinc-950 text-zinc-100 overflow-hidden font-sans select-text flex flex-col"
+      >
+        <LiteratureReviewModal
+          key={`${activeSessionId || 'fullscreen-lit-review'}-${activeMonograph ? (activeMonograph.title || 'mono') : 'fresh'}`}
+          isOpen={true}
+          onClose={() => {
+            setIsLitReviewFullscreen(false);
+            handleCloseLitReviewPanel();
+          }}
+          documents={scopedDocuments}
+          selectedDocs={selectedDocs}
+          currentModel={currentModel}
+          customKeys={getSavedBYOKConfig().keys}
+          sessionId={activeSessionId}
+          onGenerateReview={handleGenerateLiteratureReview}
+          initialMonograph={activeMonograph}
+          onReviewGenerated={handleReviewGenerated}
+          onSaveMonograph={(data) => handleSaveMonograph(activeSessionId, data)}
+          mode="panel"
+          isFullscreen={true}
+          onToggleFullscreen={() => setIsLitReviewFullscreen(false)}
+        />
+      </div>
+    );
+  }
+
   return (
     <div 
       data-theme={currentTheme}
@@ -810,7 +975,8 @@ export default function App() {
         onAddPapersToWorkspace={handleAddPapersToWorkspace}
         onOpenCreateModal={() => setIsModalOpen(true)}
         onNewChat={handleNewChat}
-        onOpenLitReview={() => setIsLitReviewOpen(true)}
+        onOpenLitReview={handleToggleLitReview}
+        isLitReviewActive={isLitReviewPanelOpen}
         onOpenBrainModal={() => setIsBrainModalOpen(true)}
         onToggleWriter={handleToggleWriter}
         isWriterActive={isWriterOpen}
@@ -853,7 +1019,7 @@ export default function App() {
         <div className="flex-1 flex h-full overflow-hidden relative">
           {/* Left Canvas: Chat Interface */}
           <div className={`h-full transition-all duration-300 ${
-            activePdf || isWriterOpen ? 'w-1/2 border-r border-zinc-800' : 'w-full'
+            activePdf || isWriterOpen || isLitReviewPanelOpen ? 'w-1/2 border-r border-zinc-800' : 'w-full'
           }`}>
             <ChatInterface
               documents={scopedDocuments}
@@ -870,16 +1036,18 @@ export default function App() {
               hasWriterButton={activeSessionId ? openedWriterSessions.has(activeSessionId) && !isWriterOpen : false}
               onToggleWriter={handleToggleWriter}
               onDismissWriterBadge={handleDismissWriterBadge}
-              isSplitScreen={Boolean(activePdf || isWriterOpen)}
+              isSplitScreen={Boolean(activePdf || isWriterOpen || isLitReviewPanelOpen)}
               targetMessageIndex={targetMessageIndex}
               onTargetMessageScrolled={() => setTargetMessageIndex(null)}
               onSessionCreated={handleSessionCreated}
               onDocumentUploaded={handleDocumentUploaded}
               onDeleteChat={handleDeleteCurrentChat}
+              onOpenLitReview={handleToggleLitReview}
+              onOpenMonograph={handleOpenMonograph}
             />
           </div>
 
-          {/* Right Canvas: PDF Viewer OR Split Document Writer */}
+          {/* Right Canvas: PDF Viewer OR Document Writer OR Literature Review Panel */}
           {activePdf ? (
             <div className="w-1/2 h-full bg-zinc-900">
               <ErrorBoundary 
@@ -893,36 +1061,64 @@ export default function App() {
                 />
               </ErrorBoundary>
             </div>
-          ) : (
-            isWriterOpen && (
-              <div className="w-1/2 h-full transition-all duration-300 relative min-w-0 flex flex-col">
-                {/* Floating Expand Arrow positioned cleanly over the chat window boundary */}
-                <button
-                  type="button"
-                  onClick={() => setIsWriterFullscreen(true)}
-                  className="absolute top-1/2 -translate-y-1/2 -left-4 z-50 p-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700/90 rounded-full shadow-2xl text-zinc-300 hover:text-white transition-all cursor-pointer flex items-center justify-center hover:scale-110"
-                  title="Expand to Fullscreen"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </button>
+          ) : isWriterOpen ? (
+            <div className="w-1/2 h-full transition-all duration-300 relative min-w-0 flex flex-col">
+              {/* Floating Expand Arrow positioned cleanly over the chat window boundary */}
+              <button
+                type="button"
+                onClick={() => setIsWriterFullscreen(true)}
+                className="absolute top-1/2 -translate-y-1/2 -left-4 z-50 p-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700/90 rounded-full shadow-2xl text-zinc-300 hover:text-white transition-all cursor-pointer flex items-center justify-center hover:scale-110"
+                title="Expand to Fullscreen"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
 
-                <DocumentWriter
-                  key={activeSessionId || 'global-writer'}
-                  sessionId={activeSessionId}
-                  documents={scopedDocuments}
-                  availableModels={discoveredModels}
-                  currentModel={currentModel}
-                  onOpenPdfViewer={handleSelectCitation}
-                  isFullscreen={false}
-                  onToggleFullscreen={() => setIsWriterFullscreen(true)}
-                  onClose={() => {
-                    setIsWriterOpen(false);
-                    setIsWriterFullscreen(false);
-                  }}
-                />
-              </div>
-            )
-          )}
+              <DocumentWriter
+                key={activeSessionId || 'global-writer'}
+                sessionId={activeSessionId}
+                documents={scopedDocuments}
+                availableModels={discoveredModels}
+                currentModel={currentModel}
+                onOpenPdfViewer={handleSelectCitation}
+                isFullscreen={false}
+                onToggleFullscreen={() => setIsWriterFullscreen(true)}
+                onClose={() => {
+                  setIsWriterOpen(false);
+                  setIsWriterFullscreen(false);
+                }}
+              />
+            </div>
+          ) : isLitReviewPanelOpen ? (
+            <div className="w-1/2 h-full bg-zinc-950 transition-all duration-300 min-w-0 flex flex-col relative">
+              {/* Floating Expand Arrow positioned cleanly over the chat window boundary */}
+              <button
+                type="button"
+                onClick={() => setIsLitReviewFullscreen(true)}
+                className="absolute top-1/2 -translate-y-1/2 -left-4 z-50 p-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700/90 rounded-full shadow-2xl text-zinc-300 hover:text-white transition-all cursor-pointer flex items-center justify-center hover:scale-110"
+                title="Expand to Fullscreen"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+
+              <LiteratureReviewModal
+                key={`${activeSessionId || 'global-lit-review'}-${activeMonograph ? (activeMonograph.title || 'mono') : 'fresh'}`}
+                isOpen={true}
+                onClose={handleCloseLitReviewPanel}
+                documents={scopedDocuments}
+                selectedDocs={selectedDocs}
+                currentModel={currentModel}
+                customKeys={getSavedBYOKConfig().keys}
+                sessionId={activeSessionId}
+                onGenerateReview={handleGenerateLiteratureReview}
+                initialMonograph={activeMonograph}
+                onReviewGenerated={handleReviewGenerated}
+                onSaveMonograph={(data) => handleSaveMonograph(activeSessionId, data)}
+                mode="panel"
+                isFullscreen={false}
+                onToggleFullscreen={() => setIsLitReviewFullscreen(true)}
+              />
+            </div>
+          ) : null}
         </div>
       </div>
 
@@ -949,15 +1145,6 @@ export default function App() {
         onLogout={handleAuthChange}
         currentTheme={currentTheme}
         onThemeChange={handleThemeChange}
-      />
-
-      <LiteratureReviewModal
-        isOpen={isLitReviewOpen}
-        onClose={() => setIsLitReviewOpen(false)}
-        documents={scopedDocuments}
-        selectedDocs={selectedDocs}
-        currentModel={currentModel}
-        onGenerateReview={handleGenerateLiteratureReview}
       />
 
       <ThemeModal

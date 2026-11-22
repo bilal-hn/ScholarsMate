@@ -46,6 +46,7 @@ export default function DocumentSidebar({
   onOpenCreateModal,
   onNewChat,
   onOpenLitReview,
+  isLitReviewActive = false,
   onOpenBrainModal,
   onToggleWriter,
   isWriterActive = false,
@@ -427,10 +428,14 @@ export default function DocumentSidebar({
               <button
                 type="button"
                 onClick={onOpenLitReview}
-                className="relative group p-2.5 rounded-xl text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/70 transition-all cursor-pointer flex items-center justify-center"
+                className={`relative group p-2.5 rounded-xl transition-all cursor-pointer flex items-center justify-center ${
+                  isLitReviewActive
+                    ? 'bg-zinc-800 text-zinc-100 border border-zinc-700'
+                    : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/70'
+                }`}
                 aria-label="Literature Review Studio"
               >
-                <BookOpen className="h-4.5 w-4.5" />
+                <BookOpen className={`h-4.5 w-4.5 ${isLitReviewActive ? 'text-amber-400' : ''}`} />
                 <span className="pointer-events-none absolute left-full top-1/2 -translate-y-1/2 ml-3 px-2.5 py-1.5 bg-zinc-900 border border-zinc-700/80 text-zinc-100 text-[12.5px] font-medium rounded-lg shadow-2xl whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50">
                   Literature Review Studio
                 </span>
@@ -615,9 +620,13 @@ export default function DocumentSidebar({
             <button
               type="button"
               onClick={onOpenLitReview}
-              className="w-full flex items-center gap-2 px-2.5 py-1 rounded-md text-xs text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/40 transition-colors cursor-pointer group text-left"
+              className={`w-full flex items-center gap-2 px-2.5 py-1 rounded-md text-xs transition-colors cursor-pointer group text-left ${
+                isLitReviewActive
+                  ? 'bg-zinc-800 text-zinc-100 font-medium border border-zinc-700'
+                  : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/40'
+              }`}
             >
-              <BookOpen className="h-3 w-3 text-zinc-500 group-hover:text-zinc-300 transition-colors" />
+              <BookOpen className={`h-3 w-3 ${isLitReviewActive ? 'text-amber-400' : 'text-zinc-500 group-hover:text-zinc-300'} transition-colors`} />
               <span>Literature Review Studio</span>
             </button>
 

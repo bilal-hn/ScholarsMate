@@ -157,6 +157,7 @@ class ReviewRequest(BaseModel):
     depth: Optional[str] = "detailed"
     model_name: Optional[str] = None
     custom_keys: Optional[Dict[str, Any]] = None
+    session_id: Optional[str] = None
 
 
 class CreateSessionRequest(BaseModel):
@@ -1909,6 +1910,32 @@ async def create_literature_review(
         # Record token usage for literature review
         review_tokens = estimate_tokens(result.get("content")) + (len(request.doc_names or []) * 2500)
         await record_token_usage(db, user_identifier, review_tokens, is_byok=is_byok)
+
+        # If session_id is provided, persist the review as an artifact card in the active chat stream
+        if request.session_id:
+            try:
+                target_docs = result.get("doc_names") or request.doc_names or []
+                paper_count = len(target_docs)
+                paper_label = f"{paper_count} papers" if paper_count != 1 else "1 paper"
+                title = result.get("title") or "Academic Literature Review Monograph"
+                msg_text = (
+                    f"I have synthesized a comprehensive literature review monograph across {paper_label}: **{title}**.\n\n"
+                    f"You can open the full academic monograph in the Studio or download the publication-grade PDF."
+                )
+                sources = [{"doc_name": d, "page_number": 1} for d in target_docs]
+                await crud.add_message(
+                    db,
+                    session_id=request.session_id,
+                    sender="bot",
+                    text=msg_text,
+                    sources=sources,
+                    meta={
+                        "type": "literature_review",
+                        "monograph": result
+                    }
+                )
+            except Exception as persist_err:
+                print(f"[LiteratureReview] Failed to persist chat artifact message: {persist_err}")
 
         return result
     except HTTPException:

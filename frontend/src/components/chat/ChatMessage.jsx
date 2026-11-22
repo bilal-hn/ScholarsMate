@@ -18,6 +18,9 @@ import {
   Zap,
   ExternalLink,
   Image,
+  BookOpen,
+  Download,
+  Loader2,
 } from 'lucide-react';
 
 /**
@@ -190,13 +193,100 @@ const transformCitations = (rawText) => {
   return formatted;
 };
 
-function ChatMessage({ message, index, onSelectCitation }) {
+/**
+ * Claude-Style Interactive Artifact Card for Synthesized Literature Reviews
+ */
+function MonographArtifactCard({ monograph, onOpenMonograph, onDownloadMonograph }) {
+  const [isExporting, setIsExporting] = useState(false);
+  const docCount = monograph?.doc_names?.length || 0;
+  const paperText = docCount === 1 ? '1 paper' : `${docCount} papers`;
+  const title = monograph?.title || 'Academic Literature Review Monograph';
+
+  const handleOpen = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (onOpenMonograph) {
+      onOpenMonograph(monograph);
+    }
+  };
+
+  const handleDownload = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (isExporting) return;
+    setIsExporting(true);
+    try {
+      if (onDownloadMonograph) {
+        await onDownloadMonograph(monograph);
+      } else if (onOpenMonograph) {
+        onOpenMonograph(monograph);
+      }
+    } catch (err) {
+      console.error('Monograph download failed:', err);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  return (
+    <div
+      onClick={handleOpen}
+      className="my-3 p-3 rounded-xl bg-zinc-950/90 hover:bg-zinc-900 border border-zinc-800 hover:border-amber-500/40 transition-all cursor-pointer group shadow-sm flex items-center justify-between gap-3 select-none not-prose"
+    >
+      <div className="flex items-center gap-3 min-w-0">
+        <div className="h-10 w-10 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 shrink-0 group-hover:scale-105 transition-transform">
+          <BookOpen className="h-5 w-5" />
+        </div>
+        <div className="min-w-0">
+          <div className="text-xs font-semibold text-zinc-100 group-hover:text-amber-300 transition-colors truncate" title={title}>
+            {title}
+          </div>
+          <div className="text-[11px] text-zinc-400 flex items-center gap-1.5 mt-0.5">
+            <span className="font-medium text-amber-400/90">Literature Review</span>
+            <span>•</span>
+            <span>{paperText}</span>
+            <span>•</span>
+            <span className="text-zinc-500">Academic Monograph</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-1.5 shrink-0">
+        <button
+          type="button"
+          onClick={handleOpen}
+          className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-zinc-200 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700/60 rounded-lg transition-colors cursor-pointer"
+          title="Open in Literature Review Studio"
+        >
+          <ExternalLink className="h-3 w-3 text-amber-400" />
+          <span>Open</span>
+        </button>
+        <button
+          type="button"
+          onClick={handleDownload}
+          disabled={isExporting}
+          className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-zinc-950 bg-amber-400 hover:bg-amber-300 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+          title="Download Monograph PDF"
+        >
+          {isExporting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
+          <span>{isExporting ? 'PDF…' : 'PDF'}</span>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ChatMessage({ message, index, onSelectCitation, onOpenMonograph, onDownloadMonograph }) {
   const [showThinking, setShowThinking] = useState(false);
   const [showSources, setShowSources] = useState(false);
   const [copied, setCopied] = useState(false);
   const messageBodyRef = useRef(null);
 
   const isBot = message.sender === 'bot';
+  const monographData =
+    message.meta?.monograph ||
+    message.monograph ||
+    (message.meta?.type === 'literature_review' ? message.meta?.monograph : null);
 
   // Format timestamp (e.g. "09:04 PM")
   const formatTime = (ts) => {
@@ -448,6 +538,15 @@ function ChatMessage({ message, index, onSelectCitation }) {
 
             {/* Synthesized Response Body */}
             <div ref={messageBodyRef} className="prose prose-invert max-w-none text-zinc-200 text-[12.5px] leading-relaxed tracking-normal font-sans pt-0.5 select-text">
+              {/* Claude-Style Artifact Card for Literature Review Monograph */}
+              {monographData && (
+                <MonographArtifactCard
+                  monograph={monographData}
+                  onOpenMonograph={onOpenMonograph}
+                  onDownloadMonograph={onDownloadMonograph}
+                />
+              )}
+
               <ReactMarkdown
                 remarkPlugins={[remarkGfm, remarkMath]}
                 rehypePlugins={[rehypeKatex]}

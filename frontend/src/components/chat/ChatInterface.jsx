@@ -15,12 +15,10 @@ import {
 import AppLogo, { BrandName } from '../common/AppLogo';
 import ChatMessage from './ChatMessage';
 import ChatInput from './ChatInput';
-import LiteratureReviewModal from '../modals/LiteratureReviewModal';
 import CustomLensModal from '../modals/CustomLensModal';
 import WorkspaceLoadingState from './WorkspaceLoadingState';
 import { 
   sendQuery, 
-  generateLiteratureReviewAPI, 
   getSessionMessages, 
   updateSessionModeAPI, 
   getCustomLenses,
@@ -121,6 +119,8 @@ export default function ChatInterface({
   onSessionCreated,
   onDocumentUploaded,
   onDeleteChat,
+  onOpenLitReview,
+  onOpenMonograph,
   customKeys
 }) {
   const [messages, setMessages] = useState([]);
@@ -136,7 +136,6 @@ export default function ChatInterface({
   const [attachedDocs, setAttachedDocs] = useState([]);
   const [attachedImages, setAttachedImages] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [isLitReviewOpen, setIsLitReviewOpen] = useState(false);
   const [telemetry, setTelemetry] = useState(null); // { responseTime: '1.2s', tokenUsage: 280, docCount: 4 }
   const messagesEndRef = useRef(null);
 
@@ -490,10 +489,6 @@ export default function ChatInterface({
     }
   };
 
-  const handleGenerateLiteratureReview = async (config) => {
-    return await generateLiteratureReviewAPI(config);
-  };
-
   const handleExportTranscript = () => {
     if (!messages || messages.length === 0) return;
     const mdContent = messages.map((m) => {
@@ -626,6 +621,7 @@ export default function ChatInterface({
               message={msg} 
               index={idx}
               onSelectCitation={onSelectCitation} 
+              onOpenMonograph={onOpenMonograph}
             />
           ))}
 
@@ -667,7 +663,7 @@ export default function ChatInterface({
         documents={documents}
         selectedDocs={selectedDocs}
         setSelectedDocs={setSelectedDocs}
-        onOpenLitReview={() => setIsLitReviewOpen(true)}
+        onOpenLitReview={onOpenLitReview}
         onExportTranscript={handleExportTranscript}
         onClearMessages={handleClearMessages}
         hasWriterButton={hasWriterButton}
@@ -680,17 +676,6 @@ export default function ChatInterface({
         setAttachedImages={setAttachedImages}
         messages={messages}
         onDeleteChat={onDeleteChat}
-      />
-
-      {/* Literature Review Studio Modal */}
-      <LiteratureReviewModal
-        isOpen={isLitReviewOpen}
-        onClose={() => setIsLitReviewOpen(false)}
-        documents={documents}
-        selectedDocs={selectedDocs}
-        currentModel={currentModel}
-        customKeys={customKeys}
-        onGenerateReview={handleGenerateLiteratureReview}
       />
 
       {/* Custom Academic Lens Modal */}
