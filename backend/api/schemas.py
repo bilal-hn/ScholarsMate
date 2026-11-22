@@ -73,6 +73,7 @@ class QueryResponse(BaseModel):
 class FetchModelsRequest(BaseModel):
     api_key: str = Field(..., json_schema_extra={"example": "AIzaSy..."})
     provider: Optional[str] = Field(default="auto", json_schema_extra={"example": "gemini"})
+    base_url: Optional[str] = Field(default=None, json_schema_extra={"example": "https://api.openai.com/v1"})
 
 
 class ModelItem(BaseModel):

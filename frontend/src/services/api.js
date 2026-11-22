@@ -62,13 +62,18 @@ apiClient.interceptors.response.use(
  * Probes the backend discovery endpoint to test a key and return available models.
  * @param {string} apiKey - API key to validate.
  * @param {string} [provider="auto"] - Provider identifier or 'auto'.
+ * @param {string|null} [baseUrl=null] - Optional custom API base URL for custom proxies.
  */
-export const fetchModelsFromKey = async (apiKey, provider = 'auto') => {
+export const fetchModelsFromKey = async (apiKey, provider = 'auto', baseUrl = null) => {
   try {
-    const response = await apiClient.post('/byok/fetch-models', {
+    const payload = {
       api_key: apiKey,
       provider: provider,
-    });
+    };
+    if (baseUrl && baseUrl.trim()) {
+      payload.base_url = baseUrl.trim();
+    }
+    const response = await apiClient.post('/byok/fetch-models', payload);
     return response.data; // Returns [{ id, name, provider }]
   } catch (error) {
     console.error('Failed to discover models for key:', error.response?.data || error.message);

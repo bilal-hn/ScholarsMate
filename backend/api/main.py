@@ -7,6 +7,7 @@ import httpx
 import uuid
 import json
 import re
+import asyncio
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Dict, Any
@@ -174,6 +175,8 @@ def detect_provider(api_key: str) -> str:
     if key.startswith("sk-ant-"):
         return "anthropic"
     if key.startswith("sk-or-"):
+        return "openrouter"
+    if key.startswith("sk-") and ("--" in key or (key.count("-") >= 2 and not key.startswith("sk-proj-") and not key.startswith("sk-admin-"))):
         return "openrouter"
     if key.startswith("sk-"):
         return "openai"
@@ -360,22 +363,194 @@ async def fetch_available_models(req: FetchModelsRequest):
                         if m["id"].startswith(valid_prefixes)
                         and not any(x in m["id"].lower() for x in ["audio", "realtime", "tts", "transcription", "embedding"])
                     ]
+                elif (not req.provider or req.provider == "auto") and res.status_code in (401, 403):
+                    # Key might be an OpenRouter key starting with sk-
+                    or_auth = await client.get(
+                        "https://openrouter.ai/api/v1/auth/key",
+                        headers={"Authorization": f"Bearer {key}"}
+                    )
+                    if or_auth.status_code == 200:
+                        provider = "openrouter"
+                        candidates = [
+                            ("openrouter/free", "Free Models Router (Auto-Free)"),
+                            ("deepseek/deepseek-chat", "DeepSeek V3"),
+                            ("openai/gpt-4o-mini", "OpenAI GPT-4o Mini"),
+                            ("openai/gpt-4o", "OpenAI GPT-4o"),
+                            ("meta-llama/llama-3.3-70b-instruct", "Meta Llama 3.3 70B"),
+                            ("qwen/qwen-2.5-72b-instruct", "Qwen 2.5 72B"),
+                            ("nvidia/nemotron-3.5-lightning:free", "NVIDIA Nemotron 3.5 (Free)"),
+                            ("liquid/lfm-3-1.7b:free", "Liquid LFM 3 (Free)"),
+                        ]
+                        async def verify_fallback_candidate(mid: str, name: str):
+                            try:
+                                r = await client.post(
+                                    "https://openrouter.ai/api/v1/chat/completions",
+                                    headers={"Authorization": f"Bearer {key}"},
+                                    json={"model": mid, "messages": [{"role": "user", "content": "hi"}], "max_tokens": 1},
+                                    timeout=3.5
+                                )
+                                if r.status_code == 200:
+                                    return ModelItem(
+                                        id=normalize_litellm_model_id(mid, provider="openrouter"),
+                                        name=name,
+                                        provider="openrouter"
+                                    )
+                            except Exception:
+                                pass
+                            return None
+
+                        results = await asyncio.gather(*[verify_fallback_candidate(mid, name) for mid, name in candidates])
+                        models = [m for m in results if m]
+                        if not models:
+                            models = [
+                                ModelItem(
+                                    id=normalize_litellm_model_id("openrouter/free", provider="openrouter"),
+                                    name="Free Models Router (Auto-Free)",
+                                    provider="openrouter"
+                                )
+                            ]
+                    else:
+                        err_msg = res.json().get("error", {}).get("message", res.text) if res.text.startswith("{") else res.text
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"OpenAI authentication failed ({res.status_code}): {err_msg}"
+                        )
+                else:
+                    err_msg = res.json().get("error", {}).get("message", res.text) if res.text.startswith("{") else res.text
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"OpenAI authentication failed ({res.status_code}): {err_msg}"
+                    )
 
             elif provider == "openrouter":
+                auth_res = await client.get(
+                    "https://openrouter.ai/api/v1/auth/key",
+                    headers={"Authorization": f"Bearer {key}"}
+                )
+                if auth_res.status_code == 200:
+                    # Curated candidates verified against user key
+                    candidates = [
+                        ("openrouter/free", "Free Models Router (Auto-Free)"),
+                        ("deepseek/deepseek-chat", "DeepSeek V3"),
+                        ("openai/gpt-4o-mini", "OpenAI GPT-4o Mini"),
+                        ("openai/gpt-4o", "OpenAI GPT-4o"),
+                        ("meta-llama/llama-3.3-70b-instruct", "Meta Llama 3.3 70B"),
+                        ("qwen/qwen-2.5-72b-instruct", "Qwen 2.5 72B"),
+                        ("nvidia/nemotron-3.5-lightning:free", "NVIDIA Nemotron 3.5 (Free)"),
+                        ("liquid/lfm-3-1.7b:free", "Liquid LFM 3 (Free)"),
+                    ]
+
+                    async def verify_openrouter_candidate(mid: str, name: str):
+                        try:
+                            r = await client.post(
+                                "https://openrouter.ai/api/v1/chat/completions",
+                                headers={"Authorization": f"Bearer {key}"},
+                                json={"model": mid, "messages": [{"role": "user", "content": "hi"}], "max_tokens": 1},
+                                timeout=3.5
+                            )
+                            if r.status_code == 200:
+                                return ModelItem(
+                                    id=normalize_litellm_model_id(mid, provider="openrouter"),
+                                    name=name,
+                                    provider="openrouter"
+                                )
+                        except Exception:
+                            pass
+                        return None
+
+                    results = await asyncio.gather(*[verify_openrouter_candidate(mid, name) for mid, name in candidates])
+                    models = [m for m in results if m]
+                    if not models:
+                        models = [
+                            ModelItem(
+                                id=normalize_litellm_model_id("openrouter/free", provider="openrouter"),
+                                name="Free Models Router (Auto-Free)",
+                                provider="openrouter"
+                            )
+                        ]
+                else:
+                    # Check if key is from Routeway
+                    rw_probe = await client.get(
+                        "https://api.routeway.ai/v1/models",
+                        headers={"Authorization": f"Bearer {key}"}
+                    )
+                    if rw_probe.status_code == 200:
+                        provider = "routeway"
+                    else:
+                        err_msg = auth_res.json().get("error", {}).get("message", auth_res.text) if auth_res.text.startswith("{") else auth_res.text
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"OpenRouter authentication failed ({auth_res.status_code}): {err_msg}"
+                        )
+
+            if provider == "routeway":
+                rw_res = await client.get(
+                    "https://api.routeway.ai/v1/models",
+                    headers={"Authorization": f"Bearer {key}"}
+                )
+                if rw_res.status_code != 200:
+                    raise HTTPException(status_code=400, detail=f"Routeway authentication failed: {rw_res.text[:100]}")
+
+                rw_candidates = [
+                    ("gemma-4-26b-a4b-it-chimerax:free", "Gemma 4 26B (Free)"),
+                    ("gemma-4-26b-a4b-it-meromero:free", "Gemma 4 26B MeroMero (Free)"),
+                    ("minimax-m3.1-flash:free", "MiniMax M3.1 Flash (Free)"),
+                    ("gpt-4o-mini", "OpenAI GPT-4o Mini"),
+                    ("gpt-4o", "OpenAI GPT-4o"),
+                    ("deepseek-v4.1-flash-1017-fast", "DeepSeek Flash"),
+                ]
+
+                async def verify_routeway_candidate(mid: str, name: str):
+                    try:
+                        r = await client.post(
+                            "https://api.routeway.ai/v1/chat/completions",
+                            headers={"Authorization": f"Bearer {key}"},
+                            json={"model": mid, "messages": [{"role": "user", "content": "hi"}], "max_tokens": 1},
+                            timeout=3.5
+                        )
+                        if r.status_code == 200:
+                            return ModelItem(
+                                id=normalize_litellm_model_id(mid, provider="routeway"),
+                                name=name,
+                                provider="routeway"
+                            )
+                    except Exception:
+                        pass
+                    return None
+
+                results = await asyncio.gather(*[verify_routeway_candidate(mid, name) for mid, name in rw_candidates])
+                models = [m for m in results if m]
+                if not models:
+                    models = [
+                        ModelItem(
+                            id=normalize_litellm_model_id("gemma-4-26b-a4b-it-chimerax:free", provider="routeway"),
+                            name="Gemma 4 26B (Free)",
+                            provider="routeway"
+                        )
+                    ]
+
+            elif provider == "custom" or getattr(req, "base_url", None):
+                target_url = req.base_url.rstrip("/") if getattr(req, "base_url", None) else "https://api.openai.com/v1"
+                models_url = target_url if target_url.endswith("/models") else f"{target_url}/models"
                 res = await client.get(
-                    "https://openrouter.ai/api/v1/models",
+                    models_url,
                     headers={"Authorization": f"Bearer {key}"}
                 )
                 if res.status_code == 200:
                     data = res.json()
                     models = [
                         ModelItem(
-                            id=normalize_litellm_model_id(m["id"], provider="openrouter"),
-                            name=m.get("name", m["id"]),
-                            provider="openrouter"
+                            id=normalize_litellm_model_id(m.get("id", str(m)), provider="custom"),
+                            name=m.get("id", str(m)),
+                            provider="custom"
                         )
                         for m in data.get("data", [])[:30]
                     ]
+                else:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Custom endpoint failed ({res.status_code}): {res.text[:120]}"
+                    )
 
             elif provider == "anthropic":
                 claude_models = [

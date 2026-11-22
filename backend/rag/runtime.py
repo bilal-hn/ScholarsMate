@@ -21,6 +21,7 @@ KNOWN_PROVIDERS = (
     "anthropic",
     "deepseek",
     "openrouter",
+    "routeway",
     "mistral",
     "together",
     "xai",
@@ -57,6 +58,7 @@ _PROVIDER_PRIORITY = [
     ("openai",     ["openai"],              "openai/gpt-4o-mini",                        "OPENAI_API_KEY"),
     ("anthropic",  ["anthropic"],           "anthropic/claude-3-5-haiku-20241022",       "ANTHROPIC_API_KEY"),
     ("openrouter", ["openrouter"],          "openrouter/auto",                           "OPENROUTER_API_KEY"),
+    ("routeway",   ["routeway"],            "routeway/gemma-4-26b-a4b-it-chimerax:free", "ROUTEWAY_API_KEY"),
     ("groq",       ["groq"],               "groq/llama-3.3-70b-versatile",              "GROQ_API_KEY"),
     ("deepseek",   ["deepseek"],           "deepseek/deepseek-chat",                    "DEEPSEEK_API_KEY"),
 ]
@@ -170,6 +172,7 @@ def resolve_api_key(provider: str, custom_keys: dict | None = None) -> str | Non
         "anthropic": "ANTHROPIC_API_KEY",
         "deepseek": "DEEPSEEK_API_KEY",
         "openrouter": "OPENROUTER_API_KEY",
+        "routeway": "ROUTEWAY_API_KEY",
     }
     env_var = env_map.get(prov, f"{prov.upper()}_API_KEY")
     return os.getenv(env_var)
@@ -209,6 +212,25 @@ def normalize_litellm_model_id(raw_id: str | None, provider: str | None = None) 
         return value
 
     prov = (provider or "").strip().lower()
+
+    # OpenRouter models must always start with openrouter/ (e.g. openrouter/anthropic/claude-3.5-sonnet)
+    if prov == "openrouter" or value.lower().startswith("openrouter/"):
+        if not value.lower().startswith("openrouter/"):
+            value = f"openrouter/{value}"
+        parts = value.split("/")
+        while len(parts) >= 2 and parts[0].lower() == "openrouter" and parts[1].lower() == "openrouter":
+            parts = parts[1:]
+        return "/".join(parts)
+
+    # Routeway models must always start with routeway/
+    if prov == "routeway" or value.lower().startswith("routeway/"):
+        if not value.lower().startswith("routeway/"):
+            value = f"routeway/{value}"
+        parts = value.split("/")
+        while len(parts) >= 2 and parts[0].lower() == "routeway" and parts[1].lower() == "routeway":
+            parts = parts[1:]
+        return "/".join(parts)
+
     parts = value.split("/")
 
     while len(parts) >= 2 and parts[0].lower() == parts[1].lower() and parts[0].lower() in KNOWN_PROVIDERS:

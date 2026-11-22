@@ -81,6 +81,16 @@ class TestExplicitModelRespected:
         )
         assert result == "anthropic/claude-3-5-sonnet-20241022"
 
+    def test_openrouter_prefix_enforced(self):
+        from backend.rag.runtime import normalize_litellm_model_id, provider_from_model
+        res = normalize_litellm_model_id("anthropic/claude-3.5-sonnet", provider="openrouter")
+        assert res == "openrouter/anthropic/claude-3.5-sonnet"
+        assert provider_from_model(res) == "openrouter"
+
+        res2 = normalize_litellm_model_id("meta-llama/llama-3.3-70b-instruct", provider="openrouter")
+        assert res2 == "openrouter/meta-llama/llama-3.3-70b-instruct"
+        assert provider_from_model(res2) == "openrouter"
+
 
 # ─── Tests: Default model selected from BYOK keys when no model given ────────
 

@@ -76,6 +76,19 @@ def _execute_completion_with_fallback(
             "openai/gpt-4o",
             "gemini/gemini-2.5-flash",
         ],
+        "openrouter": [
+            model_name,
+            "openrouter/free",
+        ],
+        "routeway": [
+            model_name,
+            "routeway/gemma-4-26b-a4b-it-chimerax:free",
+        ],
+        "anthropic": [
+            model_name,
+            "anthropic/claude-3-5-haiku-20241022",
+            "anthropic/claude-3-5-sonnet-20241022",
+        ],
     }
 
     candidates = provider_fallbacks.get(primary_provider, [model_name])
@@ -101,6 +114,10 @@ def _execute_completion_with_fallback(
         }
         if current_provider == "bedrock":
             call_kwargs["aws_region_name"] = os.getenv("AWS_REGION_NAME", "us-east-1")
+        elif current_provider == "routeway":
+            call_kwargs["api_base"] = "https://api.routeway.ai/v1"
+            sub_id = normalized_target.split("routeway/", 1)[1] if "routeway/" in normalized_target else normalized_target
+            call_kwargs["model"] = f"openai/{sub_id}"
 
         # Avoid setting sampling parameters on models that deprecate them (like Gemini 3+)
         if "gemini-3" not in normalized_target and "o1" not in normalized_target and "o3" not in normalized_target:

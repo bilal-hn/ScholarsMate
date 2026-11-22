@@ -21,6 +21,9 @@ const detectProviderName = (key) => {
   if (k.startsWith('AIzaSy') || k.startsWith('AQ.') || k.startsWith('AQ')) return 'gemini';
   if (k.startsWith('sk-ant-')) return 'anthropic';
   if (k.startsWith('sk-or-')) return 'openrouter';
+  if (k.startsWith('sk-') && (k.includes('--') || (k.includes('-') && k.length > 55 && !k.startsWith('sk-proj-') && !k.startsWith('sk-admin-')))) {
+    return 'openrouter';
+  }
   if (k.startsWith('sk-')) return 'openai';
   return 'custom';
 };
@@ -33,11 +36,10 @@ export default function SettingsModal({
   onThemeChange 
 }) {
   const [inputKey, setInputKey] = useState('');
-  const [selectedProvider, setSelectedProvider] = useState('auto');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   
-  const [savedKeys, setSavedKeys] = useState({});
+  const [keyList, setKeyList] = useState([]);
   const [allModels, setAllModels] = useState([]);
   const [activeModel, setActiveModel] = useState('');
   const [activeTheme, setActiveTheme] = useState(() => propTheme || getSavedTheme());
@@ -51,9 +53,24 @@ export default function SettingsModal({
   useEffect(() => {
     if (isOpen) {
       const cfg = getSavedBYOKConfig();
-      setSavedKeys(cfg.keys);
-      setAllModels(cfg.discoveredModels);
-      setActiveModel(cfg.activeModel);
+      let storedList = [];
+      try {
+        storedList = JSON.parse(localStorage.getItem('scholarsmate_byok_key_items') || '[]');
+      } catch {}
+
+      if (!storedList || storedList.length === 0) {
+        // Migrate from cfg.keys if present
+        storedList = Object.entries(cfg.keys || {}).map(([prov, k], i) => ({
+          id: `key_${i + 1}`,
+          key: k,
+          provider: prov,
+          models: (cfg.discoveredModels || []).filter((m) => m.provider === prov),
+        }));
+      }
+
+      setKeyList(storedList);
+      setAllModels(cfg.discoveredModels || []);
+      setActiveModel(cfg.activeModel || '');
       setActiveTheme(propTheme || getSavedTheme());
       setError(null);
     }
@@ -74,42 +91,88 @@ export default function SettingsModal({
     setLoading(true);
     setError(null);
 
-    const provider = selectedProvider === 'auto' ? detectProviderName(inputKey) : selectedProvider;
-
     try {
-      const models = await fetchModelsFromKey(inputKey, provider);
-      
-      const newKeys = { ...savedKeys, [provider]: inputKey.trim() };
-      const mergedModels = [...allModels.filter((m) => m.provider !== provider), ...models];
+      const models = await fetchModelsFromKey(inputKey);
+      const effectiveProvider = models.length > 0 && models[0].provider
+        ? models[0].provider
+        : detectProviderName(inputKey);
+
+      const newKeyEntry = {
+        id: `key_${Date.now()}`,
+        key: inputKey.trim(),
+        provider: effectiveProvider,
+        models: models || [],
+      };
+
+      const updatedKeyList = [...keyList, newKeyEntry];
+
+      // Recompute keys object for LiteLLM
+      const updatedKeysObj = {};
+      updatedKeyList.forEach((k) => {
+        updatedKeysObj[k.provider] = k.key;
+      });
+
+      // Merge models without duplicates by id
+      const seenIds = new Set();
+      const mergedModels = [];
+      for (const k of updatedKeyList) {
+        for (const m of (k.models || [])) {
+          if (!seenIds.has(m.id)) {
+            seenIds.add(m.id);
+            mergedModels.push(m);
+          }
+        }
+      }
+
       const newActive = activeModel || (mergedModels.length > 0 ? mergedModels[0].id : '');
 
-      setSavedKeys(newKeys);
+      setKeyList(updatedKeyList);
       setAllModels(mergedModels);
       setActiveModel(newActive);
-      saveBYOKConfig(newKeys, mergedModels, newActive);
+
+      saveBYOKConfig(updatedKeysObj, mergedModels, newActive);
+      localStorage.setItem('scholarsmate_byok_key_items', JSON.stringify(updatedKeyList));
 
       setInputKey('');
       if (onConfigUpdated) onConfigUpdated(mergedModels, newActive);
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to validate API key and fetch models.');
+      const detail = err.response?.data?.detail;
+      setError(detail || 'Failed to validate API key and fetch models.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleRemoveProvider = (prov) => {
-    const newKeys = { ...savedKeys };
-    delete newKeys[prov];
+  const handleRemoveKey = (keyId) => {
+    const updatedKeyList = keyList.filter((k) => k.id !== keyId);
 
-    const remainingModels = allModels.filter((m) => m.provider !== prov);
+    const updatedKeysObj = {};
+    updatedKeyList.forEach((k) => {
+      updatedKeysObj[k.provider] = k.key;
+    });
+
+    const seenIds = new Set();
+    const remainingModels = [];
+    for (const k of updatedKeyList) {
+      for (const m of (k.models || [])) {
+        if (!seenIds.has(m.id)) {
+          seenIds.add(m.id);
+          remainingModels.push(m);
+        }
+      }
+    }
+
     const newActive = remainingModels.some((m) => m.id === activeModel)
       ? activeModel
       : remainingModels[0]?.id || '';
 
-    setSavedKeys(newKeys);
+    setKeyList(updatedKeyList);
     setAllModels(remainingModels);
     setActiveModel(newActive);
-    saveBYOKConfig(newKeys, remainingModels, newActive);
+
+    saveBYOKConfig(updatedKeysObj, remainingModels, newActive);
+    localStorage.setItem('scholarsmate_byok_key_items', JSON.stringify(updatedKeyList));
+
     if (onConfigUpdated) onConfigUpdated(remainingModels, newActive);
   };
 
@@ -196,36 +259,28 @@ export default function SettingsModal({
         </div>
 
         {/* Section 2: LLM API Keys & Discovered Models */}
-        <div className="space-y-2 pt-2 border-t border-zinc-800/80">
+        <div className="space-y-2.5 pt-2 border-t border-zinc-800/80">
           <label className="text-[11px] text-zinc-400 font-semibold uppercase tracking-wider">
-            Custom LLM Keys &amp; Providers
+            API Keys
           </label>
+
           <div className="flex gap-2">
             <input
               type="password"
-              placeholder="Paste Groq, Gemini, OpenAI, Claude, OpenRouter key..."
+              placeholder="Paste any API key (OpenRouter, Gemini, Groq, OpenAI...)"
               value={inputKey}
-              onChange={(e) => {
-                setInputKey(e.target.value);
-                setSelectedProvider(detectProviderName(e.target.value));
-              }}
+              onChange={(e) => setInputKey(e.target.value)}
               className="flex-1 bg-zinc-950/70 border border-zinc-800 rounded-xl px-3 py-2 text-xs font-mono text-zinc-200 focus:outline-none focus:border-zinc-500"
             />
             <button
               onClick={handleAddKey}
               disabled={loading || !inputKey.trim()}
-              className="bg-zinc-100 hover:bg-white text-zinc-950 font-semibold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 disabled:opacity-50 cursor-pointer transition-colors shadow-sm"
+              className="bg-zinc-100 hover:bg-white text-zinc-950 font-semibold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 disabled:opacity-50 cursor-pointer transition-colors shadow-sm shrink-0"
             >
               {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5 stroke-[2.5]" />}
-              <span>{loading ? 'Detecting...' : 'Add Key'}</span>
+              <span>{loading ? 'Verifying...' : 'Add Key'}</span>
             </button>
           </div>
-
-          {inputKey && (
-            <div className="text-[10px] text-zinc-500 font-mono">
-              Detected Provider: <span className="text-[#8e8e93] font-semibold uppercase">{selectedProvider}</span>
-            </div>
-          )}
 
           {error && (
             <div className="flex items-center gap-1.5 text-xs text-rose-400 bg-rose-950/40 border border-rose-900/60 p-2.5 rounded-xl mt-1.5">
@@ -255,31 +310,31 @@ export default function SettingsModal({
         {/* Section 3: Configured Keys List */}
         <div className="space-y-2.5 pt-2 border-t border-zinc-800/80">
           <div className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wide">
-            Configured Providers ({Object.keys(savedKeys).length})
+            Configured Keys ({keyList.length})
           </div>
-          {Object.keys(savedKeys).length === 0 ? (
+          {keyList.length === 0 ? (
             <div className="text-center py-4 text-xs text-zinc-500">
-              No API keys configured yet.<br />Add a key above to automatically load its live models.
+              No API keys configured yet.<br />Add a key above to automatically load its verified models.
             </div>
           ) : (
             <div className="space-y-1.5 max-h-40 overflow-y-auto pr-0.5">
-              {Object.entries(savedKeys).map(([prov, key]) => {
-                const provModels = allModels.filter((m) => m.provider === prov);
+              {keyList.map((item, idx) => {
+                const count = item.models?.length || 0;
                 return (
-                  <div key={prov} className="bg-zinc-950/70 border border-zinc-800/80 rounded-xl p-2.5 flex items-center justify-between">
+                  <div key={item.id} className="bg-zinc-950/70 border border-zinc-800/80 rounded-xl p-2.5 flex items-center justify-between">
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-zinc-200 uppercase">{prov}</span>
-                        <span className="text-[9.5px] bg-zinc-800 text-zinc-300 border border-zinc-700 px-1.5 py-0.2 rounded-md font-mono">
-                          {provModels.length} models
+                        <span className="text-xs font-bold text-zinc-100">Key {idx + 1}</span>
+                        <span className="text-[10px] bg-zinc-800 text-zinc-400 border border-zinc-700/80 px-2 py-0.5 rounded-md font-mono">
+                          ••••••••{item.key.slice(-4)}
                         </span>
-                      </div>
-                      <div className="text-[10.5px] text-zinc-500 font-mono mt-0.5">
-                        ••••••••{key.slice(-4)}
+                        <span className="text-[10px] text-emerald-400/90 font-mono">
+                          {count} {count === 1 ? 'verified model' : 'verified models'}
+                        </span>
                       </div>
                     </div>
                     <button
-                      onClick={() => handleRemoveProvider(prov)}
+                      onClick={() => handleRemoveKey(item.id)}
                       className="text-zinc-500 hover:text-rose-400 p-1 rounded-lg transition-colors cursor-pointer"
                       title="Delete Key"
                     >

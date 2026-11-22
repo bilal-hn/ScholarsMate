@@ -15,6 +15,8 @@ import {
   Plus,
   Folder,
   FolderOpen,
+  FolderKanban,
+  ArrowLeft,
   MoreVertical,
   FileUp,
   Edit3,
@@ -62,7 +64,7 @@ export default function DocumentSidebar({
   isCollapsed = false,
   onToggleCollapse,
 }) {
-  const [isRecentOpen, setIsRecentOpen] = useState(true);
+  const [sidebarView, setSidebarView] = useState('chats'); // 'chats' | 'workspaces'
   const [expandedWorkspaces, setExpandedWorkspaces] = useState(() => new Set());
 
   // Inline rename state
@@ -89,8 +91,8 @@ export default function DocumentSidebar({
     }
   }, [workspaces]);
 
-  // Aggregate top 3–5 most active chats across all workspaces and standalone chats
-  const recentActivityChats = useMemo(() => {
+  // Aggregate all chats across all workspaces and standalone chats, ordered by most recently updated
+  const allChats = useMemo(() => {
     const all = [];
     (workspaces || []).forEach((ws) => {
       (ws.chats || []).forEach((chat) => {
@@ -108,16 +110,14 @@ export default function DocumentSidebar({
         workspaceName: null,
       });
     });
-    return all
-      .sort((a, b) => {
-        const timeA = new Date(a.updated_at || a.created_at || 0).getTime();
-        const timeB = new Date(b.updated_at || b.created_at || 0).getTime();
-        return timeB - timeA;
-      })
-      .slice(0, 5);
+    return all.sort((a, b) => {
+      const timeA = new Date(a.updated_at || a.created_at || 0).getTime();
+      const timeB = new Date(b.updated_at || b.created_at || 0).getTime();
+      return timeB - timeA;
+    });
   }, [workspaces, standaloneChats]);
 
-  const handleSelectRecentChat = (chat) => {
+  const handleSelectChat = (chat) => {
     if (chat.workspaceId) {
       setExpandedWorkspaces((prev) => {
         const next = new Set(prev);
@@ -128,6 +128,11 @@ export default function DocumentSidebar({
     } else {
       onSelectStandaloneChat?.(chat.id);
     }
+  };
+
+  const handleNewChatClick = () => {
+    setSidebarView('chats');
+    onNewChat?.();
   };
 
   // Close floating context menu on click outside or escape key
@@ -315,7 +320,7 @@ export default function DocumentSidebar({
                     foundChat = standaloneChats.find((s) => s.id === menuState.id);
                   }
                   if (!foundChat) {
-                    foundChat = recentActivityChats.find((c) => c.id === menuState.id);
+                    foundChat = allChats.find((c) => c.id === menuState.id);
                   }
                   if (foundChat) startChatRename(foundChat, menuState.parentId || foundChat.workspaceId);
                 }}
@@ -331,7 +336,7 @@ export default function DocumentSidebar({
                 type="button"
                 onClick={() => {
                   const chatId = menuState.id;
-                  const parentId = menuState.parentId || recentActivityChats.find((c) => c.id === chatId)?.workspaceId || null;
+                  const parentId = menuState.parentId || allChats.find((c) => c.id === chatId)?.workspaceId || null;
                   setMenuState(null);
                   onDeleteChat?.(chatId, parentId);
                 }}
@@ -380,7 +385,7 @@ export default function DocumentSidebar({
               {/* New Chat */}
               <button
                 type="button"
-                onClick={onNewChat}
+                onClick={handleNewChatClick}
                 className="relative group p-2.5 rounded-xl text-zinc-100 hover:text-white hover:bg-zinc-800/70 transition-all cursor-pointer flex items-center justify-center"
                 aria-label="New chat"
               >
@@ -469,20 +474,44 @@ export default function DocumentSidebar({
                 </button>
               )}
 
-              {/* History shortcut */}
-              {recentActivityChats.length > 0 && (
+              {/* Workspaces shortcut in Rail */}
+              <button
+                type="button"
+                onClick={() => {
+                  setSidebarView('workspaces');
+                  if (onToggleCollapse) onToggleCollapse();
+                }}
+                className={`relative group p-2.5 rounded-xl transition-all cursor-pointer flex items-center justify-center ${
+                  sidebarView === 'workspaces' && !isCollapsed
+                    ? 'bg-zinc-800 text-zinc-100 border border-zinc-700'
+                    : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/70'
+                }`}
+                aria-label="Workspaces"
+              >
+                <FolderKanban className="h-4.5 w-4.5" />
+                <span className="pointer-events-none absolute left-full top-1/2 -translate-y-1/2 ml-3 px-2.5 py-1.5 bg-zinc-900 border border-zinc-700/80 text-zinc-100 text-[12.5px] font-medium rounded-lg shadow-2xl whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50">
+                  Workspaces ({workspaces.length})
+                </span>
+              </button>
+
+              {/* Chat History shortcut in Rail */}
+              {allChats.length > 0 && (
                 <button
                   type="button"
                   onClick={() => {
-                    onToggleCollapse();
-                    setIsRecentOpen(true);
+                    setSidebarView('chats');
+                    if (onToggleCollapse) onToggleCollapse();
                   }}
-                  className="relative group p-2.5 rounded-xl text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/70 transition-all cursor-pointer flex items-center justify-center"
-                  aria-label="Recent Activity"
+                  className={`relative group p-2.5 rounded-xl transition-all cursor-pointer flex items-center justify-center ${
+                    sidebarView === 'chats' && !isCollapsed
+                      ? 'bg-zinc-800 text-zinc-100 border border-zinc-700'
+                      : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/70'
+                  }`}
+                  aria-label="Chat History"
                 >
                   <History className="h-4.5 w-4.5" />
                   <span className="pointer-events-none absolute left-full top-1/2 -translate-y-1/2 ml-3 px-2.5 py-1.5 bg-zinc-900 border border-zinc-700/80 text-zinc-100 text-[12.5px] font-medium rounded-lg shadow-2xl whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50">
-                    Recent Activity
+                    Chat History ({allChats.length})
                   </span>
                 </button>
               )}
@@ -533,11 +562,31 @@ export default function DocumentSidebar({
             {/* "+ New Chat" Action */}
             <button
               type="button"
-              onClick={onNewChat}
+              onClick={handleNewChatClick}
               className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-xs font-semibold text-zinc-100 hover:text-white hover:bg-zinc-800/60 transition-colors cursor-pointer group text-left"
             >
               <SquarePen className="h-3.5 w-3.5 stroke-[2.2] group-hover:scale-105 transition-transform" />
               <span>New Chat</span>
+            </button>
+
+            {/* Workspaces Navigation Item */}
+            <button
+              type="button"
+              onClick={() => setSidebarView((prev) => prev === 'workspaces' ? 'chats' : 'workspaces')}
+              className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs transition-colors cursor-pointer group text-left ${
+                sidebarView === 'workspaces'
+                  ? 'bg-zinc-800 text-zinc-100 font-medium border border-zinc-700'
+                  : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/40'
+              }`}
+              title="View & manage research workspaces"
+            >
+              <div className="flex items-center gap-2">
+                <FolderKanban className={`h-3 w-3 ${sidebarView === 'workspaces' ? 'text-zinc-200' : 'text-zinc-500 group-hover:text-zinc-200'} transition-colors`} />
+                <span>Workspaces</span>
+              </div>
+              <span className="text-[10px] font-mono font-normal text-zinc-400 bg-zinc-800/80 px-1.5 py-0.2 rounded-full">
+                {workspaces.length}
+              </span>
             </button>
 
             {/* Global Search Modal Navigation Item */}
@@ -605,53 +654,48 @@ export default function DocumentSidebar({
             )}
           </div>
 
-          {/* Workspaces & Recent Activity Tree */}
-          <div className="flex-1 overflow-y-auto px-2 py-3 space-y-4">
-            {/* RECENT ACTIVITY SECTION (Top 3-5 Active Chats Across All Workspaces) */}
-            {recentActivityChats.length > 0 && (
-              <div className="space-y-1">
-                <button
-                  type="button"
-                  onClick={() => setIsRecentOpen((prev) => !prev)}
-                  className="w-full flex items-center justify-between px-2 py-0.5 text-[10px] font-semibold tracking-wider text-zinc-500 hover:text-zinc-300 transition-colors uppercase cursor-pointer text-left"
-                >
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <History className="h-3 w-3 text-zinc-400 shrink-0" />
-                    <span className="truncate">Recent Activity</span>
+          {/* Main Sidebar Body: Switches cleanly between Chat History and Workspaces */}
+          <div className="flex-1 overflow-y-auto px-2 py-3">
+            {sidebarView === 'chats' ? (
+              /* VIEW 1: CHAT HISTORY (DEFAULT) */
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between px-2 py-1 text-[10.5px] font-semibold tracking-wider text-zinc-500 uppercase">
+                  <div className="flex items-center gap-1.5">
+                    <History className="h-3 w-3 text-zinc-400" />
+                    <span>Chat History</span>
                   </div>
-                  <div className="flex items-center gap-1 shrink-0 text-zinc-500">
-                    <span className="text-[9.5px] font-mono font-normal text-zinc-400 bg-zinc-800/70 px-1 py-0.2 rounded-full">
-                      {recentActivityChats.length}
-                    </span>
-                    {isRecentOpen ? (
-                      <ChevronDown className="h-2.5 w-2.5 text-zinc-400" />
-                    ) : (
-                      <ChevronRight className="h-2.5 w-2.5 text-zinc-400" />
-                    )}
-                  </div>
-                </button>
+                  <span className="text-[9.5px] font-mono text-zinc-400 bg-zinc-800/70 px-1.5 py-0.2 rounded-full">
+                    {allChats.length}
+                  </span>
+                </div>
 
-                {isRecentOpen && (
+                {allChats.length === 0 ? (
+                  <div className="px-3 py-8 rounded-xl border border-dashed border-zinc-800 text-center flex flex-col items-center justify-center bg-zinc-950/20 text-zinc-500">
+                    <MessageSquare className="h-5 w-5 mb-2 text-zinc-600 stroke-[1.5]" />
+                    <p className="text-xs text-zinc-400 font-medium">No chats yet</p>
+                    <p className="text-[11px] text-zinc-500 mt-0.5">Click New Chat to begin</p>
+                  </div>
+                ) : (
                   <div className="space-y-0.5">
-                    {recentActivityChats.map((chat) => {
+                    {allChats.map((chat) => {
                       const isActive = activeSessionId === chat.id;
                       const isEditingThisChat = editingChatId === chat.id;
 
                       return (
                         <div
                           key={chat.id}
-                          onClick={() => handleSelectRecentChat(chat)}
+                          onClick={() => handleSelectChat(chat)}
                           onContextMenu={(e) => handleContextMenu(e, 'chat', chat.id, chat.workspaceId)}
-                          className={`group flex items-center justify-between px-2 py-1 rounded-md text-[11.5px] cursor-pointer transition-colors relative border-l-2 ${
+                          className={`group flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs cursor-pointer transition-colors relative border-l-2 ${
                             isActive
-                              ? 'bg-zinc-800 text-zinc-100 font-medium border-zinc-400'
+                              ? 'bg-zinc-800 text-zinc-100 font-medium border-zinc-200 shadow-xs'
                               : 'border-transparent hover:border-zinc-700 text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800/40'
                           }`}
                         >
-                          <div className="flex items-center gap-1.5 truncate min-w-0 pr-1 flex-1">
+                          <div className="flex items-center gap-2 truncate min-w-0 pr-1 flex-1">
                             <MessageSquare
-                              className={`h-3 w-3 shrink-0 ${
-                                isActive ? 'text-zinc-100' : 'text-zinc-500 group-hover:text-zinc-100'
+                              className={`h-3.5 w-3.5 shrink-0 ${
+                                isActive ? 'text-zinc-100' : 'text-zinc-500 group-hover:text-zinc-200'
                               }`}
                             />
 
@@ -684,7 +728,7 @@ export default function DocumentSidebar({
                                     e.stopPropagation();
                                     startChatRename(chat, chat.workspaceId);
                                   }}
-                                  className="truncate text-[11.5px] select-none"
+                                  className="truncate text-xs select-none"
                                   title={chat.title || 'Chat'}
                                 >
                                   {chat.title || 'Chat'}
@@ -716,41 +760,59 @@ export default function DocumentSidebar({
                   </div>
                 )}
               </div>
-            )}
-
-            {/* WORKSPACES SECTION */}
-            <div className="space-y-1">
-              <div className="px-2 py-0.5 text-[10px] font-semibold tracking-wider text-zinc-500 flex items-center justify-between uppercase">
-                <span>Workspaces</span>
-                {onOpenCreateModal && (
+            ) : (
+              /* VIEW 2: WORKSPACES VIEW */
+              <div className="space-y-2">
+                {/* Top Navigation Bar inside Workspaces Mode */}
+                <div className="flex items-center justify-between pb-2 border-b border-zinc-800/60">
                   <button
                     type="button"
-                    onClick={onOpenCreateModal}
-                    title="Create New Workspace"
-                    className="text-zinc-400 hover:text-zinc-100 px-1 py-0.2 rounded transition-colors cursor-pointer flex items-center gap-1 text-[10.5px] font-medium"
+                    onClick={() => setSidebarView('chats')}
+                    className="flex items-center gap-1.5 text-xs font-medium text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer px-1.5 py-1 rounded-md hover:bg-zinc-800/60"
+                    title="Return to Chat History"
                   >
-                    <Plus className="h-3 w-3 stroke-[2.5]" />
-                    <span>New</span>
+                    <ArrowLeft className="h-3.5 w-3.5" />
+                    <span>Chat History</span>
                   </button>
-                )}
-              </div>
 
-              {workspaces.length === 0 ? (
-                <div className="px-3 py-4 rounded-lg border border-dashed border-zinc-800/80 text-center flex flex-col items-center justify-center bg-zinc-950/20">
-                  <p className="text-[11px] text-zinc-400 mb-2">No workspaces yet</p>
                   {onOpenCreateModal && (
                     <button
                       type="button"
                       onClick={onOpenCreateModal}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-zinc-100 hover:bg-white text-zinc-950 font-semibold text-[11px] shadow transition-all cursor-pointer"
+                      className="flex items-center gap-1 text-[11px] font-semibold text-zinc-200 hover:text-white bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 px-2 py-1 rounded-md transition-colors cursor-pointer"
+                      title="Create New Workspace"
                     >
                       <Plus className="h-3 w-3 stroke-[2.5]" />
-                      <span>Create Workspace</span>
+                      <span>New Workspace</span>
                     </button>
                   )}
                 </div>
-              ) : (
-                <div className="space-y-1.5">
+
+                <div className="px-1 text-[10.5px] font-semibold tracking-wider text-zinc-500 uppercase flex items-center justify-between">
+                  <span>All Workspaces</span>
+                  <span className="text-[9.5px] font-mono text-zinc-400 bg-zinc-800/70 px-1.5 py-0.2 rounded-full">
+                    {workspaces.length}
+                  </span>
+                </div>
+
+                {workspaces.length === 0 ? (
+                  <div className="px-3 py-6 rounded-xl border border-dashed border-zinc-800/80 text-center flex flex-col items-center justify-center bg-zinc-950/20">
+                    <FolderKanban className="h-6 w-6 mb-2 text-zinc-600 stroke-[1.5]" />
+                    <p className="text-xs text-zinc-300 font-medium">No workspaces yet</p>
+                    <p className="text-[11px] text-zinc-500 mb-3 mt-0.5">Group research papers with dedicated chats</p>
+                    {onOpenCreateModal && (
+                      <button
+                        type="button"
+                        onClick={onOpenCreateModal}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-100 hover:bg-white text-zinc-950 font-semibold text-xs shadow transition-all cursor-pointer"
+                      >
+                        <Plus className="h-3.5 w-3.5 stroke-[2.5]" />
+                        <span>Create Workspace</span>
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-2">
                   {workspaces.map((ws) => {
                     const isExpanded = expandedWorkspaces.has(ws.id);
                     const chats = ws.chats || [];
@@ -938,6 +1000,7 @@ export default function DocumentSidebar({
                 </div>
               )}
             </div>
+            )}
           </div>
 
           {/* Footer: User Profile & Actions */}
