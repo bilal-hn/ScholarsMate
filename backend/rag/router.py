@@ -136,6 +136,26 @@ def sanitize_plan(plan: dict, query: str, available_docs: list[str]) -> dict:
         intent = "NEW_QUERY"
 
     if intent in {"CONVERSATIONAL", "GENERAL_KNOWLEDGE"}:
+        # If the user has active workspace documents and is asking a question or substantive query,
+        # DO NOT suppress retrieval! Always search the workspace documents.
+        has_substantive_query = (
+            "?" in query or
+            any(query.lower().strip().startswith(w) for w in [
+                "what", "how", "why", "which", "who", "when", "where",
+                "can you", "could you", "tell", "explain", "describe",
+                "summarise", "summarize", "compare", "is", "are", "does", "do"
+            ]) or
+            len(query.split()) >= 4
+        )
+        if available_docs and has_substantive_query:
+            plan["intent"] = "NEW_QUERY"
+            plan["scope"] = "full_corpus" if len(available_docs) > 1 else "single"
+            plan["target_docs"] = available_docs
+            plan["retrieval_mode"] = "vector_search" if len(available_docs) <= 1 else "per_document_search"
+            plan["is_meta_query"] = False
+            plan["recommended_top_k"] = fallback_k
+            return plan
+
         plan["intent"] = intent
         plan["scope"] = "none"
         plan["target_docs"] = []
@@ -207,13 +227,16 @@ def classify_query_intent(
     heuristic = heuristic_intent(clean_query, chat_history)
     lowered = clean_query.lower()
 
-    # Fast-Path 1: Metadata queries
+    # Fast-Path 1: Pure file listing metadata queries
+    # Must NOT trigger if user asks about content/summary/topics (e.g. "what are the papers about?")
     meta_patterns = [
         r"\b(how many|list)\s+(papers|documents|files)\b",
         r"\bshow\s+(my\s+)?(papers|documents|files|workspace)\b",
-        r"\bwhat\s+(is\s+in\s+this|are\s+the)\s+(workspace|documents)\b",
+        r"\bwhat\s+files\s+are\s+in\s+this\s+(workspace|chat)\b",
     ]
-    if any(re.search(p, lowered) for p in meta_patterns):
+    content_intent_cues = ["about", "summary", "summarise", "summarize", "topic", "topics", "content", "contents", "explain", "findings", "discuss", "cover", "tell me"]
+    has_content_intent = any(w in lowered for w in content_intent_cues)
+    if not has_content_intent and any(re.search(p, lowered) for p in meta_patterns):
         return {
             "intent": "NEW_QUERY",
             "scope": "full_corpus",
@@ -223,6 +246,26 @@ def classify_query_intent(
             "is_meta_query": True,
             "query_depth": "focused",
             "recommended_top_k": 0,
+        }
+
+    # Fast-Path 1B: Multi-Document Overview / Summary Requests
+    multi_doc_summary_keywords = [
+        r"\b(summarise|summarize|summary|overview|breakdown)\s+(all|the|these|my|both|three|four|five|\d+)?\s*(papers|documents|studies|articles|corpus|workspace)\b",
+        r"\bwhat\s+are\s+(the|these|all|my)?\s*(papers|documents|studies|articles)\s+about\b",
+        r"\bwhat\s+do\s+(these|the|all|my)?\s*(papers|documents|studies|articles)\s+(say|discuss|cover|explain)\b",
+        r"\b(summarise|summarize|overview)\s+(all|workspace|everything)\b",
+        r"\btell\s+me\s+about\s+(the|these|all)\s+(papers|documents|studies)\b",
+    ]
+    if available_docs and any(re.search(p, lowered) for p in multi_doc_summary_keywords):
+        return {
+            "intent": "NEW_QUERY",
+            "scope": "full_corpus",
+            "target_docs": available_docs,
+            "retrieval_mode": "per_document_search",
+            "generation_mode": "map_reduce" if len(available_docs) >= 8 else "single_pass",
+            "is_meta_query": False,
+            "query_depth": "broad_synthesis",
+            "recommended_top_k": max(12, 4 * len(available_docs)),
         }
 
     # Fast-Path 2: Deterministic Target + Summary Cache Check (Bypasses LLM Router entirely)
@@ -281,16 +324,16 @@ You are an academic query execution planner for ScholarsMate, a multi-document R
 Return ONLY a JSON object. No prose, no markdown, no chain-of-thought.
 
 Intent labels:
-- CONVERSATIONAL: greetings, thanks, acknowledgments ("okay got it", "makes sense", "understood", "cool"), thinking pauses / state markers ("let me think", "give me a moment", "wait a sec", "hmmm"), or polite remarks where the user is NOT requesting paper research. No PDF retrieval.
-- GENERAL_KNOWLEDGE: questions about general programming, math, logic, definitions, or topics unrelated to specific uploaded research papers (e.g. "Write a Python script for mergesort", "What is photosynthesis?"). No PDF retrieval.
+- CONVERSATIONAL: pure greetings, thanks, acknowledgments ("hi", "hello", "thanks", "understood", "cool") where the user is NOT requesting paper research or asking a substantive question. No PDF retrieval.
+- GENERAL_KNOWLEDGE: questions about general programming, math, or topics completely unrelated to any uploaded research papers (e.g. "Write a Python script for mergesort", "What is the capital of France?"). If the question asks about any concept, definition, or topic that could be addressed by the user's uploaded papers (e.g., muscle hypertrophy, attention mechanisms, machine learning, training methods), classify as NEW_QUERY!
 - FOLLOW_UP: the user is ACTIVELY asking a follow-up question or requesting clarification/elaboration on previous points ("why is that?", "can you give an example?", "explain that simpler", "what did you mean by X?"). Requires PDF retrieval.
-- NEW_QUERY: a substantive question about the research papers or workspace. Requires PDF retrieval.
+- NEW_QUERY: any substantive question about the research papers, concepts, or workspace overview ("what are these papers about", "summarise all papers", "explain hypertrophy"). Requires PDF retrieval.
 
 Retrieval:
 - vector_search: default focused question.
-- per_document_search: compare / overview / "what are these papers about" across multiple files.
+- per_document_search: compare / overview / "what are these papers about" / "summarise all papers" across multiple files.
 - full_text: only when a SINGLE named document must be read end-to-end.
-- metadata_only: listing files in the workspace, not their content.
+- metadata_only: strictly for listing or counting filenames (e.g. "how many files do I have?"), NEVER for content summaries.
 
 Indexed Documents:
 {json.dumps(catalog)}

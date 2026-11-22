@@ -22,7 +22,7 @@ class GuardrailPipeline:
     def run_retrieval_rails(
         chunks: List[Dict[str, Any]],
         allowed_docs: Optional[List[str]] = None,
-        max_distance: float = 0.75,
+        max_distance: float = 0.88,
         max_context_tokens: int = 4200,
     ) -> Tuple[List[Dict[str, Any]], GuardrailResult]:
         """Runs pre-injection validation on retrieved vector passages."""

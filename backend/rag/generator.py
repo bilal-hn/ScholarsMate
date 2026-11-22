@@ -447,8 +447,19 @@ def generate_answer(
             "mode_applied": mode
         }
 
+    has_substantive_query = (
+        "?" in clean_query or
+        any(clean_query.lower().strip().startswith(w) for w in [
+            "what", "how", "why", "which", "who", "when", "where",
+            "can you", "could you", "tell", "explain", "describe",
+            "summarise", "summarize", "compare", "is", "are", "does", "do"
+        ]) or
+        len(clean_query.split()) >= 4
+    )
+    is_content_query = any(w in clean_query.lower() for w in ["about", "summary", "summarise", "summarize", "explain", "discuss", "findings", "content", "takeaway", "takeaways"])
+
     # Branch B: Pure Conversational Greetings & Acknowledgments
-    if intent == "CONVERSATIONAL" and not attached_images_text:
+    if intent == "CONVERSATIONAL" and not has_substantive_query and not attached_images_text:
         docs_summary = ", ".join(active_workspace_docs[:3]) + ("..." if len(active_workspace_docs) > 3 else "")
         conv_sys = (
             f"You are ScholarsMate, an intelligent assistant dedicated to the user's uploaded documents: {docs_summary}. "
@@ -492,8 +503,8 @@ def generate_answer(
             "mode_applied": mode
         }
 
-    # Branch C: Workspace Meta-Query
-    if plan.get("is_meta_query"):
+    # Branch C: Workspace Meta-Query (Pure file listing, NOT content summaries)
+    if plan.get("is_meta_query") and not is_content_query:
         if not active_workspace_docs:
             answer_text = "Your active workspace currently has no documents indexed."
         else:

@@ -279,6 +279,8 @@ def _draft_section(
     packed_chunks = pack_chunks(list(retrieved_chunks_map.values()), max_tokens=4500)
     context_block = build_context_block(packed_chunks)
 
+    numbered_doc_map = "\n".join([f"[{i}] {doc}" for i, doc in enumerate(target_docs, 1)])
+
     draft_prompt = f"""
 {MAIN_RAG_PROMPT}
 
@@ -290,6 +292,9 @@ CORE RESEARCH FOCUS:
 PREVIOUS SECTIONS SUMMARY:
 {rolling_memory or 'This is Section 1. No prior sections drafted.'}
 
+INDEXED REPOSITORY PAPERS (NUMBERED REFERENCE MAP):
+{numbered_doc_map}
+
 EVIDENCE FROM PAPERS:
 {context_block}
 
@@ -299,7 +304,7 @@ SECTION DIRECTIVE:
 STRICT ACADEMIC STYLING RULES:
 1. Write 600-900 words of formal, academic prose with full paragraphs (no incomplete endings).
 2. Use clear subheadings (### Subtitle) to categorize different themes.
-3. Cite sources inline using formal bracket notation: `[PaperName, p.X]`.
+3. Cite sources inline using LaTeX-style numbered bracket notation matching the reference map: e.g. `[1]`, `[2]`, `[1, p. 4]`, or `[1, 2]`. Do NOT write out raw filenames like `[paper.pdf]`.
 4. Use bold text for key terms, metrics, and taxonomy names.
 5. Do NOT output a top-level '# Section' or '## Section' title. Start directly with the narrative or first subsection.
 """.strip()
@@ -321,18 +326,20 @@ def _generate_comparison_matrix(
     custom_keys: dict | None = None
 ) -> str:
     doc_contexts = []
-    for doc in target_docs:
+    numbered_papers = []
+    for idx, doc in enumerate(target_docs, 1):
+        numbered_papers.append(f"[{idx}] {doc}")
         results = search_similar_chunks(query="methodology dataset baseline results limitations architecture", top_k=5, doc_names=[doc])
         texts = results["documents"][0] if results and results.get("documents") else []
-        doc_contexts.append(f"### Paper: {doc}\n" + "\n".join(texts[:4]))
+        doc_contexts.append(f"### Paper [{idx}]: {doc}\n" + "\n".join(texts[:4]))
 
     combined = "\n\n".join(doc_contexts)
 
     table_prompt = f"""
 Generate a complete, publication-grade Comparative Matrix Table in Markdown format for ALL {len(target_docs)} papers below.
 
-PAPERS:
-{', '.join(target_docs)}
+INDEXED PAPERS:
+{chr(10).join(numbered_papers)}
 
 PAPER EXCERPTS:
 {combined}
@@ -342,9 +349,9 @@ TABLE FORMAT:
 | :--- | :--- | :--- | :--- | :--- |
 
 RULES:
-1. Provide exactly one complete row per paper.
+1. Provide exactly one complete row per paper, starting with `| **[X] PaperName** | ...` matching the numbered list above.
 2. Ensure every row is closed properly.
-3. Include inline page citations (e.g. `[PaperName, p.4]`).
+3. Cite sources using bracket numbers (e.g. `[1, p. 4]`).
 4. Output ONLY the markdown table.
 """.strip()
 
@@ -633,13 +640,13 @@ def _generate_batched_matrix_table(
         "| Paper / Citation | Core Methodology & Architecture | Primary Datasets / Benchmarks | Key Strengths | Critical Limitations |",
         "| :--- | :--- | :--- | :--- | :--- |"
     ]
-    for doc in target_docs:
+    for idx, doc in enumerate(target_docs, 1):
         p = profiles_by_doc.get(doc, {})
         arch = _clean_table_cell(p.get("architecture_and_mechanism", "-"))
         bench = _clean_table_cell(p.get("datasets_and_benchmarks", "-"))
         strengths = _clean_table_cell(p.get("key_strengths", "-"))
         limits = _clean_table_cell(p.get("critical_limitations", "-"))
-        rows.append(f"| **{doc}** | {arch} | {bench} | {strengths} | {limits} |")
+        rows.append(f"| **[{idx}] {doc}** | {arch} | {bench} | {strengths} | {limits} |")
 
     return "\n".join(rows)
 
@@ -801,6 +808,8 @@ def _draft_batched_section(
         )
     profile_summary_block = "\n".join(dense_profiles)
 
+    numbered_doc_map = "\n".join([f"[{i}] {doc}" for i, doc in enumerate(target_docs, 1)])
+
     draft_prompt = f"""
 {MAIN_RAG_PROMPT}
 
@@ -811,6 +820,9 @@ CORE RESEARCH FOCUS:
 
 PREVIOUS SECTIONS SUMMARY:
 {rolling_memory or 'This is Section 1. No prior sections drafted.'}
+
+INDEXED REPOSITORY PAPERS (NUMBERED REFERENCE MAP):
+{numbered_doc_map}
 
 STRUCTURED PAPER PROFILES (ALL {len(target_docs)} PAPERS):
 {profile_summary_block}
@@ -825,7 +837,7 @@ STRICT ACADEMIC STYLING RULES:
 1. Write 700-1100 words of formal, publication-grade academic prose with full paragraphs.
 2. Cross-reference and contrast multiple papers and thematic paradigms within every subsection.
 3. Use clear subheadings (### Subtitle) to organize thematic sub-topics.
-4. Cite sources inline using formal bracket notation: `[PaperName, p.X]` or `[PaperName]`.
+4. Cite sources inline using LaTeX-style numbered bracket notation matching the reference map above: e.g. `[1]`, `[2]`, `[1, p. 4]`, or `[1, 2]`. Do NOT write out raw filenames like `[paper.pdf]`.
 5. Bold key terms, mechanisms, dataset names, and performance metrics.
 6. Do NOT output a top-level '# Section' or '## Section' title. Start directly with the first subsection or introductory narrative.
 """.strip()

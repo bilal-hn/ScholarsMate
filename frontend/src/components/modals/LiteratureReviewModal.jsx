@@ -51,7 +51,76 @@ export default function LiteratureReviewModal({
   const [currentStage, setCurrentStage] = useState('');
   const [monograph, setMonograph] = useState(null);
 
-  // ── Table preprocessor ──────────────────────────────────────────────────────
+  // ── LaTeX Numbered Citation Formatter ─────────────────────────────────────────
+  const formatCitations = (content, docList = []) => {
+    if (!content || typeof content !== 'string') return content;
+    const docMap = {};
+    (docList || []).forEach((doc, idx) => {
+      const num = String(idx + 1);
+      docMap[doc.toLowerCase()] = num;
+      docMap[doc.replace(/\.pdf$/i, '').toLowerCase()] = num;
+      docMap[doc.replace(/_/g, ' ').toLowerCase()] = num;
+      docMap[doc.replace(/[-_.]/g, ' ').toLowerCase()] = num;
+    });
+
+    const findDocNum = (str) => {
+      const clean = str.replace(/,\s*p(?:p)?\.?\s*[\d\-–]+.*/i, '').trim().toLowerCase();
+      for (const [key, num] of Object.entries(docMap)) {
+        if (clean === key || clean.includes(key) || key.includes(clean)) {
+          return num;
+        }
+      }
+      return null;
+    };
+
+    // 1. Bracket citations: [doc.pdf, p. 4] or [doc1.pdf, doc2.pdf]
+    let result = content.replace(/\[([^\]]+)\]/g, (match, inner) => {
+      const trimmed = inner.trim();
+      if (/^\d+(?:,\s*p(?:p)?\.?\s*[\d\-–]+)?$/i.test(trimmed)) return match;
+      if (/^\d+(?:\s*,\s*\d+)*$/.test(trimmed) || /^\d+\s*[\-–]\s*\d+$/.test(trimmed)) return match;
+
+      const singlePageMatch = trimmed.match(/,\s*(p(?:p)?\.?\s*[\d\-–]+)/i);
+      const docPart = trimmed.replace(/,\s*p(?:p)?\.?\s*[\d\-–]+.*/i, '').trim();
+      const singleNum = findDocNum(docPart);
+      if (singleNum && !trimmed.includes(';') && !/\.pdf.*\.pdf/i.test(trimmed)) {
+        const pageSuffix = singlePageMatch ? `, ${singlePageMatch[1]}` : '';
+        return `[${singleNum}${pageSuffix}]`;
+      }
+
+      const items = trimmed.split(/;\s*|,\s*(?=[^,]*\.(?:pdf|docx|txt)|\b[A-Za-z0-9_\-]{4,}\b)/i);
+      const resolvedNums = [];
+      let commonPage = '';
+
+      items.forEach((item) => {
+        const pMatch = item.match(/,\s*(p(?:p)?\.?\s*[\d\-–]+)/i);
+        if (pMatch && !commonPage) commonPage = `, ${pMatch[1]}`;
+        const num = findDocNum(item);
+        if (num && !resolvedNums.includes(num)) {
+          resolvedNums.push(num);
+        }
+      });
+
+      if (resolvedNums.length > 0) {
+        return `[${resolvedNums.sort((a, b) => Number(a) - Number(b)).join(', ')}${commonPage}]`;
+      }
+      return match;
+    });
+
+    // 2. Parenthetical citations: (doc.pdf, p. 4) -> [1, p. 4]
+    result = result.replace(/\(([^)]+\.pdf(?:,\s*p(?:p)?\.?\s*[\d\-–]+)?)\)/gi, (match, inner) => {
+      const pageMatch = inner.match(/,\s*(p(?:p)?\.?\s*[\d\-–]+)/i);
+      const pageSuffix = pageMatch ? `, ${pageMatch[1]}` : '';
+      const num = findDocNum(inner);
+      if (num) {
+        return `[${num}${pageSuffix}]`;
+      }
+      return match;
+    });
+
+    return result;
+  };
+
+  // ── Table preprocessor (Academic LaTeX Booktabs Style) ───────────────────────
   const preprocessTables = (content) => {
     if (!content || !content.includes('|')) return content;
 
@@ -91,20 +160,30 @@ export default function LiteratureReviewModal({
     const header = rows[0];
     const body = rows.slice(1);
 
+    const captionHtml = `<div class="latex-table-caption" style="text-align: center; font-size: 8.5pt; font-family: 'Latin Modern Roman', 'Computer Modern', 'Times New Roman', serif; margin-bottom: 6px; color: #000000;"><span style="font-weight: 700;">Table 1:</span> <span style="font-style: italic;">Comparative Analysis of Methodologies, Architectural Paradigms, and Empirical Findings</span></div>`;
+
     const headerHtml = `<thead><tr>${header
-      .map((h) => `<th style="background-color: #f8fafc; color: #0f172a; padding: 7px 9px; border: 1px solid #cbd5e1; font-weight: 700; font-size: 8.5pt; text-align: left;">${h}</th>`)
+      .map(
+        (h) =>
+          `<th style="background-color: transparent; color: #000000; padding: 7px 9px; border-bottom: 1pt solid #000000; font-weight: 700; font-size: 8pt; text-align: left; font-family: 'Latin Modern Roman', 'Computer Modern', 'Times New Roman', serif;">${h}</th>`
+      )
       .join('')}</tr></thead>`;
 
     const bodyHtml = `<tbody>${body
       .map(
         (row) =>
           `<tr style="page-break-inside: avoid !important; break-inside: avoid !important;">${row
-            .map((c) => `<td style="padding: 6px 9px; border: 1px solid #e2e8f0; color: #334155; font-size: 8pt; vertical-align: top; line-height: 1.45;">${c}</td>`)
+            .map(
+              (c) =>
+                `<td style="padding: 6px 9px; border-bottom: 0.25pt solid #e5e5e5; color: #000000; font-size: 7.5pt; vertical-align: top; line-height: 1.45; font-family: 'Latin Modern Roman', 'Computer Modern', 'Times New Roman', serif;">${c}</td>`
+            )
             .join('')}</tr>`
       )
       .join('')}</tbody>`;
 
-    return `<div class="pdf-table-wrap" style="overflow-x: auto; margin: 16px 0; page-break-inside: auto !important; break-inside: auto !important;"><table style="width: 100%; border-collapse: collapse; border: 1px solid #cbd5e1; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">${headerHtml}${bodyHtml}</table></div>`;
+    const noteHtml = `<div class="latex-table-note" style="font-size: 7pt; font-style: italic; font-family: 'Latin Modern Roman', 'Computer Modern', 'Times New Roman', serif; color: #222222; margin-top: 5px; text-align: left;">Note: Citations in bracket notation correspond to verified primary indexed literature in the reference catalog.</div>`;
+
+    return `<div class="pdf-table-wrap" style="overflow-x: auto; margin: 18px 0; page-break-inside: auto !important; break-inside: auto !important;">${captionHtml}<table style="width: 100%; border-collapse: collapse; border-top: 1.5pt solid #000000; border-bottom: 1.5pt solid #000000; font-family: 'Latin Modern Roman', 'Computer Modern', 'Times New Roman', serif;">${headerHtml}${bodyHtml}</table>${noteHtml}</div>`;
   };
 
   // ── PDF export ───────────────────────────────────────────────────────────────
@@ -117,60 +196,74 @@ export default function LiteratureReviewModal({
     const element = printDocumentRef.current;
     const clonedElement = element.cloneNode(true);
 
-    clonedElement.style.width = '680px';
+    clonedElement.style.width = '700px';
     clonedElement.style.margin = '0 auto';
     clonedElement.style.padding = '0';
     clonedElement.style.backgroundColor = '#ffffff';
-    clonedElement.style.color = '#0f172a';
+    clonedElement.style.color = '#000000';
+    clonedElement.style.fontFamily = '"Latin Modern Roman", "Computer Modern", "Times New Roman", Times, "Nimbus Roman No9 L", serif';
     clonedElement.style.boxSizing = 'border-box';
 
     const printStyles = document.createElement('style');
     printStyles.innerHTML = `
+      @import url('https://fonts.googleapis.com/css2?family=Latin+Modern+Roman:ital,wght@0,400;0,700;1,400;1,700&display=swap');
+
       * {
         box-sizing: border-box !important;
       }
-      body, div, p, span {
+      body, div, p, span, h1, h2, h3, h4, th, td, li, table, strong, em {
+        font-family: "Latin Modern Roman", "Computer Modern", "Times New Roman", Times, "Nimbus Roman No9 L", serif !important;
+        color: #000000 !important;
         word-break: break-word !important;
         overflow-wrap: break-word !important;
       }
       .pdf-section {
         page-break-inside: auto !important;
         break-inside: auto !important;
-        margin-bottom: 22px !important;
+        margin-bottom: 20px !important;
       }
       h1, h2, h3, h4 {
         page-break-inside: avoid !important;
         break-inside: avoid !important;
         page-break-after: avoid !important;
         break-after: avoid !important;
+        color: #000000 !important;
       }
       h1 {
         font-size: 18pt !important;
-        font-weight: 800 !important;
-        color: #0f172a !important;
-        margin-bottom: 12px !important;
-        line-height: 1.3 !important;
+        font-weight: 700 !important;
+        color: #000000 !important;
+        margin-bottom: 8px !important;
+        line-height: 1.25 !important;
+        text-align: center !important;
       }
       h2 {
-        font-size: 13pt !important;
+        font-size: 12.5pt !important;
         font-weight: 700 !important;
-        color: #9a3412 !important;
-        margin-top: 24px !important;
-        margin-bottom: 10px !important;
-        padding-bottom: 4px !important;
-        border-bottom: 1.5px solid #e2e8f0 !important;
+        color: #000000 !important;
+        margin-top: 22px !important;
+        margin-bottom: 8px !important;
+        border: none !important;
       }
       h3 {
         font-size: 10.5pt !important;
         font-weight: 700 !important;
-        color: #1e293b !important;
+        color: #000000 !important;
         margin-top: 14px !important;
         margin-bottom: 6px !important;
+      }
+      h4 {
+        font-size: 9.5pt !important;
+        font-weight: 700 !important;
+        font-style: italic !important;
+        color: #000000 !important;
+        margin-top: 10px !important;
+        margin-bottom: 4px !important;
       }
       p {
         font-size: 9.5pt !important;
         line-height: 1.6 !important;
-        color: #334155 !important;
+        color: #000000 !important;
         margin-bottom: 10px !important;
         text-align: justify !important;
         page-break-inside: avoid !important;
@@ -178,29 +271,46 @@ export default function LiteratureReviewModal({
       }
       li {
         font-size: 9pt !important;
-        line-height: 1.55 !important;
-        color: #334155 !important;
-        margin-bottom: 5px !important;
+        line-height: 1.5 !important;
+        color: #000000 !important;
+        margin-bottom: 4px !important;
         page-break-inside: avoid !important;
         break-inside: avoid !important;
       }
       blockquote {
         page-break-inside: avoid !important;
         break-inside: avoid !important;
-        border-left: 3px solid #f59e0b !important;
-        background-color: #fffbeb !important;
-        padding: 6px 12px !important;
-        margin: 12px 0 !important;
+        border-left: 1.5pt solid #000000 !important;
+        background-color: transparent !important;
+        padding: 4px 12px !important;
+        margin: 10px 0 !important;
         font-style: italic !important;
-        font-size: 8.5pt !important;
-        color: #4b5563 !important;
+        font-size: 9pt !important;
+        color: #000000 !important;
       }
       table {
         page-break-inside: auto !important;
         break-inside: auto !important;
         width: 100% !important;
         border-collapse: collapse !important;
+        border-top: 1.5pt solid #000000 !important;
+        border-bottom: 1.5pt solid #000000 !important;
         margin: 14px 0 !important;
+      }
+      th {
+        border-bottom: 0.75pt solid #000000 !important;
+        background-color: transparent !important;
+        color: #000000 !important;
+        font-weight: 700 !important;
+        padding: 6px 8px !important;
+        font-size: 8pt !important;
+        text-align: left !important;
+      }
+      td {
+        border-bottom: 0.25pt solid #e5e5e5 !important;
+        color: #000000 !important;
+        padding: 5px 8px !important;
+        font-size: 7.5pt !important;
       }
       tr {
         page-break-inside: avoid !important;
@@ -214,10 +324,34 @@ export default function LiteratureReviewModal({
         page-break-inside: avoid !important;
         break-inside: avoid !important;
       }
+      .latex-toc-entry {
+        display: flex !important;
+        align-items: baseline !important;
+        justify-content: space-between !important;
+        width: 100% !important;
+        margin-bottom: 4px !important;
+        font-size: 9pt !important;
+      }
+      .latex-toc-dots {
+        flex: 1 1 auto !important;
+        border-bottom: 1.5px dotted #000000 !important;
+        margin: 0 8px 3px 8px !important;
+        min-width: 20px !important;
+      }
+      .latex-bib-entry {
+        display: flex !important;
+        align-items: flex-start !important;
+        gap: 8px !important;
+        margin-bottom: 6px !important;
+        font-size: 8.5pt !important;
+        line-height: 1.4 !important;
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+      }
       hr {
         border: none !important;
-        border-top: 1px solid #e2e8f0 !important;
-        margin: 20px 0 !important;
+        border-top: 0.5pt solid #000000 !important;
+        margin: 18px 0 !important;
       }
     `;
     clonedElement.prepend(printStyles);
@@ -232,7 +366,7 @@ export default function LiteratureReviewModal({
         backgroundColor: '#ffffff',
         scrollY: 0,
         scrollX: 0,
-        windowWidth: 680,
+        windowWidth: 700,
         ignoreElements: (node) => node.tagName === 'BUTTON',
         onclone: (clonedDoc) => {
           const styles = clonedDoc.querySelectorAll('style, link[rel="stylesheet"]');
@@ -246,7 +380,7 @@ export default function LiteratureReviewModal({
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
       pagebreak: {
         mode: ['css', 'legacy'],
-        avoid: ['h1', 'h2', 'h3', 'tr', 'blockquote', '.avoid-break', 'li'],
+        avoid: ['h1', 'h2', 'h3', 'tr', 'blockquote', '.avoid-break', 'li', '.latex-bib-entry'],
       },
     };
 
@@ -471,128 +605,190 @@ export default function LiteratureReviewModal({
                 /* Rendered document */
                 <div
                   ref={printDocumentRef}
-                  className="w-full max-w-2xl bg-white text-zinc-900 p-10 shadow-xl rounded-sm font-serif leading-relaxed text-[11pt]"
-                  style={{ minHeight: '1100px' }}
+                  className="w-full max-w-3xl bg-white text-black p-12 md:p-16 shadow-2xl rounded-sm leading-relaxed"
+                  style={{
+                    minHeight: '1100px',
+                    fontFamily: '"Latin Modern Roman", "Computer Modern", "Times New Roman", Times, "Nimbus Roman No9 L", serif',
+                    color: '#000000',
+                  }}
                 >
-                  {/* Formal header */}
-                  <div className="pdf-section border-b-2 border-zinc-900 pb-6 mb-8 text-center font-sans">
-                    <span className="text-[10px] tracking-widest uppercase text-zinc-500 font-semibold block mb-2">
+                  {/* Formal LaTeX Paper Header (\maketitle) */}
+                  <div className="pdf-section pb-6 mb-6 text-center">
+                    <span className="text-[9pt] tracking-[0.2em] uppercase font-bold text-black block mb-3">
                       ScholarsMate Academic Monograph Series
                     </span>
-                    <h1 className="text-2xl font-bold text-zinc-900 leading-tight mb-3">
+                    <h1 className="text-2xl md:text-3xl font-bold text-black leading-tight mb-3 tracking-normal">
                       {monograph.title}
                     </h1>
-                    <div className="text-xs text-zinc-600 flex items-center justify-center gap-4 mt-2">
-                      <span><strong>Scope:</strong> {monograph.doc_names?.length} Research Papers</span>
+                    <div className="text-xs text-black flex items-center justify-center gap-3 mt-2">
+                      <span>Corpus Synthesis across {monograph.doc_names?.length} Primary Research Works</span>
                       <span>•</span>
-                      <span><strong>Synthesized:</strong> {synthesizedDate}</span>
+                      <span>{synthesizedDate}</span>
                     </div>
+                    <div className="text-[10px] text-zinc-700 italic mt-1">
+                      ScholarsMate Automated Systematic Synthesis Engine
+                    </div>
+                    <div className="w-16 h-[0.75px] bg-black mx-auto mt-4"></div>
+                  </div>
+
+                  {/* LaTeX Abstract Block (\begin{abstract}) */}
+                  <div className="pdf-section my-6 px-8 md:px-12 text-justify avoid-break">
+                    <div className="text-center font-bold tracking-[0.2em] text-[9.5pt] uppercase mb-2.5 text-black">
+                      Abstract
+                    </div>
+                    <p className="text-[9.5pt] italic text-black leading-relaxed mb-3">
+                      This monograph presents an integrative, systematic synthesis of conceptual frameworks, architectural paradigms, empirical benchmarks, and unresolved limitations across {monograph.doc_names?.length || activePapers.length} primary research works indexed in the ScholarsMate workspace. By reconciling conflicting methodological taxonomies and synthesizing empirical evidence across comparative axes, this work formalizes the core tradeoffs and outlines foundational trajectories for ongoing inquiry.
+                    </p>
                     {monograph.research_focus && (
-                      <div className="mt-4 p-3 bg-zinc-50 border border-zinc-200 rounded text-left text-xs italic text-zinc-700 avoid-break">
-                        <strong>Research Directive:</strong> {monograph.research_focus}
+                      <div className="text-[9pt] text-black pt-1">
+                        <span className="font-bold not-italic">Keywords &amp; Focus Directive: </span>
+                        <span className="italic">{monograph.research_focus}</span>
                       </div>
                     )}
+                    <div className="text-[9pt] text-black pt-0.5">
+                      <span className="font-bold not-italic">Primary Indexed Corpus: </span>
+                      <span className="italic">{monograph.doc_names?.join(', ')}</span>
+                    </div>
                   </div>
 
-                  {/* Table of Contents */}
-                  <div className="pdf-section my-8 p-6 bg-zinc-50 border border-zinc-200 rounded font-sans avoid-break">
-                    <h3 className="text-sm font-bold text-zinc-900 uppercase tracking-wider mb-3 border-b border-zinc-300 pb-1">
-                      Table of Contents
-                    </h3>
-                    <div className="space-y-1.5 text-xs text-zinc-800">
+                  <hr className="my-6 border-black/40" />
+
+                  {/* LaTeX Table of Contents (Contents) */}
+                  <div className="pdf-section my-8 avoid-break">
+                    <div className="text-[12pt] font-bold text-black uppercase tracking-wider mb-4 border-b border-black pb-1">
+                      Contents
+                    </div>
+                    <div className="space-y-1.5 text-[9.5pt] text-black">
                       {monograph.sections?.map((sec, i) => (
-                        <div key={i} className="flex justify-between items-center py-0.5">
-                          <span>
-                            <strong>Section {sec.section_number}:</strong>{' '}
-                            {customHeadings[i] || sec.title}
-                          </span>
-                          <span className="text-zinc-400">................................................................</span>
+                        <div key={i} className="latex-toc-entry flex items-baseline justify-between py-0.5">
+                          <span className="font-bold mr-2 w-5 shrink-0">{sec.section_number || i + 1}</span>
+                          <span className="shrink-0">{customHeadings[i] || sec.title}</span>
+                          <span className="latex-toc-dots flex-1 mx-2 border-b border-dotted border-black h-0 self-center"></span>
+                          <span className="shrink-0 tabular-nums">{i + 1}</span>
                         </div>
                       ))}
-                      <div className="flex justify-between items-center py-0.5">
-                        <span><strong>Methodological Comparison Matrix</strong></span>
-                        <span className="text-zinc-400">................................................................</span>
-                      </div>
-                      <div className="flex justify-between items-center py-0.5">
-                        <span><strong>Integrative Conclusion &amp; Future Roadmap</strong></span>
-                        <span className="text-zinc-400">................................................................</span>
-                      </div>
-                      <div className="flex justify-between items-center py-0.5">
-                        <span><strong>References &amp; Document Catalog</strong></span>
-                        <span className="text-zinc-400">................................................................</span>
+                      {monograph.matrix_table && (
+                        <div className="latex-toc-entry flex items-baseline justify-between py-0.5 pl-6">
+                          <span className="italic shrink-0">Table 1: Systematic Comparative Matrix</span>
+                          <span className="latex-toc-dots flex-1 mx-2 border-b border-dotted border-black h-0 self-center"></span>
+                          <span className="shrink-0 tabular-nums">3</span>
+                        </div>
+                      )}
+                      {monograph.conclusion && (
+                        <div className="latex-toc-entry flex items-baseline justify-between py-0.5">
+                          <span className="font-bold mr-2 w-5 shrink-0">{(monograph.sections?.length || 5) + 1}</span>
+                          <span className="shrink-0">Integrative Conclusion &amp; Strategic Roadmap</span>
+                          <span className="latex-toc-dots flex-1 mx-2 border-b border-dotted border-black h-0 self-center"></span>
+                          <span className="shrink-0 tabular-nums">{(monograph.sections?.length || 5) + 1}</span>
+                        </div>
+                      )}
+                      <div className="latex-toc-entry flex items-baseline justify-between py-0.5">
+                        <span className="font-bold mr-2 w-5 shrink-0"></span>
+                        <span className="font-bold shrink-0">References &amp; Primary Document Catalog</span>
+                        <span className="latex-toc-dots flex-1 mx-2 border-b border-dotted border-black h-0 self-center"></span>
+                        <span className="shrink-0 tabular-nums">{(monograph.sections?.length || 5) + 2}</span>
                       </div>
                     </div>
                   </div>
 
-                  <hr className="my-8 border-zinc-200" />
+                  <hr className="my-8 border-black/40" />
 
                   {/* Core sections */}
                   {monograph.sections?.map((sec, idx) => (
                     <div key={idx} className="pdf-section my-8">
-                      <h2 className="text-base font-bold text-amber-900 font-sans tracking-tight border-b border-zinc-200 pb-1.5 mb-4">
-                        Section {sec.section_number}: {customHeadings[idx] || sec.title}
+                      {/* LaTeX Section Header */}
+                      <h2 className="text-[13pt] font-bold text-black tracking-tight mt-8 mb-3 flex items-baseline gap-2.5">
+                        <span>{sec.section_number}.</span>
+                        <span>{customHeadings[idx] || sec.title}</span>
                       </h2>
-                      <div className="text-justify leading-relaxed text-zinc-800 space-y-3">
+                      <div className="text-justify leading-relaxed text-black space-y-3">
                         <ReactMarkdown
                           rehypePlugins={[rehypeRaw]}
                           components={{
-                            h3: ({ children }) => <h3 className="text-sm font-bold text-zinc-900 mt-4 mb-2 font-sans">{children}</h3>,
-                            p: ({ children }) => <p className="mb-3 text-justify leading-relaxed">{children}</p>,
-                            blockquote: ({ children }) => (
-                              <blockquote className="border-l-2 border-amber-600 pl-3 italic text-zinc-600 my-2">{children}</blockquote>
+                            h3: ({ children }) => (
+                              <h3 className="text-[11pt] font-bold text-black mt-5 mb-2">
+                                {children}
+                              </h3>
                             ),
+                            h4: ({ children }) => (
+                              <h4 className="text-[10pt] font-bold italic text-black mt-4 mb-1">
+                                {children}
+                              </h4>
+                            ),
+                            p: ({ children }) => (
+                              <p className="mb-3.5 text-justify leading-relaxed text-[10pt] text-black">
+                                {children}
+                              </p>
+                            ),
+                            blockquote: ({ children }) => (
+                              <blockquote className="border-l-2 border-black pl-4 italic text-black my-3 text-[9.5pt]">
+                                {children}
+                              </blockquote>
+                            ),
+                            hr: () => <hr className="my-6 border-black/30" />,
                           }}
                         >
-                          {preprocessTables(sec.content)}
+                          {formatCitations(preprocessTables(sec.content), monograph.doc_names)}
                         </ReactMarkdown>
                       </div>
 
                       {/* Methodological matrix after section 2 */}
                       {idx === 1 && monograph.matrix_table && (
-                        <div className="pdf-section my-8">
-                          <h3 className="text-sm font-bold text-zinc-900 font-sans mb-3 uppercase tracking-wider avoid-break">
-                            Methodological Comparison Matrix
-                          </h3>
-                          <div dangerouslySetInnerHTML={{ __html: preprocessTables(monograph.matrix_table) }} />
+                        <div className="pdf-section my-8 avoid-break">
+                          <div dangerouslySetInnerHTML={{ __html: preprocessTables(formatCitations(monograph.matrix_table, monograph.doc_names)) }} />
                         </div>
                       )}
                     </div>
                   ))}
 
-                  <hr className="my-8 border-zinc-200" />
+                  <hr className="my-8 border-black/40" />
 
-                  {/* Conclusion */}
+                  {/* Conclusion (Section 6) */}
                   {monograph.conclusion && (
                     <div className="pdf-section my-8">
-                      <h2 className="text-base font-bold text-amber-900 font-sans tracking-tight border-b border-zinc-200 pb-1.5 mb-4">
-                        Section 6: Integrative Conclusion &amp; Future Roadmap
+                      <h2 className="text-[13pt] font-bold text-black tracking-tight mt-8 mb-3 flex items-baseline gap-2.5">
+                        <span>{(monograph.sections?.length || 5) + 1}.</span>
+                        <span>Integrative Conclusion &amp; Strategic Roadmap</span>
                       </h2>
-                      <div className="text-justify leading-relaxed text-zinc-800 space-y-3">
+                      <div className="text-justify leading-relaxed text-black space-y-3">
                         <ReactMarkdown
                           components={{
-                            p: ({ children }) => <p className="mb-3 text-justify leading-relaxed">{children}</p>,
+                            h3: ({ children }) => (
+                              <h3 className="text-[11pt] font-bold text-black mt-5 mb-2">
+                                {children}
+                              </h3>
+                            ),
+                            p: ({ children }) => (
+                              <p className="mb-3.5 text-justify leading-relaxed text-[10pt] text-black">
+                                {children}
+                              </p>
+                            ),
                           }}
                         >
-                          {monograph.conclusion}
+                          {formatCitations(monograph.conclusion, monograph.doc_names)}
                         </ReactMarkdown>
                       </div>
                     </div>
                   )}
 
-                  <hr className="my-8 border-zinc-200" />
+                  <hr className="my-8 border-black/40" />
 
-                  {/* References */}
-                  <div className="pdf-section my-8 font-sans avoid-break">
-                    <h2 className="text-base font-bold text-zinc-900 tracking-tight border-b border-zinc-200 pb-1.5 mb-4">
-                      References &amp; Primary Document Catalog
+                  {/* References (\begin{thebibliography}) */}
+                  <div className="pdf-section my-8 avoid-break">
+                    <h2 className="text-[13pt] font-bold text-black tracking-tight mb-4">
+                      References
                     </h2>
-                    <ul className="text-xs text-zinc-700 space-y-2 list-disc pl-5">
+                    <div className="space-y-2.5 text-[9pt] text-black">
                       {monograph.doc_names?.map((doc, i) => (
-                        <li key={i} className="leading-relaxed">
-                          <strong className="text-zinc-900">[{i + 1}]</strong> {doc} — Indexed &amp; verified in ScholarsMate Knowledge Base.
-                        </li>
+                        <div key={i} className="latex-bib-entry flex items-start gap-2.5 leading-relaxed">
+                          <span className="font-bold shrink-0 font-mono">[{i + 1}]</span>
+                          <div>
+                            <span className="font-semibold text-black">{doc}</span>.
+                            <span className="italic text-zinc-900"> ScholarsMate Workspace Primary Corpus</span>, {new Date().getFullYear()}.
+                          </div>
+                        </div>
                       ))}
-                    </ul>
+                    </div>
                   </div>
                 </div>
               ) : (

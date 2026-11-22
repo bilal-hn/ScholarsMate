@@ -42,9 +42,9 @@ class TestTableFormattingAndGuarantees:
 
         # 1 header + 1 separator + 20 rows = 22 lines
         assert len(lines) == 22
-        # Check every document appears in its own row
-        for doc in doc_names:
-            assert f"| **{doc}** |" in table
+        # Check every document appears in its own row with LaTeX bracket number
+        for i, doc in enumerate(doc_names, 1):
+            assert f"| **[{i}] {doc}** |" in table
 
         # Every row starts and ends with |
         for line in lines:

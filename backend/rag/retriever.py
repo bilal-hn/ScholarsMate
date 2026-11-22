@@ -204,6 +204,14 @@ def retrieve_context(
             custom_keys=custom_keys,
         )
 
+    # Strip leading greetings so search query is focused on the substantive question
+    cleaned_search_query = re.sub(
+        r"^(?:hello|hi|hey|greetings|good\s+(?:morning|afternoon|evening))\s*[,:!\-]?\s*",
+        "",
+        search_query,
+        flags=re.IGNORECASE
+    ).strip() or search_query
+
     retrieval_mode = plan.get("retrieval_mode", "vector_search")
     target_docs = [d for d in (plan.get("target_docs") or target_docs) if d] or target_docs
     if retrieval_mode == "full_text" and len(target_docs) > 1:
@@ -212,16 +220,30 @@ def retrieve_context(
 
     print(
         f"\n[Execution Plan] Intent: {intent} | Rewrite: {intent == 'FOLLOW_UP'} | "
-        f"Search query: '{search_query}' | Retrieval Mode: {retrieval_mode} | "
+        f"Search query: '{cleaned_search_query}' | Retrieval Mode: {retrieval_mode} | "
         f"Generation Mode: {plan.get('generation_mode')} | Targets: {target_docs} | "
         f"Effective top_k: {effective_top_k}"
     )
 
-    # Safety net if conversational/meta/general_knowledge accidentally reach retrieval
-    if intent in {"CONVERSATIONAL", "GENERAL_KNOWLEDGE"} or plan.get("is_meta_query") or retrieval_mode == "none":
+    # Safety net if pure conversational greetings reach retrieval with no target docs
+    if (intent in {"CONVERSATIONAL", "GENERAL_KNOWLEDGE"} and not target_docs) or plan.get("is_meta_query") or retrieval_mode == "none":
         return [], plan
 
     all_chunks = {}
+
+    # Multi-Document Overview / Summary Pre-Seeding:
+    # If the user is asking to summarize or get an overview of multiple papers, guarantee that
+    # the abstract and introductory chunks of each active document are loaded into context.
+    summary_cues = re.search(
+        r"\b(summarise|summarize|summary|overview|breakdown|what\s+are\s+the\s+papers\s+about|what\s+do\s+these\s+papers\s+say|takeaways)\b",
+        cleaned_search_query.lower()
+    )
+    if summary_cues and target_docs:
+        for doc in target_docs:
+            doc_intro_chunks = get_all_chunks_for_doc(doc_name=doc, collection_name=collection_name, max_chunks=2)
+            for c in doc_intro_chunks:
+                cid = c.get("chunk_id", "Unknown")
+                all_chunks[cid] = c
 
     # Strategy A: Full Text / Overview Extraction (Summaries)
     if retrieval_mode == "full_text" and target_docs:
@@ -236,12 +258,12 @@ def retrieve_context(
     if retrieval_mode == "per_document_search" and target_docs:
         per_doc_k = max(3, effective_top_k // len(target_docs))
         for doc in target_docs:
-            results = search_similar_chunks(query=search_query, top_k=per_doc_k, collection_name=collection_name, doc_names=[doc])
+            results = search_similar_chunks(query=cleaned_search_query, top_k=per_doc_k, collection_name=collection_name, doc_names=[doc])
             if results and results.get("documents") and results["documents"][0]:
                 distances = results.get("distances", [[]])[0] if results.get("distances") else [0.0] * len(results["documents"][0])
                 for text, meta, dist in zip(results["documents"][0], results["metadatas"][0], distances):
-                    # Gate 2: Quality threshold filter (cosine distance <= 0.75)
-                    if dist is not None and dist > 0.75:
+                    # Gate 2: Quality threshold filter (cosine distance <= 0.88 for all-MiniLM-L6-v2)
+                    if dist is not None and dist > 0.88:
                         continue
                     cid = meta.get("chunk_id", "Unknown")
                     all_chunks[cid] = {
@@ -253,14 +275,14 @@ def retrieve_context(
         return pack_chunks(list(all_chunks.values())), plan
 
     # Strategy C: Standard Vector Search with Query Expansion
-    search_queries = expand_query(search_query, model_name=model_name, custom_keys=custom_keys)
+    search_queries = expand_query(cleaned_search_query, model_name=model_name, custom_keys=custom_keys)
     for q in search_queries:
         results = search_similar_chunks(query=q, top_k=effective_top_k, collection_name=collection_name, doc_names=target_docs)
         if results and results.get("documents") and results["documents"][0]:
             distances = results.get("distances", [[]])[0] if results.get("distances") else [0.0] * len(results["documents"][0])
             for text, meta, dist in zip(results["documents"][0], results["metadatas"][0], distances):
-                # Gate 2: Quality threshold filter (cosine distance <= 0.75)
-                if dist is not None and dist > 0.75:
+                # Gate 2: Quality threshold filter (cosine distance <= 0.88 for all-MiniLM-L6-v2)
+                if dist is not None and dist > 0.88:
                     continue
                 cid = meta.get("chunk_id", "Unknown")
                 if cid not in all_chunks:
@@ -270,6 +292,15 @@ def retrieve_context(
                         "page_number": meta.get("page_number", 1),
                         "content": text
                     }
+
+    # Fallback: If no chunks passed the similarity threshold, but query is an overview/summary request:
+    if not all_chunks and target_docs and summary_cues:
+        print(f"[Retriever Fallback] Pre-loading document overview chunks for summary inquiry '{cleaned_search_query}'...")
+        for doc in target_docs[:5]:
+            doc_chunks = get_all_chunks_for_doc(doc_name=doc, collection_name=collection_name, max_chunks=2)
+            for c in doc_chunks:
+                cid = c.get("chunk_id", "Unknown")
+                all_chunks[cid] = c
 
     return pack_chunks(list(all_chunks.values())[: max(effective_top_k * 3, effective_top_k)]), plan
 
