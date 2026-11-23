@@ -12,7 +12,8 @@ import {
   Layers,
   FileText,
   Sun,
-  Moon
+  Moon,
+  Flame
 } from 'lucide-react';
 import { 
   updateUserProfileAPI, 
@@ -224,40 +225,40 @@ export default function ProfileSettingsModal({
           )}
         </form>
 
-        {/* Section 2: Theme & Appearance */}
+        {/* Section 2: Theme & Appearance (Dark, Light & Amber Mode) */}
         <div className="space-y-2 pt-2 border-t border-zinc-800/80">
           <div className="flex items-center justify-between">
             <label className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
               Theme &amp; Appearance
             </label>
             <span className="text-[10.5px] font-mono text-[#8e8e93]">
-              {activeTheme === 'clarity' ? 'Daylight Light' : 'Obsidian Dark'}
+              {activeTheme === 'clarity' ? 'Daylight Light' : activeTheme === 'amber' ? 'Original Classic' : 'Obsidian Dark'}
             </span>
           </div>
 
-          <div className="grid grid-cols-2 gap-2.5">
+          <div className="grid grid-cols-3 gap-2">
             {/* Dark Mode Card */}
             <button
               type="button"
               onClick={() => handleSelectTheme('original')}
-              className={`flex items-center gap-2.5 p-3 rounded-xl border text-left transition-all cursor-pointer ${
-                activeTheme !== 'clarity'
+              className={`flex items-center gap-2 p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                activeTheme === 'original' || (!activeTheme || (activeTheme !== 'clarity' && activeTheme !== 'amber'))
                   ? 'bg-zinc-800/90 border-[#8e8e93] text-white shadow-sm ring-1 ring-[#8e8e93]/50'
                   : 'bg-zinc-950/60 border-zinc-800 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-850'
               }`}
             >
-              <div className={`p-1.5 rounded-lg border ${
-                activeTheme !== 'clarity'
+              <div className={`p-1.5 rounded-lg border shrink-0 ${
+                activeTheme === 'original' || (!activeTheme || (activeTheme !== 'clarity' && activeTheme !== 'amber'))
                   ? 'bg-zinc-900 border-zinc-700 text-white'
                   : 'bg-zinc-900 border-zinc-800 text-zinc-500'
               }`}>
                 <Moon className="h-4 w-4" />
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-xs font-semibold leading-tight">Dark Mode</div>
-                <div className="text-[10px] text-zinc-400 truncate mt-0.5">Obsidian black &amp; slate grey</div>
+                <div className="text-xs font-semibold leading-tight">Dark</div>
+                <div className="text-[10px] text-zinc-500 truncate mt-0.5">Obsidian slate</div>
               </div>
-              {activeTheme !== 'clarity' && (
+              {(activeTheme === 'original' || (!activeTheme || (activeTheme !== 'clarity' && activeTheme !== 'amber'))) && (
                 <Check className="h-3.5 w-3.5 text-zinc-100 shrink-0" />
               )}
             </button>
@@ -266,13 +267,13 @@ export default function ProfileSettingsModal({
             <button
               type="button"
               onClick={() => handleSelectTheme('clarity')}
-              className={`flex items-center gap-2.5 p-3 rounded-xl border text-left transition-all cursor-pointer ${
+              className={`flex items-center gap-2 p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
                 activeTheme === 'clarity'
                   ? 'bg-zinc-200 border-zinc-400 text-zinc-950 shadow-sm ring-1 ring-zinc-400'
                   : 'bg-zinc-950/60 border-zinc-800 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-850'
               }`}
             >
-              <div className={`p-1.5 rounded-lg border ${
+              <div className={`p-1.5 rounded-lg border shrink-0 ${
                 activeTheme === 'clarity'
                   ? 'bg-white border-zinc-300 text-zinc-900'
                   : 'bg-zinc-900 border-zinc-800 text-zinc-500'
@@ -280,11 +281,37 @@ export default function ProfileSettingsModal({
                 <Sun className="h-4 w-4" />
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-xs font-semibold leading-tight">Light Mode</div>
-                <div className="text-[10px] text-zinc-500 truncate mt-0.5">Studio porcelain daylight</div>
+                <div className="text-xs font-semibold leading-tight">Light</div>
+                <div className="text-[10px] text-zinc-500 truncate mt-0.5">Studio daylight</div>
               </div>
               {activeTheme === 'clarity' && (
                 <Check className="h-3.5 w-3.5 text-zinc-950 shrink-0" />
+              )}
+            </button>
+
+            {/* Amber Mode Card (Original Classic Theme) */}
+            <button
+              type="button"
+              onClick={() => handleSelectTheme('amber')}
+              className={`flex items-center gap-2 p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                activeTheme === 'amber'
+                  ? 'bg-[#e06c67]/15 border-[#e06c67] text-white shadow-sm ring-1 ring-[#e06c67]/50'
+                  : 'bg-zinc-950/60 border-zinc-800 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-850'
+              }`}
+            >
+              <div className={`p-1.5 rounded-lg border shrink-0 ${
+                activeTheme === 'amber'
+                  ? 'bg-[#e06c67]/20 border-[#e06c67]/50 text-[#ea8282]'
+                  : 'bg-zinc-900 border-zinc-800 text-[#e06c67]/60'
+              }`}>
+                <Flame className="h-4 w-4" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-xs font-semibold leading-tight text-white">Amber</div>
+                <div className="text-[10px] text-zinc-400 truncate mt-0.5">Original classic</div>
+              </div>
+              {activeTheme === 'amber' && (
+                <Check className="h-3.5 w-3.5 text-[#ea8282] shrink-0" />
               )}
             </button>
           </div>

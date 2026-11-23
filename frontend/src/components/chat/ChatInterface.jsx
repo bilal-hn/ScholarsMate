@@ -596,7 +596,7 @@ export default function ChatInterface({
               </div>
             ) : (
               <p className="text-[10.5px] text-zinc-500 max-w-xs leading-relaxed font-mono">
-                Tip: Drag and drop files onto the chat, or type <span className="text-zinc-300">@</span> to tag a paper.
+                Tip: Drag and drop files onto the chat, or type <span className="text-amber-400 font-medium">@</span> to tag a paper.
               </p>
             )}
           </div>
@@ -615,16 +615,12 @@ export default function ChatInterface({
           ))}
 
           {loading && (
-            <div className="flex gap-3.5 items-start animate-in fade-in duration-200">
-              <div className="h-8 w-8 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-100 shrink-0 mt-0.5 shadow-sm">
-                <ChessPieceLoader size="xs" />
-              </div>
+            <div className="w-full flex justify-start my-2 animate-in fade-in duration-200">
               <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl px-5 py-3.5 text-zinc-300 text-xs shadow-xl space-y-2.5 max-w-md w-full">
-                <div className="flex items-center gap-2.5 text-zinc-300">
+                <div className="flex items-center gap-3 text-zinc-300">
                   <ChessPieceLoader size="sm" />
                   <div className="flex flex-col">
                     <span className="text-xs font-semibold text-zinc-200">Thinking...</span>
-                    <span className="text-[10px] text-zinc-500 font-mono">Synthesizing citations &amp; response</span>
                   </div>
                 </div>
                 <div className="space-y-1.5 pt-0.5">

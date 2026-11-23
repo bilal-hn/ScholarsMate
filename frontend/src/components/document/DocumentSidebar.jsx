@@ -387,7 +387,7 @@ export default function DocumentSidebar({
               <button
                 type="button"
                 onClick={handleNewChatClick}
-                className="relative group p-2.5 rounded-xl text-zinc-100 hover:text-white hover:bg-zinc-800/70 transition-all cursor-pointer flex items-center justify-center"
+                className="relative group p-2.5 rounded-xl text-amber-400 hover:text-amber-300 hover:bg-zinc-800/70 transition-all cursor-pointer flex items-center justify-center"
                 aria-label="New chat"
               >
                 <SquarePen className="h-4.5 w-4.5 stroke-[2.2]" />
@@ -568,7 +568,7 @@ export default function DocumentSidebar({
             <button
               type="button"
               onClick={handleNewChatClick}
-              className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-xs font-semibold text-zinc-100 hover:text-white hover:bg-zinc-800/60 transition-colors cursor-pointer group text-left"
+              className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-xs font-semibold text-amber-400 hover:text-amber-300 hover:bg-zinc-800/60 transition-colors cursor-pointer group text-left"
             >
               <SquarePen className="h-3.5 w-3.5 stroke-[2.2] group-hover:scale-105 transition-transform" />
               <span>New Chat</span>

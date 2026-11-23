@@ -19,8 +19,8 @@ export default function BrandName({
     : "font-sans font-bold text-zinc-950 dark:text-zinc-100 tracking-tight";
     
   const defaultMate = serif
-    ? "font-serif font-bold text-[#8e8e93] tracking-tight"
-    : "font-sans font-bold text-[#8e8e93] tracking-tight";
+    ? "font-serif font-bold text-[var(--theme-brand-grey,#8e8e93)] tracking-tight"
+    : "font-sans font-bold text-[var(--theme-brand-grey,#8e8e93)] tracking-tight";
 
   return (
     <span className={`inline-flex items-baseline select-none ${className}`}>

@@ -41,6 +41,17 @@ export const THEMES = [
     accentHover: "#8e8e93",
     description: "Clean daylight studio porcelain with sharp black ink and grey accents.",
   },
+  {
+    id: "amber",
+    shortId: "amber",
+    name: "Amber",
+    mode: "dark",
+    canvasPreview: "#292c33",
+    surfacePreview: "#111216",
+    accentColor: "#e06c67",
+    accentHover: "#ea8282",
+    description: "Original classic ScholarsMate Odysseus slate canvas with coral terracotta accents.",
+  },
 ];
 
 export const getSavedTheme = () => {
@@ -48,6 +59,9 @@ export const getSavedTheme = () => {
     const saved = localStorage.getItem("scholarsmate_theme");
     if (saved === 'clarity' || saved === 'light' || saved === 'parchment' || saved === 'paper') {
       return 'clarity';
+    }
+    if (saved === 'amber') {
+      return 'amber';
     }
     return 'original';
   } catch {
@@ -57,7 +71,12 @@ export const getSavedTheme = () => {
 
 export const saveTheme = (themeId) => {
   try {
-    const canonical = themeId === 'clarity' ? 'clarity' : 'original';
+    let canonical = 'original';
+    if (themeId === 'clarity' || themeId === 'light' || themeId === 'parchment' || themeId === 'paper') {
+      canonical = 'clarity';
+    } else if (themeId === 'amber') {
+      canonical = 'amber';
+    }
     localStorage.setItem("scholarsmate_theme", canonical);
     document.documentElement.setAttribute("data-theme", canonical);
   } catch (e) {
@@ -66,5 +85,7 @@ export const saveTheme = (themeId) => {
 };
 
 export const toggleTheme = (currentTheme) => {
-  return currentTheme === 'clarity' ? 'original' : 'clarity';
+  if (currentTheme === 'original') return 'amber';
+  if (currentTheme === 'amber') return 'clarity';
+  return 'original';
 };

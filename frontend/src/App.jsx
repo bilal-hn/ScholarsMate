@@ -32,7 +32,7 @@ import {
   getSavedBYOKConfig,
   saveBYOKConfig
 } from './services/api';
-import { getSavedTheme, saveTheme } from './theme/constants';
+import { getSavedTheme, saveTheme, toggleTheme } from './theme/constants';
 import AnimatedThemeCanvas from './components/theme/AnimatedThemeCanvas';
 import { AlertCircle, RefreshCw, ChevronLeft } from 'lucide-react';
 
@@ -185,7 +185,7 @@ return () => window.removeEventListener('keydown', handleKeyDown);
   };
 
   const handleToggleTheme = () => {
-    const next = currentTheme === 'clarity' ? 'original' : 'clarity';
+    const next = toggleTheme(currentTheme);
     handleThemeChange(next);
   };
 

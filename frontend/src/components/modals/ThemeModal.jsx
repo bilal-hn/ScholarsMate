@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { Sun, Moon, X, Minus } from 'lucide-react';
+import { Sun, Moon, Flame, X, Minus } from 'lucide-react';
 import { THEMES } from '../../theme/constants';
 
 export default function ThemeModal({ isOpen, onClose, currentTheme, onThemeChange }) {
@@ -41,6 +41,8 @@ export default function ThemeModal({ isOpen, onClose, currentTheme, onThemeChang
             <div className="w-5 h-5 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center text-zinc-300">
               {currentTheme === 'clarity' ? (
                 <Sun className="h-3 w-3" />
+              ) : currentTheme === 'amber' ? (
+                <Flame className="h-3 w-3 text-amber-400" />
               ) : (
                 <Moon className="h-3 w-3" />
               )}
@@ -76,41 +78,50 @@ export default function ThemeModal({ isOpen, onClose, currentTheme, onThemeChang
               Select Appearance
             </div>
 
-            {/* Curated Theme Swatch Grid (Dark & Light) */}
-            <div className="grid grid-cols-2 gap-3">
+            {/* Curated Theme Swatch Grid (Dark, Light, Amber) */}
+            <div className="grid grid-cols-3 gap-2.5">
               {THEMES.map((theme) => {
                 const isSelected = theme.id === currentTheme;
                 const isLight = theme.mode === 'light';
+                const isAmber = theme.id === 'amber';
 
                 return (
                   <button
                     key={theme.id}
                     type="button"
                     onClick={() => onThemeChange(theme.id)}
-                    className={`flex flex-col items-center justify-center p-4 rounded-xl border transition-all cursor-pointer group relative ${
+                    className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all cursor-pointer group relative ${
                       isSelected
-                        ? 'border-zinc-300 bg-zinc-800/90 shadow-lg ring-1 ring-zinc-400/50'
+                        ? isAmber
+                          ? 'border-amber-400 bg-amber-950/40 shadow-lg ring-1 ring-amber-400/50'
+                          : 'border-zinc-300 bg-zinc-800/90 shadow-lg ring-1 ring-zinc-400/50'
                         : 'border-zinc-800/80 bg-zinc-900/50 hover:bg-zinc-800/60 hover:border-zinc-700'
                     }`}
                   >
                     <div className="p-2 rounded-full mb-2 bg-zinc-950/60 border border-zinc-800 flex items-center justify-center">
-                      {isLight ? (
-                        <Sun className="h-5 w-5 text-zinc-200" />
+                      {isAmber ? (
+                        <Flame className="h-4.5 w-4.5 text-amber-400" />
+                      ) : isLight ? (
+                        <Sun className="h-4.5 w-4.5 text-zinc-200" />
                       ) : (
-                        <Moon className="h-5 w-5 text-zinc-200" />
+                        <Moon className="h-4.5 w-4.5 text-zinc-200" />
                       )}
                     </div>
 
                     {/* Theme Name & Mode */}
                     <span
                       className={`text-xs font-mono tracking-tight capitalize ${
-                        isSelected ? 'text-zinc-100 font-semibold' : 'text-zinc-300 group-hover:text-zinc-100'
+                        isSelected
+                          ? isAmber
+                            ? 'text-amber-300 font-semibold'
+                            : 'text-zinc-100 font-semibold'
+                          : 'text-zinc-300 group-hover:text-zinc-100'
                       }`}
                     >
                       {theme.name}
                     </span>
-                    <span className="text-[10.5px] text-zinc-500 capitalize mt-0.5">
-                      {theme.mode} mode
+                    <span className="text-[10px] text-zinc-500 capitalize mt-0.5">
+                      {theme.id === 'amber' ? 'Original gold' : `${theme.mode} mode`}
                     </span>
                   </button>
                 );

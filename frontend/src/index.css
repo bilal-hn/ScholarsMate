@@ -117,6 +117,35 @@
   --pawn-muted: #8e8e93;
 }
 
+/* 3. Amber Mode (Original Classic ScholarsMate: Signature Odysseus Slate & Coral Terracotta) */
+[data-theme="amber"] {
+  --theme-canvas: #292c33;
+  --theme-surface: #111216;
+  --theme-elevated: #1b1e25;
+  --theme-border: #27272a;
+  --theme-border-hover: #393e4a;
+  --theme-subtle: #4d5464;
+  --theme-muted: #727a8c;
+  --theme-text-muted: #9aa3b2;
+  --theme-text-body: #c5cdd8;
+  --theme-text-light: #e9ecf2;
+  --theme-text-bold: #ffffff;
+
+  --theme-brand-grey: #e06c67;
+  --theme-logo-base: #e06c67;
+  --theme-accent-light: #fed7d7;
+  --theme-accent-100: #fef3c7;
+  --theme-accent-200: #fde68a;
+  --theme-accent-300: #fed7d7;
+  --theme-accent-hover: #ea8282;
+  --theme-accent-primary: #e06c67;
+  --theme-accent-dark: #c44e49;
+
+  --pawn-fg: #f5f5f5;
+  --pawn-bg: #111216;
+  --pawn-muted: #e06c67;
+}
+
 /* =============================================================================
    TEXT SELECTION & LIGHT MODE CONTRAST SAFEGUARDS
    ============================================================================= */
