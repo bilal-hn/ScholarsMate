@@ -317,7 +317,7 @@ def generate_answer(
     chat_history: list[dict] | None = None,
     model_name: str | None = None,
     custom_keys: dict | None = None,
-    mode: str = "research",
+    mode: str = "assistant",
     custom_prompt_directive: str | None = None,
     brain_context: str | None = None,
     attached_images: list[dict] | None = None,
@@ -434,10 +434,10 @@ def generate_answer(
         print(f"[Generator] Serving pre-computed summary cache for '{target_doc}' (< 50ms).")
         parsed_sources = extract_sources_from_text(cached_text, fallback_doc=target_doc)
         
-        # If in Masterclass Teacher mode, append a Socratic diagnostic check
+        # If in General Assistant mode, append an invitation to explore deeper
         final_summary = cached_text
-        if mode == "teacher":
-            final_summary = f"{cached_text}\n\n---\n### 💡 Socratic Learning Check\nTo begin exploring this work from first principles: **Which core concept or chapter above would you like us to break down and master first?**"
+        if mode in {"general", "teacher"}:
+            final_summary = f"{cached_text}\n\n---\n*Feel free to ask me to explain any background concepts, compare with other methods, or write code implementing techniques from this paper.*"
 
         return {
             "query": query,

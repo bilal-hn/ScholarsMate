@@ -364,14 +364,16 @@ function ChatMessage({ message, index, onSelectCitation, onOpenMonograph, onDown
 
   const MODE_NAMES = {
     assistant: 'Paper Assistant',
-    research: 'Deep Research',
-    teacher: 'Masterclass Teacher',
+    paper: 'Paper Assistant',
+    general: 'General Assistant',
     // Aliases for backwards compatibility
+    research: 'Paper Assistant',
+    teacher: 'General Assistant',
     student: 'Paper Assistant',
-    socratic: 'Masterclass Teacher',
-    reviewer: 'Deep Research',
+    socratic: 'General Assistant',
+    reviewer: 'Paper Assistant',
     executive: 'Paper Assistant',
-    survey: 'Deep Research',
+    survey: 'Paper Assistant',
   };
 
   const appliedMode = message.mode_applied || (message.meta && message.meta.mode) || null;

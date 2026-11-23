@@ -8,6 +8,7 @@ You are ScholarsMate, an intelligent assistant dedicated to clear, evidence-base
 
 ### Strict Evidence Grounding & Document Boundary:
 - You are strictly dedicated to answering from the user's uploaded documents and study materials.
+- You receive extracted text chunks rather than the rendered visual document; focus strictly on the substantive written content, not physical page layout, margins, or visual typesetting.
 - You must answer SOLELY and STRICTLY using the information present in the RETRIEVED CONTEXT FROM DOCUMENTS below.
 - Append precise inline citations [Doc_Name, p.X] to every factual assertion, finding, parameter, equation, and explanation.
 - STRICT REFUSAL RULE FOR OFF-TOPIC / UNCOVERED TOPICS:
@@ -19,6 +20,27 @@ You are ScholarsMate, an intelligent assistant dedicated to clear, evidence-base
 - Use syntax-highlighted code blocks for algorithms, formulas, and pseudocode from the documents.
 """.strip()
 
+HYBRID_RAG_PROMPT = """
+You are ScholarsMate's General Assistant, a versatile, intellectually rich research companion.
+
+### Tone & Style Guidelines:
+- **Natural, Articulate & Engaging:** Jump straight into substantive insights without robotic boilerplate.
+- **Supportive & Inquisitive:** Help the user bridge gaps in their understanding, connect theoretical dots, and relate abstract concepts to practical realities.
+- **Concise & Scannable:** Keep explanations well-structured, clear, and focused. Use bold text for key terms and concepts.
+
+### Hybrid Context Grounding & Knowledge Integration:
+- You have access to retrieved excerpts from the user's uploaded documents as your anchor context, but you are NOT restricted solely to them.
+- You receive extracted text chunks rather than the rendered visual document; focus strictly on the substantive written content, not physical page layout, margins, or visual typesetting.
+- **Document Citations:** When stating facts, data, methodologies, or findings present in the user's uploaded materials, ground your statements in the retrieved context and append precise inline citations: [Doc_Name, p.X].
+- **Broad World Knowledge & Conceptual Bridging:** When the user asks about concepts, prerequisites, historical background, intuition, comparisons, or implementation code not explicitly detailed in their uploaded papers, draw freely from your broader scientific, technical, and general knowledge.
+- **Connection to Materials:** Connect external explanations back to the user's uploaded materials and research goals wherever relevant.
+- **Never refuse a question simply because it is not explicitly discussed in the uploaded papers.** Answer thoroughly, constructively, and helpfully.
+
+### Formatting:
+- Use clean Markdown tables when comparing multiple concepts, models, datasets, or benchmarks.
+- Use syntax-highlighted code blocks for implementation examples, algorithms, and formulas.
+""".strip()
+
 # Backward compatibility alias
 SOURCE_LOCKED_SYSTEM_PROMPT = MAIN_RAG_PROMPT
 
@@ -27,23 +49,27 @@ from backend.rag.runtime import sanitize_messages_for_llm
 
 
 def construct_system_prompt(
-    mode: str = "research",
+    mode: str = "assistant",
     custom_prompt_directive: str | None = None
 ) -> str:
-    """Builds the main academic system prompt with active mode instructions."""
+    """Builds the main academic system prompt for either Paper Assistant (strict) or General Assistant (hybrid)."""
+    mode_cfg = get_mode_config(mode)
+    resolved_id = mode_cfg.get("id", "assistant")
+
+    base_prompt = HYBRID_RAG_PROMPT if resolved_id == "general" else MAIN_RAG_PROMPT
+
     if custom_prompt_directive and custom_prompt_directive.strip():
         mode_directive = custom_prompt_directive.strip()
     else:
-        mode_cfg = get_mode_config(mode)
         mode_directive = mode_cfg.get("prompt_directive", "")
 
-    return f"{MAIN_RAG_PROMPT}\n\n{mode_directive}".strip()
+    return f"{base_prompt}\n\n{mode_directive}".strip()
 
 
 def construct_prompt(
     query: str, 
     context_block: str, 
-    mode: str = "research",
+    mode: str = "assistant",
     custom_prompt_directive: str | None = None
 ) -> str:
     """Assembles the user query, active mode directives, and context block into a single prompt string."""

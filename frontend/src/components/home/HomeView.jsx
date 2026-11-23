@@ -169,7 +169,7 @@ export default function HomeView({
                   Your Chats & Canvas
                 </h2>
                 <p className="text-xs text-zinc-400 leading-relaxed">
-                  Active research threads with split-screen PDF viewing, 4 academic reasoning lenses, and page-exact citations.
+                  Active research threads with split-screen PDF viewing, 2 dedicated research modes (Paper Assistant & General Assistant), and page-exact citations.
                 </p>
               </div>
               <div className="pt-4 mt-2 border-t border-zinc-800 flex items-center justify-between text-xs text-zinc-300 font-semibold group-hover:text-white">

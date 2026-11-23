@@ -106,3 +106,14 @@ def test_scenario_2_document_chat_relevant_question_answered_with_citations(
 
     assert "attention.pdf" in res["answer"]
     assert any(s["doc_name"] == "attention.pdf" for s in res["sources_used"])
+
+
+def test_general_assistant_hybrid_prompt():
+    """Verify that General Assistant mode employs hybrid grounding and allows drawing from broad knowledge."""
+    from backend.rag.prompt_templates import construct_system_prompt
+
+    prompt = construct_system_prompt(mode="general")
+    assert "General Assistant" in prompt
+    assert "Broad World Knowledge" in prompt
+    assert "Never refuse a question simply because it is not explicitly discussed in the uploaded papers" in prompt
+

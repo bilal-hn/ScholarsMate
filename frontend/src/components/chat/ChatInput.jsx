@@ -30,23 +30,18 @@ import QueryNavigator from './QueryNavigator';
 
 export const LENS_GUIDES = {
   assistant: {
-    what: 'Fast, clear, and direct answers grounded in your uploaded documents without heavy academic jargon.',
-    when: 'Your everyday mode for chatting with papers, finding specific facts, and asking questions.',
+    what: 'Strict document RAG: 100% grounded in your uploaded materials with exact page citations [Doc, p.X].',
+    when: 'Verifying evidence, extracting specific facts, analyzing data, and citing paper sections.',
   },
-  research: {
-    what: 'Exhaustive, publication-grade academic analysis with mathematical precision, benchmark tables, and exact page citations.',
-    when: 'When you need maximum analytical depth, methodology breakdowns, and formal citations for any query.',
-  },
-  teacher: {
-    what: '1-on-1 Socratic masterclass tutor that diagnoses baseline understanding, teaches from first principles, and tests concepts with quizzes.',
-    when: 'Mastering complex architectures (like Transformers), difficult math, or algorithms so they permanently lock into your memory.',
+  general: {
+    what: 'Hybrid research companion: Uses your papers as context while freely drawing on broad knowledge to explain concepts, code, and background theory.',
+    when: 'Brainstorming, explaining prerequisite math or algorithms, comparing with outside work, and answering related questions.',
   },
 };
 
 export const SLASH_COMMANDS = [
-  { cmd: '/ask', mode: 'assistant', label: 'Paper Assistant', desc: 'Direct, clear answers grounded directly in your uploaded papers' },
-  { cmd: '/research', mode: 'research', label: 'Deep Research', desc: 'Exhaustive citation-dense academic analysis & benchmark tables' },
-  { cmd: '/teach', mode: 'teacher', label: 'Masterclass Teacher', desc: 'First-principles motivated discovery & Socratic understanding' },
+  { cmd: '/paper', mode: 'assistant', label: 'Paper Assistant', desc: 'Strict document RAG: 100% grounded in your uploaded papers with exact citations' },
+  { cmd: '/general', mode: 'general', label: 'General Assistant', desc: 'Hybrid RAG: Relates your documents to broader theory, background, & general knowledge' },
 ];
 
 export default function ChatInput({
@@ -1116,142 +1111,37 @@ export default function ChatInput({
             </div>
           </div>
 
-          {/* Right Controls: Academic Lens Selector, Model Pill, Submit */}
+          {/* Right Controls: 2-Mode Switcher, Model Pill, Submit */}
           <div className="flex items-center gap-2">
-            {/* Academic Lens Selector Pill */}
-            <div className="relative" ref={lensDropdownRef}>
+            {/* 2-Mode Research Switcher: Paper Assistant (Strict RAG) vs General Assistant (Hybrid RAG) */}
+            <div className="flex items-center bg-zinc-950/80 p-0.5 rounded-lg border border-zinc-800 text-[11px] select-none">
               <button
                 type="button"
-                onClick={() => setIsLensDropdownOpen((prev) => !prev)}
-                className="flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-medium text-zinc-300 hover:text-zinc-100 bg-zinc-800/80 hover:bg-zinc-750 border border-zinc-700/60 transition-all cursor-pointer select-none"
-                title={`Active Lens: ${activeModeObj?.name || 'Academic Lens'}`}
+                onClick={() => onModeChange && onModeChange('assistant')}
+                className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-md transition-all cursor-pointer text-[11px] ${
+                  currentMode === 'assistant' || !currentMode || currentMode === 'research'
+                    ? 'bg-zinc-800 text-zinc-100 shadow-sm border border-zinc-750 font-semibold'
+                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/60 border border-transparent'
+                }`}
+                title="Paper Assistant: Strict document RAG, 100% grounded in your uploaded materials with exact citations."
               >
-                <span>{activeModeObj?.short_name || activeModeObj?.name || 'Research'}</span>
-                <ChevronDown className={`h-2.5 w-2.5 text-zinc-500 transition-transform duration-150 ${isLensDropdownOpen ? 'rotate-180 text-zinc-200' : ''}`} />
+                <FileText className="h-3 w-3 text-blue-400 shrink-0" />
+                <span>Paper Assistant</span>
               </button>
 
-              {/* Lens Selector Popover */}
-              {isLensDropdownOpen && (
-                <div className="absolute bottom-full right-0 mb-2.5 w-80 rounded-xl bg-zinc-900 border border-zinc-800 shadow-2xl p-1.5 z-50 text-xs animate-in fade-in zoom-in-95 duration-150 max-h-[70vh] overflow-y-auto">
-                  <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-500 font-mono border-b border-zinc-800/80 mb-1 flex items-center justify-between">
-                    <span>Academic Reasoning Lens</span>
-                  </div>
-
-                  <div className="space-y-1">
-                    {(allAvailableModes || []).map((mode) => {
-                      const isSelected = mode.id === currentMode;
-                      const guide = LENS_GUIDES[mode.id];
-                      const isInfoExpanded = expandedInfoMode === mode.id;
-
-                      return (
-                        <div
-                          key={mode.id}
-                          className={`w-full rounded-lg text-left transition-all border ${
-                            isSelected
-                              ? 'bg-zinc-800/90 border-zinc-700/80 text-zinc-100'
-                              : 'bg-zinc-900/40 hover:bg-zinc-800/50 border-transparent text-zinc-400 hover:text-zinc-200'
-                          }`}
-                        >
-                          <div
-                            onClick={() => {
-                              if (onModeChange) onModeChange(mode.id);
-                              setIsLensDropdownOpen(false);
-                            }}
-                            className="flex items-start justify-between px-2.5 py-2 cursor-pointer"
-                          >
-                            <div className="flex-1 min-w-0 pr-2">
-                              <div className="flex items-center gap-1.5">
-                                <span className={`text-[12px] font-medium ${isSelected ? 'text-amber-400 font-semibold' : 'text-zinc-200'}`}>
-                                  {mode.name}
-                                </span>
-                              </div>
-                              <p className="text-[10.5px] text-zinc-500 leading-tight mt-0.5 truncate">{mode.tagline || mode.description}</p>
-                            </div>
-
-                            <div className="flex items-center gap-1 shrink-0 mt-0.5">
-                              {/* Info Button */}
-                              <button
-                                type="button"
-                                title="What is this lens and when to use it?"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setExpandedInfoMode((prev) => (prev === mode.id ? null : mode.id));
-                                }}
-                                className={`p-1 rounded-md transition-colors ${
-                                  isInfoExpanded
-                                    ? 'bg-amber-500/20 text-amber-300'
-                                    : 'text-zinc-500 hover:text-amber-400 hover:bg-zinc-700/60'
-                                }`}
-                              >
-                                <Info className="h-3 w-3" />
-                              </button>
-
-                              {mode.isCustom && onOpenCustomLensModal && (
-                                <button
-                                  type="button"
-                                  title="Edit Custom Lens"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    onOpenCustomLensModal(mode, e);
-                                    setIsLensDropdownOpen(false);
-                                  }}
-                                  className="p-1 rounded text-zinc-500 hover:text-zinc-200 hover:bg-zinc-700/60 transition-colors"
-                                >
-                                  <Edit2 className="h-3 w-3" />
-                                </button>
-                              )}
-                              {isSelected && <Check className="h-3.5 w-3.5 text-amber-400 ml-0.5" />}
-                            </div>
-                          </div>
-
-                          {/* Expandable Guide Drawer */}
-                          {isInfoExpanded && (
-                            <div
-                              onClick={(e) => e.stopPropagation()}
-                              className="px-3 pb-2.5 pt-1 border-t border-zinc-800/80 bg-zinc-950/60 rounded-b-lg space-y-1.5 text-[11px] animate-in fade-in slide-in-from-top-1 duration-150"
-                            >
-                              <div>
-                                <span className="text-[9.5px] font-semibold uppercase tracking-wider text-amber-400/80 block">
-                                  What it is:
-                                </span>
-                                <p className="text-zinc-300 leading-snug mt-0.5">
-                                  {guide?.what || mode.description}
-                                </p>
-                              </div>
-                              <div>
-                                <span className="text-[9.5px] font-semibold uppercase tracking-wider text-zinc-400 block">
-                                  When to use:
-                                </span>
-                                <p className="text-zinc-400 leading-snug mt-0.5">
-                                  {guide?.when || mode.tagline}
-                                </p>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* Create Custom Lens Button */}
-                  {onOpenCustomLensModal && (
-                    <div className="mt-1.5 pt-1.5 border-t border-zinc-800/80">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onOpenCustomLensModal(null, e);
-                          setIsLensDropdownOpen(false);
-                        }}
-                        className="w-full flex items-center justify-center gap-1.5 py-1.5 px-3 bg-zinc-800/60 hover:bg-zinc-800 text-zinc-300 hover:text-zinc-100 border border-zinc-700/50 rounded-lg text-xs font-medium transition-colors cursor-pointer"
-                      >
-                        <Plus className="h-3.5 w-3.5 text-amber-400" />
-                        <span>Create Custom Lens</span>
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
+              <button
+                type="button"
+                onClick={() => onModeChange && onModeChange('general')}
+                className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-md transition-all cursor-pointer text-[11px] ${
+                  currentMode === 'general' || currentMode === 'teacher'
+                    ? 'bg-zinc-800 text-zinc-100 shadow-sm border border-zinc-750 font-semibold'
+                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/60 border border-transparent'
+                }`}
+                title="General Assistant: Hybrid RAG. Grounds on your documents but freely draws on broader knowledge to explain background theory, write code, and answer out-of-scope topics."
+              >
+                <Sparkles className="h-3 w-3 text-purple-400 shrink-0" />
+                <span>General Assistant</span>
+              </button>
             </div>
 
             {/* Model Selector Pill */}
