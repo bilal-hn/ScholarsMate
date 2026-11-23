@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
@@ -379,6 +379,27 @@ function ChatMessage({ message, index, onSelectCitation, onOpenMonograph, onDown
   const appliedMode = message.mode_applied || (message.meta && message.meta.mode) || null;
   const appliedModeName = appliedMode ? (MODE_NAMES[appliedMode] || appliedMode) : null;
 
+  // Filter sources so that negative responses, absence statements or refusals do not display misleading sources
+  const displaySources = useMemo(() => {
+    const list = message.sources || [];
+    if (list.length === 0) return [];
+    const lower = (message.text || '').toLowerCase();
+    const isNegativeOrRefusal = [
+      'do not contain any overflowed text',
+      'does not contain any overflowed text',
+      'no instances of text spilling over',
+      'could not find any relevant information',
+      'cannot find any relevant information',
+      'i can only answer questions grounded in your uploaded documents',
+      'please upload or attach documents first',
+    ].some((sig) => lower.includes(sig));
+
+    if (isNegativeOrRefusal && !lower.includes('.pdf') && !lower.includes('#cite:')) {
+      return [];
+    }
+    return list;
+  }, [message.sources, message.text]);
+
   /**
    * Enterprise-Grade Multi-MIME Clipboard Copy
    * Writes both rich HTML (for Microsoft Word, Google Docs, Apple Notes) and Markdown (for code editors).
@@ -493,7 +514,7 @@ function ChatMessage({ message, index, onSelectCitation, onOpenMonograph, onDown
 
           <div className="space-y-2.5">
             {/* Status Pill 1: Sources / Referenced Papers Accordion */}
-            {message.sources && message.sources.length > 0 && (
+            {displaySources && displaySources.length > 0 && (
               <div className="border border-zinc-800/80 rounded-lg overflow-hidden bg-zinc-950/40">
                 <button
                   type="button"
@@ -503,7 +524,7 @@ function ChatMessage({ message, index, onSelectCitation, onOpenMonograph, onDown
                   <div className="flex items-center gap-1.5">
                     <Layers className="h-3 w-3 text-[#8e8e93]" />
                     <span className="font-mono text-[11px] text-zinc-300">
-                      {message.sources.length} Referenced {message.sources.length === 1 ? 'Source' : 'Sources'}
+                      {displaySources.length} Referenced {displaySources.length === 1 ? 'Source' : 'Sources'}
                     </span>
                   </div>
                   {showSources ? (
@@ -515,7 +536,7 @@ function ChatMessage({ message, index, onSelectCitation, onOpenMonograph, onDown
 
                 {showSources && (
                   <div className="p-2 border-t border-zinc-800/60 bg-zinc-950/80 flex flex-wrap gap-1 animate-in fade-in duration-150">
-                    {message.sources.map((src, sIdx) => (
+                    {displaySources.map((src, sIdx) => (
                       <button
                         key={sIdx}
                         type="button"

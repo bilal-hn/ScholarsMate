@@ -10,26 +10,36 @@ import {
   Sparkles,
   RefreshCw,
   FolderOpen,
+  CheckCircle2,
+  AlertTriangle,
+  BookOpen,
+  Layers,
+  ArrowRight,
+  ShieldAlert,
+  Sliders,
+  ChevronRight,
 } from 'lucide-react';
 import {
   fetchBrainMemoriesAPI,
+  consolidateBrainMemoriesAPI,
   createBrainMemoryAPI,
   updateBrainMemoryAPI,
   deleteBrainMemoryAPI,
   clearBrainMemoriesAPI,
 } from '../../services/api';
 
-const CATEGORY_TABS = [
-  { id: 'all', label: 'All Takeaways' },
-  { id: 'decision', label: 'Decisions' },
-  { id: 'constraint', label: 'Constraints & Discarded' },
-  { id: 'finding', label: 'Paper Findings' },
-];
+const CATEGORY_CONFIG = {
+  all: { label: 'All Takeaways', icon: Layers, color: 'zinc' },
+  decision: { label: 'Decisions', icon: CheckCircle2, color: 'blue', badge: 'bg-blue-500/15 text-blue-400 border-blue-500/30' },
+  constraint: { label: 'Constraints', icon: AlertTriangle, color: 'purple', badge: 'bg-purple-500/15 text-purple-400 border-purple-500/30' },
+  finding: { label: 'Paper Findings', icon: BookOpen, color: 'emerald', badge: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' },
+};
 
 export default function BrainModal({
   isOpen,
   onClose,
   activeWorkspaceId,
+  activeSessionId,
   workspaces = [],
 }) {
   const modalRef = useRef(null);
@@ -55,10 +65,12 @@ export default function BrainModal({
   // ── Core state ───────────────────────────────────────────────────────
   const [memories, setMemories] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncSuccessMsg, setSyncSuccessMsg] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
 
-  // New thought input
+  // New takeaway input
   const [newThought, setNewThought] = useState('');
   const [newCategory, setNewCategory] = useState('decision');
   const [isAdding, setIsAdding] = useState(false);
@@ -72,6 +84,23 @@ export default function BrainModal({
     const ws = (workspaces || []).find((w) => w.id === activeWorkspaceId);
     return ws ? ws.name : 'Active Workspace';
   }, [workspaces, activeWorkspaceId]);
+
+  // Counts by category
+  const counts = useMemo(() => {
+    const res = { all: memories.length, decision: 0, constraint: 0, finding: 0 };
+    for (const m of memories) {
+      const c = (m.category || 'decision').toLowerCase();
+      if (c === 'decision' || c === 'milestone') res.decision++;
+      else if (c === 'constraint') res.constraint++;
+      else if (c === 'finding' || c === 'insight') res.finding++;
+      else res.decision++;
+    }
+    return res;
+  }, [memories]);
+
+  const activeCount = useMemo(() => {
+    return memories.filter((m) => m.is_active).length;
+  }, [memories]);
 
   // ── Load memories ────────────────────────────────────────────────────
   const loadMemories = async () => {
@@ -88,13 +117,45 @@ export default function BrainModal({
     }
   };
 
+  // ── On-demand consolidation from chat ────────────────────────────────
+  const handleSyncFromChat = async () => {
+    if (isSyncing) return;
+    setIsSyncing(true);
+    setSyncSuccessMsg(null);
+    try {
+      const res = await consolidateBrainMemoriesAPI({
+        session_id: activeSessionId || null,
+        workspace_id: activeWorkspaceId || null,
+      });
+      if (res && Array.isArray(res.memories)) {
+        const prevCount = memories.length;
+        setMemories(res.memories);
+        const diff = res.memories.length - prevCount;
+        setSyncSuccessMsg(
+          diff > 0
+            ? `Extracted ${diff} new takeaway${diff > 1 ? 's' : ''} from conversation!`
+            : 'Workspace Brain is up to date with chat context.'
+        );
+      } else {
+        await loadMemories();
+        setSyncSuccessMsg('Refreshed memory list.');
+      }
+    } catch (err) {
+      console.error('Failed to sync from chat:', err);
+      await loadMemories();
+    } finally {
+      setIsSyncing(false);
+      setTimeout(() => setSyncSuccessMsg(null), 4000);
+    }
+  };
+
   useEffect(() => {
     if (isOpen) {
       loadMemories();
     }
   }, [isOpen, activeWorkspaceId]);
 
-  // Keyboard / outside-click handlers (using window listeners to prevent scope shadow)
+  // Keyboard / outside-click handlers
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
@@ -130,6 +191,7 @@ export default function BrainModal({
         scope: 'workspace',
         category: newCategory,
         workspace_id: activeWorkspaceId || null,
+        session_id: activeSessionId || null,
         is_active: true,
       });
       setMemories((prev) => [created, ...prev]);
@@ -222,201 +284,245 @@ export default function BrainModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-150 select-none">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-in fade-in duration-200 select-none">
       <div
         ref={modalRef}
-        className="w-full max-w-xl bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] text-zinc-100 font-sans"
+        className="w-full max-w-2xl bg-zinc-950 border border-zinc-800/90 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[88vh] text-zinc-100 font-sans"
       >
         {/* ── HEADER ─────────────────────────────────────────────────── */}
-        <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-800 bg-zinc-900/90 shrink-0">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-7 h-7 rounded-lg bg-amber-500/10 border border-amber-500/25 flex items-center justify-center text-amber-400 shrink-0">
-              <Brain className="h-4 w-4" />
+        <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800/80 bg-zinc-900/60 shrink-0">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shadow-inner shrink-0">
+              <Brain className="h-5 w-5" />
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <span className="font-semibold text-sm text-zinc-100 tracking-tight">
-                  Workspace Blueprint
+                <span className="font-semibold text-base text-zinc-100 tracking-tight">
+                  Workspace Brain
                 </span>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-zinc-800 text-amber-400 border border-zinc-700/60 font-medium shrink-0">
-                  {memories.length} {memories.length === 1 ? 'takeaway' : 'takeaways'}
+                <span className="text-[11px] font-mono px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/20 font-medium shrink-0">
+                  {activeCount} active in context
                 </span>
               </div>
-              <p className="text-[11px] text-zinc-400 truncate">
-                {activeWorkspaceName}
+              <p className="text-xs text-zinc-400 truncate mt-0.5 flex items-center gap-1.5">
+                <FolderOpen className="h-3 w-3 text-zinc-500 shrink-0" />
+                <span>{activeWorkspaceName}</span>
               </p>
             </div>
           </div>
 
-          {/* Right — recording toggle + refresh + close */}
-          <div className="flex items-center gap-1.5 shrink-0">
+          {/* Right Controls */}
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Sync from Chat Button */}
+            <button
+              type="button"
+              onClick={handleSyncFromChat}
+              disabled={isSyncing || isLoading}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-medium transition-all cursor-pointer shadow-sm ${
+                isSyncing
+                  ? 'bg-amber-500/20 border-amber-500/40 text-amber-300'
+                  : 'bg-zinc-900 hover:bg-zinc-800/90 text-zinc-200 hover:text-amber-300 border-zinc-700/80'
+              }`}
+              title="Analyze active conversation turns and extract decisions & paper findings"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${isSyncing ? 'animate-spin text-amber-400' : 'text-zinc-400'}`} />
+              <span>{isSyncing ? 'Analyzing Chat…' : 'Sync from Chat'}</span>
+            </button>
+
+            {/* Auto-Capture Pill */}
             <button
               type="button"
               onClick={toggleBrain}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[11px] font-medium transition-colors cursor-pointer ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-medium transition-colors cursor-pointer ${
                 isBrainEnabled
-                  ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
-                  : 'bg-zinc-800 text-zinc-500 border-zinc-700'
+                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25 hover:bg-emerald-500/15'
+                  : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:bg-zinc-800'
               }`}
-              title={isBrainEnabled ? 'Pause automatic takeaway capture' : 'Resume automatic takeaway capture'}
+              title={isBrainEnabled ? 'Auto-capture is active: background AI extracts takeaways during research' : 'Auto-capture paused'}
             >
-              <span className={`text-[8px] leading-none ${isBrainEnabled ? 'text-emerald-400' : 'text-zinc-600'}`}>
-                ●
-              </span>
-              {isBrainEnabled ? 'Auto-Capture Active' : 'Capture Paused'}
-            </button>
-
-            <button
-              type="button"
-              onClick={loadMemories}
-              disabled={isLoading}
-              className="p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-400 hover:text-amber-400 transition-colors cursor-pointer border border-zinc-800"
-              title="Sync & Refresh Takeaways"
-            >
-              <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin text-amber-400' : ''}`} />
+              <span className={`w-2 h-2 rounded-full ${isBrainEnabled ? 'bg-emerald-400 shadow-sm shadow-emerald-400/50' : 'bg-zinc-600'}`} />
+              <span>{isBrainEnabled ? 'Auto-Capture' : 'Paused'}</span>
             </button>
 
             <button
               type="button"
               onClick={onClose}
-              className="p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer border border-zinc-800"
-              title="Close"
+              className="p-1.5 rounded-xl hover:bg-zinc-800 text-zinc-400 hover:text-zinc-100 transition-colors cursor-pointer border border-zinc-800 ml-1"
+              title="Close modal (Esc)"
             >
-              <X className="h-3.5 w-3.5" />
+              <X className="h-4 w-4" />
             </button>
           </div>
         </div>
 
-        {/* ── PAUSED BANNER ──────────────────────────────────────────── */}
-        {!isBrainEnabled && (
-          <div className="flex items-center gap-2 px-5 py-1.5 bg-zinc-800/40 border-b border-zinc-800 text-[11px] text-zinc-400 shrink-0">
-            <Sparkles className="h-3 w-3 text-amber-400 shrink-0" />
-            <span>Auto-capture paused · New chat turns won't record takeaways automatically.</span>
+        {/* ── SYNC STATUS BANNER ─────────────────────────────────────── */}
+        {syncSuccessMsg && (
+          <div className="flex items-center gap-2 px-6 py-2 bg-amber-500/10 border-b border-amber-500/20 text-xs text-amber-300 animate-in fade-in duration-200 shrink-0">
+            <Sparkles className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+            <span className="font-medium">{syncSuccessMsg}</span>
           </div>
         )}
 
         {/* ── QUICK-ADD INPUT ────────────────────────────────────────── */}
-        <div className="px-5 pt-3.5 pb-3 border-b border-zinc-800 bg-zinc-950/40 shrink-0">
-          <form onSubmit={handleAddThought} className="space-y-2">
-            <div className="flex items-center gap-2">
-              <input
-                ref={inputRef}
-                type="text"
-                value={newThought}
-                onChange={(e) => setNewThought(e.target.value)}
-                placeholder="Record a project decision, benchmark parameter, or constraint..."
-                className="flex-1 bg-zinc-950/80 border border-zinc-800 rounded-xl px-3.5 py-2 text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-amber-500/80 focus:ring-1 focus:ring-amber-500/30 transition-colors"
-              />
-              <select
-                value={newCategory}
-                onChange={(e) => setNewCategory(e.target.value)}
-                className="bg-zinc-950 border border-zinc-800 rounded-xl px-2.5 py-2 text-[11.5px] text-zinc-300 focus:outline-none focus:border-amber-500/80 cursor-pointer transition-colors shrink-0"
-              >
-                <option value="decision">Decision</option>
-                <option value="constraint">Constraint / Discarded</option>
-                <option value="finding">Paper Finding</option>
-              </select>
-              <button
-                type="submit"
-                disabled={!newThought.trim() || isAdding}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 disabled:opacity-40 text-zinc-950 text-xs font-semibold shadow-sm transition-colors cursor-pointer shrink-0"
-              >
-                {isAdding ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5 stroke-[2.5]" />}
-                <span>Add</span>
-              </button>
-            </div>
+        <div className="px-6 py-3.5 border-b border-zinc-800/80 bg-zinc-900/30 shrink-0">
+          <form onSubmit={handleAddThought} className="flex items-center gap-2.5">
+            <input
+              ref={inputRef}
+              type="text"
+              value={newThought}
+              onChange={(e) => setNewThought(e.target.value)}
+              placeholder="Record a project decision, benchmark parameter, or paper takeaway..."
+              className="flex-1 bg-zinc-900/90 border border-zinc-800 rounded-xl px-4 py-2 text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-amber-500/70 focus:ring-1 focus:ring-amber-500/25 transition-colors shadow-inner"
+            />
+            <select
+              value={newCategory}
+              onChange={(e) => setNewCategory(e.target.value)}
+              className="bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-zinc-300 focus:outline-none focus:border-amber-500/70 cursor-pointer transition-colors shrink-0"
+            >
+              <option value="decision">Decision</option>
+              <option value="constraint">Constraint / Discarded</option>
+              <option value="finding">Paper Finding</option>
+            </select>
+            <button
+              type="submit"
+              disabled={!newThought.trim() || isAdding}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-zinc-950 text-xs font-semibold shadow-sm transition-all cursor-pointer shrink-0"
+            >
+              {isAdding ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5 stroke-[2.5]" />}
+              <span>Add</span>
+            </button>
           </form>
         </div>
 
         {/* ── CATEGORY TABS & SEARCH ─────────────────────────────────── */}
-        <div className="px-5 py-2 border-b border-zinc-800 bg-zinc-900/60 flex items-center justify-between gap-3 shrink-0">
-          <div className="flex items-center rounded-lg bg-zinc-950/80 border border-zinc-800 p-0.5">
-            {CATEGORY_TABS.map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setCategoryFilter(tab.id)}
-                className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors cursor-pointer ${
-                  categoryFilter === tab.id
-                    ? 'bg-zinc-800 text-amber-400 shadow-sm'
-                    : 'text-zinc-400 hover:text-zinc-200'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
+        <div className="px-6 py-2.5 border-b border-zinc-800/80 bg-zinc-900/50 flex items-center justify-between gap-3 shrink-0">
+          <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
+            {Object.entries(CATEGORY_CONFIG).map(([id, cfg]) => {
+              const Icon = cfg.icon;
+              const count = counts[id] || 0;
+              const isSelected = categoryFilter === id;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setCategoryFilter(id)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                    isSelected
+                      ? 'bg-amber-500/15 text-amber-400 border border-amber-500/30 shadow-sm'
+                      : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60 border border-transparent'
+                  }`}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                  <span>{cfg.label}</span>
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                    isSelected ? 'bg-amber-400 text-zinc-950 font-bold' : 'bg-zinc-800 text-zinc-400'
+                  }`}>
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
           </div>
 
-          <div className="relative w-44">
-            <Search className="h-3.5 w-3.5 text-zinc-500 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <div className="relative w-48 shrink-0">
+            <Search className="h-3.5 w-3.5 text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search..."
-              className="w-full bg-zinc-950/70 border border-zinc-800 rounded-lg pl-8 pr-2.5 py-1 text-[11px] text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-amber-500/70"
+              placeholder="Search blueprint…"
+              className="w-full bg-zinc-900 border border-zinc-800 rounded-lg pl-8 pr-7 py-1.5 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-amber-500/70 transition-colors"
             />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            )}
           </div>
         </div>
 
         {/* ── MEMORY LIST ────────────────────────────────────────────── */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-2 bg-zinc-950/20">
+        <div className="flex-1 overflow-y-auto p-6 space-y-2.5 bg-zinc-950">
           {isLoading ? (
-            <div className="flex flex-col items-center justify-center py-12 text-zinc-500 gap-2">
-              <RefreshCw className="h-5 w-5 animate-spin text-amber-400" />
-              <span className="text-xs">Loading blueprint takeaways…</span>
+            <div className="flex flex-col items-center justify-center py-16 text-zinc-500 gap-2.5">
+              <RefreshCw className="h-6 w-6 animate-spin text-amber-400" />
+              <span className="text-xs font-medium">Loading workspace blueprint…</span>
             </div>
           ) : filteredMemories.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center text-zinc-500 space-y-2">
-              <div className="w-10 h-10 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-500 mx-auto">
-                <Brain className="h-5 w-5 text-zinc-600" />
+            <div className="flex flex-col items-center justify-center py-14 text-center px-4 space-y-3">
+              <div className="w-12 h-12 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-500 mx-auto shadow-inner">
+                <Brain className="h-6 w-6 text-zinc-600" />
               </div>
-              <p className="text-xs font-semibold text-zinc-300">No blueprint takeaways found</p>
-              <p className="text-[11px] text-zinc-500 max-w-sm">
-                Key decisions and parameters you reach during chats are saved here to seed future threads.
-              </p>
+              <div className="max-w-md">
+                <p className="text-sm font-semibold text-zinc-200">No blueprint takeaways found</p>
+                <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
+                  ScholarsMate automatically captures architectural decisions, empirical parameters, and paper findings as you chat.
+                </p>
+              </div>
+              {activeSessionId && (
+                <button
+                  type="button"
+                  onClick={handleSyncFromChat}
+                  disabled={isSyncing}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-medium transition-all cursor-pointer shadow-sm mt-2"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+                  <span>Analyze Active Chat Now</span>
+                </button>
+              )}
             </div>
           ) : (
             filteredMemories.map((mem) => {
               const isEditing = editingId === mem.id;
               const cat = (mem.category || 'decision').toLowerCase();
+              const catInfo = CATEGORY_CONFIG[cat] || CATEGORY_CONFIG.decision;
+              const CatIcon = catInfo.icon;
 
               return (
                 <div
                   key={mem.id}
-                  className={`group p-3 rounded-xl border transition-all flex items-start gap-2.5 ${
+                  className={`group p-3.5 rounded-xl border transition-all flex items-start gap-3 ${
                     mem.is_active
-                      ? 'bg-zinc-950/50 border-zinc-800/90 hover:border-zinc-700'
-                      : 'bg-zinc-950/20 border-zinc-900 opacity-40'
+                      ? 'bg-zinc-900/60 border-zinc-800 hover:border-zinc-700/80 shadow-sm'
+                      : 'bg-zinc-900/20 border-zinc-900/80 opacity-50'
                   }`}
                 >
-                  {/* Active in blueprint checkbox */}
-                  <input
-                    type="checkbox"
-                    checked={mem.is_active}
-                    onChange={() => handleToggleActive(mem)}
-                    title={mem.is_active ? 'Active in blueprint' : 'Archived / excluded from seeding'}
-                    className="mt-1 accent-amber-500 rounded cursor-pointer shrink-0"
-                  />
+                  {/* Active / Inactive Context Checkbox */}
+                  <div className="pt-0.5 shrink-0">
+                    <input
+                      type="checkbox"
+                      checked={mem.is_active}
+                      onChange={() => handleToggleActive(mem)}
+                      title={mem.is_active ? 'Active in prompt: Injected into new chat context' : 'Inactive: Excluded from prompt'}
+                      className="accent-amber-500 w-4 h-4 rounded cursor-pointer transition-colors"
+                    />
+                  </div>
 
-                  {/* Body / Edit */}
+                  {/* Card Content */}
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5 mb-1">
+                    <div className="flex items-center gap-2 mb-1.5">
                       <span
-                        className={`text-[9.5px] font-semibold uppercase px-1.5 py-0.2 rounded font-mono ${
-                          cat === 'decision' || cat === 'milestone'
-                            ? 'bg-blue-500/15 text-blue-400 border border-blue-500/30'
-                            : cat === 'constraint'
-                            ? 'bg-purple-500/15 text-purple-400 border border-purple-500/30'
-                            : 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
-                        }`}
+                        className={`inline-flex items-center gap-1 text-[10px] font-semibold uppercase px-2 py-0.5 rounded-md font-mono border ${catInfo.badge}`}
                       >
-                        {cat}
+                        <CatIcon className="h-3 w-3" />
+                        <span>{cat}</span>
+                      </span>
+
+                      <span className="text-[10px] text-zinc-500">
+                        {mem.is_active ? (
+                          <span className="text-emerald-400/90 font-medium">● In prompt</span>
+                        ) : (
+                          <span className="text-zinc-500">Archived</span>
+                        )}
                       </span>
                     </div>
 
                     {isEditing ? (
-                      <div className="flex items-center gap-1.5 mt-1">
+                      <div className="flex items-center gap-2 mt-1">
                         <input
                           type="text"
                           value={editText}
@@ -426,12 +532,12 @@ export default function BrainModal({
                             if (e.key === 'Escape') setEditingId(null);
                           }}
                           autoFocus
-                          className="flex-1 bg-zinc-950 border border-amber-500/80 rounded-lg px-2.5 py-1 text-xs text-zinc-100 focus:outline-none"
+                          className="flex-1 bg-zinc-950 border border-amber-500/80 rounded-lg px-3 py-1.5 text-xs text-zinc-100 focus:outline-none"
                         />
                         <button
                           type="button"
                           onClick={() => handleSaveEdit(mem.id)}
-                          className="p-1 rounded-md bg-amber-500/20 hover:bg-amber-500/30 text-amber-400 transition-colors cursor-pointer"
+                          className="p-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 transition-colors cursor-pointer"
                           title="Save"
                         >
                           <Check className="h-3.5 w-3.5" />
@@ -439,7 +545,7 @@ export default function BrainModal({
                         <button
                           type="button"
                           onClick={() => setEditingId(null)}
-                          className="p-1 rounded-md hover:bg-zinc-800 text-zinc-400 transition-colors cursor-pointer"
+                          className="p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-400 transition-colors cursor-pointer"
                           title="Cancel"
                         >
                           <X className="h-3.5 w-3.5" />
@@ -452,7 +558,7 @@ export default function BrainModal({
                           setEditText(mem.thought);
                         }}
                         title="Click to edit"
-                        className="text-xs text-zinc-200 leading-relaxed cursor-text hover:text-amber-300 transition-colors select-text"
+                        className="text-xs text-zinc-200 leading-relaxed cursor-text hover:text-amber-200 transition-colors select-text"
                       >
                         {mem.thought}
                       </p>
@@ -469,17 +575,17 @@ export default function BrainModal({
                           setEditText(mem.thought);
                         }}
                         title="Edit takeaway"
-                        className="p-1 rounded text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors cursor-pointer"
+                        className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors cursor-pointer"
                       >
-                        <Edit2 className="h-3 w-3" />
+                        <Edit2 className="h-3.5 w-3.5" />
                       </button>
                       <button
                         type="button"
                         onClick={() => handleDeleteMemory(mem.id)}
                         title="Delete takeaway"
-                        className="p-1 rounded text-zinc-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                        className="p-1.5 rounded-lg text-zinc-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
                       >
-                        <Trash2 className="h-3 w-3" />
+                        <Trash2 className="h-3.5 w-3.5" />
                       </button>
                     </div>
                   )}
@@ -490,9 +596,10 @@ export default function BrainModal({
         </div>
 
         {/* ── FOOTER ─────────────────────────────────────────────────── */}
-        <div className="px-5 py-3 border-t border-zinc-800 bg-zinc-900/90 flex items-center justify-between text-xs text-zinc-400 shrink-0">
-          <span className="text-[11.5px] text-zinc-500">
-            💡 Active (checked) items will seed new chats in this workspace.
+        <div className="px-6 py-3.5 border-t border-zinc-800/80 bg-zinc-900/60 flex items-center justify-between text-xs text-zinc-400 shrink-0">
+          <span className="text-[11.5px] text-zinc-500 flex items-center gap-1.5">
+            <Sparkles className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+            <span>Active items are compiled into <code className="text-amber-300 font-mono text-[10.5px]">&lt;workspace_blueprint&gt;</code> to ground subsequent chats.</span>
           </span>
 
           <div className="flex items-center gap-2">
@@ -500,7 +607,7 @@ export default function BrainModal({
               <button
                 type="button"
                 onClick={handleClearAll}
-                className="text-[11.5px] text-zinc-500 hover:text-rose-400 transition-colors cursor-pointer mr-1 font-medium"
+                className="text-xs text-zinc-500 hover:text-rose-400 transition-colors cursor-pointer mr-2 font-medium"
               >
                 Clear All
               </button>

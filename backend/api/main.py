@@ -73,6 +73,7 @@ from backend.api.schemas import (
     CreateBrainMemoryRequest,
     UpdateBrainMemoryRequest,
     BrainMemoriesListResponse,
+    ConsolidateBrainRequest,
     ImageExtractResponse,
     RenameSessionRequest,
     LibraryItem,
@@ -973,11 +974,13 @@ async def query_rag(
         # db_messages was fetched BEFORE saving this turn, so +2 accounts for
         # the user message and bot message just committed above.
         # Turn number = (total messages) / 2, 1-indexed.
-        # Fire at turn 3 (first onboarding sync), then every 5 turns (8, 13, 18 …)
         total_messages_after = len(db_messages) + 2
         turn_number = total_messages_after // 2  # integer division: 2 msgs = turn 1
-        is_brain_sync_turn = (turn_number == 3) or (
-            turn_number > 3 and (turn_number - 3) % 5 == 0
+        has_grounded_findings = bool(result.get("sources_used")) and len(result.get("sources_used", [])) > 0
+        is_brain_sync_turn = (
+            (turn_number in (2, 3, 5))
+            or (turn_number > 5 and turn_number % 3 == 0)
+            or (has_grounded_findings and turn_number >= 2)
         )
         if is_brain_sync_turn and getattr(request, 'brain_enabled', True):
             # Pass the last 10 raw messages (5 turns) as the consolidation window
@@ -2441,6 +2444,81 @@ async def clear_all_brain_memories(
         return {"status": "success", "cleared_count": cleared_count}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to clear brain memories: {str(e)}")
+
+
+@app.post("/api/brain/consolidate", response_model=BrainMemoriesListResponse)
+async def consolidate_brain_memories_endpoint(
+    request: ConsolidateBrainRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    On-demand consolidation: extracts durable decisions, parameters, and paper findings
+    from the specified chat session and immediately returns the refreshed workspace blueprint.
+    """
+    try:
+        if request.session_id:
+            db_messages = await crud.get_session_messages(db, session_id=request.session_id)
+            if db_messages:
+                dialogue_window = [
+                    {"sender": m.sender, "text": m.text}
+                    for m in db_messages[-10:]
+                ]
+                await consolidate_batch_memories_async(
+                    user_id=current_user.id,
+                    session_id=request.session_id,
+                    dialogue_window=dialogue_window,
+                    model_name=request.model_name,
+                    custom_keys=request.custom_keys,
+                    workspace_id=request.workspace_id,
+                )
+
+        memories = await crud.get_brain_memories(
+            db=db,
+            user_id=current_user.id,
+            workspace_id=request.workspace_id,
+            active_only=False
+        )
+        items = [
+            BrainMemoryResponse(
+                id=m.id,
+                user_id=m.user_id,
+                workspace_id=m.workspace_id,
+                session_id=m.session_id,
+                scope=m.scope,
+                category=m.category,
+                thought=m.thought,
+                is_active=m.is_active,
+                created_at=m.created_at,
+                updated_at=m.updated_at
+            )
+            for m in memories
+        ]
+        return BrainMemoriesListResponse(memories=items, total=len(items))
+    except Exception as e:
+        logger.warning(f"On-demand brain consolidation failed: {e}")
+        memories = await crud.get_brain_memories(
+            db=db,
+            user_id=current_user.id,
+            workspace_id=request.workspace_id,
+            active_only=False
+        )
+        items = [
+            BrainMemoryResponse(
+                id=m.id,
+                user_id=m.user_id,
+                workspace_id=m.workspace_id,
+                session_id=m.session_id,
+                scope=m.scope,
+                category=m.category,
+                thought=m.thought,
+                is_active=m.is_active,
+                created_at=m.created_at,
+                updated_at=m.updated_at
+            )
+            for m in memories
+        ]
+        return BrainMemoriesListResponse(memories=items, total=len(items))
 
 
 # =============================================================================

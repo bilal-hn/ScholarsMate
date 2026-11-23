@@ -174,7 +174,7 @@ async def consolidate_batch_memories_async(
             ]
 
             # Always use cheapest model — never the user's main-query model
-            target_model, _ = pick_brain_extraction_model(custom_keys)
+            target_model, _ = pick_brain_extraction_model(custom_keys, requested_model=model_name)
 
             raw_response = _execute_completion_with_fallback(
                 model_name=target_model,

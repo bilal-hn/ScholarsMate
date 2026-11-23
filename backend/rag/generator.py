@@ -237,14 +237,87 @@ Provide a publication-grade Literature Review featuring:
         raise RuntimeError(f"Literature Review Synthesis failed: {str(e)}")
 
 
-def extract_sources_from_text(text: str, fallback_doc: str | None = None) -> list[dict]:
-    """Extracts all document and page references from the answer text to populate sources_used accurately."""
+def extract_sources_from_text(
+    text: str,
+    retrieved_chunks: list[dict] | None = None,
+    fallback_doc: str | None = None
+) -> list[dict]:
+    """
+    Extracts ONLY document and page references that are ACTUALLY cited or referenced
+    in the answer text. Discards unreferenced retrieved chunks.
+    """
+    if not text or not text.strip():
+        return []
+
+    # Check for negative answers, refusals, or statements of absence
+    # (e.g. "The provided document excerpts do not contain any overflowed text",
+    #  "I could not find any relevant information", etc.)
+    lower_text = text.lower()
+    negative_signals = [
+        "do not contain any overflowed text",
+        "does not contain any overflowed text",
+        "no instances of text spilling over",
+        "could not find any relevant information",
+        "cannot find any relevant information",
+        "do not contain information to answer",
+        "does not contain information to answer",
+        "i can only answer questions grounded in your uploaded documents",
+        "please upload or attach documents first",
+    ]
+    is_pure_refusal_or_negative = any(sig in lower_text for sig in negative_signals)
+    # If the text is purely a refusal or absence statement and contains no explicit citation bracket:
+    if is_pure_refusal_or_negative and not re.search(r"\[[^\]]+\.(?:pdf|docx|txt|epub|md)[\s,]", text, re.IGNORECASE):
+        return []
+
     sources = []
     seen = set()
 
-    # 1. Matches square bracket citations: [doc.pdf, p.X], [doc (3).pdf, p.2, p.22], [doc.pdf, page 40]
+    # Pre-index retrieved chunks by document name and stem for fast canonical lookup
+    chunks = retrieved_chunks or []
+    doc_map = {}   # doc_name_lower -> canonical doc_name
+    stem_map = {}  # stem_lower -> canonical doc_name
+    doc_pages = {} # canonical doc_name -> list of available page numbers
+
+    for c in chunks:
+        d = c.get("doc_name") or c.get("source")
+        if d:
+            d_str = str(d).strip()
+            d_lower = d_str.lower()
+            doc_map[d_lower] = d_str
+            stem = re.sub(r"\.(?:pdf|docx|txt|epub|md)$", "", d_str, flags=re.IGNORECASE)
+            stem_map[stem.lower()] = d_str
+            p = c.get("page_number", 1)
+            doc_pages.setdefault(d_str, []).append(int(p))
+
+    def _resolve_canonical_doc(raw_doc: str) -> str:
+        raw_clean = raw_doc.strip()
+        raw_lower = raw_clean.lower()
+        if raw_lower in doc_map:
+            return doc_map[raw_lower]
+        if raw_lower in stem_map:
+            return stem_map[raw_lower]
+        for d_low, canonical in doc_map.items():
+            if raw_lower in d_low or d_low in raw_lower:
+                return canonical
+        for s_low, canonical in stem_map.items():
+            if raw_lower in s_low or s_low in raw_lower:
+                return canonical
+        return raw_clean
+
+    def _add_source(doc_name: str, page_num: int):
+        canonical = _resolve_canonical_doc(doc_name)
+        key = (canonical, page_num)
+        if key not in seen:
+            seen.add(key)
+            sources.append({
+                "chunk_id": f"ref_{canonical}_{page_num}",
+                "doc_name": canonical,
+                "page_number": page_num,
+            })
+
+    # Pattern 1: Square bracket citations: [doc.pdf, p.X], [doc.pdf, page 40], [doc.pdf, pp. 2, 4], [doc.pdf, pp. 2-5]
     square_pattern = re.compile(
-        r"\[\s*([^\]]+?\.(?:pdf|docx|txt|epub|md|PDF|DOCX))\s*(?:,\s*|\s+)(?:p\.?|page|pp\.)?\s*([\d\s,p\.]+?)\s*\]",
+        r"\[\s*([^\]]+?\.(?:pdf|docx|txt|epub|md|PDF|DOCX))\s*(?:,\s*|\s+)(?:p\.?|page|pp\.)?\s*([\d\s,p\.\-]+?)\s*\]",
         re.IGNORECASE
     )
     for match in square_pattern.finditer(text):
@@ -252,19 +325,11 @@ def extract_sources_from_text(text: str, fallback_doc: str | None = None) -> lis
         pages_raw = match.group(2)
         page_nums = re.findall(r"\d+", pages_raw)
         for p in page_nums:
-            p_int = int(p)
-            key = (doc, p_int)
-            if key not in seen:
-                seen.add(key)
-                sources.append({
-                    "chunk_id": f"ref_{doc}_{p_int}",
-                    "doc_name": doc,
-                    "page_number": p_int
-                })
+            _add_source(doc, int(p))
 
-    # 2. Matches parenthesis citations: (doc.pdf, p.X)
+    # Pattern 2: Parenthesis citations: (doc.pdf, p.X), (doc.pdf, page 12)
     paren_pattern = re.compile(
-        r"\(\s*([^)]+?\.(?:pdf|docx|txt|epub|md|PDF|DOCX))\s*(?:,\s*|\s+)(?:p\.?|page|pp\.)?\s*([\d\s,p\.]+?)\s*\)",
+        r"\(\s*([^)]+?\.(?:pdf|docx|txt|epub|md|PDF|DOCX))\s*(?:,\s*|\s+)(?:p\.?|page|pp\.)?\s*([\d\s,p\.\-]+?)\s*\)",
         re.IGNORECASE
     )
     for match in paren_pattern.finditer(text):
@@ -272,38 +337,68 @@ def extract_sources_from_text(text: str, fallback_doc: str | None = None) -> lis
         pages_raw = match.group(2)
         page_nums = re.findall(r"\d+", pages_raw)
         for p in page_nums:
-            p_int = int(p)
-            key = (doc, p_int)
-            if key not in seen:
-                seen.add(key)
-                sources.append({
-                    "chunk_id": f"ref_{doc}_{p_int}",
-                    "doc_name": doc,
-                    "page_number": p_int
-                })
+            _add_source(doc, int(p))
 
-    # 3. Matches markdown link anchors: #cite:doc:page
-    cite_anchor_pattern = re.compile(r"#cite:([^:]+):(\d+)", re.IGNORECASE)
+    # Pattern 3: Square bracket or parenthesis citations with stem (no extension) and explicit p./page prefix:
+    # e.g. [Scholarsmate_Final_Report, p. 3], (Scholarsmate_Final_Report, p. 12)
+    stem_pattern = re.compile(
+        r"[\[\(]\s*([^\]\(\)]+?)(?:,\s*|\s+)(?:p\.?|page|pp\.)\s*([\d\s,p\.\-]+?)\s*[\]\)]",
+        re.IGNORECASE
+    )
+    for match in stem_pattern.finditer(text):
+        raw_target = match.group(1).strip()
+        raw_lower = raw_target.lower()
+        if raw_lower in stem_map or raw_lower in doc_map or any(raw_lower in s for s in stem_map):
+            page_nums = re.findall(r"\d+", match.group(2))
+            for p in page_nums:
+                _add_source(raw_target, int(p))
+
+    # Pattern 4: Markdown link anchors: #cite:doc:page or [cite](#cite:doc:page)
+    cite_anchor_pattern = re.compile(r"#cite:([^:\s]+):(\d+)", re.IGNORECASE)
     for match in cite_anchor_pattern.finditer(text):
         import urllib.parse
         doc = urllib.parse.unquote(match.group(1)).strip()
         p_int = int(match.group(2))
-        key = (doc, p_int)
-        if key not in seen:
-            seen.add(key)
-            sources.append({
-                "chunk_id": f"ref_{doc}_{p_int}",
-                "doc_name": doc,
-                "page_number": p_int
-            })
+        _add_source(doc, p_int)
+
+    # Pattern 5: Standalone document citations in brackets: [doc.pdf] or (doc.pdf)
+    standalone_doc_pattern = re.compile(
+        r"[\[\(]\s*([^\]\(\)\n]+?\.(?:pdf|docx|txt|epub|md|PDF|DOCX))\s*[\]\)]",
+        re.IGNORECASE
+    )
+    for match in standalone_doc_pattern.finditer(text):
+        doc = match.group(1).strip()
+        if not doc.startswith("http") and not doc.startswith("#"):
+            canonical = _resolve_canonical_doc(doc)
+            first_p = doc_pages.get(canonical, [1])[0]
+            _add_source(canonical, first_p)
+
+    # Pattern 6: Academic Author-Year citations (e.g. [Schiaffino et al., 2020], [Schoenfeld, 2010])
+    author_year_pattern = re.compile(
+        r"\[\s*([A-Z][a-zA-Z\s\.\-]+?(?:et\s+al\.?)?)\s*,\s*(\d{4})(?:\s*,\s*(?:p\.?|page)?\s*(\d+))?\s*\]",
+        re.IGNORECASE
+    )
+    for match in author_year_pattern.finditer(text):
+        author = match.group(1).strip().lower()
+        author_clean = re.sub(r"\s+et\s+al\.?", "", author).strip()
+        page_spec = match.group(3)
+        for canonical, pages in doc_pages.items():
+            if author_clean and author_clean in canonical.lower():
+                p_to_use = int(page_spec) if page_spec else (pages[0] if pages else 1)
+                _add_source(canonical, p_to_use)
+                break
+
+    # Pattern 7: Single-document context where model writes [p. X] or (p. X)
+    if len(doc_map) == 1:
+        single_doc = list(doc_map.values())[0]
+        lone_page_pattern = re.compile(r"[\[\(]\s*(?:p\.?|page|pp\.)\s*(\d+)\s*[\]\)]", re.IGNORECASE)
+        for match in lone_page_pattern.finditer(text):
+            _add_source(single_doc, int(match.group(1)))
 
     if not sources and fallback_doc:
-        sources.append({
-            "chunk_id": f"ref_{fallback_doc}_1",
-            "doc_name": fallback_doc,
-            "page_number": 1
-        })
+        _add_source(fallback_doc, 1)
 
+    sources.sort(key=lambda s: (s.get("doc_name", ""), s.get("page_number", 1)))
     return sources
 
 
@@ -601,46 +696,27 @@ def generate_answer(
         thinking_text = extracted.thinking
 
     # -------------------------------------------------------------------------
-    # 5. Source Deduplication
+    # 5. Extract ONLY the sources actually referenced in the answer text
     # -------------------------------------------------------------------------
-    raw_sources = [
-        {
-            "chunk_id": c.get("chunk_id", ""),
-            "doc_name": c.get("doc_name", "Unknown Document"),
-            "page_number": c.get("page_number", 1)
-        }
-        for c in retrieved_chunks
-    ]
+    unique_sources = extract_sources_from_text(
+        text=answer_text,
+        retrieved_chunks=retrieved_chunks
+    )
 
-    unique_sources = []
-    seen = set()
-    for src in raw_sources:
-        key = (src["doc_name"], src["page_number"])
-        if key not in seen:
-            seen.add(key)
-            unique_sources.append(src)
-
-    # Include attached images in sources
+    # Include attached images only if explicitly referenced in the answer text
     if attached_images:
+        seen_img = {s.get("doc_name") for s in unique_sources}
         for img in attached_images:
             name = img.get("name") or img.get("filename")
             if name:
-                img_key = (f"[Image] {name}", 1)
-                if img_key not in seen:
-                    seen.add(img_key)
+                img_tag = f"[Image] {name}"
+                if img_tag not in seen_img and (name.lower() in answer_text.lower() or "[image" in answer_text.lower()):
+                    seen_img.add(img_tag)
                     unique_sources.append({
                         "chunk_id": f"img_{name}",
-                        "doc_name": f"[Image] {name}",
+                        "doc_name": img_tag,
                         "page_number": 1
                     })
-
-    # Merge any explicit citations found directly in the answer text
-    text_sources = extract_sources_from_text(answer_text)
-    for t_src in text_sources:
-        key = (t_src["doc_name"], t_src["page_number"])
-        if key not in seen:
-            seen.add(key)
-            unique_sources.append(t_src)
 
     # Sort sources cleanly by document name and page number
     unique_sources.sort(key=lambda s: (s.get("doc_name", ""), s.get("page_number", 1)))

@@ -300,6 +300,13 @@ class BrainMemoriesListResponse(BaseModel):
     total: int
 
 
+class ConsolidateBrainRequest(BaseModel):
+    session_id: Optional[str] = Field(default=None)
+    workspace_id: Optional[str] = Field(default=None)
+    custom_keys: Optional[Dict[str, str]] = Field(default=None)
+    model_name: Optional[str] = Field(default=None)
+
+
 # =============================================================================
 # MULTIMODAL IMAGE SCHEMAS
 # =============================================================================

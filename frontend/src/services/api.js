@@ -976,6 +976,27 @@ export const fetchBrainMemoriesAPI = async (params = {}) => {
 };
 
 /**
+ * Triggers on-demand consolidation for a session and returns updated memories.
+ * @param {Object} data - { session_id, workspace_id, custom_keys, model_name }
+ */
+export const consolidateBrainMemoriesAPI = async (data = {}) => {
+  try {
+    const { keys, activeModel } = getSavedBYOKConfig();
+    const payload = {
+      session_id: data.session_id || null,
+      workspace_id: data.workspace_id || null,
+      custom_keys: data.custom_keys || keys || {},
+      model_name: data.model_name || activeModel || null,
+    };
+    const response = await apiClient.post('/brain/consolidate', payload);
+    return response.data;
+  } catch (error) {
+    console.error('Failed to consolidate brain memories:', error.response?.data || error.message);
+    return { memories: [], total: 0 };
+  }
+};
+
+/**
  * Manually adds a new thought, rule, or preference to Brain.
  * @param {Object} memoryData - { thought, scope, category, workspace_id, is_active }
  */

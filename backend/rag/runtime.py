@@ -1,6 +1,7 @@
 """Provider-agnostic helpers: model IDs, reasoning split, JSON parse, context packing."""
 from __future__ import annotations
 
+import os
 import json
 import re
 from dataclasses import dataclass
@@ -10,6 +11,8 @@ import litellm
 # Enforce provider compatibility adjustments globally (e.g., Bedrock message formatting)
 litellm.modify_params = True
 litellm.drop_params = True
+litellm.suppress_debug_info = True
+os.environ.setdefault("LITELLM_LOCAL_MODEL_COST_MAP", "True")
 
 
 KNOWN_PROVIDERS = (
@@ -67,11 +70,14 @@ _PROVIDER_PRIORITY = [
 # Memory extraction only produces simple JSON — heavy models waste credits and
 # burn Groq's TPM quota immediately after the main RAG call.
 _BRAIN_EXTRACTION_PRIORITY = [
-    ("bedrock",  ["bedrock", "aws"],   "bedrock/us.amazon.nova-lite-v1:0", "AWS_SECRET_ACCESS_KEY"),
-    ("gemini",   ["gemini", "google"], "gemini/gemini-2.5-flash",   "GEMINI_API_KEY"),
-    ("groq",     ["groq"],             "groq/llama-3.1-8b-instant", "GROQ_API_KEY"),
-    ("openai",   ["openai"],           "openai/gpt-4o-mini",        "OPENAI_API_KEY"),
-    ("deepseek", ["deepseek"],         "deepseek/deepseek-chat",    "DEEPSEEK_API_KEY"),
+    ("groq",       ["groq"],             "groq/llama-3.1-8b-instant",                 "GROQ_API_KEY"),
+    ("gemini",     ["gemini", "google"], "gemini/gemini-2.5-flash",                   "GEMINI_API_KEY"),
+    ("openrouter", ["openrouter"],       "openrouter/auto",                            "OPENROUTER_API_KEY"),
+    ("openai",     ["openai"],           "openai/gpt-4o-mini",                         "OPENAI_API_KEY"),
+    ("anthropic",  ["anthropic"],        "anthropic/claude-3-5-haiku-20241022",        "ANTHROPIC_API_KEY"),
+    ("routeway",   ["routeway"],         "routeway/gemma-4-26b-a4b-it-chimerax:free",  "ROUTEWAY_API_KEY"),
+    ("deepseek",   ["deepseek"],         "deepseek/deepseek-chat",                     "DEEPSEEK_API_KEY"),
+    ("bedrock",    ["bedrock", "aws"],   "bedrock/us.amazon.nova-lite-v1:0",           "AWS_SECRET_ACCESS_KEY"),
 ]
 
 
@@ -87,7 +93,6 @@ def pick_best_model_from_keys(custom_keys: dict | None = None) -> tuple[str, str
         model_id, api_key = pick_best_model_from_keys(custom_keys)
         completion(model=model_id, api_key=api_key, ...)
     """
-    import os
     keys = custom_keys or {}
 
     # 1. Check BYOK custom_keys first
@@ -100,34 +105,53 @@ def pick_best_model_from_keys(custom_keys: dict | None = None) -> tuple[str, str
     for _name, _aliases, default_model, env_var in _PROVIDER_PRIORITY:
         env_key = os.getenv(env_var)
         if env_key:
+            if env_var == "GEMINI_API_KEY" and not env_key.startswith("AIzaSy"):
+                continue
             return default_model, env_key
 
     # 3. Absolute fallback — return default Amazon Nova Lite via Bedrock
     return "bedrock/us.amazon.nova-lite-v1:0", "iam_role_authenticated"
 
 
-def pick_brain_extraction_model(custom_keys: dict | None = None) -> tuple[str, str | None]:
+def pick_brain_extraction_model(
+    custom_keys: dict | None = None,
+    requested_model: str | None = None,
+) -> tuple[str, str | None]:
     """
     Returns the cheapest/fastest (model_id, api_key) available for background
-    brain memory extraction tasks. Ignores the user's selected main-query model —
-    extraction only needs to produce simple JSON and should never burn heavy credits
-    or push Groq's TPM over the limit immediately after the main RAG call.
-
-    Priority order: Bedrock Nova Lite > Gemini Flash > Groq 8B-instant > GPT-4o-mini > DeepSeek
+    brain memory extraction tasks. Prioritizes the user's active provider if working,
+    otherwise fast free/cheap tiers (Groq 8B-instant, Gemini Flash, OpenRouter auto, etc.).
     """
-    import os
-    keys = custom_keys or {}
+    keys = {k.lower(): v for k, v in (custom_keys or {}).items() if v and str(v).strip()}
 
-    # 1. Check BYOK custom_keys against brain-priority list
+    # 1. If requested_model's provider has a valid key in custom_keys, prioritize that provider
+    if requested_model:
+        req_norm = normalize_litellm_model_id(requested_model)
+        prov = provider_from_model(req_norm)
+        req_key = keys.get(prov) or (keys.get("google") if prov == "gemini" else None)
+        if req_key:
+            for p_name, aliases, default_model, _ in _BRAIN_EXTRACTION_PRIORITY:
+                if prov == p_name or prov in aliases:
+                    return default_model, req_key
+            return req_norm, req_key
+
+    # 2. Check BYOK custom_keys against brain-priority list
     for _name, aliases, default_model, env_var in _BRAIN_EXTRACTION_PRIORITY:
         for alias in aliases:
             if alias in keys and keys[alias]:
                 return default_model, keys[alias]
 
-    # 2. Fall back to .env keys
+    # 3. Check any other active provider in custom_keys
+    for k, v in keys.items():
+        if v:
+            return f"{k}/auto", v
+
+    # 4. Fall back to .env keys (ignoring malformed keys)
     for _name, _aliases, default_model, env_var in _BRAIN_EXTRACTION_PRIORITY:
         env_key = os.getenv(env_var)
         if env_key:
+            if env_var == "GEMINI_API_KEY" and not env_key.startswith("AIzaSy"):
+                continue
             return default_model, env_key
 
     return "bedrock/us.amazon.nova-lite-v1:0", "iam_role_authenticated"

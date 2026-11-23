@@ -1167,6 +1167,7 @@ return (
         isOpen={isBrainModalOpen}
         onClose={() => setIsBrainModalOpen(false)}
         activeWorkspaceId={activeWorkspaceId}
+        activeSessionId={activeSessionId}
         workspaces={workspaces}
       />
 
