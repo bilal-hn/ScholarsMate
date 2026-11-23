@@ -15,8 +15,8 @@ export default function BrandName({
   mateClassName,
 }) {
   const defaultScholars = serif 
-    ? "font-serif font-bold text-zinc-950 dark:text-zinc-100 tracking-tight"
-    : "font-sans font-bold text-zinc-950 dark:text-zinc-100 tracking-tight";
+    ? "font-serif font-bold text-[var(--theme-text-bold,#ffffff)] tracking-tight"
+    : "font-sans font-bold text-[var(--theme-text-bold,#ffffff)] tracking-tight";
     
   const defaultMate = serif
     ? "font-serif font-bold text-[var(--theme-brand-grey,#8e8e93)] tracking-tight"

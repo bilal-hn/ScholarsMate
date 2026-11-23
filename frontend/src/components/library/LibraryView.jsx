@@ -916,7 +916,7 @@ export default function LibraryView({
           {/* Left Panel Header: Title + Action Icons (Search, Add Folder, Add File) */}
           <div className="h-9 px-2.5 border-b border-zinc-800 flex items-center justify-between gap-1 shrink-0 bg-zinc-950/60">
             <div className="flex items-center gap-1.5 min-w-0">
-              <FolderOpen className="h-3.5 w-3.5 text-blue-400 shrink-0" />
+              <FolderOpen className="h-3.5 w-3.5 text-[var(--theme-accent-primary,#e06c67)] shrink-0" />
               <span className="font-semibold text-xs text-zinc-200 tracking-tight truncate">Collections</span>
             </div>
             <div className="flex items-center gap-0.5">
@@ -928,7 +928,7 @@ export default function LibraryView({
                   if (isFilterCollectionsOpen) setCollectionFilterQuery('');
                 }}
                 className={`p-1 rounded text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors cursor-pointer ${
-                  isFilterCollectionsOpen ? 'bg-zinc-800 text-blue-400' : ''
+                  isFilterCollectionsOpen ? 'bg-zinc-800 text-[var(--theme-accent-primary,#e06c67)]' : ''
                 }`}
                 title="Search / Filter Collections"
               >
@@ -943,7 +943,7 @@ export default function LibraryView({
                   setTimeout(() => newCollectionInputRef.current?.focus(), 50);
                 }}
                 className={`p-1 rounded hover:bg-zinc-800 transition-colors cursor-pointer ${
-                  isCreateCollectionOpen ? 'bg-zinc-800 text-blue-400' : 'text-zinc-400 hover:text-blue-400'
+                  isCreateCollectionOpen ? 'bg-zinc-800 text-[var(--theme-accent-primary,#e06c67)]' : 'text-zinc-400 hover:text-[var(--theme-accent-primary,#e06c67)]'
                 }`}
                 title="New Collection / Workspace"
               >
@@ -992,7 +992,7 @@ export default function LibraryView({
           {/* Inline New Collection Creator */}
           {isCreateCollectionOpen && (
             <form onSubmit={handleCreateCollection} className="px-2 py-1.5 border-b border-zinc-800 bg-zinc-950/90 flex items-center gap-1.5 shrink-0">
-              <Folder className="h-3.5 w-3.5 text-blue-400 shrink-0" />
+              <Folder className="h-3.5 w-3.5 text-[var(--theme-accent-primary,#e06c67)] shrink-0" />
               <input
                 ref={newCollectionInputRef}
                 type="text"
@@ -1011,7 +1011,7 @@ export default function LibraryView({
               <button
                 type="submit"
                 disabled={!newCollectionName.trim() || isCreatingCollection}
-                className="p-1 rounded bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-40 cursor-pointer"
+                className="p-1 rounded bg-[var(--theme-accent-primary,#e06c67)] hover:opacity-90 text-white disabled:opacity-40 cursor-pointer"
                 title="Create Collection (Enter)"
               >
                 <Check className="h-3 w-3" />
@@ -1450,7 +1450,7 @@ export default function LibraryView({
                       className="p-1.5 bg-zinc-800 hover:bg-zinc-750 text-zinc-200 border border-zinc-750 rounded transition-colors cursor-pointer flex items-center justify-center"
                       title={`Add ${selectedIds.size} selected paper(s) to collection / workspace`}
                     >
-                      <FolderPlus className="h-3.5 w-3.5 text-blue-400" />
+                      <FolderPlus className="h-3.5 w-3.5 text-[var(--theme-accent-primary,#e06c67)]" />
                     </button>
 
                     {isAssignWsMenuOpen && (
@@ -1466,10 +1466,10 @@ export default function LibraryView({
                                 key={ws.id}
                                 type="button"
                                 onClick={() => handleAssignSelectedToWorkspace(ws.id)}
-                                className="w-full flex items-center justify-between px-3 py-1.5 text-xs text-zinc-300 hover:bg-blue-600 hover:text-white transition-colors cursor-pointer text-left"
+                                className="w-full flex items-center justify-between px-3 py-1.5 text-xs text-zinc-300 hover:bg-zinc-800 transition-colors cursor-pointer text-left"
                               >
                                 <div className="flex items-center gap-1.5 truncate flex-1 pr-2">
-                                  <Folder className="h-3 w-3 shrink-0 text-blue-400" />
+                                  <Folder className="h-3 w-3 shrink-0 text-[var(--theme-accent-primary,#e06c67)]" />
                                   <span className="truncate">{ws.name}</span>
                                 </div>
                                 <span className="text-[10px] font-mono text-zinc-500 group-hover:text-white shrink-0">

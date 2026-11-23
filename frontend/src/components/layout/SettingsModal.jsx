@@ -6,15 +6,10 @@ import {
   Trash2, 
   Loader2, 
   Sparkles, 
-  Check, 
   AlertCircle, 
-  Sun, 
-  Moon, 
-  Flame,
   SlidersHorizontal 
 } from 'lucide-react';
 import { fetchModelsFromKey, getSavedBYOKConfig, saveBYOKConfig } from '../../services/api';
-import { getSavedTheme, saveTheme } from '../../theme/constants';
 
 const detectProviderName = (key) => {
   const k = key.trim();
@@ -27,6 +22,55 @@ const detectProviderName = (key) => {
   }
   if (k.startsWith('sk-')) return 'openai';
   return 'custom';
+};
+
+const PROVIDER_NAMES = {
+  openai: 'OpenAI API',
+  gemini: 'Gemini API',
+  google: 'Gemini API',
+  groq: 'Groq API',
+  openrouter: 'OpenRouter API',
+  anthropic: 'Anthropic API',
+  routeway: 'Routeway API',
+  deepseek: 'DeepSeek API',
+  mistral: 'Mistral API',
+  cohere: 'Cohere API',
+  bedrock: 'Amazon Bedrock API',
+  amazon: 'Amazon Bedrock API',
+  ollama: 'Ollama API',
+};
+
+const getProviderDisplayName = (item, idx) => {
+  let provider = item.provider;
+  if (!provider || provider === 'custom') {
+    if (item.models && item.models.length > 0) {
+      provider = item.models[0].provider;
+      if (!provider && item.models[0].id) {
+        const idLower = item.models[0].id.toLowerCase();
+        if (idLower.startsWith('gemini/') || idLower.includes('gemini')) provider = 'gemini';
+        else if (idLower.startsWith('groq/') || idLower.includes('groq')) provider = 'groq';
+        else if (idLower.startsWith('openai/') || idLower.includes('gpt-') || idLower.includes('openai')) provider = 'openai';
+        else if (idLower.startsWith('openrouter/')) provider = 'openrouter';
+        else if (idLower.startsWith('anthropic/') || idLower.includes('claude')) provider = 'anthropic';
+        else if (idLower.startsWith('routeway/')) provider = 'routeway';
+        else if (idLower.startsWith('deepseek/') || idLower.includes('deepseek')) provider = 'deepseek';
+      }
+    }
+  }
+  if (!provider || provider === 'custom') {
+    if (item.key) {
+      provider = detectProviderName(item.key);
+    }
+  }
+
+  const p = (provider || '').toLowerCase().trim();
+  if (PROVIDER_NAMES[p]) {
+    return PROVIDER_NAMES[p];
+  }
+  if (p && p !== 'custom') {
+    return `${p.charAt(0).toUpperCase() + p.slice(1)} API`;
+  }
+  return `API Key ${idx + 1}`;
 };
 
 export default function SettingsModal({ 
@@ -43,13 +87,6 @@ export default function SettingsModal({
   const [keyList, setKeyList] = useState([]);
   const [allModels, setAllModels] = useState([]);
   const [activeModel, setActiveModel] = useState('');
-  const [activeTheme, setActiveTheme] = useState(() => propTheme || getSavedTheme());
-
-  useEffect(() => {
-    if (propTheme) {
-      setActiveTheme(propTheme);
-    }
-  }, [propTheme]);
 
   useEffect(() => {
     if (isOpen) {
@@ -72,20 +109,11 @@ export default function SettingsModal({
       setKeyList(storedList);
       setAllModels(cfg.discoveredModels || []);
       setActiveModel(cfg.activeModel || '');
-      setActiveTheme(propTheme || getSavedTheme());
       setError(null);
     }
-  }, [isOpen, propTheme]);
+  }, [isOpen]);
 
   if (!isOpen) return null;
-
-  const handleSelectTheme = (themeId) => {
-    setActiveTheme(themeId);
-    saveTheme(themeId);
-    if (onThemeChange) {
-      onThemeChange(themeId);
-    }
-  };
 
   const handleAddKey = async () => {
     if (!inputKey.trim()) return;
@@ -186,107 +214,15 @@ export default function SettingsModal({
             <div className="h-6 w-6 rounded-md bg-zinc-800 border border-zinc-700 flex items-center justify-center text-zinc-100">
               <SlidersHorizontal className="h-3.5 w-3.5" />
             </div>
-            <h2 className="text-sm font-semibold">Settings &amp; Preferences</h2>
+            <h2 className="text-sm font-semibold">Add &amp; Remove API key</h2>
           </div>
           <button onClick={onClose} className="text-zinc-500 hover:text-zinc-300 cursor-pointer">
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        {/* Section 1: Appearance (Dark, Light & Amber Mode) */}
-        <div className="space-y-2 pb-1">
-          <div className="flex items-center justify-between">
-            <label className="text-[11px] text-zinc-400 font-semibold uppercase tracking-wider">
-              Theme &amp; Appearance
-            </label>
-            <span className="text-[10.5px] font-mono text-[#8e8e93]">
-              {activeTheme === 'clarity' ? 'Daylight Light' : activeTheme === 'amber' ? 'Original Classic' : 'Obsidian Dark'}
-            </span>
-          </div>
-
-          <div className="grid grid-cols-3 gap-2">
-            {/* Dark Mode Card */}
-            <button
-              type="button"
-              onClick={() => handleSelectTheme('original')}
-              className={`flex items-center gap-2 p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
-                activeTheme === 'original' || (!activeTheme || (activeTheme !== 'clarity' && activeTheme !== 'amber'))
-                  ? 'bg-zinc-800/90 border-[#8e8e93] text-white shadow-sm ring-1 ring-[#8e8e93]/50'
-                  : 'bg-zinc-950/60 border-zinc-800 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-850'
-              }`}
-            >
-              <div className={`p-1.5 rounded-lg border shrink-0 ${
-                activeTheme === 'original' || (!activeTheme || (activeTheme !== 'clarity' && activeTheme !== 'amber'))
-                  ? 'bg-zinc-900 border-zinc-700 text-white'
-                  : 'bg-zinc-900 border-zinc-800 text-zinc-500'
-              }`}>
-                <Moon className="h-4 w-4" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-xs font-semibold leading-tight">Dark</div>
-                <div className="text-[10px] text-zinc-500 truncate mt-0.5">Obsidian slate</div>
-              </div>
-              {(activeTheme === 'original' || (!activeTheme || (activeTheme !== 'clarity' && activeTheme !== 'amber'))) && (
-                <Check className="h-3.5 w-3.5 text-zinc-100 shrink-0" />
-              )}
-            </button>
-
-            {/* Light Mode Card */}
-            <button
-              type="button"
-              onClick={() => handleSelectTheme('clarity')}
-              className={`flex items-center gap-2 p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
-                activeTheme === 'clarity'
-                  ? 'bg-zinc-200 border-zinc-400 text-zinc-950 shadow-sm ring-1 ring-zinc-400'
-                  : 'bg-zinc-950/60 border-zinc-800 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-850'
-              }`}
-            >
-              <div className={`p-1.5 rounded-lg border shrink-0 ${
-                activeTheme === 'clarity'
-                  ? 'bg-white border-zinc-300 text-zinc-900'
-                  : 'bg-zinc-900 border-zinc-800 text-zinc-500'
-              }`}>
-                <Sun className="h-4 w-4" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-xs font-semibold leading-tight">Light</div>
-                <div className="text-[10px] text-zinc-500 truncate mt-0.5">Studio daylight</div>
-              </div>
-              {activeTheme === 'clarity' && (
-                <Check className="h-3.5 w-3.5 text-zinc-950 shrink-0" />
-              )}
-            </button>
-
-            {/* Amber Mode Card (Original Classic Theme) */}
-            <button
-              type="button"
-              onClick={() => handleSelectTheme('amber')}
-              className={`flex items-center gap-2 p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
-                activeTheme === 'amber'
-                  ? 'bg-[#e06c67]/15 border-[#e06c67] text-white shadow-sm ring-1 ring-[#e06c67]/50'
-                  : 'bg-zinc-950/60 border-zinc-800 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-850'
-              }`}
-            >
-              <div className={`p-1.5 rounded-lg border shrink-0 ${
-                activeTheme === 'amber'
-                  ? 'bg-[#e06c67]/20 border-[#e06c67]/50 text-[#ea8282]'
-                  : 'bg-zinc-900 border-zinc-800 text-[#e06c67]/60'
-              }`}>
-                <Flame className="h-4 w-4" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-xs font-semibold leading-tight text-white">Amber</div>
-                <div className="text-[10px] text-zinc-400 truncate mt-0.5">Original classic</div>
-              </div>
-              {activeTheme === 'amber' && (
-                <Check className="h-3.5 w-3.5 text-[#ea8282] shrink-0" />
-              )}
-            </button>
-          </div>
-        </div>
-
-        {/* Section 2: LLM API Keys & Discovered Models */}
-        <div className="space-y-2.5 pt-2 border-t border-zinc-800/80">
+        {/* Section: LLM API Keys & Discovered Models */}
+        <div className="space-y-2.5">
           <label className="text-[11px] text-zinc-400 font-semibold uppercase tracking-wider">
             API Keys
           </label>
@@ -351,7 +287,7 @@ export default function SettingsModal({
                   <div key={item.id} className="bg-zinc-950/70 border border-zinc-800/80 rounded-xl p-2.5 flex items-center justify-between">
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-zinc-100">Key {idx + 1}</span>
+                        <span className="text-xs font-bold text-zinc-100">{getProviderDisplayName(item, idx)}</span>
                         <span className="text-[10px] bg-zinc-800 text-zinc-400 border border-zinc-700/80 px-2 py-0.5 rounded-md font-mono">
                           ••••••••{item.key.slice(-4)}
                         </span>

@@ -1162,7 +1162,7 @@ export default function DocumentWriter({
       {/* 1. DOCUMENT WRITER TOP BAR (Clean, uncrowded window header)          */}
       {/* -------------------------------------------------------------------- */}
       <div className="bg-zinc-900 border-b border-zinc-800 px-3.5 py-2 flex items-center justify-between gap-3 select-none shrink-0 z-30">
-        {/* Left: Document label + Save status */}
+        {/* Left: Document label */}
         <div className="flex items-center gap-2.5 min-w-0">
           <div className="flex items-center gap-2 shrink-0">
             <div className="w-5 h-5 rounded-md bg-amber-500/10 border border-amber-500/25 flex items-center justify-center text-amber-400">
@@ -1170,24 +1170,6 @@ export default function DocumentWriter({
             </div>
             <span className="text-xs font-semibold text-zinc-200 tracking-tight">
               Document
-            </span>
-          </div>
-
-          <div className="h-3.5 w-px bg-zinc-800 shrink-0" />
-
-          {/* Auto-save Status */}
-          <div className="flex items-center gap-1.5 text-[11px] text-zinc-400 font-medium select-none shrink-0">
-            <span
-              className={`h-2 w-2 rounded-full ${
-                saveStatus === 'saved'
-                  ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.4)]'
-                  : saveStatus === 'saving'
-                  ? 'bg-amber-400 animate-pulse'
-                  : 'bg-zinc-500'
-              }`}
-            />
-            <span className="hidden sm:inline">
-              {saveStatus === 'saved' ? 'Saved' : saveStatus === 'saving' ? 'Saving...' : 'Unsaved'}
             </span>
           </div>
         </div>

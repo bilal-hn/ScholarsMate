@@ -376,7 +376,7 @@ export default function ProfileSettingsModal({
           </label>
           <div className="grid grid-cols-2 gap-2 text-xs">
             <div className="p-2.5 rounded-xl bg-zinc-950/40 border border-zinc-800/60 flex items-center gap-2">
-              <ShieldCheck className="h-4 w-4 text-emerald-400 shrink-0" />
+              <ShieldCheck className="h-4 w-4 text-[var(--theme-accent-primary,#e06c67)] shrink-0" />
               <div>
                 <div className="text-[10.5px] text-zinc-500">Tier</div>
                 <div className="font-semibold text-zinc-200">Free Scholar</div>
