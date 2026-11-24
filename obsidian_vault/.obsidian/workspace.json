@@ -20,8 +20,23 @@
               "icon": "lucide-file",
               "title": "02_Tech_Stack_Rationale"
             }
+          },
+          {
+            "id": "19f335427c79efd4",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "docker commands.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "docker commands"
+            }
           }
-        ]
+        ],
+        "currentTab": 1
       }
     ],
     "direction": "vertical"
@@ -186,11 +201,13 @@
       "bases:Create new base": false
     }
   },
-  "active": "53955756193a3ea9",
+  "active": "19f335427c79efd4",
   "lastOpenFiles": [
+    "00 - Overview/02_Tech_Stack_Rationale.md",
+    "docker commands.md",
+    "Untitled",
     "00 - Overview/01_System_Architecture_Overview.md",
     "ScholarsMate_Architecture_Map.canvas",
-    "00 - Overview/02_Tech_Stack_Rationale.md",
     "00 - Overview/00_Project_Executive_Summary.md",
     "05 - Advanced Features/52_Assisted_Document_Writer_and_Citation_Drawer.md",
     "07 - Video Walkthrough Script/71_Interactive_Canvas_Presenter_Guide.md"

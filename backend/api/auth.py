@@ -203,10 +203,11 @@ async def get_current_user(
             print(f"[Auth Notice] Google token validation failed ({e}). Falling back to guest identity.")
             # If expired/invalid, seamlessly fall through to guest resolution rather than breaking the workspace request
 
-    # 2. Fall back to Primary Local User or Anonymous Guest Identity
-    # For local usage, resolve to the primary registered user if available so collection and workspaces
-    # remain accessible without requiring re-authentication on every session refresh.
-    if not (x_guest_id and x_guest_id.startswith("test-")):
+    # 2. Fall back to Primary Local User (ONLY if explicitly enabled via SINGLE_USER_MODE=true)
+    # or Anonymous Guest Identity. By default in cloud/multi-user deployments, every visitor without
+    # an active auth token is strictly isolated to their own anonymous guest session.
+    single_user_mode = os.getenv("SINGLE_USER_MODE", "false").lower() in ("true", "1")
+    if single_user_mode and not (x_guest_id and x_guest_id.startswith("test-")):
         primary_user = (await db.execute(
             select(User).where(User.email.isnot(None), User.is_guest == False).order_by(User.created_at.asc())
         )).scalars().first()
