@@ -7,11 +7,13 @@ import subprocess
 from typing import Dict, Any, List, Tuple
 
 # Path to the standalone tectonic executable
+import shutil
+
 TECTONIC_BIN = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", "..", ".venv", "bin", "tectonic")
 )
 if not os.path.exists(TECTONIC_BIN):
-    TECTONIC_BIN = "tectonic"  # Fallback to PATH
+    TECTONIC_BIN = shutil.which("tectonic") or "/usr/local/bin/tectonic"
 
 
 def sanitize_latex_text(text: str) -> str:
@@ -555,7 +557,8 @@ cmmi5 CMMI10 <cmmi10.pfb
             f.write(patched_map + "\n" + extra_entries)
 
         # Execute Tectonic compiler
-        cmd = [TECTONIC_BIN, "main.tex"]
+        actual_bin = TECTONIC_BIN if os.path.exists(TECTONIC_BIN) else (shutil.which("tectonic") or "/usr/local/bin/tectonic")
+        cmd = [actual_bin, "main.tex"]
         run_env = os.environ.copy()
         run_env["FONTCONFIG_FILE"] = fc_conf_path
         try:

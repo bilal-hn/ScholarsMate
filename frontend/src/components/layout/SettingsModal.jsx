@@ -9,7 +9,7 @@ import {
   AlertCircle, 
   SlidersHorizontal 
 } from 'lucide-react';
-import { fetchModelsFromKey, getSavedBYOKConfig, saveBYOKConfig } from '../../services/api';
+import { fetchModelsFromKey, getSavedBYOKConfig, saveBYOKConfig, DEFAULT_SERVER_MODELS } from '../../services/api';
 
 const detectProviderName = (key) => {
   const k = key.trim();
@@ -141,29 +141,33 @@ export default function SettingsModal({
         updatedKeysObj[k.provider] = k.key;
       });
 
-      // Merge models without duplicates by id
+      // Merge custom models without duplicates by id
       const seenIds = new Set();
-      const mergedModels = [];
+      const customModels = [];
       for (const k of updatedKeyList) {
         for (const m of (k.models || [])) {
           if (!seenIds.has(m.id)) {
             seenIds.add(m.id);
-            mergedModels.push(m);
+            customModels.push(m);
           }
         }
       }
 
-      const newActive = activeModel || (mergedModels.length > 0 ? mergedModels[0].id : '');
+      const serverIds = new Set(DEFAULT_SERVER_MODELS.map((m) => m.id));
+      const cleanCustom = customModels.filter((m) => !serverIds.has(m.id) && m.provider !== 'bedrock');
+      const mergedAll = [...DEFAULT_SERVER_MODELS, ...cleanCustom];
+
+      const newActive = activeModel || (mergedAll.length > 0 ? mergedAll[0].id : '');
 
       setKeyList(updatedKeyList);
-      setAllModels(mergedModels);
+      setAllModels(mergedAll);
       setActiveModel(newActive);
 
-      saveBYOKConfig(updatedKeysObj, mergedModels, newActive);
+      saveBYOKConfig(updatedKeysObj, cleanCustom, newActive);
       localStorage.setItem('scholarsmate_byok_key_items', JSON.stringify(updatedKeyList));
 
       setInputKey('');
-      if (onConfigUpdated) onConfigUpdated(mergedModels, newActive);
+      if (onConfigUpdated) onConfigUpdated(mergedAll, newActive);
     } catch (err) {
       const detail = err.response?.data?.detail;
       setError(detail || 'Failed to validate API key and fetch models.');
@@ -181,28 +185,32 @@ export default function SettingsModal({
     });
 
     const seenIds = new Set();
-    const remainingModels = [];
+    const customModels = [];
     for (const k of updatedKeyList) {
       for (const m of (k.models || [])) {
         if (!seenIds.has(m.id)) {
           seenIds.add(m.id);
-          remainingModels.push(m);
+          customModels.push(m);
         }
       }
     }
 
-    const newActive = remainingModels.some((m) => m.id === activeModel)
+    const serverIds = new Set(DEFAULT_SERVER_MODELS.map((m) => m.id));
+    const cleanCustom = customModels.filter((m) => !serverIds.has(m.id) && m.provider !== 'bedrock');
+    const mergedAll = [...DEFAULT_SERVER_MODELS, ...cleanCustom];
+
+    const newActive = mergedAll.some((m) => m.id === activeModel)
       ? activeModel
-      : remainingModels[0]?.id || '';
+      : DEFAULT_SERVER_MODELS[0]?.id || '';
 
     setKeyList(updatedKeyList);
-    setAllModels(remainingModels);
+    setAllModels(mergedAll);
     setActiveModel(newActive);
 
-    saveBYOKConfig(updatedKeysObj, remainingModels, newActive);
+    saveBYOKConfig(updatedKeysObj, cleanCustom, newActive);
     localStorage.setItem('scholarsmate_byok_key_items', JSON.stringify(updatedKeyList));
 
-    if (onConfigUpdated) onConfigUpdated(remainingModels, newActive);
+    if (onConfigUpdated) onConfigUpdated(mergedAll, newActive);
   };
 
   return (

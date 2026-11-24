@@ -23,10 +23,18 @@ ENV PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
-# Install system runtime & build dependencies
+# Install system runtime & build dependencies, fontconfig, and Tectonic LaTeX engine
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     curl \
+    ca-certificates \
+    fontconfig \
+    libfontconfig1 \
+    libharfbuzz0b \
+    libgraphite2-3 \
+    && (curl --proto '=https' --tlsv1.2 -fsSL https://drop-sh.fullyjustified.net | sh -s -- -b /usr/local/bin || \
+        (curl -fsSL https://github.com/tectonic-typesetting/tectonic/releases/download/tectonic%400.17.0/tectonic-0.17.0-x86_64-unknown-linux-musl.tar.gz | tar -xz -C /usr/local/bin/)) \
+    && chmod +x /usr/local/bin/tectonic \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies (use CPU-only PyTorch to avoid 4GB+ of useless Nvidia CUDA packages on EC2)

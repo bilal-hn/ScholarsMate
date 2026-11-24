@@ -111,9 +111,15 @@ export const getSavedBYOKConfig = () => {
     const keys = JSON.parse(localStorage.getItem('scholarsmate_byok_keys') || '{}');
     const customModels = JSON.parse(localStorage.getItem('scholarsmate_discovered_models') || '[]');
 
-    // Merge default server models with user custom BYOK models without duplicates
+    // Merge default server models with user custom BYOK models without duplicates.
+    // Explicitly purge any deprecated or removed Bedrock models that were previously cached in localStorage.
     const serverIds = new Set(DEFAULT_SERVER_MODELS.map((m) => m.id));
-    const uniqueCustom = (customModels || []).filter((m) => !serverIds.has(m.id));
+    const uniqueCustom = (customModels || []).filter(
+      (m) => !serverIds.has(m.id) && m.provider !== 'bedrock'
+    );
+    if (uniqueCustom.length !== (customModels || []).length) {
+      localStorage.setItem('scholarsmate_discovered_models', JSON.stringify(uniqueCustom));
+    }
     const allModels = [...DEFAULT_SERVER_MODELS, ...uniqueCustom];
 
     let activeModel = localStorage.getItem('scholarsmate_active_model') || '';
