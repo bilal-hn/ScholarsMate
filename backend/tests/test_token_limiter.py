@@ -19,7 +19,7 @@ async def test_token_limiter_byok_and_quota():
         assert is_byok_request("openai/gpt-4o", {"openai": "sk-12345"}) is True
         assert is_byok_request("groq/llama-3.3-70b", {"groq": "gsk_test"}) is True
         assert is_byok_request("bedrock/us.amazon.nova-lite-v1:0", {}) is False
-        assert is_byok_request("bedrock/us.meta.llama3-3-70b-instruct-v1:0", None) is False
+        assert is_byok_request("bedrock/us.amazon.nova-2-lite-v1:0", None) is False
 
         # 2. Initial state: user has full quota
         allowed, used, remaining = await check_token_quota(db, test_user, is_byok=False)

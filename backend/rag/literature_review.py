@@ -123,8 +123,8 @@ def _execute_review_call(
         print(f"[Review Stage Warning] Call failed or timed out on '{normalized_model}' after {duration:.1f}s: {e}")
         fallback_candidates = [
             "bedrock/us.deepseek.r1-v1:0",
+            "bedrock/us.amazon.nova-2-lite-v1:0",
             "bedrock/us.amazon.nova-lite-v1:0",
-            "bedrock/us.meta.llama3-3-70b-instruct-v1:0",
             "groq/llama-3.3-70b-versatile",
             "gemini/gemini-2.5-flash",
             "openai/gpt-4o-mini",

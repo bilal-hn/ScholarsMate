@@ -84,21 +84,21 @@ export const fetchModelsFromKey = async (apiKey, provider = 'auto', baseUrl = nu
 export const DEFAULT_SERVER_MODELS = [
   {
     id: 'bedrock/us.amazon.nova-lite-v1:0',
-    name: 'Amazon Nova Lite',
+    name: 'Amazon Nova Lite v1',
     provider: 'bedrock',
-    description: 'Fastest answers & lowest latency',
+    description: 'Fastest answers & lowest latency (General Q&A)',
   },
   {
-    id: 'bedrock/us.meta.llama3-3-70b-instruct-v1:0',
-    name: 'Meta Llama 3.3 70B',
+    id: 'bedrock/us.amazon.nova-2-lite-v1:0',
+    name: 'Amazon Nova 2 Lite',
     provider: 'bedrock',
-    description: 'Standard RAG & Literature Reviews',
+    description: '1M Context & High-Throughput Literature Reviews',
   },
   {
     id: 'bedrock/us.deepseek.r1-v1:0',
     name: 'DeepSeek-R1',
     provider: 'bedrock',
-    description: 'Deep scientific reasoning & critique',
+    description: 'Deep scientific reasoning & peer-review critique',
   },
 ];
 

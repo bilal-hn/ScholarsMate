@@ -1904,7 +1904,7 @@ async def create_literature_review(
             doc_names=request.doc_names,
             research_focus=request.research_focus or "",
             depth=request.depth or "detailed",
-            model_name=request.model_name or "bedrock/us.amazon.nova-lite-v1:0",
+            model_name=request.model_name or "bedrock/us.amazon.nova-2-lite-v1:0",
             custom_keys=request.custom_keys or {},
         )
         if "error" in result and not result.get("content"):

@@ -51,9 +51,9 @@ def _execute_completion_with_fallback(
     provider_fallbacks = {
         "bedrock": [
             model_name,
-            "bedrock/us.deepseek.r1-v1:0",
+            "bedrock/us.amazon.nova-2-lite-v1:0",
             "bedrock/us.amazon.nova-lite-v1:0",
-            "bedrock/us.meta.llama3-3-70b-instruct-v1:0",
+            "bedrock/us.deepseek.r1-v1:0",
             "groq/llama-3.3-70b-versatile",
             "gemini/gemini-2.5-flash",
         ],

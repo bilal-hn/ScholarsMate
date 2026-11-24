@@ -498,10 +498,10 @@ export default function ChatInput({
 
     if (lower.includes('deepseek') || lower.includes('r1')) {
       subtitle = 'Deep scientific reasoning & critique';
+    } else if (lower.includes('nova-2-lite') || lower.includes('nova 2 lite') || lower.includes('nova 2')) {
+      subtitle = '1M Context & High-Throughput Literature Reviews';
     } else if (lower.includes('nova-lite') || lower.includes('nova lite')) {
       subtitle = 'Fastest answers & lowest latency';
-    } else if (lower.includes('llama')) {
-      subtitle = 'Standard RAG & Literature Reviews';
     } else if (lower.includes('deep-research') || lower.includes('deep research') || lower.includes('research')) {
       subtitle = 'Autonomous research agent';
     } else if (lower.includes('gemma') || lower.includes('llama')) {
