@@ -120,6 +120,22 @@ export default function LiteratureReviewModal({
     }
   }, [normalizedDocList]);
 
+  // Handle ESC key to minimize fullscreen or close panel
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        if (isFullscreen && onToggleFullscreen) {
+          onToggleFullscreen();
+        } else if (onClose) {
+          onClose();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, isFullscreen, onToggleFullscreen, onClose]);
+
   if (!isOpen) return null;
 
   const togglePaper = (docName) => {
@@ -212,24 +228,32 @@ export default function LiteratureReviewModal({
   const innerContent = (
     <div className="h-full w-full flex flex-col overflow-hidden bg-zinc-950">
       {/* ── Top Header Bar ── */}
-      <div className={`px-4 py-2.5 border-b border-zinc-800 flex items-center justify-between shrink-0 ${isPanel ? 'bg-zinc-950' : 'bg-zinc-900/60'}`}>
-        <div className="flex items-center gap-2 min-w-0">
+      <div className={`px-3 py-2 border-b border-zinc-800 flex items-center justify-between gap-2 shrink-0 ${isPanel ? 'bg-zinc-950' : 'bg-zinc-900/60'}`}>
+        {/* Left: Icon, Title & Badge */}
+        <div className="flex items-center gap-2 min-w-0 shrink-0 max-w-[150px] sm:max-w-[200px]">
           <BookOpen className="h-4 w-4 text-amber-400 shrink-0" />
-          <span className="text-xs font-semibold text-zinc-100 truncate">
+          <span 
+            className="text-xs font-semibold text-zinc-100 truncate"
+            title={viewMode === 'monograph' ? (monograph.title || 'Literature Review') : 'Literature Review Studio'}
+          >
             {viewMode === 'monograph' ? (monograph.title || 'Literature Review') : 'Literature Review Studio'}
           </span>
           {viewMode === 'monograph' && (
-            <span className="text-[10px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 rounded-full px-2 py-0.5 leading-none shrink-0 font-medium">
-              Ready · {(monograph.doc_names || activePapers).length} papers
+            <span className="hidden xl:inline-block text-[10px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 rounded-full px-1.5 py-0.5 leading-none shrink-0 font-medium">
+              Ready
             </span>
           )}
         </div>
 
-        <div className="flex items-center gap-1.5 shrink-0">
+        {/* Center: Slideable / Scrollable Action Buttons with two-finger keypad swipe */}
+        <div 
+          className="flex-1 min-w-0 overflow-x-auto flex items-center justify-end gap-1.5 py-0.5"
+          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+        >
           {viewMode === 'monograph' && (
             <>
               {/* Segmented display switch: XeTeX PDF Preview vs Web Reader */}
-              <div className="flex items-center bg-zinc-900 border border-zinc-800 rounded-lg p-0.5 text-[11px] mr-1">
+              <div className="flex items-center bg-zinc-900 border border-zinc-800 rounded-lg p-0.5 text-[11px] shrink-0">
                 <button
                   type="button"
                   onClick={() => setDocDisplayMode('pdf')}
@@ -261,7 +285,7 @@ export default function LiteratureReviewModal({
               <button
                 type="button"
                 onClick={handleNewReview}
-                className="flex items-center gap-1 px-2.5 py-1 text-[11px] text-zinc-300 hover:text-white bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-lg transition-colors cursor-pointer"
+                className="flex items-center gap-1 px-2.5 py-1 text-[11px] text-zinc-300 hover:text-white bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-lg transition-colors cursor-pointer shrink-0 whitespace-nowrap"
                 title="Create a new review (reset to parameters)"
               >
                 <Plus className="h-3 w-3 text-amber-400" />
@@ -271,7 +295,7 @@ export default function LiteratureReviewModal({
                 type="button"
                 onClick={handleDownloadPDF}
                 disabled={isExporting}
-                className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-zinc-950 bg-amber-400 hover:bg-amber-300 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+                className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-zinc-950 bg-amber-400 hover:bg-amber-300 rounded-lg transition-colors cursor-pointer disabled:opacity-50 shrink-0 whitespace-nowrap"
                 title="Download publication-grade vector XeTeX PDF (compiled with Tectonic)"
               >
                 {isExporting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
@@ -281,7 +305,7 @@ export default function LiteratureReviewModal({
                 type="button"
                 onClick={handleDownloadZip}
                 disabled={isExportingZip}
-                className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium text-zinc-300 hover:text-white bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+                className="flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium text-zinc-300 hover:text-white bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-lg transition-colors cursor-pointer disabled:opacity-50 shrink-0 whitespace-nowrap"
                 title="Download complete LaTeX Project (.zip) for Overleaf / TeXStudio"
               >
                 {isExportingZip ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileCode className="h-3 w-3 text-emerald-400" />}
@@ -289,13 +313,16 @@ export default function LiteratureReviewModal({
               </button>
             </>
           )}
+        </div>
 
+        {/* Right: Permanent Pinned Controls (Enlarge/Minimize & Cross) */}
+        <div className="flex items-center gap-1 shrink-0 pl-1.5 border-l border-zinc-800/80 bg-inherit z-10">
           {onToggleFullscreen && (
             <button
               type="button"
               onClick={onToggleFullscreen}
-              className="h-7 w-7 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60 flex items-center justify-center transition-colors cursor-pointer"
-              title={isFullscreen ? 'Restore split panel' : 'Expand full screen'}
+              className="h-7 w-7 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/70 flex items-center justify-center transition-colors cursor-pointer shrink-0"
+              title={isFullscreen ? 'Restore split panel (Esc)' : 'Enlarge to fullscreen'}
             >
               {isFullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
             </button>
@@ -304,8 +331,8 @@ export default function LiteratureReviewModal({
           <button
             type="button"
             onClick={onClose}
-            className="h-7 w-7 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60 flex items-center justify-center transition-colors cursor-pointer"
-            title="Close Literature Review"
+            className="h-7 w-7 rounded-lg text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/70 flex items-center justify-center transition-colors cursor-pointer shrink-0"
+            title="Close Literature Review (Esc)"
           >
             <X className="h-4 w-4" />
           </button>

@@ -1090,16 +1090,6 @@ return (
             </div>
           ) : isLitReviewPanelOpen ? (
             <div className="w-1/2 h-full bg-zinc-950 transition-all duration-300 min-w-0 flex flex-col relative">
-              {/* Floating Expand Arrow positioned cleanly over the chat window boundary */}
-              <button
-                type="button"
-                onClick={() => setIsLitReviewFullscreen(true)}
-                className="absolute top-1/2 -translate-y-1/2 -left-4 z-50 p-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700/90 rounded-full shadow-2xl text-zinc-300 hover:text-white transition-all cursor-pointer flex items-center justify-center hover:scale-110"
-                title="Expand to Fullscreen"
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </button>
-
               <LiteratureReviewModal
                 key={`${activeSessionId || 'global-lit-review'}-${activeMonograph ? (activeMonograph.title || 'mono') : 'fresh'}`}
                 isOpen={true}
