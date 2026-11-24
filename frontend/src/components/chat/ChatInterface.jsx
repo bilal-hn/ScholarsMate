@@ -446,7 +446,7 @@ export default function ChatInterface({
         ...prev,
         {
           sender: 'bot',
-          text: `⚠️ Generation failed: ${err.response?.data?.detail || err.message || 'Please check backend connection.'}`,
+          text: `Generation failed: ${err.response?.data?.detail || err.message || 'Please check backend connection.'}`,
           thinking_process: null,
           sources: [],
           model_name: currentModel,
@@ -462,7 +462,7 @@ export default function ChatInterface({
   const handleExportTranscript = () => {
     if (!messages || messages.length === 0) return;
     const mdContent = messages.map((m) => {
-      const header = m.sender === 'user' ? '### 👤 User' : '### 🤖 ScholarsMate';
+      const header = m.sender === 'user' ? '### User' : '### ScholarsMate';
       return `${header}\n\n${m.text}\n\n---\n`;
     }).join('\n');
 

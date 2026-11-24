@@ -1111,37 +1111,96 @@ export default function ChatInput({
             </div>
           </div>
 
-          {/* Right Controls: 2-Mode Switcher, Model Pill, Submit */}
+          {/* Right Controls: Assistant Mode Dropdown, Model Pill, Submit */}
           <div className="flex items-center gap-2">
-            {/* 2-Mode Research Switcher: Paper Assistant (Strict RAG) vs General Assistant (Hybrid RAG) */}
-            <div className="flex items-center bg-zinc-950/80 p-0.5 rounded-lg border border-zinc-800 text-[11px] select-none">
+            {/* Assistant Mode Dropdown (Paper Assistant vs General Assistant) */}
+            <div className="relative" ref={lensDropdownRef}>
               <button
                 type="button"
-                onClick={() => onModeChange && onModeChange('assistant')}
-                className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-md transition-all cursor-pointer text-[11px] ${
-                  currentMode === 'assistant' || !currentMode || currentMode === 'research'
-                    ? 'bg-zinc-800 text-zinc-100 shadow-sm border border-zinc-750 font-semibold'
-                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/60 border border-transparent'
-                }`}
-                title="Paper Assistant: Strict document RAG, 100% grounded in your uploaded materials with exact citations."
+                onClick={() => setIsLensDropdownOpen((prev) => !prev)}
+                className="flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-medium text-zinc-300 hover:text-zinc-100 bg-zinc-800/80 hover:bg-zinc-750 border border-zinc-700/60 transition-all cursor-pointer select-none"
+                title={`Active Assistant: ${currentMode === 'general' || currentMode === 'teacher' ? 'General Assistant' : 'Paper Assistant'}`}
               >
-                <FileText className="h-3 w-3 text-blue-400 shrink-0" />
-                <span>Paper Assistant</span>
+                {currentMode === 'general' || currentMode === 'teacher' ? (
+                  <Sparkles className="h-3 w-3 text-purple-400 shrink-0" />
+                ) : (
+                  <FileText className="h-3 w-3 text-blue-400 shrink-0" />
+                )}
+                <span className="truncate max-w-[125px] text-[11px]">
+                  {currentMode === 'general' || currentMode === 'teacher' ? 'General Assistant' : 'Paper Assistant'}
+                </span>
+                <ChevronDown className={`h-2.5 w-2.5 text-zinc-500 transition-transform duration-150 ${isLensDropdownOpen ? 'rotate-180 text-zinc-200' : ''}`} />
               </button>
 
-              <button
-                type="button"
-                onClick={() => onModeChange && onModeChange('general')}
-                className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-md transition-all cursor-pointer text-[11px] ${
-                  currentMode === 'general' || currentMode === 'teacher'
-                    ? 'bg-zinc-800 text-zinc-100 shadow-sm border border-zinc-750 font-semibold'
-                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/60 border border-transparent'
-                }`}
-                title="General Assistant: Hybrid RAG. Grounds on your documents but freely draws on broader knowledge to explain background theory, write code, and answer out-of-scope topics."
-              >
-                <Sparkles className="h-3 w-3 text-purple-400 shrink-0" />
-                <span>General Assistant</span>
-              </button>
+              {/* Assistant Mode Dropdown Popover */}
+              {isLensDropdownOpen && (
+                <div className="absolute bottom-full right-0 mb-2.5 w-64 bg-zinc-900/98 border border-zinc-800 rounded-xl p-2 shadow-2xl backdrop-blur-xl z-50 animate-in fade-in zoom-in-95 duration-150 text-zinc-200">
+                  <div className="text-[10px] font-semibold text-zinc-500 uppercase px-2 py-1 tracking-wider border-b border-zinc-800 mb-1.5 flex items-center justify-between">
+                    <span>Assistant Mode</span>
+                    <span className="text-[9px] text-zinc-600 font-normal">2 modes</span>
+                  </div>
+
+                  <div className="space-y-1">
+                    {/* Option 1: Paper Assistant */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (onModeChange) onModeChange('assistant');
+                        setIsLensDropdownOpen(false);
+                      }}
+                      className={`w-full flex items-start gap-2.5 px-2.5 py-2 rounded-lg text-left transition-all cursor-pointer ${
+                        currentMode === 'assistant' || !currentMode || currentMode === 'research'
+                          ? 'bg-zinc-800 border border-zinc-700 text-zinc-100'
+                          : 'hover:bg-zinc-800/50 text-zinc-300 border border-transparent'
+                      }`}
+                    >
+                      <div className="p-1 rounded-md bg-blue-500/10 text-blue-400 shrink-0 mt-0.5">
+                        <FileText className="h-3.5 w-3.5" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-medium">Paper Assistant</span>
+                          {(currentMode === 'assistant' || !currentMode || currentMode === 'research') && (
+                            <Check className="h-3.5 w-3.5 text-blue-400 shrink-0" />
+                          )}
+                        </div>
+                        <div className="text-[10.5px] text-zinc-400 mt-0.5 leading-snug">
+                          Strict document RAG: 100% grounded in your uploaded materials with exact citations.
+                        </div>
+                      </div>
+                    </button>
+
+                    {/* Option 2: General Assistant */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (onModeChange) onModeChange('general');
+                        setIsLensDropdownOpen(false);
+                      }}
+                      className={`w-full flex items-start gap-2.5 px-2.5 py-2 rounded-lg text-left transition-all cursor-pointer ${
+                        currentMode === 'general' || currentMode === 'teacher'
+                          ? 'bg-zinc-800 border border-zinc-700 text-zinc-100'
+                          : 'hover:bg-zinc-800/50 text-zinc-300 border border-transparent'
+                      }`}
+                    >
+                      <div className="p-1 rounded-md bg-purple-500/10 text-purple-400 shrink-0 mt-0.5">
+                        <Sparkles className="h-3.5 w-3.5" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-medium">General Assistant</span>
+                          {(currentMode === 'general' || currentMode === 'teacher') && (
+                            <Check className="h-3.5 w-3.5 text-purple-400 shrink-0" />
+                          )}
+                        </div>
+                        <div className="text-[10.5px] text-zinc-400 mt-0.5 leading-snug">
+                          Hybrid RAG: Relates your documents to broader theory, background, & general knowledge.
+                        </div>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Model Selector Pill */}

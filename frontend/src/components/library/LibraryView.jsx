@@ -867,9 +867,6 @@ export default function LibraryView({
           >
             <BookMarked className="h-3.5 w-3.5 text-zinc-300" />
             <span>My Library</span>
-            <span className="text-[10px] font-mono text-zinc-400 bg-zinc-950 px-1 py-0.2 rounded">
-              {items.length}
-            </span>
           </button>
 
           {/* Open Paper Reading Tabs */}
@@ -1048,9 +1045,6 @@ export default function LibraryView({
               >
                 <Folder className={`h-3.5 w-3.5 shrink-0 ${!activeTag && !activeWorkspaceFilter ? 'text-zinc-100' : 'text-zinc-400'}`} />
                 <span className="truncate flex-1 text-left">My Library</span>
-                <span className={`text-[10px] font-mono ${!activeTag && !activeWorkspaceFilter ? 'text-zinc-300' : 'text-zinc-500'}`}>
-                  {items.length}
-                </span>
               </button>
             </div>
 
@@ -1063,7 +1057,7 @@ export default function LibraryView({
 
                 return (
                   <div key={ws.id} className="select-none">
-                    {/* Workspace Row: Arrow Chevron + Folder + Name + Count */}
+                    {/* Workspace Row: Arrow Chevron + Folder + Name */}
                     <div
                       onClick={() => {
                         setActiveWorkspaceFilter(isSelected ? null : ws.id);
@@ -1093,9 +1087,6 @@ export default function LibraryView({
 
                       <Folder className={`h-3.5 w-3.5 shrink-0 ${isSelected ? 'text-zinc-100' : 'text-zinc-400'}`} />
                       <span className="truncate flex-1 text-left">{ws.name}</span>
-                      <span className={`text-[10px] font-mono ${isSelected ? 'text-zinc-300' : 'text-zinc-500'}`}>
-                        {wsPapers.length}
-                      </span>
                     </div>
 
                     {/* Expanded Papers Inside This Workspace */}
@@ -1161,17 +1152,6 @@ export default function LibraryView({
               >
                 <Copy className={`h-3.5 w-3.5 shrink-0 ${activeWorkspaceFilter === '__duplicates__' ? 'text-zinc-100' : 'text-zinc-400'}`} />
                 <span className="truncate flex-1 text-left">Duplicate Items</span>
-                {duplicateData.total_groups > 0 && (
-                  <span
-                    className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full font-semibold ${
-                      activeWorkspaceFilter === '__duplicates__'
-                        ? 'bg-zinc-700 text-zinc-200'
-                        : 'bg-zinc-800 text-zinc-300 border border-zinc-700'
-                    }`}
-                  >
-                    {duplicateData.total_groups}
-                  </span>
-                )}
               </button>
 
               {/* Unfiled Items */}
@@ -1192,9 +1172,6 @@ export default function LibraryView({
               >
                 <Inbox className="h-3.5 w-3.5 shrink-0 text-zinc-500" />
                 <span className="truncate flex-1 text-left">Unfiled Items</span>
-                <span className={`text-[10px] font-mono ${activeWorkspaceFilter === '__unfiled__' ? 'text-zinc-300' : 'text-zinc-500'}`}>
-                  {items.filter((i) => !i.workspaces || i.workspaces.length === 0).length}
-                </span>
               </button>
             </div>
           </div>

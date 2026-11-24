@@ -195,7 +195,7 @@ export default function LibraryCitationDrawer({
                 : 'text-zinc-400 hover:text-zinc-200'
             }`}
           >
-            All Papers ({items.length})
+            All Papers
           </button>
           {workspaceDocs.length > 0 && (
             <button
@@ -207,7 +207,7 @@ export default function LibraryCitationDrawer({
                   : 'text-zinc-400 hover:text-zinc-200'
               }`}
             >
-              Current Workspace ({workspaceDocs.length})
+              Current Workspace
             </button>
           )}
         </div>

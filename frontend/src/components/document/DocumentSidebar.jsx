@@ -495,7 +495,7 @@ export default function DocumentSidebar({
               >
                 <FolderKanban className="h-4.5 w-4.5" />
                 <span className="pointer-events-none absolute left-full top-1/2 -translate-y-1/2 ml-3 px-2.5 py-1.5 bg-zinc-900 border border-zinc-700/80 text-zinc-100 text-[12.5px] font-medium rounded-lg shadow-2xl whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50">
-                  Workspaces ({workspaces.length})
+                  Workspaces
                 </span>
               </button>
 
@@ -516,7 +516,7 @@ export default function DocumentSidebar({
                 >
                   <History className="h-4.5 w-4.5" />
                   <span className="pointer-events-none absolute left-full top-1/2 -translate-y-1/2 ml-3 px-2.5 py-1.5 bg-zinc-900 border border-zinc-700/80 text-zinc-100 text-[12.5px] font-medium rounded-lg shadow-2xl whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50">
-                    Chat History ({allChats.length})
+                    Chat History
                   </span>
                 </button>
               )}
@@ -589,9 +589,6 @@ export default function DocumentSidebar({
                 <FolderKanban className={`h-3 w-3 ${sidebarView === 'workspaces' ? 'text-zinc-200' : 'text-zinc-500 group-hover:text-zinc-200'} transition-colors`} />
                 <span>Workspaces</span>
               </div>
-              <span className="text-[10px] font-mono font-normal text-zinc-400 bg-zinc-800/80 px-1.5 py-0.2 rounded-full">
-                {workspaces.length}
-              </span>
             </button>
 
             {/* Global Search Modal Navigation Item */}
@@ -668,14 +665,9 @@ export default function DocumentSidebar({
             {sidebarView === 'chats' ? (
               /* VIEW 1: CHAT HISTORY (DEFAULT) */
               <div className="space-y-1.5">
-                <div className="flex items-center justify-between px-2 py-1 text-[10.5px] font-semibold tracking-wider text-zinc-500 uppercase">
-                  <div className="flex items-center gap-1.5">
-                    <History className="h-3 w-3 text-zinc-400" />
-                    <span>Chat History</span>
-                  </div>
-                  <span className="text-[9.5px] font-mono text-zinc-400 bg-zinc-800/70 px-1.5 py-0.2 rounded-full">
-                    {allChats.length}
-                  </span>
+                <div className="flex items-center gap-1.5 px-2 py-1 text-[10.5px] font-semibold tracking-wider text-zinc-500 uppercase">
+                  <History className="h-3 w-3 text-zinc-400" />
+                  <span>Chat History</span>
                 </div>
 
                 {allChats.length === 0 ? (
@@ -797,11 +789,8 @@ export default function DocumentSidebar({
                   )}
                 </div>
 
-                <div className="px-1 text-[10.5px] font-semibold tracking-wider text-zinc-500 uppercase flex items-center justify-between">
+                <div className="px-1 text-[10.5px] font-semibold tracking-wider text-zinc-500 uppercase">
                   <span>All Workspaces</span>
-                  <span className="text-[9.5px] font-mono text-zinc-400 bg-zinc-800/70 px-1.5 py-0.2 rounded-full">
-                    {workspaces.length}
-                  </span>
                 </div>
 
                 {workspaces.length === 0 ? (
