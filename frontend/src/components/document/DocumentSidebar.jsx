@@ -5,6 +5,8 @@ import {
   Trash2, 
   BookOpen, 
   PenTool, 
+  FileText,
+  PanelRight,
   PanelLeftClose, 
   PanelLeftOpen, 
   SquarePen, 
@@ -50,6 +52,8 @@ export default function DocumentSidebar({
   onOpenBrainModal,
   onToggleWriter,
   isWriterActive = false,
+  onToggleLibraryPanel,
+  isLibraryPanelActive = false,
   onToggleLibrary,
   isLibraryActive = false,
   currentRoute = 'chat',
@@ -451,11 +455,47 @@ export default function DocumentSidebar({
                       ? 'bg-zinc-800 text-zinc-100 border border-zinc-700'
                       : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/70'
                   }`}
-                  aria-label="Academic Writer"
+                  aria-label="Writer Panel"
+                  aria-pressed={!!isWriterActive}
                 >
                   <PenTool className="h-4.5 w-4.5" />
                   <span className="pointer-events-none absolute left-full top-1/2 -translate-y-1/2 ml-3 px-2.5 py-1.5 bg-zinc-900 border border-zinc-700/80 text-zinc-100 text-[12.5px] font-medium rounded-lg shadow-2xl whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50">
-                    Academic Writer
+                    Writer Panel
+                  </span>
+                </button>
+              )}
+
+              {/* Standalone Document Writer (/writer) */}
+              {onNavigate && (
+                <button
+                  type="button"
+                  onClick={() => onNavigate('writer')}
+                  className="relative group p-2.5 rounded-xl transition-all cursor-pointer flex items-center justify-center text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/70"
+                  aria-label="Document Writer"
+                >
+                  <FileText className="h-4.5 w-4.5" />
+                  <span className="pointer-events-none absolute left-full top-1/2 -translate-y-1/2 ml-3 px-2.5 py-1.5 bg-zinc-900 border border-zinc-700/80 text-zinc-100 text-[12.5px] font-medium rounded-lg shadow-2xl whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50">
+                    Document Writer
+                  </span>
+                </button>
+              )}
+
+              {/* Library side panel next to the chat */}
+              {onToggleLibraryPanel && (
+                <button
+                  type="button"
+                  onClick={onToggleLibraryPanel}
+                  className={`relative group p-2.5 rounded-xl transition-all cursor-pointer flex items-center justify-center ${
+                    isLibraryPanelActive
+                      ? 'bg-zinc-800 text-zinc-100 border border-zinc-700'
+                      : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/70'
+                  }`}
+                  aria-label="Library Panel"
+                  aria-pressed={isLibraryPanelActive}
+                >
+                  <PanelRight className="h-4.5 w-4.5" />
+                  <span className="pointer-events-none absolute left-full top-1/2 -translate-y-1/2 ml-3 px-2.5 py-1.5 bg-zinc-900 border border-zinc-700/80 text-zinc-100 text-[12.5px] font-medium rounded-lg shadow-2xl whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150 z-50">
+                    Library Panel
                   </span>
                 </button>
               )}
@@ -632,6 +672,7 @@ export default function DocumentSidebar({
               <button
                 type="button"
                 onClick={onToggleWriter}
+                aria-pressed={!!isWriterActive}
                 className={`w-full flex items-center gap-2 px-2.5 py-1 rounded-md text-xs transition-colors cursor-pointer group text-left ${
                   isWriterActive
                     ? 'bg-zinc-800 text-zinc-100 font-medium border border-zinc-700'
@@ -639,7 +680,38 @@ export default function DocumentSidebar({
                 }`}
               >
                 <PenTool className={`h-3 w-3 ${isWriterActive ? 'text-zinc-200' : 'text-zinc-500 group-hover:text-zinc-200'} transition-colors`} />
-                <span>Academic Writer</span>
+                <span>Writer Panel</span>
+              </button>
+            )}
+
+            {/* Standalone Document Writer (/writer) Navigation Item */}
+            {onNavigate && (
+              <button
+                type="button"
+                onClick={() => onNavigate('writer')}
+                className="w-full flex items-center gap-2 px-2.5 py-1 rounded-md text-xs transition-colors cursor-pointer group text-left text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/40"
+                aria-label="Document Writer"
+              >
+                <FileText className="h-3 w-3 text-zinc-500 group-hover:text-zinc-200 transition-colors" />
+                <span>Document Writer</span>
+              </button>
+            )}
+
+            {/* Library side panel Navigation Item */}
+            {onToggleLibraryPanel && (
+              <button
+                type="button"
+                onClick={onToggleLibraryPanel}
+                aria-pressed={isLibraryPanelActive}
+                aria-label="Library Panel"
+                className={`w-full flex items-center gap-2 px-2.5 py-1 rounded-md text-xs transition-colors cursor-pointer group text-left ${
+                  isLibraryPanelActive
+                    ? 'bg-zinc-800 text-zinc-100 font-medium border border-zinc-700'
+                    : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/40'
+                }`}
+              >
+                <PanelRight className={`h-3 w-3 ${isLibraryPanelActive ? 'text-zinc-200' : 'text-zinc-500 group-hover:text-zinc-200'} transition-colors`} />
+                <span>Library Panel</span>
               </button>
             )}
 

@@ -43,6 +43,16 @@ class User(Base):
         back_populates="user",
         cascade="all, delete-orphan"
     )
+    writer_documents: Mapped[List["WriterDocument"]] = relationship(
+        "WriterDocument",
+        back_populates="user",
+        cascade="all, delete-orphan"
+    )
+    folders: Mapped[List["Folder"]] = relationship(
+        "Folder",
+        back_populates="user",
+        cascade="all, delete-orphan"
+    )
 
 
 class Workspace(Base):
@@ -185,3 +195,39 @@ class DailyTokenUsage(Base):
     usage_date: Mapped[str] = mapped_column(String, index=True)        # "YYYY-MM-DD"
     tokens_used: Mapped[int] = mapped_column(Integer, default=0)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class WriterDocument(Base):
+    """Standalone writer document, independent of any chat session."""
+    __tablename__ = "writer_documents"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=generate_uuid)
+    user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"), index=True)
+    title: Mapped[str] = mapped_column(String(200), default="Untitled Document")
+    content_html: Mapped[str] = mapped_column(Text, default="")
+    citations_data: Mapped[Optional[list]] = mapped_column(JSON, default=list, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    user: Mapped["User"] = relationship("User", back_populates="writer_documents")
+
+
+class Folder(Base):
+    """Library folder. Nested via parent_id; membership lives in folder_items."""
+    __tablename__ = "folders"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=generate_uuid)
+    user_id: Mapped[str] = mapped_column(String, ForeignKey("users.id"), index=True)
+    name: Mapped[str] = mapped_column(String(120))
+    parent_id: Mapped[Optional[str]] = mapped_column(String, ForeignKey("folders.id"), nullable=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    user: Mapped["User"] = relationship("User", back_populates="folders")
+
+
+class FolderItem(Base):
+    """Membership of a library document in a folder."""
+    __tablename__ = "folder_items"
+
+    folder_id: Mapped[str] = mapped_column(String, ForeignKey("folders.id"), primary_key=True)
+    document_id: Mapped[str] = mapped_column(String, ForeignKey("user_documents.id"), primary_key=True, index=True)

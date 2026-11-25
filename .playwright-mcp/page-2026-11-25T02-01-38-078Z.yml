@@ -1,0 +1,95 @@
+- generic [ref=f19e4]:
+  - generic [ref=f19e5]:
+    - generic [ref=f19e6]:
+      - button "Scholars Mate" [ref=f19e7] [cursor=pointer]:
+        - generic [ref=f19e13]:
+          - generic [ref=f19e14]: Scholars
+          - generic [ref=f19e15]: Mate
+      - button "Your Chats" [ref=f19e16] [cursor=pointer]
+    - button "My Library" [ref=f19e21] [cursor=pointer]
+  - generic [ref=f19e26]:
+    - generic [ref=f19e27]:
+      - generic [ref=f19e28]:
+        - generic [ref=f19e29]: Library
+        - generic [ref=f19e33]:
+          - button "Filter workspaces" [ref=f19e34] [cursor=pointer]
+          - button "Add / Upload PDF Document" [ref=f19e38] [cursor=pointer]
+      - generic [ref=f19e42]:
+        - button "My Library" [ref=f19e44] [cursor=pointer]
+        - group "Smart collections" [ref=f19e48]:
+          - button "Unfiled" [ref=f19e50] [cursor=pointer]
+          - button "Recent" [ref=f19e55] [cursor=pointer]
+          - button "Has PDF" [ref=f19e60] [cursor=pointer]
+          - button "Duplicates" [ref=f19e64] [cursor=pointer]
+        - generic [ref=f19e70]:
+          - generic [ref=f19e71]:
+            - generic [ref=f19e72]: Folders
+            - button "New folder" [ref=f19e73] [cursor=pointer]
+          - tree "Folders"
+          - paragraph [ref=f19e76]: No folders yet. Use + to create one.
+        - generic [ref=f19e77]:
+          - generic [ref=f19e78]:
+            - generic [ref=f19e79]: Workspaces
+            - button "New workspace" [ref=f19e80] [cursor=pointer]
+          - paragraph [ref=f19e82]: No workspaces yet.
+      - generic [ref=f19e83]:
+        - textbox "Filter Tags..." [ref=f19e87]
+        - generic [ref=f19e88]:
+          - button "#arXiv" [ref=f19e154] [cursor=pointer]
+          - button "#cs.CL" [ref=f19e159] [cursor=pointer]
+    - generic [ref=f19e90]:
+      - banner [ref=f19e91]:
+        - generic [ref=f19e92]:
+          - generic [ref=f19e93]:
+            - button "New Item (Book, Journal Article, Conference Paper, Upload PDF)" [active] [ref=f19e94] [cursor=pointer]
+            - generic [ref=f19e213]:
+              - generic [ref=f19e214]: New Blank Item
+              - button "Book" [ref=f19e215] [cursor=pointer]
+              - button "Journal Article" [ref=f19e219] [cursor=pointer]
+              - button "Conference Paper" [ref=f19e224] [cursor=pointer]
+              - button "Preprint / Working Paper" [ref=f19e230] [cursor=pointer]
+              - button "Book Section / Chapter" [ref=f19e237] [cursor=pointer]
+              - button "Thesis / Dissertation" [ref=f19e241] [cursor=pointer]
+              - button "Report" [ref=f19e246] [cursor=pointer]
+              - button "Store Copy of File (PDF)..." [ref=f19e252] [cursor=pointer]
+          - button "Add Item by Identifier (DOI, arXiv ID, ISBN, PMID)" [ref=f19e100] [cursor=pointer]
+          - button "Import References from BibTeX (.bib) or RIS (.ris)" [ref=f19e104] [cursor=pointer]
+          - button "Export References to BibTeX (.bib)" [ref=f19e109] [cursor=pointer]
+          - button "Refresh Library" [ref=f19e113] [cursor=pointer]
+          - button "Select papers" [ref=f19e119] [cursor=pointer]:
+            - generic [ref=f19e123]: Select
+        - textbox "Search library..." [ref=f19e125]
+      - table [ref=f19e164]:
+        - rowgroup [ref=f19e165]:
+          - row [ref=f19e166]:
+            - columnheader [ref=f19e167]
+            - columnheader [ref=f19e168]
+            - columnheader "Title" [ref=f19e169] [cursor=pointer]
+            - columnheader "Creator" [ref=f19e174] [cursor=pointer]
+            - columnheader "Year" [ref=f19e177] [cursor=pointer]
+            - columnheader "Has PDF Attachment" [ref=f19e180]
+            - columnheader "Actions" [ref=f19e183]
+        - rowgroup [ref=f19e185]:
+          - row [ref=f19e186] [cursor=pointer]:
+            - cell [ref=f19e187]:
+              - button [ref=f19e188]
+            - cell [ref=f19e191]:
+              - img "Preprint (arXiv)" [ref=f19e192]
+            - cell "Attention Is All You Need arXiv" [ref=f19e197]:
+              - generic [ref=f19e198]:
+                - generic "Attention Is All You Need" [ref=f19e199]
+                - 'generic "arXiv: 1706.03762" [ref=f19e200]': arXiv
+            - cell "Ashish Vaswani; Noam Shazeer; Niki Parmar; Jakob Uszkoreit; Llion Jones; Aidan N. Gomez; Lukasz Kaiser; Illia Polosukhin" [ref=f19e201]
+            - cell "2017" [ref=f19e202]
+            - cell [ref=f19e203]:
+              - 'img "Full Text PDF: Vaswani_2017_Attention_Is_All_You_Need.pdf" [ref=f19e204]'
+            - cell [ref=f19e207]:
+              - button "Actions for Attention Is All You Need" [ref=f19e208]
+    - complementary [ref=f19e134]:
+      - generic [ref=f19e135]:
+        - heading "No Item Selected" [level=4] [ref=f19e139]
+        - paragraph [ref=f19e140]: Select an item from the library to view bibliographic metadata, abstract, notes, and attached PDF documents.
+        - generic [ref=f19e141]:
+          - generic [ref=f19e142]: Double-click an item to open it in a reader tab
+          - generic [ref=f19e145]: Single-click to inspect bibliographic fields
+          - generic [ref=f19e148]: Import references via arXiv / DOI with wand

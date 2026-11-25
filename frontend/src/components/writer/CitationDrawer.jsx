@@ -1,50 +1,30 @@
-import React from 'react';
-import { X, BookmarkPlus, FileText, Check, Sparkles, ExternalLink, Loader2 } from 'lucide-react';
+import { FileText, Check, ExternalLink } from 'lucide-react';
 import ChessPieceLoader from '../common/ChessPieceLoader';
 
 /**
- * Slide-over drawer displaying vector similarity citation candidates for a highlighted claim.
+ * The "AI match" tab of CiteDrawer: vector-similarity candidates for the highlighted claim.
  */
 export default function CitationDrawer({
-  isOpen,
-  onClose,
   query,
   candidates,
   isLoading,
   onInsertCitation,
   onOpenPdfViewer,
 }) {
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-y-0 right-0 w-96 bg-zinc-950/98 border-l border-zinc-800 shadow-2xl backdrop-blur-2xl z-50 flex flex-col animate-in slide-in-from-right duration-200">
-      {/* 1. Header */}
-      <div className="p-4 border-b border-zinc-800 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="p-1.5 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-400">
-            <BookmarkPlus className="h-4 w-4" />
-          </div>
-          <div>
-            <h3 className="text-sm font-semibold text-zinc-100">Semantic Citations</h3>
-            <p className="text-[11px] text-zinc-400">Ground statements with workspace papers</p>
-          </div>
-        </div>
-        <button
-          onClick={onClose}
-          className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60 transition-colors cursor-pointer"
-        >
-          <X className="h-4 w-4" />
-        </button>
-      </div>
-
+    <div className="flex-1 min-h-0 flex flex-col">
       {/* 2. Highlighted Statement Banner */}
       <div className="p-3 bg-zinc-900/60 border-b border-zinc-800/80">
         <div className="text-[11px] font-mono text-zinc-400 uppercase tracking-wider mb-1 flex items-center gap-1">
           <span>Claim Selection:</span>
         </div>
-        <p className="text-xs text-zinc-200 italic line-clamp-3 bg-zinc-950/70 p-2 rounded-lg border border-zinc-800">
-          "{query}"
-        </p>
+        {query ? (
+          <p className="text-xs text-zinc-200 italic line-clamp-3 bg-zinc-950/70 p-2 rounded-lg border border-zinc-800">
+            "{query}"
+          </p>
+        ) : (
+          <p className="text-xs text-zinc-400">Select a sentence in the document, then open this tab to find matching passages.</p>
+        )}
       </div>
 
       {/* 3. Candidate List Area */}
@@ -56,8 +36,16 @@ export default function CitationDrawer({
           </div>
         ) : candidates && candidates.length > 0 ? (
           candidates.map((candidate, idx) => {
-            const matchPercentage = Math.round((candidate.similarity_score || 0.8) * 100);
-            const isHighConfidence = matchPercentage >= 75;
+            // A missing score shows a dash; it is never guessed.
+            const hasScore = typeof candidate.similarity_score === 'number';
+            const matchPercentage = hasScore ? Math.round(candidate.similarity_score * 100) : null;
+            const badgeTone = !hasScore
+              ? 'bg-zinc-800 text-zinc-400 border border-zinc-700'
+              : matchPercentage >= 75
+                ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
+                : matchPercentage >= 50
+                  ? 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                  : 'bg-zinc-800 text-zinc-400 border border-zinc-700';
 
             return (
               <div
@@ -91,13 +79,10 @@ export default function CitationDrawer({
                   </div>
 
                   <span
-                    className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-medium shrink-0 ${
-                      isHighConfidence
-                        ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
-                        : 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
-                    }`}
+                    className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-medium shrink-0 ${badgeTone}`}
+                    aria-label={hasScore ? `Match ${matchPercentage} percent` : 'No match score'}
                   >
-                    {matchPercentage}%
+                    {hasScore ? `${matchPercentage}%` : '—'}
                   </span>
                 </div>
 

@@ -1,0 +1,16 @@
+[     184ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=e7cf141b:14336
+[   30077ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:8000/api/query:1
+[   30084ms] [ERROR] Query execution failed: {detail: Query generation failed: All model fallbacks faile…lid Authentication - Unable to locate credentials} @ http://localhost:5173/@vite/client:525
+[   55071ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:8000/api/query:1
+[   55073ms] [ERROR] Query execution failed: {detail: Query generation failed: All model fallbacks faile…lid Authentication - Unable to locate credentials} @ http://localhost:5173/@vite/client:525
+[   63666ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=e7cf141b:14336
+[   84728ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:8000/api/query:1
+[   84732ms] [ERROR] Query execution failed: {detail: Query generation failed: All model fallbacks faile…lid Authentication - Unable to locate credentials} @ http://localhost:5173/@vite/client:525
+[   86526ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=e7cf141b:14336
+[  103691ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:8000/api/query:1
+[  103692ms] [ERROR] Query execution failed: {detail: Query generation failed: All model fallbacks faile…lid Authentication - Unable to locate credentials} @ http://localhost:5173/@vite/client:525
+[  118144ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=e7cf141b:14336
+[  149093ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:8000/api/query:1
+[  149109ms] [ERROR] Query execution failed: {detail: Query generation failed: All model fallbacks faile…lid Authentication - Unable to locate credentials} @ http://localhost:5173/@vite/client:525
+[  559089ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://localhost:5173/src/App.jsx?t=1795554337893:1
+[  559098ms] [ERROR] [vite] Failed to reload /src/App.jsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:525

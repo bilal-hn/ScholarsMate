@@ -834,6 +834,7 @@ export const extractImageDataAPI = async (file) => {
  * @param {string|null} [customPromptDirective=null] - Optional custom prompt directive.
  * @param {Array<Object>|null} [attachedImages=null] - List of attached images with extracted data.
  * @param {string|null} [workspaceId=null] - Optional Workspace ID for scoping brain memories and documents.
+ * @param {{signal?: AbortSignal, regenerateId?: string}} [options={}] - signal aborts the request (Stop); regenerateId regenerates the last bot message in place.
  */
 export const sendQuery = async (
   query,
@@ -845,7 +846,8 @@ export const sendQuery = async (
   mode = 'research',
   customPromptDirective = null,
   attachedImages = null,
-  workspaceId = null
+  workspaceId = null,
+  options = {}
 ) => {
   const formattedHistory = Array.isArray(chatHistory)
     ? chatHistory.slice(-6).map((msg) => ({
@@ -879,12 +881,25 @@ export const sendQuery = async (
       custom_prompt_directive: customPromptDirective || null,
       attached_images: attachedImages && attachedImages.length > 0 ? attachedImages : null,
       brain_enabled: brainEnabled,
-    });
+      regenerate_message_id: options.regenerateId || null,
+    }, { signal: options.signal });
     return response.data;
   } catch (error) {
+    if (axios.isCancel(error)) throw error;
     console.error('Query execution failed:', error.response?.data || error.message);
     throw error;
   }
+};
+
+/**
+ * Records thumbs up/down on a bot message. rating null clears it.
+ * @param {string} messageId
+ * @param {'up'|'down'|null} rating
+ * @param {'hallucinated_citation'|'wrong_page'|'misquoted'|'other'|null} [reason]
+ */
+export const setMessageFeedback = async (messageId, rating, reason = null) => {
+  const response = await apiClient.patch(`/messages/${messageId}/feedback`, { rating, reason });
+  return response.data;
 };
 
 // =============================================================================
@@ -1390,3 +1405,56 @@ export const moveWorkspaceDocumentsAPI = async (sourceWorkspaceId, targetWorkspa
 
 
 
+
+// =============================================================================
+// WRITER DOCUMENTS & LIBRARY FOLDERS
+// =============================================================================
+
+const apiCall = async (label, fn) => {
+  try {
+    const response = await fn();
+    return response.data;
+  } catch (error) {
+    console.error(`${label} failed:`, error.response?.data || error.message);
+    throw error;
+  }
+};
+
+/** Lists the user's standalone writer documents (metadata only). */
+export const listWriterDocsAPI = () =>
+  apiCall('List writer docs', () => apiClient.get('/writer/docs'));
+
+export const getWriterDocAPI = (docId) =>
+  apiCall('Get writer doc', () => apiClient.get(`/writer/docs/${docId}`));
+
+/** @param {Object} [data] - { title?, content_html?, citations_data? } */
+export const createWriterDocAPI = (data = {}) =>
+  apiCall('Create writer doc', () => apiClient.post('/writer/docs', data));
+
+/** @param {Object} data - partial { title?, content_html?, citations_data? } */
+export const updateWriterDocAPI = (docId, data) =>
+  apiCall('Update writer doc', () => apiClient.put(`/writer/docs/${docId}`, data));
+
+export const deleteWriterDocAPI = (docId) =>
+  apiCall('Delete writer doc', () => apiClient.delete(`/writer/docs/${docId}`));
+
+export const listFoldersAPI = () =>
+  apiCall('List folders', () => apiClient.get('/folders'));
+
+export const createFolderAPI = (name, parentId = null) =>
+  apiCall('Create folder', () => apiClient.post('/folders', { name, parent_id: parentId }));
+
+/** @param {Object} patch - { name?, parent_id? }; parent_id: null moves to the root. */
+export const updateFolderAPI = (folderId, patch) =>
+  apiCall('Update folder', () => apiClient.patch(`/folders/${folderId}`, patch));
+
+export const deleteFolderAPI = (folderId) =>
+  apiCall('Delete folder', () => apiClient.delete(`/folders/${folderId}`));
+
+export const addFolderItemsAPI = (folderId, documentIds) =>
+  apiCall('Add folder items', () =>
+    apiClient.post(`/folders/${folderId}/items`, { document_ids: documentIds }));
+
+export const removeFolderItemsAPI = (folderId, documentIds) =>
+  apiCall('Remove folder items', () =>
+    apiClient.delete(`/folders/${folderId}/items`, { data: { document_ids: documentIds } }));

@@ -11,7 +11,7 @@ from typing import List, Dict, Any, Optional, Set
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.db.models import UserDocument, Workspace, ChatSession
+from backend.db.models import UserDocument, Workspace, ChatSession, FolderItem
 from backend.db import crud
 from backend.ingestion.identifier_resolver import clean_doi, clean_arxiv_id
 
@@ -276,7 +276,21 @@ async def merge_duplicate_records(
                         s_docs = [canonical.doc_name if d == old_name else d for d in s_docs]
                 s.doc_names = list(dict.fromkeys(s_docs))
 
-    # 6. Delete redundant duplicate records from database
+    # 6. Move folder memberships onto the canonical record, without duplicate (folder, doc) pairs
+    fi_res = await db.execute(
+        select(FolderItem).where(FolderItem.document_id.in_([d.id for d in dup_records] + [canonical.id]))
+    )
+    folder_items = fi_res.scalars().all()
+    canonical_folders = {fi.folder_id for fi in folder_items if fi.document_id == canonical.id}
+    for fi in folder_items:
+        if fi.document_id == canonical.id:
+            continue
+        if fi.folder_id not in canonical_folders:
+            db.add(FolderItem(folder_id=fi.folder_id, document_id=canonical.id))
+            canonical_folders.add(fi.folder_id)
+        await db.delete(fi)
+
+    # 7. Delete redundant duplicate records from database
     for dup in dup_records:
         await db.delete(dup)
 

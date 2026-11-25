@@ -8,7 +8,7 @@ load_dotenv(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.env"
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
 from backend.rag.retriever import retrieve_context, build_context_block
-from backend.guardrails import GuardrailPipeline, RailAction
+from backend.guardrails import GuardrailPipeline, RailAction, redact_secrets
 from backend.rag.prompt_templates import (
     construct_prompt, 
     construct_system_prompt,
@@ -263,6 +263,9 @@ def extract_sources_from_text(
         "does not contain information to answer",
         "i can only answer questions grounded in your uploaded documents",
         "please upload or attach documents first",
+        "none of them cover this",
+        "and neither covers this",
+        "and it doesn't cover this",
     ]
     is_pure_refusal_or_negative = any(sig in lower_text for sig in negative_signals)
     # If the text is purely a refusal or absence statement and contains no explicit citation bracket:
@@ -403,6 +406,27 @@ def extract_sources_from_text(
 
 
 from backend.rag.modes import get_mode_config, match_slash_command
+
+
+def build_no_evidence_reply(doc_names: list[str]) -> str:
+    """User-facing reply when no attached paper covers the question. Never echoes the query."""
+    names = [f"`{d}`" for d in doc_names]
+    n = len(names)
+    tail = (
+        "You can add papers on the topic to this workspace, or switch to "
+        "General Assistant (/general) for background beyond your papers."
+    )
+    if n == 0:
+        return f"No papers are attached to this workspace yet. {tail}"
+    if n == 1:
+        looked = f"I looked through {names[0]}, and it doesn't cover this."
+    elif n == 2:
+        looked = f"I looked through {names[0]} and {names[1]}, and neither covers this."
+    elif n == 3:
+        looked = f"I looked through {names[0]}, {names[1]} and {names[2]}, and none of them cover this."
+    else:
+        looked = f"I looked through {names[0]}, {names[1]} and {n - 2} more, and none of them cover this."
+    return f"{looked} {tail}"
 
 
 def generate_answer(
@@ -637,17 +661,12 @@ def generate_answer(
     # SCENARIO 2: Off-Topic / Uncovered Questions Refusal
     # If no relevant chunks survived semantic relevance cutoff and no attached images
     # -------------------------------------------------------------------------
-    if not retrieved_chunks and not attached_images_text:
-        docs_list_str = ", ".join(f"`{d}`" for d in active_workspace_docs[:5])
-        if len(active_workspace_docs) > 5:
-            docs_list_str += f" and {len(active_workspace_docs) - 5} more"
+    # General Assistant goes on to synthesis instead: it may answer beyond the papers, and its
+    # prompt's scope rule handles off-topic requests.
+    if not retrieved_chunks and not attached_images_text and mode_cfg.get("id") != "general":
         return {
             "query": query,
-            "answer": (
-                f"I can only answer questions grounded in your uploaded documents ({docs_list_str}). "
-                f"I could not find any relevant information addressing '{clean_query}' in your attached materials.\n\n"
-                f"Please ask a question related to your uploaded documents, or upload materials that cover this topic."
-            ),
+            "answer": build_no_evidence_reply(active_workspace_docs),
             "thinking_process": None,
             "sources_used": [],
             "mode_applied": mode,
@@ -733,7 +752,7 @@ def generate_answer(
     return {
         "query": query,
         "answer": answer_text,
-        "thinking_process": thinking_text or None,
+        "thinking_process": redact_secrets(thinking_text) or None,  # reasoning text skips the output rails
         "sources_used": unique_sources,
         "mode_applied": mode,
         "guardrails": {

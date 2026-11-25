@@ -1,0 +1,10 @@
+- generic [ref=f7e4]:
+  - complementary "Documents" [ref=f7e5]:
+    - generic [ref=f7e6]:
+      - button "Back to chat" [ref=f7e7] [cursor=pointer]
+      - generic [ref=f7e10]: Documents
+      - button "New document" [ref=f7e11] [cursor=pointer]:
+        - generic [ref=f7e13]: New
+    - list [ref=f7e14]:
+      - listitem [ref=f7e15]: Loading...
+  - main [ref=f7e16]

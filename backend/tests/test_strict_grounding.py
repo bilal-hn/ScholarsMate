@@ -66,10 +66,30 @@ def test_scenario_2_document_chat_offtopic_question_refused(mock_rails, mock_ret
         explicit_docs=["attention.pdf"],
     )
 
-    assert "I can only answer questions grounded in your uploaded documents" in res["answer"]
     assert "`attention.pdf`" in res["answer"]
-    assert "could not find any relevant information" in res["answer"]
+    assert "doesn't cover this" in res["answer"]
+    assert "/general" in res["answer"]
+    assert "binary search" not in res["answer"].lower()
     assert res["sources_used"] == []
+
+
+@patch("backend.rag.generator.retrieve_context")
+@patch("backend.rag.generator.GuardrailPipeline.run_retrieval_rails")
+@patch("backend.rag.generator._execute_completion_with_fallback")
+def test_general_mode_without_evidence_still_synthesises(mock_llm, mock_rails, mock_retrieve):
+    """General Assistant may answer beyond the papers, so zero chunks must not short-circuit to the Paper-mode reply."""
+    mock_retrieve.return_value = ([], {"intent": "NEW_QUERY", "target_docs": ["attention.pdf"]})
+    mock_rail_result = MagicMock()
+    mock_rail_result.to_dict.return_value = {"action": "allow"}
+    mock_rails.return_value = ([], mock_rail_result)
+    mock_completion = MagicMock()
+    mock_completion.choices = [MagicMock(message=MagicMock(content="Backpropagation applies the chain rule layer by layer."))]
+    mock_llm.return_value = mock_completion
+
+    res = generate_answer(query="What is backpropagation?", explicit_docs=["attention.pdf"], mode="general")
+
+    assert "/general" not in res["answer"]
+    assert "chain rule" in res["answer"]
 
 
 @patch("backend.rag.generator.retrieve_context")

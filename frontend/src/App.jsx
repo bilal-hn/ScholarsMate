@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import 'katex/dist/katex.min.css';
 import DocumentSidebar from './components/document/DocumentSidebar';
 import ChatInterface from './components/chat/ChatInterface';
-import DocumentWriter from './components/writer/DocumentWriter';
+import ChatWriterPanel from './components/writer/ChatWriterPanel';
 import CreateWorkspaceModal from './components/document/CreateWorkspaceModal';
 import SettingsModal from './components/layout/SettingsModal';
 import LiteratureReviewModal from './components/modals/LiteratureReviewModal';
@@ -15,6 +15,7 @@ import PdfViewer from './components/viewer/PdfViewer';
 import ErrorBoundary from './components/common/ErrorBoundary';
 import ProfileSettingsModal from './components/layout/ProfileSettingsModal';
 import LibraryView from './components/library/LibraryView';
+import WriterHome from './components/writer/WriterHome';
 import HomeView from './components/home/HomeView';
 import { 
   getDocuments, 
@@ -23,6 +24,7 @@ import {
   getChatSessions, 
   deleteChatSession,
   getWorkspacesAPI,
+  assignWorkspaceDocumentsAPI,
   createWorkspaceChatAPI,
   deleteWorkspaceAPI,
   renameWorkspaceAPI,
@@ -59,6 +61,7 @@ export default function App() {
     const path = window.location.pathname.toLowerCase();
     if (path.startsWith('/library')) return 'library';
     if (path.startsWith('/home')) return 'home';
+    if (path.startsWith('/writer')) return 'writer';
     return 'chat';
   };
 
@@ -88,6 +91,7 @@ return () => window.removeEventListener('popstate', handlePopState);
 
   const isLibraryOpen = currentRoute === 'library';
   const isHomeOpen = currentRoute === 'home';
+  const isWriterRoute = currentRoute === 'writer';
   const setIsLibraryOpen = (open) => navigateTo(open ? 'library' : 'chat');
 
   const handleOpenAuth = (mode = 'login') => {
@@ -172,6 +176,7 @@ return () => window.removeEventListener('keydown', handleKeyDown);
   // Assisted Academic Document Writer State (FR-13)
   const [isWriterOpen, setIsWriterOpen] = useState(false);
   const [isWriterFullscreen, setIsWriterFullscreen] = useState(false);
+  const [isLibraryPanelOpen, setIsLibraryPanelOpen] = useState(false); // chat split-panel library
   const [openedWriterSessions, setOpenedWriterSessions] = useState(() => new Set());
 
   // Apply theme on mount and when theme changes
@@ -193,6 +198,7 @@ return () => window.removeEventListener('keydown', handleKeyDown);
     if (!isWriterOpen) {
       setIsWriterOpen(true);
       setIsWriterFullscreen(false);
+      setIsLibraryPanelOpen(false);
       setActivePdf(null);
       // Close lit review for this session when writer opens
       if (activeSessionId) {
@@ -210,6 +216,26 @@ return () => window.removeEventListener('keydown', handleKeyDown);
     } else {
       setIsWriterOpen(false);
       setIsWriterFullscreen(false);
+    }
+  };
+
+  const handleToggleLibraryPanel = () => {
+    if (isLibraryPanelOpen) {
+      setIsLibraryPanelOpen(false);
+      return;
+    }
+    setIsLibraryPanelOpen(true);
+    setActivePdf(null);
+    setIsWriterOpen(false);
+    setIsWriterFullscreen(false);
+    setIsLitReviewOpen(false);
+    setIsLitReviewFullscreen(false);
+    if (activeSessionId) {
+      setLitReviewOpenSessions((prev) => {
+        const next = new Set(prev);
+        next.delete(activeSessionId);
+        return next;
+      });
     }
   };
 
@@ -344,29 +370,29 @@ return () => window.removeEventListener('keydown', handleKeyDown);
     );
   }, [documents, activeWorkspace, selectedDocs]);
 
-  // Strict Selection: Sync selected docs with active workspace documents
+  // Strict Selection: Sync selected docs with active workspace documents.
+  // Keyed on the document names, not the workspace object: a refresh that changes nothing
+  // (e.g. saving a note in the library panel) must not reset the user's paper selection.
+  const activeDocNamesKey = (activeWorkspace?.doc_names || []).join('\n');
   useEffect(() => {
-    if (activeWorkspace && activeWorkspace.doc_names) {
-      setSelectedDocs(activeWorkspace.doc_names);
-    } else {
-      setSelectedDocs([]);
-    }
-  }, [activeWorkspace]);
+    setSelectedDocs(activeDocNamesKey ? activeDocNamesKey.split('\n') : []);
+  }, [activeWorkspaceId, activeDocNamesKey]);
 
   const handleDocumentUploaded = async (newDocNames) => {
     await fetchDocs();
     const namesArray = Array.isArray(newDocNames) ? newDocNames : [newDocNames];
     if (activeWorkspaceId) {
-      setWorkspaces((prev) =>
-        prev.map((ws) =>
-          ws.id === activeWorkspaceId
-            ? {
-                ...ws,
-                doc_names: Array.from(new Set([...(ws.doc_names || []), ...namesArray])),
-              }
-            : ws
-        )
-      );
+      // Persist membership (the upload endpoint has no workspace id), then take the server's list.
+      try {
+        const res = await assignWorkspaceDocumentsAPI(activeWorkspaceId, [], namesArray);
+        if (res?.success) {
+          setWorkspaces((prev) =>
+            prev.map((ws) => (ws.id === activeWorkspaceId ? { ...ws, doc_names: res.doc_names || [] } : ws))
+          );
+        }
+      } catch (err) {
+        console.error('Failed to add uploaded paper to the workspace:', err);
+      }
     }
   };
 
@@ -591,6 +617,7 @@ return () => window.removeEventListener('keydown', handleKeyDown);
     setActivePdf(null);
     setIsWriterOpen(false);
     setIsWriterFullscreen(false);
+    setIsLibraryPanelOpen(false);
     setIsLitReviewOpen(false);
     setIsLitReviewFullscreen(false);
     window.dispatchEvent(new CustomEvent('scholarsmate:clear-chat'));
@@ -606,6 +633,7 @@ return () => window.removeEventListener('keydown', handleKeyDown);
   };
 
   const handleSelectCitation = useCallback((docName, pageNum) => {
+    setIsLibraryPanelOpen(false);
     setActivePdf(docName);
     setTargetPage(pageNum || 1);
   }, []);
@@ -644,6 +672,7 @@ return () => window.removeEventListener('keydown', handleKeyDown);
           // Sidebar button always opens a fresh empty studio
           setActiveMonograph(null);
           // Close other right-panel occupants
+          setIsLibraryPanelOpen(false);
           setActivePdf(null);
           setIsWriterOpen(false);
           setIsWriterFullscreen(false);
@@ -656,6 +685,7 @@ return () => window.removeEventListener('keydown', handleKeyDown);
         const next = !prev;
         if (next) {
           setActiveMonograph(null);
+          setIsLibraryPanelOpen(false);
           setActivePdf(null);
           setIsWriterOpen(false);
           setIsWriterFullscreen(false);
@@ -674,6 +704,7 @@ return () => window.removeEventListener('keydown', handleKeyDown);
     } else {
       setIsLitReviewOpen(true);
     }
+    setIsLibraryPanelOpen(false);
     setActivePdf(null);
     setIsWriterOpen(false);
     setIsWriterFullscreen(false);
@@ -798,6 +829,28 @@ return (
   }
 
   // --------------------------------------------------------------------------
+  // STANDALONE DOCUMENT WRITER (localhost/writer)
+  // --------------------------------------------------------------------------
+  if (isWriterRoute) {
+    return (
+      <div
+        data-theme={currentTheme}
+        className="fixed inset-0 z-50 h-screen w-screen bg-zinc-950 text-zinc-100 overflow-hidden font-sans select-text flex flex-col"
+      >
+        <WriterHome
+          onNavigate={navigateTo}
+          documents={documents}
+          currentModel={currentModel}
+          onOpenPdfViewer={(docName, page) => {
+            navigateTo('chat');
+            handleSelectCitation(docName, page);
+          }}
+        />
+      </div>
+    );
+  }
+
+  // --------------------------------------------------------------------------
   // DEDICATED REFERENCE LIBRARY WORKBENCH (localhost/library)
   // --------------------------------------------------------------------------
   if (isLibraryOpen) {
@@ -808,6 +861,7 @@ return (
       >
         <LibraryView
           workspaces={workspaces}
+          onWorkspacesChanged={setWorkspaces}
           onNavigate={navigateTo}
           onClose={() => navigateTo('chat')}
           onStartChatWithPaper={(docName) => {
@@ -847,14 +901,16 @@ return (
           currentTheme={currentTheme}
           onThemeChange={handleThemeChange}
         />
-        <LiteratureReviewModal
-          isOpen={isLitReviewOpen}
-          onClose={() => setIsLitReviewOpen(false)}
-          documents={scopedDocuments}
-          selectedDocs={selectedDocs}
-          currentModel={currentModel}
-          onGenerateReview={handleGenerateLiteratureReview}
-        />
+        <ErrorBoundary title="Could not display Literature Review" onReset={() => setIsLitReviewOpen(false)}>
+          <LiteratureReviewModal
+            isOpen={isLitReviewOpen}
+            onClose={() => setIsLitReviewOpen(false)}
+            documents={scopedDocuments}
+            selectedDocs={selectedDocs}
+            currentModel={currentModel}
+            onGenerateReview={handleGenerateLiteratureReview}
+          />
+        </ErrorBoundary>
         <ThemeModal
           isOpen={isThemeModalOpen}
           onClose={() => setIsThemeModalOpen(false)}
@@ -880,19 +936,21 @@ return (
         data-theme={currentTheme}
         className="fixed inset-0 z-50 h-screen w-screen bg-zinc-950 text-zinc-100 overflow-hidden font-sans select-text"
       >
-        <DocumentWriter
-          sessionId={activeSessionId}
-          documents={scopedDocuments}
-          availableModels={discoveredModels}
-          currentModel={currentModel}
-          onOpenPdfViewer={handleSelectCitation}
-          isFullscreen={true}
-          onToggleFullscreen={() => setIsWriterFullscreen(false)}
-          onClose={() => {
-            setIsWriterOpen(false);
-            setIsWriterFullscreen(false);
-          }}
-        />
+        <ErrorBoundary title="Could not display Document Writer">
+          <ChatWriterPanel
+            key={activeSessionId || 'global-writer'}
+            sessionId={activeSessionId}
+            documents={scopedDocuments}
+            currentModel={currentModel}
+            onOpenPdfViewer={handleSelectCitation}
+            isFullscreen={true}
+            onToggleFullscreen={() => setIsWriterFullscreen(false)}
+            onClose={() => {
+              setIsWriterOpen(false);
+              setIsWriterFullscreen(false);
+            }}
+          />
+        </ErrorBoundary>
 
         {/* Modals */}
         <CreateWorkspaceModal
@@ -905,14 +963,16 @@ return (
           onClose={() => setIsSettingsOpen(false)}
           onConfigUpdated={handleConfigUpdated}
         />
-        <LiteratureReviewModal
-          isOpen={isLitReviewOpen}
-          onClose={() => setIsLitReviewOpen(false)}
-          documents={scopedDocuments}
-          selectedDocs={selectedDocs}
-          currentModel={currentModel}
-          onGenerateReview={handleGenerateLiteratureReview}
-        />
+        <ErrorBoundary title="Could not display Literature Review" onReset={() => setIsLitReviewOpen(false)}>
+          <LiteratureReviewModal
+            isOpen={isLitReviewOpen}
+            onClose={() => setIsLitReviewOpen(false)}
+            documents={scopedDocuments}
+            selectedDocs={selectedDocs}
+            currentModel={currentModel}
+            onGenerateReview={handleGenerateLiteratureReview}
+          />
+        </ErrorBoundary>
       </div>
     );
   }
@@ -926,26 +986,28 @@ return (
         data-theme={currentTheme}
         className="fixed inset-0 z-50 h-screen w-screen bg-zinc-950 text-zinc-100 overflow-hidden font-sans select-text flex flex-col"
       >
-        <LiteratureReviewModal
-          key={`${activeSessionId || 'fullscreen-lit-review'}-${activeMonograph ? (activeMonograph.title || 'mono') : 'fresh'}`}
-          isOpen={true}
-          onClose={() => {
-            setIsLitReviewFullscreen(false);
-            handleCloseLitReviewPanel();
-          }}
-          documents={scopedDocuments}
-          selectedDocs={selectedDocs}
-          currentModel={currentModel}
-          customKeys={getSavedBYOKConfig().keys}
-          sessionId={activeSessionId}
-          onGenerateReview={handleGenerateLiteratureReview}
-          initialMonograph={activeMonograph}
-          onReviewGenerated={handleReviewGenerated}
-          onSaveMonograph={(data) => handleSaveMonograph(activeSessionId, data)}
-          mode="panel"
-          isFullscreen={true}
-          onToggleFullscreen={() => setIsLitReviewFullscreen(false)}
-        />
+        <ErrorBoundary title="Could not display Literature Review">
+          <LiteratureReviewModal
+            key={`${activeSessionId || 'fullscreen-lit-review'}-${activeMonograph ? (activeMonograph.title || 'mono') : 'fresh'}`}
+            isOpen={true}
+            onClose={() => {
+              setIsLitReviewFullscreen(false);
+              handleCloseLitReviewPanel();
+            }}
+            documents={scopedDocuments}
+            selectedDocs={selectedDocs}
+            currentModel={currentModel}
+            customKeys={getSavedBYOKConfig().keys}
+            sessionId={activeSessionId}
+            onGenerateReview={handleGenerateLiteratureReview}
+            initialMonograph={activeMonograph}
+            onReviewGenerated={handleReviewGenerated}
+            onSaveMonograph={(data) => handleSaveMonograph(activeSessionId, data)}
+            mode="panel"
+            isFullscreen={true}
+            onToggleFullscreen={() => setIsLitReviewFullscreen(false)}
+          />
+        </ErrorBoundary>
       </div>
     );
   }
@@ -980,6 +1042,8 @@ return (
         onOpenBrainModal={() => setIsBrainModalOpen(true)}
         onToggleWriter={handleToggleWriter}
         isWriterActive={isWriterOpen}
+        onToggleLibraryPanel={handleToggleLibraryPanel}
+        isLibraryPanelActive={isLibraryPanelOpen}
         onToggleLibrary={() => navigateTo(currentRoute === 'library' ? 'chat' : 'library')}
         isLibraryActive={currentRoute === 'library'}
         currentRoute={currentRoute}
@@ -1019,7 +1083,7 @@ return (
         <div className="flex-1 flex h-full overflow-hidden relative">
           {/* Left Canvas: Chat Interface */}
           <div className={`h-full transition-all duration-300 ${
-            activePdf || isWriterOpen || isLitReviewPanelOpen ? 'w-1/2 border-r border-zinc-800' : 'w-full'
+            activePdf || isWriterOpen || isLitReviewPanelOpen || isLibraryPanelOpen ? 'w-1/2 border-r border-zinc-800' : 'w-full'
           }`}>
             <ChatInterface
               documents={scopedDocuments}
@@ -1036,7 +1100,7 @@ return (
               hasWriterButton={activeSessionId ? openedWriterSessions.has(activeSessionId) && !isWriterOpen : false}
               onToggleWriter={handleToggleWriter}
               onDismissWriterBadge={handleDismissWriterBadge}
-              isSplitScreen={Boolean(activePdf || isWriterOpen || isLitReviewPanelOpen)}
+              isSplitScreen={Boolean(activePdf || isWriterOpen || isLitReviewPanelOpen || isLibraryPanelOpen)}
               targetMessageIndex={targetMessageIndex}
               onTargetMessageScrolled={() => setTargetMessageIndex(null)}
               onSessionCreated={handleSessionCreated}
@@ -1073,40 +1137,56 @@ return (
                 <ChevronLeft className="h-4 w-4" />
               </button>
 
-              <DocumentWriter
-                key={activeSessionId || 'global-writer'}
-                sessionId={activeSessionId}
-                documents={scopedDocuments}
-                availableModels={discoveredModels}
-                currentModel={currentModel}
-                onOpenPdfViewer={handleSelectCitation}
-                isFullscreen={false}
-                onToggleFullscreen={() => setIsWriterFullscreen(true)}
-                onClose={() => {
-                  setIsWriterOpen(false);
-                  setIsWriterFullscreen(false);
-                }}
-              />
+              <ErrorBoundary title="Could not display Document Writer">
+                <ChatWriterPanel
+                  key={activeSessionId || 'global-writer'}
+                  sessionId={activeSessionId}
+                  documents={scopedDocuments}
+                  currentModel={currentModel}
+                  onOpenPdfViewer={handleSelectCitation}
+                  isFullscreen={false}
+                  onToggleFullscreen={() => setIsWriterFullscreen(true)}
+                  onClose={() => {
+                    setIsWriterOpen(false);
+                    setIsWriterFullscreen(false);
+                  }}
+                />
+              </ErrorBoundary>
             </div>
           ) : isLitReviewPanelOpen ? (
             <div className="w-1/2 h-full bg-zinc-950 transition-all duration-300 min-w-0 flex flex-col relative">
-              <LiteratureReviewModal
-                key={`${activeSessionId || 'global-lit-review'}-${activeMonograph ? (activeMonograph.title || 'mono') : 'fresh'}`}
-                isOpen={true}
-                onClose={handleCloseLitReviewPanel}
-                documents={scopedDocuments}
-                selectedDocs={selectedDocs}
-                currentModel={currentModel}
-                customKeys={getSavedBYOKConfig().keys}
-                sessionId={activeSessionId}
-                onGenerateReview={handleGenerateLiteratureReview}
-                initialMonograph={activeMonograph}
-                onReviewGenerated={handleReviewGenerated}
-                onSaveMonograph={(data) => handleSaveMonograph(activeSessionId, data)}
-                mode="panel"
-                isFullscreen={false}
-                onToggleFullscreen={() => setIsLitReviewFullscreen(true)}
-              />
+              <ErrorBoundary title="Could not display Literature Review" onReset={handleCloseLitReviewPanel}>
+                <LiteratureReviewModal
+                  key={`${activeSessionId || 'global-lit-review'}-${activeMonograph ? (activeMonograph.title || 'mono') : 'fresh'}`}
+                  isOpen={true}
+                  onClose={handleCloseLitReviewPanel}
+                  documents={scopedDocuments}
+                  selectedDocs={selectedDocs}
+                  currentModel={currentModel}
+                  customKeys={getSavedBYOKConfig().keys}
+                  sessionId={activeSessionId}
+                  onGenerateReview={handleGenerateLiteratureReview}
+                  initialMonograph={activeMonograph}
+                  onReviewGenerated={handleReviewGenerated}
+                  onSaveMonograph={(data) => handleSaveMonograph(activeSessionId, data)}
+                  mode="panel"
+                  isFullscreen={false}
+                  onToggleFullscreen={() => setIsLitReviewFullscreen(true)}
+                />
+              </ErrorBoundary>
+            </div>
+          ) : isLibraryPanelOpen ? (
+            <div className="w-1/2 h-full bg-zinc-950 transition-all duration-300 min-w-0 flex flex-col relative">
+              <ErrorBoundary title="Could not display Library" onReset={() => setIsLibraryPanelOpen(false)}>
+                <LibraryView
+                  compact
+                  activeWorkspaceId={activeWorkspaceId}
+                  workspaces={workspaces}
+                  onWorkspacesChanged={setWorkspaces}
+                  onNavigate={navigateTo}
+                  onOpenPdfViewer={handleSelectCitation}
+                />
+              </ErrorBoundary>
             </div>
           ) : null}
         </div>

@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
@@ -22,8 +22,24 @@ import {
   Download,
   Loader2,
   FileCode,
+  Pencil,
+  RefreshCw,
+  ThumbsUp,
+  ThumbsDown,
+  ChevronLeft,
+  X,
 } from 'lucide-react';
-import { exportLiteratureReviewPdfAPI, exportLiteratureReviewZipAPI } from '../../services/api';
+import { exportLiteratureReviewPdfAPI, exportLiteratureReviewZipAPI, setMessageFeedback } from '../../services/api';
+
+const ACTION_BTN =
+  'flex items-center gap-1 px-1.5 py-0.5 rounded hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-zinc-500';
+
+const FEEDBACK_REASONS = [
+  { id: 'hallucinated_citation', label: 'Made-up citation' },
+  { id: 'wrong_page', label: 'Wrong page' },
+  { id: 'misquoted', label: 'Misquoted' },
+  { id: 'other', label: 'Other' },
+];
 
 /**
  * Interactive inline citation badge matching ChatGPT style with hover card popover and click-to-open split PDF viewer.
@@ -307,11 +323,99 @@ function MonographArtifactCard({ monograph, onOpenMonograph, onDownloadMonograph
   );
 }
 
-function ChatMessage({ message, index, onSelectCitation, onOpenMonograph, onDownloadMonograph }) {
+function ChatMessage({
+  message: rawMessage,
+  index,
+  isLast = false,
+  canSwitchModel = false,
+  onRegenerate,
+  onEdit,
+  onSelectCitation,
+  onOpenMonograph,
+  onDownloadMonograph,
+}) {
   const [showThinking, setShowThinking] = useState(false);
   const [showSources, setShowSources] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [copiedMd, setCopiedMd] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+  const [pickedVariant, setPickedVariant] = useState(null); // { ref: meta object it applies to, i }
+  const [fbState, setFbState] = useState(null); // { ref: meta object it applies to, value }
   const messageBodyRef = useRef(null);
+  const menuRef = useRef(null);
+  const menuTriggerRef = useRef(null);
+
+  // The inline editor only exists while editing is possible (it is withdrawn once a request starts).
+  if (isEditing && !onEdit) setIsEditing(false);
+
+  // Close the Try again menu on an outside press (Safari/Firefox on macOS don't focus buttons on click) or Escape.
+  useEffect(() => {
+    if (!menuOpen) return undefined;
+    const onDown = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false);
+    };
+    const onKey = (e) => {
+      if (e.key === 'Escape') {
+        setMenuOpen(false);
+        menuTriggerRef.current?.focus();
+      }
+    };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [menuOpen]);
+
+  // Older answers of the last turn live in meta.variants (oldest first); the current answer is the last page.
+  const variants = Array.isArray(rawMessage.meta?.variants) ? rawMessage.meta.variants : [];
+  const variantCount = variants.length + 1;
+  const variantIdx =
+    pickedVariant && pickedVariant.ref === rawMessage.meta ? pickedVariant.i : variants.length;
+  const shownVariant = variantIdx < variants.length ? variants[variantIdx] : null;
+  const message = useMemo(
+    () =>
+      shownVariant
+        ? {
+            ...rawMessage,
+            text: shownVariant.text,
+            sources: shownVariant.sources_used || [],
+            model_name: shownVariant.model_name || rawMessage.model_name,
+            mode_applied: shownVariant.mode_applied || rawMessage.mode_applied,
+          }
+        : rawMessage,
+    [rawMessage, shownVariant]
+  );
+  const goToVariant = (i) => setPickedVariant({ ref: rawMessage.meta, i });
+
+  const feedback =
+    fbState && fbState.ref === rawMessage.meta ? fbState.value : rawMessage.meta?.feedback || null;
+  // Thumbs and server-side Try again only apply to saved messages, and thumbs only to the latest answer.
+  const isLatestVariant = variantIdx === variants.length;
+  const canRate = Boolean(rawMessage.persisted && rawMessage.id) && !rawMessage.isError && isLatestVariant;
+  const canRetry = isLast && onRegenerate && (rawMessage.persisted || rawMessage.isError);
+  const sendFeedback = async (rating, reason = null) => {
+    const previous = feedback;
+    setFbState({ ref: rawMessage.meta, value: rating ? { rating, reason } : null });
+    try {
+      await setMessageFeedback(rawMessage.id, rating, reason);
+    } catch {
+      setFbState({ ref: rawMessage.meta, value: previous });
+    }
+  };
+
+  const handleCopyMarkdown = async () => {
+    try {
+      await navigator.clipboard.writeText(message.text || '');
+      setCopiedMd(true);
+      setTimeout(() => setCopiedMd(false), 2000);
+    } catch {
+      // clipboard blocked: nothing useful to do
+    }
+  };
 
   const isBot = message.sender === 'bot';
   const monographData =
@@ -816,11 +920,123 @@ function ChatMessage({ message, index, onSelectCitation, onOpenMonograph, onDown
               </div>
 
               {/* Right: Action Buttons */}
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1 flex-wrap justify-end">
+                {variantCount > 1 && (
+                  <div className="flex items-center gap-0.5 text-zinc-400" role="group" aria-label="Answer versions">
+                    <button
+                      type="button"
+                      onClick={() => goToVariant(variantIdx - 1)}
+                      disabled={variantIdx === 0}
+                      aria-label="Previous answer"
+                      className={`${ACTION_BTN} disabled:opacity-40 disabled:cursor-default`}
+                    >
+                      <ChevronLeft className="h-3 w-3" />
+                    </button>
+                    <span aria-live="polite" className="text-[10px] tabular-nums">
+                      {variantIdx + 1}/{variantCount}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => goToVariant(variantIdx + 1)}
+                      disabled={variantIdx === variantCount - 1}
+                      aria-label="Next answer"
+                      className={`${ACTION_BTN} disabled:opacity-40 disabled:cursor-default`}
+                    >
+                      <ChevronRight className="h-3 w-3" />
+                    </button>
+                  </div>
+                )}
+                {canRetry && (
+                  <div
+                    ref={menuRef}
+                    className="relative"
+                    onBlur={(e) => {
+                      if (e.relatedTarget && !e.currentTarget.contains(e.relatedTarget)) setMenuOpen(false);
+                    }}
+                  >
+                    <button
+                      ref={menuTriggerRef}
+                      type="button"
+                      onClick={() => setMenuOpen((o) => !o)}
+                      aria-label="Try again"
+                      aria-expanded={menuOpen}
+                      className={ACTION_BTN}
+                      title="Generate this answer again"
+                    >
+                      <RefreshCw className="h-3 w-3" />
+                      <span className="text-[9.5px]">Try again</span>
+                    </button>
+                    {menuOpen && (
+                      <div
+                        className="absolute bottom-full right-0 mb-1 z-20 min-w-[170px] rounded-lg border border-zinc-800 bg-zinc-900 p-1 shadow-xl font-sans"
+                      >
+                        {[
+                          { kind: 'same', label: 'Same settings' },
+                          ...(canSwitchModel ? [{ kind: 'model', label: 'Another model' }] : []),
+                          {
+                            kind: 'mode',
+                            label: rawMessage.mode_applied === 'general' ? 'Switch to Paper' : 'Switch to General',
+                          },
+                        ].map((item) => (
+                          <button
+                            key={item.kind}
+                            type="button"
+                            onClick={() => {
+                              setMenuOpen(false);
+                              onRegenerate(item.kind);
+                            }}
+                            className="w-full text-left px-2 py-1 rounded text-[11px] text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 cursor-pointer outline-none focus-visible:bg-zinc-800"
+                          >
+                            {item.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {canRate && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => sendFeedback(feedback?.rating === 'up' ? null : 'up')}
+                      aria-label="Good response"
+                      aria-pressed={feedback?.rating === 'up'}
+                      className={`${ACTION_BTN} ${feedback?.rating === 'up' ? 'text-emerald-400' : ''}`}
+                    >
+                      <ThumbsUp className="h-3 w-3" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => sendFeedback(feedback?.rating === 'down' ? null : 'down')}
+                      aria-label="Bad response"
+                      aria-pressed={feedback?.rating === 'down'}
+                      className={`${ACTION_BTN} ${feedback?.rating === 'down' ? 'text-amber-400' : ''}`}
+                    >
+                      <ThumbsDown className="h-3 w-3" />
+                    </button>
+                  </>
+                )}
+                <button
+                  type="button"
+                  onClick={handleCopyMarkdown}
+                  aria-label="Copy Markdown"
+                  className={ACTION_BTN}
+                  title="Copy raw Markdown (keeps $...$ LaTeX)"
+                >
+                  {copiedMd ? (
+                    <Check className="h-3 w-3 text-emerald-400" />
+                  ) : (
+                    <FileCode className="h-3 w-3" />
+                  )}
+                  <span className={`text-[9.5px] ${copiedMd ? 'text-emerald-400' : ''}`}>Markdown</span>
+                </button>
+                <span className="sr-only" role="status" aria-live="polite">
+                  {copiedMd ? 'Markdown copied to clipboard' : ''}
+                </span>
                 <button
                   type="button"
                   onClick={handleCopy}
-                  className="flex items-center gap-1 px-1.5 py-0.5 rounded hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer"
+                  className="flex items-center gap-1 px-1.5 py-0.5 rounded hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-zinc-500"
                   title="Copy formatted response to clipboard"
                 >
                   {copied ? (
@@ -837,6 +1053,28 @@ function ChatMessage({ message, index, onSelectCitation, onOpenMonograph, onDown
                 </button>
               </div>
             </div>
+
+            {/* Optional reason after a thumbs-down */}
+            {canRate && feedback?.rating === 'down' && (
+              <div className="flex items-center gap-1.5 flex-wrap pt-2 text-[10.5px] text-zinc-500 font-sans" role="group" aria-label="What went wrong?">
+                <span>What went wrong?</span>
+                {FEEDBACK_REASONS.map((r) => (
+                  <button
+                    key={r.id}
+                    type="button"
+                    onClick={() => sendFeedback('down', feedback.reason === r.id ? null : r.id)}
+                    aria-pressed={feedback.reason === r.id}
+                    className={`px-2 py-0.5 rounded-full border cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-zinc-500 ${
+                      feedback.reason === r.id
+                        ? 'border-amber-500/40 bg-amber-500/10 text-amber-300'
+                        : 'border-zinc-800 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
+                    }`}
+                  >
+                    {r.label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       ) : (
@@ -851,9 +1089,25 @@ function ChatMessage({ message, index, onSelectCitation, onOpenMonograph, onDown
                 <span className="text-[#8e8e93]">•</span>
                 <span>You</span>
               </div>
-              {timeString && (
-                <span>{timeString}</span>
-              )}
+              <div className="flex items-center gap-1.5">
+                {onEdit && !isEditing && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDraft(message.text || '');
+                      setIsEditing(true);
+                    }}
+                    aria-label="Edit question"
+                    className={ACTION_BTN}
+                    title="Edit and regenerate"
+                  >
+                    <Pencil className="h-3 w-3" />
+                  </button>
+                )}
+                {timeString && (
+                  <span>{timeString}</span>
+                )}
+              </div>
             </div>
 
             {/* Bubble Content */}
@@ -902,7 +1156,50 @@ function ChatMessage({ message, index, onSelectCitation, onOpenMonograph, onDown
                   ))}
                 </div>
               )}
-              {message.text}
+              {isEditing && onEdit ? (
+                <div className="flex flex-col gap-2 whitespace-normal">
+                  <textarea
+                    value={draft}
+                    onChange={(e) => setDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') setIsEditing(false);
+                      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && draft.trim()) {
+                        setIsEditing(false);
+                        onEdit(draft.trim());
+                      }
+                    }}
+                    aria-label="Edit your question"
+                    rows={Math.min(8, Math.max(2, draft.split('\n').length))}
+                    autoFocus
+                    className="w-full resize-none rounded-lg bg-zinc-950 border border-zinc-700 px-2.5 py-1.5 text-[12.5px] text-zinc-100 outline-none focus:border-zinc-500"
+                  />
+                  <div className="flex items-center justify-end gap-1.5 font-sans">
+                    <button
+                      type="button"
+                      onClick={() => setIsEditing(false)}
+                      aria-label="Cancel edit"
+                      className={ACTION_BTN}
+                    >
+                      <X className="h-3 w-3" />
+                      <span className="text-[10.5px]">Cancel</span>
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!draft.trim()}
+                      onClick={() => {
+                        setIsEditing(false);
+                        onEdit(draft.trim());
+                      }}
+                      aria-label="Save and regenerate"
+                      className="px-2.5 py-0.5 rounded-md bg-zinc-100 hover:bg-white disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-950 text-[10.5px] font-semibold cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-zinc-500"
+                    >
+                      Save
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                message.text
+              )}
             </div>
           </div>
         </div>

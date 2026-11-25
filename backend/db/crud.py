@@ -1,11 +1,13 @@
+import asyncio
 import json
 import uuid
 from datetime import datetime
 from typing import List, Optional, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete as sql_delete
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import selectinload
-from backend.db.models import ChatSession, ChatMessage, User, Workspace, WorkspaceDraft, BrainMemory, UserDocument
+from backend.db.models import ChatSession, ChatMessage, User, Workspace, WorkspaceDraft, BrainMemory, UserDocument, WriterDocument, Folder, FolderItem
 
 
 def _normalize_json_list(val: Any) -> list:
@@ -479,6 +481,39 @@ async def add_message(
     message.sources_used = _normalize_json_list(message.sources_used)
     message.meta = _normalize_json_dict(message.meta)
     return message
+
+
+async def update_message(db: AsyncSession, msg: ChatMessage, **fields) -> ChatMessage:
+    """Updates fields on an existing message and commits.
+
+    JSON columns are not change-tracked in place, so callers must pass a new dict/list
+    for `meta` or `sources_used` (never mutate the existing one).
+    """
+    for key, value in fields.items():
+        setattr(msg, key, value)
+    await db.commit()
+    await db.refresh(msg)
+    msg.sources_used = _normalize_json_list(msg.sources_used)
+    msg.meta = _normalize_json_dict(msg.meta)
+    return msg
+
+
+async def get_user_message(
+    db: AsyncSession,
+    message_id: str,
+    user_id: str
+) -> Optional[ChatMessage]:
+    """Fetches a message only if its session belongs to user_id."""
+    result = await db.execute(
+        select(ChatMessage)
+        .join(ChatSession, ChatSession.id == ChatMessage.session_id)
+        .where(ChatMessage.id == message_id, ChatSession.user_id == user_id)
+    )
+    msg = result.scalar_one_or_none()
+    if msg:
+        msg.sources_used = _normalize_json_list(msg.sources_used)
+        msg.meta = _normalize_json_dict(msg.meta)
+    return msg
 
 
 async def delete_session(
@@ -964,6 +999,12 @@ async def get_library_document(
     return result.scalar_one_or_none()
 
 
+async def get_owned_doc_names(db: AsyncSession, user_id: str) -> set[str]:
+    """Every library doc name this user owns: the only names a vector search may be scoped to."""
+    result = await db.execute(select(UserDocument.doc_name).where(UserDocument.user_id == user_id))
+    return {name for name in result.scalars().all() if name}
+
+
 async def get_library_document_by_name(
     db: AsyncSession,
     doc_name: str,
@@ -1020,6 +1061,7 @@ async def delete_library_document(
         if ws.doc_names and doc_name in ws.doc_names:
             ws.doc_names = [d for d in ws.doc_names if d != doc_name]
 
+    await db.execute(sql_delete(FolderItem).where(FolderItem.document_id == doc.id))
     await db.delete(doc)
     await db.commit()
     return True
@@ -1063,3 +1105,231 @@ async def update_library_doc_attachment(
 
 
 
+
+
+# =============================================================================
+# STANDALONE WRITER DOCUMENTS
+# =============================================================================
+
+async def list_writer_docs(db: AsyncSession, user_id: str) -> List[WriterDocument]:
+    res = await db.execute(
+        select(WriterDocument)
+        .where(WriterDocument.user_id == user_id)
+        .order_by(WriterDocument.updated_at.desc())
+    )
+    return list(res.scalars().all())
+
+
+async def get_writer_doc(db: AsyncSession, doc_id: str, user_id: str) -> Optional[WriterDocument]:
+    res = await db.execute(
+        select(WriterDocument).where(WriterDocument.id == doc_id, WriterDocument.user_id == user_id)
+    )
+    return res.scalar_one_or_none()
+
+
+async def create_writer_doc(db: AsyncSession, user_id: str, title: str, content_html: str, citations_data: list) -> WriterDocument:
+    doc = WriterDocument(user_id=user_id, title=title, content_html=content_html, citations_data=citations_data)
+    db.add(doc)
+    await db.commit()
+    await db.refresh(doc)
+    return doc
+
+
+async def update_writer_doc(db: AsyncSession, doc_id: str, user_id: str, fields: dict) -> Optional[WriterDocument]:
+    """Applies only the keys present in `fields`; updated_at is bumped on every write."""
+    doc = await get_writer_doc(db, doc_id, user_id)
+    if not doc:
+        return None
+    for key, value in fields.items():
+        setattr(doc, key, value)
+    doc.updated_at = datetime.utcnow()
+    await db.commit()
+    await db.refresh(doc)
+    return doc
+
+
+async def delete_writer_doc(db: AsyncSession, doc_id: str, user_id: str) -> bool:
+    doc = await get_writer_doc(db, doc_id, user_id)
+    if not doc:
+        return False
+    await db.delete(doc)
+    await db.commit()
+    return True
+
+
+# =============================================================================
+# LIBRARY FOLDERS
+# =============================================================================
+
+MAX_FOLDER_DEPTH = 8
+
+
+class FolderConflict(Exception):
+    """Cycle or depth violation; the route maps it to 409."""
+
+
+# Serialises every folder-tree check-then-write, so two concurrent moves can't both pass the cycle check.
+# ponytail: process-wide lock, correct only while the app runs one uvicorn worker (Dockerfile does);
+# with several workers, take SQLite's write lock first (flush the UPDATE, re-read with populate_existing, re-check).
+_FOLDER_TREE_LOCK = asyncio.Lock()
+
+
+async def _folder_map(db: AsyncSession, user_id: str) -> dict:
+    res = await db.execute(select(Folder).where(Folder.user_id == user_id))
+    return {f.id: f for f in res.scalars().all()}
+
+
+def _depth(folders: dict, folder_id: Optional[str]) -> int:
+    """Levels from the root down to folder_id inclusive (None -> 0)."""
+    depth, seen = 0, set()
+    while folder_id and folder_id not in seen:
+        seen.add(folder_id)
+        folder = folders.get(folder_id)
+        if folder is None:
+            break
+        depth += 1
+        folder_id = folder.parent_id
+    return depth
+
+
+def _subtree(folders: dict, root_id: str):
+    """Breadth-first: (ids in the subtree incl. root, height in levels incl. root)."""
+    kids: dict = {}
+    for f in folders.values():
+        kids.setdefault(f.parent_id, []).append(f.id)
+    ids, level, height, seen = [], [root_id], 0, {root_id}
+    while level:
+        height += 1
+        ids.extend(level)
+        nxt = []
+        for fid in level:
+            for c in kids.get(fid, []):
+                if c not in seen:  # keeps a corrupted (cyclic) tree from looping forever
+                    seen.add(c)
+                    nxt.append(c)
+        level = nxt
+    return ids, height
+
+
+async def list_folders(db: AsyncSession, user_id: str) -> List[dict]:
+    folders = await _folder_map(db, user_id)
+    if not folders:
+        return []
+    # Join user_documents so a membership never points at a deleted paper.
+    res = await db.execute(
+        select(FolderItem.folder_id, FolderItem.document_id)
+        .join(UserDocument, UserDocument.id == FolderItem.document_id)
+        .where(UserDocument.user_id == user_id, FolderItem.folder_id.in_(list(folders)))
+    )
+    items: dict = {}
+    for folder_id, doc_id in res.all():
+        items.setdefault(folder_id, []).append(doc_id)
+    return [
+        {"id": f.id, "name": f.name, "parent_id": f.parent_id, "item_ids": sorted(items.get(f.id, []))}
+        for f in sorted(folders.values(), key=lambda f: (f.created_at, f.id))
+    ]
+
+
+async def _folder_with_items(db: AsyncSession, folders: dict, folder_id: str) -> dict:
+    f = folders[folder_id]
+    # Same join as list_folders, so both views agree even if a membership outlived its paper.
+    res = await db.execute(
+        select(FolderItem.document_id)
+        .join(UserDocument, UserDocument.id == FolderItem.document_id)
+        .where(FolderItem.folder_id == folder_id, UserDocument.user_id == f.user_id)
+    )
+    return {"id": f.id, "name": f.name, "parent_id": f.parent_id, "item_ids": sorted(res.scalars().all())}
+
+
+async def create_folder(db: AsyncSession, user_id: str, name: str, parent_id: Optional[str]) -> Optional[dict]:
+    """None when parent_id is not the caller's folder (404); FolderConflict past max depth."""
+    async with _FOLDER_TREE_LOCK:
+        folders = await _folder_map(db, user_id)
+        if parent_id is not None:
+            if parent_id not in folders:
+                return None
+            if _depth(folders, parent_id) + 1 > MAX_FOLDER_DEPTH:
+                raise FolderConflict(f"Folders can be nested at most {MAX_FOLDER_DEPTH} levels deep.")
+        folder = Folder(user_id=user_id, name=name, parent_id=parent_id)
+        db.add(folder)
+        await db.commit()
+    return {"id": folder.id, "name": folder.name, "parent_id": folder.parent_id, "item_ids": []}
+
+
+async def update_folder(db: AsyncSession, user_id: str, folder_id: str, fields: dict) -> Optional[dict]:
+    """fields may hold name and/or parent_id. None -> 404 (folder or new parent not the caller's)."""
+    async with _FOLDER_TREE_LOCK:
+        return await _update_folder_locked(db, user_id, folder_id, fields)
+
+
+async def _update_folder_locked(db: AsyncSession, user_id: str, folder_id: str, fields: dict) -> Optional[dict]:
+    folders = await _folder_map(db, user_id)
+    folder = folders.get(folder_id)
+    if folder is None:
+        return None
+    if "parent_id" in fields:
+        new_parent = fields["parent_id"]
+        if new_parent is not None:
+            if new_parent not in folders:
+                return None
+            subtree_ids, height = _subtree(folders, folder_id)
+            if new_parent in subtree_ids:  # self or a descendant
+                raise FolderConflict("A folder cannot be moved into itself or its own subfolder.")
+            if _depth(folders, new_parent) + height > MAX_FOLDER_DEPTH:
+                raise FolderConflict(f"Folders can be nested at most {MAX_FOLDER_DEPTH} levels deep.")
+        folder.parent_id = new_parent
+    if "name" in fields:
+        folder.name = fields["name"]
+    await db.commit()
+    return await _folder_with_items(db, folders, folder_id)
+
+
+async def delete_folder(db: AsyncSession, user_id: str, folder_id: str) -> bool:
+    """Deletes the folder, its descendants and their memberships; never library documents."""
+    async with _FOLDER_TREE_LOCK:  # a concurrent move must not re-parent into a subtree being deleted
+        folders = await _folder_map(db, user_id)
+        if folder_id not in folders:
+            return False
+        ids, _ = _subtree(folders, folder_id)
+        await db.execute(sql_delete(FolderItem).where(FolderItem.folder_id.in_(ids)))
+        await db.execute(sql_delete(Folder).where(Folder.id.in_(ids), Folder.user_id == user_id))
+        await db.commit()
+    return True
+
+
+async def _owned_doc_ids(db: AsyncSession, user_id: str, document_ids: List[str]) -> Optional[List[str]]:
+    """Deduped ids if every one is the caller's user_documents row, else None."""
+    wanted = list(dict.fromkeys(document_ids))
+    res = await db.execute(
+        select(UserDocument.id).where(UserDocument.user_id == user_id, UserDocument.id.in_(wanted))
+    )
+    return wanted if len(res.scalars().all()) == len(wanted) else None
+
+
+async def add_folder_items(db: AsyncSession, user_id: str, folder_id: str, document_ids: List[str]) -> Optional[dict]:
+    """None -> 404 (folder or any document not the caller's; nothing changes). Idempotent."""
+    folders = await _folder_map(db, user_id)
+    wanted = await _owned_doc_ids(db, user_id, document_ids)
+    if folder_id not in folders or wanted is None:
+        return None
+    # ON CONFLICT DO NOTHING keeps a double-submitted add idempotent instead of a 500.
+    await db.execute(
+        sqlite_insert(FolderItem)
+        .values([{"folder_id": folder_id, "document_id": d} for d in wanted])
+        .on_conflict_do_nothing()
+    )
+    await db.commit()
+    return await _folder_with_items(db, folders, folder_id)
+
+
+async def remove_folder_items(db: AsyncSession, user_id: str, folder_id: str, document_ids: List[str]) -> Optional[dict]:
+    """None -> 404. Removing a non-member is a no-op."""
+    folders = await _folder_map(db, user_id)
+    wanted = await _owned_doc_ids(db, user_id, document_ids)
+    if folder_id not in folders or wanted is None:
+        return None
+    await db.execute(
+        sql_delete(FolderItem).where(FolderItem.folder_id == folder_id, FolderItem.document_id.in_(wanted))
+    )
+    await db.commit()
+    return await _folder_with_items(db, folders, folder_id)

@@ -1,0 +1,47 @@
+- generic [ref=f8e445]:
+  - complementary "Documents" [ref=f8e446]:
+    - generic [ref=f8e447]:
+      - button "Back to chat" [ref=f8e448] [cursor=pointer]
+      - generic [ref=f8e451]: Documents
+      - button "New document" [ref=f8e452] [cursor=pointer]:
+        - generic [ref=f8e454]: New
+    - list [ref=f8e455]:
+      - listitem [ref=f8e456]:
+        - button "Untitled Document" [ref=f8e457] [cursor=pointer]
+        - generic [ref=f8e462]:
+          - button "Rename in the editor title" [disabled] [ref=f8e463]
+          - button "Delete Untitled Document" [ref=f8e467] [cursor=pointer]
+  - main [ref=f8e471]:
+    - generic [ref=f8e472]:
+      - generic [ref=f8e473]:
+        - generic [ref=f8e474]: Document
+        - generic [ref=f8e481]:
+          - button "Copy" [ref=f8e482] [cursor=pointer]
+          - button "Export" [ref=f8e488] [cursor=pointer]
+          - button "Hide formatting toolbar" [ref=f8e495] [cursor=pointer]
+          - button "Close Document Writer" [ref=f8e499] [cursor=pointer]
+      - generic [ref=f8e504]:
+        - button "Undo (Ctrl+Z)" [ref=f8e505] [cursor=pointer]
+        - button "Redo (Ctrl+Y)" [ref=f8e509] [cursor=pointer]
+        - button "Source Serif" [ref=f8e515] [cursor=pointer]
+        - button "12" [ref=f8e520] [cursor=pointer]
+        - button "Normal text" [ref=f8e525] [cursor=pointer]
+        - button "B" [ref=f8e530] [cursor=pointer]
+        - button "I" [ref=f8e531] [cursor=pointer]
+        - button "U" [ref=f8e532] [cursor=pointer]
+        - button "S" [ref=f8e533] [cursor=pointer]
+        - button "Text Alignment" [ref=f8e536] [cursor=pointer]
+        - button "Bullet List" [ref=f8e541] [cursor=pointer]
+        - button "Numbered List" [ref=f8e543] [cursor=pointer]
+        - button "Insert Table" [ref=f8e549] [cursor=pointer]
+        - button "Blockquote (Literature citation)" [ref=f8e552] [cursor=pointer]
+        - button "Cite Library" [ref=f8e556] [cursor=pointer]
+        - button "Divider / Section Rule" [ref=f8e561] [cursor=pointer]
+        - button "Insert Page Break" [ref=f8e563] [cursor=pointer]
+        - button "Clear Formatting" [ref=f8e568] [cursor=pointer]
+      - textbox "Untitled Academic Paper" [ref=f8e577]: Untitled Document
+      - generic [ref=f8e579]:
+        - generic [ref=f8e580]: 0 words · ~1 min read · 1 page
+        - generic [ref=f8e586]:
+          - text: Select a claim to
+          - strong [ref=f8e587]: Cite

@@ -1,0 +1,14 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "overused-font",
+        "value": "fraunces",
+        "createdAt": "2026-11-25T01:40:20.112Z",
+        "reason": "codebase evidence: Fraunces 600 is loaded in index.html solely for the .sm-word brand wordmark (index.css:599); brand typography is out of scope for this plan"
+      }
+    ]
+  }
+}

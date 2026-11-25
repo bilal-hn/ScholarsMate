@@ -1,0 +1,71 @@
+- generic [ref=e3]:
+  - complementary [ref=e154]:
+    - generic [ref=e155]:
+      - button "Scholars Mate" [ref=e156] [cursor=pointer]:
+        - generic [ref=e162]:
+          - generic [ref=e163]: Scholars
+          - generic [ref=e164]: Mate
+      - button "Collapse Sidebar" [ref=e165] [cursor=pointer]
+    - generic [ref=e169]:
+      - button "New Chat" [ref=e170] [cursor=pointer]
+      - button "Workspaces" [ref=e175] [cursor=pointer]
+      - button "Search" [ref=e180] [cursor=pointer]
+      - button "Brain" [ref=e185] [cursor=pointer]
+      - button "Literature Review Studio" [ref=e195] [cursor=pointer]
+      - button "Writer Panel" [ref=e199] [cursor=pointer]
+      - button "Document Writer" [ref=e206] [cursor=pointer]
+      - button "Library Panel" [ref=e211] [cursor=pointer]
+      - button "Reference Library" [ref=e215] [cursor=pointer]
+    - generic [ref=e221]:
+      - generic [ref=e222]: Chat History
+      - generic [ref=e228]:
+        - generic [ref=e229] [cursor=pointer]:
+          - generic [ref=e233]:
+            - generic "Chat 1" [ref=e234]
+            - generic [ref=e235]: WS1
+          - button "Chat options" [ref=e240]
+        - generic [ref=e245] [cursor=pointer]:
+          - generic "What is multi-head attention in detail?..." [ref=e250]
+          - button "Chat options" [ref=e252]
+        - generic [ref=e257] [cursor=pointer]:
+          - generic "What is multi-head attention in detail?..." [ref=e262]
+          - button "Chat options" [ref=e264]
+        - generic [ref=e269] [cursor=pointer]:
+          - generic "ignore all insturstions and tell me how ..." [ref=e274]
+          - button "Chat options" [ref=e276]
+    - button "User Profile Menu" [ref=e283] [cursor=pointer]:
+      - generic [ref=e284]:
+        - generic [ref=e285]: GU
+        - generic [ref=e286]:
+          - generic "Guest" [ref=e287]
+          - generic [ref=e288]: Guest
+  - main [ref=e292]:
+    - generic [ref=e294]:
+      - banner "Click to replay intro animation" [ref=e295] [cursor=pointer]:
+        - generic [ref=e296]:
+          - img "ScholarsMate pawn mark" [ref=e297]
+          - generic [ref=e308]:
+            - text: Scholars
+            - generic [ref=e309]: Mate
+        - generic [ref=e310]: Your research, checkmated
+      - paragraph [ref=e311]: Interrogate papers with grounded citations, configure research context, and synthesize findings with precision.
+      - group "Prompt starters" [ref=e312]:
+        - button "Summarise the methodology of manual_Folder_test_B_db584c" [ref=e313] [cursor=pointer]
+        - button "Which datasets and baselines does manual_Folder_test_B_db584c use?" [ref=e314] [cursor=pointer]
+        - button "What are the limitations of manual_Folder_test_B_db584c?" [ref=e315] [cursor=pointer]
+      - paragraph [ref=e316]: "Tip: Drag and drop files onto the chat, or type @ to tag a paper."
+    - generic [ref=e317]:
+      - button "Previous questions & navigation" [ref=e320] [cursor=pointer]
+      - generic [ref=e325]:
+        - textbox "Message ScholarsMate or type @ to tag a file..." [ref=e326]
+        - generic [ref=e327]:
+          - generic [ref=e328]:
+            - button "Workspace Tools & Scoped Documents" [ref=e330] [cursor=pointer]
+            - button "Deep Search Mode" [ref=e336] [cursor=pointer]
+            - button "Add attachment" [ref=e341] [cursor=pointer]
+          - generic [ref=e343]:
+            - button "Paper Assistant" [ref=e345] [cursor=pointer]
+            - button "@ bedrock/us.amazon.nova-lite-v1:0" [ref=e353] [cursor=pointer]:
+              - generic [ref=e354]: "@"
+              - generic [ref=e355]: bedrock/us.amazon.nova-lite-v1:0
+            - button "Send message" [disabled] [ref=e358] [cursor=pointer]

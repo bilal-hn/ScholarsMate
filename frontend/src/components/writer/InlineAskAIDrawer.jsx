@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { X, Sparkles, Send, ArrowRight, CornerDownLeft, Copy, Check, ChevronDown, ChevronRight, Loader2, Brain } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { X, Sparkles, Send, ArrowRight, CornerDownLeft, Copy, Check, ChevronDown, ChevronRight, Brain } from 'lucide-react';
 import ChessPieceLoader from '../common/ChessPieceLoader';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -19,10 +19,17 @@ export default function InlineAskAIDrawer({
   thinkingProcess,
   onReplaceSelection,
   onInsertBelow,
+  canApply = true, // false when the answer is a refusal or error: nothing to put in the document
 }) {
   const [instruction, setInstruction] = useState('');
   const [showThinking, setShowThinking] = useState(false);
   const [copied, setCopied] = useState(false);
+  const inputRef = useRef(null);
+
+  // On open, focus the instruction field.
+  useEffect(() => {
+    if (isOpen) inputRef.current?.focus();
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -49,7 +56,17 @@ export default function InlineAskAIDrawer({
   };
 
   return (
-    <div className="fixed inset-y-0 right-0 w-[420px] bg-zinc-950/98 border-l border-zinc-800 shadow-2xl backdrop-blur-2xl z-50 flex flex-col animate-in slide-in-from-right duration-200 font-sans">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Ask AI"
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') {
+          e.stopPropagation();
+          onClose();
+        }
+      }}
+      className="fixed inset-y-0 right-0 w-[420px] max-w-full bg-zinc-950/98 border-l border-zinc-800 shadow-2xl backdrop-blur-2xl z-50 flex flex-col animate-in slide-in-from-right duration-200 font-sans">
       {/* 1. Header */}
       <div className="p-4 border-b border-zinc-800 flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -62,7 +79,9 @@ export default function InlineAskAIDrawer({
           </div>
         </div>
         <button
+          type="button"
           onClick={onClose}
+          aria-label="Close Ask AI"
           className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60 transition-colors cursor-pointer"
         >
           <X className="h-4 w-4" />
@@ -138,6 +157,7 @@ export default function InlineAskAIDrawer({
 
             {/* Action Buttons: Replace / Insert Below / Copy */}
             <div className="flex items-center gap-2 pt-1">
+              {canApply && (<>
               <button
                 type="button"
                 onClick={() => onReplaceSelection(aiResult)}
@@ -156,6 +176,7 @@ export default function InlineAskAIDrawer({
                 <CornerDownLeft className="h-3.5 w-3.5" />
                 <span>Insert Below</span>
               </button>
+              </>)}
 
               <button
                 type="button"
@@ -185,14 +206,17 @@ export default function InlineAskAIDrawer({
           className="flex items-center gap-2"
         >
           <input
+            ref={inputRef}
             type="text"
             value={instruction}
             onChange={(e) => setInstruction(e.target.value)}
+            aria-label="Instruction for the AI"
             placeholder="Ask AI about highlighted text (e.g., 'Rewrite in 2 sentences')..."
             className="flex-1 bg-zinc-900 border border-zinc-700/80 rounded-xl px-3 py-2 text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-purple-500 transition-colors"
           />
           <button
             type="submit"
+            aria-label="Send"
             disabled={isLoading || !instruction.trim()}
             className="p-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white transition-all disabled:opacity-40 cursor-pointer shrink-0"
           >

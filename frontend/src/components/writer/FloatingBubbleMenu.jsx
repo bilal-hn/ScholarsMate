@@ -1,5 +1,4 @@
-import React from 'react';
-import { BookmarkPlus, BookMarked, Bold, Italic, Underline, Heading2, Quote } from 'lucide-react';
+import { BookmarkPlus, BookMarked, Bold, Italic, Underline, Heading2, Quote, Sparkles } from 'lucide-react';
 
 /**
  * Floating bubble menu that appears above highlighted text selections in the Document Writer.
@@ -8,6 +7,7 @@ export default function FloatingBubbleMenu({
   position,
   onCite,
   onCiteLibrary,
+  onAskAI,
   onFormat,
   onClose,
 }) {
@@ -27,6 +27,7 @@ export default function FloatingBubbleMenu({
         type="button"
         onClick={onCite}
         className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-zinc-100 font-semibold border border-amber-500/30 text-xs cursor-pointer transition-all active:scale-95"
+        aria-label="Find match"
         title="Find grounded citations in workspace documents"
       >
         <BookmarkPlus className="h-3.5 w-3.5 text-amber-400" />
@@ -39,10 +40,25 @@ export default function FloatingBubbleMenu({
           type="button"
           onClick={onCiteLibrary}
           className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg hover:bg-zinc-800 text-zinc-300 hover:text-amber-300 text-xs cursor-pointer transition-all active:scale-95"
+          aria-label="Cite from library"
           title="Browse Reference Library & Cite"
         >
           <BookMarked className="h-3.5 w-3.5 text-amber-400" />
           <span>Library</span>
+        </button>
+      )}
+
+      {/* Ask AI about the selection */}
+      {onAskAI && (
+        <button
+          type="button"
+          onClick={onAskAI}
+          aria-label="Ask AI"
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg hover:bg-zinc-800 text-zinc-300 hover:text-purple-300 text-xs cursor-pointer transition-all active:scale-95"
+          title="Ask AI about the selected text"
+        >
+          <Sparkles className="h-3.5 w-3.5 text-purple-400" />
+          <span>Ask AI</span>
         </button>
       )}
 

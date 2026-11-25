@@ -12,12 +12,10 @@ import {
   Search,
   Upload,
   Download,
-  Trash2,
   Tag,
   Sparkles,
   MessageSquare,
   RefreshCw,
-  ArrowLeft,
   ExternalLink,
   X,
   AlertCircle,
@@ -36,7 +34,8 @@ import {
   GitMerge,
   Copy,
   CheckCircle2,
-  Home,
+  Clock,
+  MoreHorizontal,
   BookMarked,
   BookOpen,
 } from 'lucide-react';
@@ -56,13 +55,48 @@ import {
   assignWorkspaceDocumentsAPI,
   removeWorkspaceDocumentsAPI,
   createWorkspaceJSONAPI,
+  listFoldersAPI,
+  addFolderItemsAPI,
+  removeFolderItemsAPI,
 } from '../../services/api';
 import LibraryInspector from './LibraryInspector';
+import FolderTree, { FolderPickerList } from './FolderTree';
+import {
+  flattenAll,
+  buildFolderTree,
+  smartFilter,
+  folderItems,
+  apiErrorMessage,
+  hasDragType,
+  ITEMS_MIME,
+} from './folderTreeUtils';
 import DuplicateMerger from './DuplicateMerger';
 import PdfViewer from '../viewer/PdfViewer';
 
+// Stable default: a fresh `[]` per render would re-fire the workspaces sync effect forever.
+const NO_WORKSPACES = [];
+
+const SMART_COLLECTIONS = [
+  { id: 'unfiled', label: 'Unfiled', icon: Inbox, hint: 'Papers that are in no folder' },
+  { id: 'recent', label: 'Recent', icon: Clock, hint: 'The 50 most recently added papers' },
+  { id: 'pdf', label: 'Has PDF', icon: Paperclip, hint: 'Papers with a PDF attached' },
+];
+
+const parseDraggedIds = (e) => {
+  try {
+    const ids = JSON.parse(e.dataTransfer.getData(ITEMS_MIME));
+    return Array.isArray(ids) ? ids : [];
+  } catch {
+    return [];
+  }
+};
+
+// `compact` is the chat split panel: no left pane or inspector column, Title + Year only.
 export default function LibraryView({
-  workspaces = [],
+  workspaces = NO_WORKSPACES,
+  compact = false,
+  activeWorkspaceId = null,
+  onWorkspacesChanged,
   onClose,
   onStartChatWithPaper,
   onOpenPdfViewer,
@@ -145,12 +179,102 @@ export default function LibraryView({
     setLocalWorkspaces(workspaces);
   }, [workspaces]);
 
-  const refreshWorkspaces = async () => {
+  // `notify`: pass the fresh list up to the app after a membership change. getWorkspacesAPI returns []
+  // on failure (this view can't delete workspaces), so an empty list is never forwarded.
+  const refreshWorkspaces = async ({ notify = false } = {}) => {
     try {
       const list = await getWorkspacesAPI();
       setLocalWorkspaces(list || []);
+      if (notify && list?.length) onWorkspacesChanged?.(list);
     } catch (err) {
       console.error('Failed to refresh workspaces:', err);
+    }
+  };
+
+  // Folders organise the library only; workspaces (below) are what scope RAG.
+  const [folders, setFolders] = useState([]);
+  const [activeFolderId, setActiveFolderId] = useState(null);
+  const [smartView, setSmartView] = useState(null); // 'unfiled' | 'recent' | 'pdf'
+  const [rowMenu, setRowMenu] = useState(null); // { ids, x, y, view: 'menu' | 'folders' }
+  const [dropWsId, setDropWsId] = useState(null);
+  const rowMenuRef = useRef(null);
+  const rowMenuTriggerRef = useRef(null);
+  const overlayRef = useRef(null);
+
+  useEffect(() => {
+    let live = true;
+    listFoldersAPI()
+      .then((list) => live && setFolders(list || []))
+      .catch((err) => console.error('Failed to load folders:', err));
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  const refreshFolders = async () => {
+    try {
+      const list = (await listFoldersAPI()) || [];
+      setFolders(list);
+      setActiveFolderId((prev) => (prev && list.some((f) => f.id === prev) ? prev : null));
+    } catch (err) {
+      console.error('Failed to refresh folders:', err);
+    }
+  };
+
+  const resetView = () => {
+    setSelectedIds(new Set());
+    setIsSelectionMode(false);
+    setActiveTag(null);
+    setActiveWorkspaceFilter(null);
+    setActiveFolderId(null);
+    setSmartView(null);
+  };
+
+  // Only a real workspace id scopes the server query; '__duplicates__' is a client view.
+  const scopedWorkspaceId =
+    activeWorkspaceFilter && !activeWorkspaceFilter.startsWith('__') ? activeWorkspaceFilter : null;
+
+  const flatFolders = useMemo(() => flattenAll(buildFolderTree(folders)), [folders]);
+
+  const handleAddItemsToFolder = async (folderId, docIds) => {
+    try {
+      await addFolderItemsAPI(folderId, docIds);
+      const name = folders.find((f) => f.id === folderId)?.name || 'folder';
+      setImportNotification({
+        type: 'success',
+        message: `Added ${docIds.length} paper${docIds.length === 1 ? '' : 's'} to folder "${name}".`,
+      });
+      await refreshFolders();
+    } catch (err) {
+      setImportNotification({ type: 'error', message: apiErrorMessage(err, 'Could not add papers to the folder.') });
+    }
+  };
+
+  const handleRemoveItemFromFolder = async (folderId, docId) => {
+    try {
+      await removeFolderItemsAPI(folderId, [docId]);
+      await refreshFolders();
+    } catch (err) {
+      setImportNotification({ type: 'error', message: apiErrorMessage(err, 'Could not remove the paper from the folder.') });
+    }
+  };
+
+  // Drop (or the compact action) puts papers in a workspace, which does change RAG scope.
+  const assignToWorkspace = async (workspaceId, docIds) => {
+    if (!workspaceId || docIds.length === 0) return;
+    try {
+      const res = await assignWorkspaceDocumentsAPI(workspaceId, docIds);
+      if (res.success) {
+        setImportNotification({
+          type: 'success',
+          message: `Assigned ${res.assigned_count} paper(s) to "${res.workspace_name}".`,
+        });
+        setSelectedIds(new Set());
+        await refreshWorkspaces({ notify: true });
+        await fetchLibrary();
+      }
+    } catch (err) {
+      setImportNotification({ type: 'error', message: apiErrorMessage(err, 'Failed to assign papers to workspace.') });
     }
   };
 
@@ -187,17 +311,17 @@ export default function LibraryView({
       const created = await createWorkspaceJSONAPI(newCollectionName.trim(), []);
       setImportNotification({
         type: 'success',
-        message: `Created collection "${created.name}".`,
+        message: `Created workspace "${created.name}".`,
       });
       setNewCollectionName('');
       setIsCreateCollectionOpen(false);
-      await refreshWorkspaces();
+      await refreshWorkspaces({ notify: true });
+      resetView();
       setActiveWorkspaceFilter(created.id);
-      setActiveTag(null);
     } catch (err) {
       setImportNotification({
         type: 'error',
-        message: err.response?.data?.detail || 'Failed to create collection.',
+        message: err.response?.data?.detail || 'Failed to create workspace.',
       });
     } finally {
       setIsCreatingCollection(false);
@@ -237,26 +361,8 @@ export default function LibraryView({
   }, [isAssignWsMenuOpen]);
 
   const handleAssignSelectedToWorkspace = async (workspaceId) => {
-    if (selectedIds.size === 0) return;
     setIsAssignWsMenuOpen(false);
-    try {
-      const docIds = Array.from(selectedIds);
-      const res = await assignWorkspaceDocumentsAPI(workspaceId, docIds);
-      if (res.success) {
-        setImportNotification({
-          type: 'success',
-          message: `Assigned ${res.assigned_count} paper(s) to "${res.workspace_name}".`,
-        });
-        setSelectedIds(new Set());
-        await refreshWorkspaces();
-        await fetchLibrary();
-      }
-    } catch (err) {
-      setImportNotification({
-        type: 'error',
-        message: err.response?.data?.detail || 'Failed to assign papers to workspace.',
-      });
-    }
+    await assignToWorkspace(workspaceId, Array.from(selectedIds));
   };
 
   const handleRemoveSelectedFromWorkspace = async () => {
@@ -271,7 +377,7 @@ export default function LibraryView({
           message: `Removed ${res.removed_count} paper(s) from "${currentWs?.name || 'collection'}".`,
         });
         setSelectedIds(new Set());
-        await refreshWorkspaces();
+        await refreshWorkspaces({ notify: true });
         await fetchLibrary();
       }
     } catch (err) {
@@ -296,7 +402,7 @@ export default function LibraryView({
       setNewWsInlineName('');
       setIsAssignWsMenuOpen(false);
       setSelectedIds(new Set());
-      await refreshWorkspaces();
+      await refreshWorkspaces({ notify: true });
       await fetchLibrary();
     } catch (err) {
       setImportNotification({
@@ -361,8 +467,7 @@ export default function LibraryView({
     setIsCreatingManualItem(true);
     setManualError(null);
     try {
-      const targetWorkspace =
-        activeWorkspaceFilter && activeWorkspaceFilter !== '__unfiled__' ? activeWorkspaceFilter : null;
+      const targetWorkspace = scopedWorkspaceId;
       const createdItem = await createManualLibraryItemAPI({
         ...manualForm,
         workspace_id: targetWorkspace,
@@ -401,8 +506,7 @@ export default function LibraryView({
     setIsImportingBib(true);
     setImportNotification(null);
     try {
-      const targetWorkspace =
-        activeWorkspaceFilter && activeWorkspaceFilter !== '__unfiled__' ? activeWorkspaceFilter : null;
+      const targetWorkspace = scopedWorkspaceId;
       const res = await importLibraryFileAPI(file, targetWorkspace);
       setImportNotification({
         type: 'success',
@@ -432,18 +536,21 @@ export default function LibraryView({
 
   // Drag and Drop support for bulk import & files
   const handleDragOver = (e) => {
+    if (!hasDragType(e, 'Files')) return;
     e.preventDefault();
     e.stopPropagation();
     setIsDraggingOver(true);
   };
 
   const handleDragLeave = (e) => {
+    if (!hasDragType(e, 'Files')) return;
     e.preventDefault();
     e.stopPropagation();
     setIsDraggingOver(false);
   };
 
   const handleDrop = async (e) => {
+    if (!hasDragType(e, 'Files')) return;
     e.preventDefault();
     e.stopPropagation();
     setIsDraggingOver(false);
@@ -474,11 +581,15 @@ export default function LibraryView({
     }
   };
 
-  // Escape key returns to chat or closes inspector/modals
+  // Escape key returns to chat or closes inspector/modals. Not in the chat panel: Escape there
+  // belongs to the chat, and the inspector overlay / row menu close themselves.
   useEffect(() => {
+    if (compact) return undefined;
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
-        if (isNewItemMenuOpen) {
+        if (rowMenu) {
+          setRowMenu(null);
+        } else if (isNewItemMenuOpen) {
           setIsNewItemMenuOpen(false);
         } else if (isManualModalOpen) {
           setIsManualModalOpen(false);
@@ -493,7 +604,7 @@ export default function LibraryView({
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedDoc, isAddIdentifierOpen, isManualModalOpen, isNewItemMenuOpen, onClose]);
+  }, [compact, rowMenu, selectedDoc, isAddIdentifierOpen, isManualModalOpen, isNewItemMenuOpen, onClose]);
 
   // Fetch Duplicates (FR-17.6)
   const fetchDuplicates = async () => {
@@ -525,6 +636,7 @@ export default function LibraryView({
     });
     await fetchDuplicates();
     await fetchLibrary();
+    await refreshFolders();
   };
 
   // Fetch Library Items
@@ -533,7 +645,7 @@ export default function LibraryView({
     try {
       const data = await getLibraryAPI({
         tag: activeTag,
-        workspace_id: activeWorkspaceFilter === '__duplicates__' ? null : activeWorkspaceFilter,
+        workspace_id: scopedWorkspaceId,
         search: searchQuery,
       });
       setItems(data.items || []);
@@ -584,7 +696,8 @@ export default function LibraryView({
 
   // Sorting
   const sortedItems = useMemo(() => {
-    return [...items].sort((a, b) => {
+    const visible = activeFolderId ? folderItems(items, folders, activeFolderId) : smartFilter(smartView, items, folders);
+    return [...visible].sort((a, b) => {
       let valA = a[sortField] || '';
       let valB = b[sortField] || '';
       if (typeof valA === 'string') valA = valA.toLowerCase();
@@ -593,7 +706,7 @@ export default function LibraryView({
       if (valA > valB) return sortAsc ? 1 : -1;
       return 0;
     });
-  }, [items, sortField, sortAsc]);
+  }, [items, folders, activeFolderId, smartView, sortField, sortAsc]);
 
   const toggleSort = (field) => {
     if (sortField === field) {
@@ -650,7 +763,7 @@ export default function LibraryView({
         next.add(item.id);
         return next;
       });
-      setSelectedDoc(item);
+      if (!compact) setSelectedDoc(item);
     }, 450);
   };
 
@@ -666,10 +779,72 @@ export default function LibraryView({
       isLongPressTriggeredRef.current = false;
       return;
     }
-    if (showCheckboxes) {
+    if (showCheckboxes || e.ctrlKey || e.metaKey) {
       handleToggleSelectItem(item.id, e);
     } else {
       setSelectedDoc(item);
+    }
+  };
+
+  // Rows drag as the whole checkbox selection when the dragged row is part of it.
+  const idsForRow = (item) =>
+    selectedIds.has(item.id) && selectedIds.size > 1 ? Array.from(selectedIds) : [item.id];
+
+  const handleRowDragStart = (item, e) => {
+    handleRowPointerUpOrLeave();
+    e.dataTransfer.setData(ITEMS_MIME, JSON.stringify(idsForRow(item)));
+    e.dataTransfer.setData('text/plain', item.title || item.doc_name || '');
+    e.dataTransfer.effectAllowed = 'copy';
+  };
+
+  const openRowMenu = (item, e) => {
+    e.stopPropagation();
+    rowMenuTriggerRef.current = e.currentTarget;
+    const rect = e.currentTarget.getBoundingClientRect();
+    setRowMenu({
+      anchorId: item.id,
+      ids: idsForRow(item),
+      x: Math.max(8, rect.right - 224),
+      y: Math.min(rect.bottom + 4, window.innerHeight - 260),
+      view: 'menu',
+    });
+  };
+
+  // Chat-panel inspector overlay: move focus in on open, give it back to the opener on close.
+  const overlayOpen = compact && !!selectedDoc;
+  useEffect(() => {
+    if (!overlayOpen) return undefined;
+    const opener = document.activeElement;
+    overlayRef.current?.focus();
+    return () => {
+      if (opener?.isConnected) opener.focus?.();
+    };
+  }, [overlayOpen]);
+
+  const rowMenuView = rowMenu?.view;
+  useEffect(() => {
+    // rowMenuView flips on open and when the menu switches to the folder list: focus its first action.
+    if (rowMenuView) rowMenuRef.current?.querySelector('button:not(:disabled)')?.focus();
+  }, [rowMenuView]);
+
+  const closeRowMenu = (restoreFocus = true) => {
+    setRowMenu(null);
+    const trigger = rowMenuTriggerRef.current;
+    if (restoreFocus && trigger?.isConnected) trigger.focus();
+  };
+
+  const handleRowMenuKeyDown = (e) => {
+    if (e.key === 'Escape') {
+      e.stopPropagation();
+      closeRowMenu();
+    } else if (e.key === 'Tab') {
+      closeRowMenu(); // focus returns to the trigger, then Tab moves on from there
+    } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      const buttons = Array.from(rowMenuRef.current?.querySelectorAll('button:not(:disabled)') || []);
+      const at = buttons.indexOf(document.activeElement);
+      const next = e.key === 'ArrowDown' ? at + 1 : at - 1;
+      buttons[(next + buttons.length) % buttons.length]?.focus();
     }
   };
 
@@ -701,6 +876,7 @@ export default function LibraryView({
       await deleteLibraryItemAPI(docId);
       if (selectedDoc && selectedDoc.id === docId) setSelectedDoc(null);
       await fetchLibrary();
+      await refreshFolders();
     } catch (err) {
       console.error('Failed to delete item:', err);
     }
@@ -792,6 +968,62 @@ export default function LibraryView({
     return availableTags.filter((t) => t.toLowerCase().includes(tagFilterQuery.toLowerCase().trim()));
   }, [availableTags, tagFilterQuery]);
 
+  const compactViewValue = smartView
+    ? `smart:${smartView}`
+    : activeFolderId
+    ? `folder:${activeFolderId}`
+    : scopedWorkspaceId
+    ? `ws:${scopedWorkspaceId}`
+    : 'all';
+
+  const handleCompactViewChange = (value) => {
+    resetView();
+    setSelectedDoc(null);
+    const [kind, id] = value.split(/:(.*)/s);
+    if (kind === 'smart') setSmartView(id);
+    else if (kind === 'folder') setActiveFolderId(id);
+    else if (kind === 'ws') setActiveWorkspaceFilter(id);
+  };
+
+  const foldersEmptyText = compact
+    ? 'No folders yet. Create them from the full library.'
+    : 'No folders yet. Create one with + in the Folders list.';
+
+  const inspector = selectedDoc ? (
+    <LibraryInspector
+      document={selectedDoc}
+      workspaces={localWorkspaces}
+      folders={folders}
+      foldersEmptyText={foldersEmptyText}
+      onWorkspaceMembershipChanged={() => refreshWorkspaces({ notify: true })}
+      onAddToFolder={handleAddItemsToFolder}
+      onRemoveFromFolder={handleRemoveItemFromFolder}
+      onClose={() => setSelectedDoc(null)}
+      onUpdateDocument={(updated) => {
+        setSelectedDoc(updated);
+        fetchLibrary();
+        refreshWorkspaces();
+      }}
+      onOpenPdf={(docName) =>
+        compact
+          ? onOpenPdfViewer?.(docName || selectedDoc.doc_name, 1)
+          : handleOpenPaperTab(docName || selectedDoc.doc_name, selectedDoc.title || docName)
+      }
+      onChatWithPaper={onStartChatWithPaper}
+      onDeleteItem={handleDeleteItem}
+    />
+  ) : null;
+
+  const rowMenuAllFolderIds = rowMenu
+    ? folders.filter((f) => rowMenu.ids.every((id) => (f.item_ids || []).includes(id))).map((f) => f.id)
+    : [];
+  const rowMenuInChatWorkspace =
+    !!rowMenu &&
+    !!activeWorkspaceId &&
+    rowMenu.ids.every((id) => items.find((i) => i.id === id)?.workspaces?.some((w) => w.id === activeWorkspaceId));
+
+  const isAllView = !activeTag && !activeWorkspaceFilter && !activeFolderId && !smartView;
+
   // Determine item icon based on type
   const getItemIcon = (item, isInspecting) => {
     if (item.arxiv_id || item.item_type === 'preprint') {
@@ -830,6 +1062,7 @@ export default function LibraryView({
       {/* ========================================================================= */}
       {/* ROW 1: ZOTERO 7 APPLICATION TAB BAR (Height: 36px) */}
       {/* ========================================================================= */}
+      {!compact && (
       <div className="h-9 bg-zinc-950 border-b border-zinc-800 flex items-center justify-between px-2 shrink-0 select-none text-xs">
         {/* Left: Quick Nav (Home & Chats) */}
         <div className="flex items-center gap-1.5 shrink-0 pr-2 border-r border-zinc-800">
@@ -859,10 +1092,10 @@ export default function LibraryView({
           <button
             type="button"
             onClick={() => setActiveTabId('library')}
-            className={`h-[30px] flex items-center gap-1.5 px-3 rounded-t-md text-[11px] font-medium transition-all cursor-pointer shrink-0 border-t-2 ${
+            className={`h-[30px] flex items-center gap-1.5 px-3 rounded-t-md text-[11px] font-medium transition-colors cursor-pointer shrink-0 border border-b-0 ${
               activeTabId === 'library'
-                ? 'bg-zinc-850 text-zinc-100 border-t-zinc-300 border-x border-zinc-750 shadow-sm'
-                : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/40 border-t-transparent'
+                ? 'bg-zinc-850 text-zinc-100 border-zinc-750 shadow-sm'
+                : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/40 border-transparent'
             }`}
           >
             <BookMarked className="h-3.5 w-3.5 text-zinc-300" />
@@ -876,10 +1109,10 @@ export default function LibraryView({
               <div
                 key={tab.id}
                 onClick={() => setActiveTabId(tab.id)}
-                className={`h-[30px] flex items-center gap-1.5 px-2.5 rounded-t-md text-[11px] transition-all cursor-pointer shrink-0 border-t-2 group ${
+                className={`h-[30px] flex items-center gap-1.5 px-2.5 rounded-t-md text-[11px] transition-colors cursor-pointer shrink-0 border border-b-0 group ${
                   isActive
-                    ? 'bg-zinc-850 text-zinc-100 font-medium border-t-zinc-300 border-x border-zinc-750 shadow-sm'
-                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/40 border-t-transparent'
+                    ? 'bg-zinc-850 text-zinc-100 font-medium border-zinc-750 shadow-sm'
+                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/40 border-transparent'
                 }`}
                 title={tab.title}
               >
@@ -898,8 +1131,7 @@ export default function LibraryView({
           })}
         </div>
       </div>
-
-
+      )}
 
       {/* ========================================================================= */}
       {/* MAIN CONTENT: 3-PANE WORKBENCH OR OPEN PDF READER TAB */}
@@ -909,15 +1141,16 @@ export default function LibraryView({
         {/* ========================================================================= */}
         {/* PANE 1: ZOTERO TREE SIDEBAR (Collections & Tag Selector) */}
         {/* ========================================================================= */}
+        {!compact && (
         <div className="w-60 h-full bg-zinc-900/80 border-r border-zinc-800 flex flex-col shrink-0 select-none">
-          {/* Left Panel Header: Title + Action Icons (Search, Add Folder, Add File) */}
+          {/* Left Panel Header: Title + Action Icons (Filter workspaces, Add File) */}
           <div className="h-9 px-2.5 border-b border-zinc-800 flex items-center justify-between gap-1 shrink-0 bg-zinc-950/60">
             <div className="flex items-center gap-1.5 min-w-0">
               <FolderOpen className="h-3.5 w-3.5 text-[var(--theme-accent-primary,#e06c67)] shrink-0" />
-              <span className="font-semibold text-xs text-zinc-200 tracking-tight truncate">Collections</span>
+              <span className="font-semibold text-xs text-zinc-200 tracking-tight truncate">Library</span>
             </div>
             <div className="flex items-center gap-0.5">
-              {/* Search collections toggle */}
+              {/* Search workspaces toggle */}
               <button
                 type="button"
                 onClick={() => {
@@ -927,24 +1160,10 @@ export default function LibraryView({
                 className={`p-1 rounded text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 transition-colors cursor-pointer ${
                   isFilterCollectionsOpen ? 'bg-zinc-800 text-[var(--theme-accent-primary,#e06c67)]' : ''
                 }`}
-                title="Search / Filter Collections"
+                title="Filter workspaces"
+                aria-label="Filter workspaces"
               >
                 <Search className="h-3.5 w-3.5" />
-              </button>
-
-              {/* Add Folder / Collection icon */}
-              <button
-                type="button"
-                onClick={() => {
-                  setIsCreateCollectionOpen(true);
-                  setTimeout(() => newCollectionInputRef.current?.focus(), 50);
-                }}
-                className={`p-1 rounded hover:bg-zinc-800 transition-colors cursor-pointer ${
-                  isCreateCollectionOpen ? 'bg-zinc-800 text-[var(--theme-accent-primary,#e06c67)]' : 'text-zinc-400 hover:text-[var(--theme-accent-primary,#e06c67)]'
-                }`}
-                title="New Collection / Workspace"
-              >
-                <FolderPlus className="h-3.5 w-3.5" />
               </button>
 
               {/* Add File / PDF icon */}
@@ -960,7 +1179,7 @@ export default function LibraryView({
             </div>
           </div>
 
-          {/* Quick Collection Search Input */}
+          {/* Quick Workspace Search Input */}
           {isFilterCollectionsOpen && (
             <div className="px-2 py-1.5 border-b border-zinc-800 bg-zinc-950/90 shrink-0">
               <div className="relative">
@@ -970,7 +1189,7 @@ export default function LibraryView({
                   autoFocus
                   value={collectionFilterQuery}
                   onChange={(e) => setCollectionFilterQuery(e.target.value)}
-                  placeholder="Filter collections..."
+                  placeholder="Filter workspaces..."
                   className="w-full bg-zinc-900 border border-zinc-800 rounded pl-6 pr-5 py-0.5 text-[10.5px] text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-zinc-700"
                 />
                 {collectionFilterQuery && (
@@ -986,70 +1205,158 @@ export default function LibraryView({
             </div>
           )}
 
-          {/* Inline New Collection Creator */}
-          {isCreateCollectionOpen && (
-            <form onSubmit={handleCreateCollection} className="px-2 py-1.5 border-b border-zinc-800 bg-zinc-950/90 flex items-center gap-1.5 shrink-0">
-              <Folder className="h-3.5 w-3.5 text-[var(--theme-accent-primary,#e06c67)] shrink-0" />
-              <input
-                ref={newCollectionInputRef}
-                type="text"
-                value={newCollectionName}
-                onChange={(e) => setNewCollectionName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Escape') {
-                    setIsCreateCollectionOpen(false);
-                    setNewCollectionName('');
-                  }
-                }}
-                placeholder="New collection name..."
-                disabled={isCreatingCollection}
-                className="flex-1 bg-zinc-900 border border-zinc-750 rounded px-1.5 py-0.5 text-[11px] text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-zinc-700"
-              />
-              <button
-                type="submit"
-                disabled={!newCollectionName.trim() || isCreatingCollection}
-                className="p-1 rounded bg-[var(--theme-accent-primary,#e06c67)] hover:opacity-90 text-white disabled:opacity-40 cursor-pointer"
-                title="Create Collection (Enter)"
-              >
-                <Check className="h-3 w-3" />
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsCreateCollectionOpen(false);
-                  setNewCollectionName('');
-                }}
-                className="p-1 rounded text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 cursor-pointer"
-                title="Cancel (Esc)"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </form>
-          )}
-
           {/* Tree Navigation & Items List */}
           <div className="flex-1 overflow-y-auto py-1.5 space-y-0.5">
             {/* Root: My Library */}
             <div className="px-1.5 mb-0.5">
               <button
                 type="button"
-                onClick={() => {
-                  setActiveTag(null);
-                  setActiveWorkspaceFilter(null);
-                }}
+                onClick={resetView}
                 className={`w-full flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-colors cursor-pointer ${
-                  !activeTag && !activeWorkspaceFilter
+                  isAllView
                     ? 'bg-zinc-800 text-zinc-100 font-medium'
                     : 'text-zinc-300 hover:bg-zinc-800/80 hover:text-zinc-100'
                 }`}
               >
-                <Folder className={`h-3.5 w-3.5 shrink-0 ${!activeTag && !activeWorkspaceFilter ? 'text-zinc-100' : 'text-zinc-400'}`} />
+                <Folder className={`h-3.5 w-3.5 shrink-0 ${isAllView ? 'text-zinc-100' : 'text-zinc-400'}`} />
                 <span className="truncate flex-1 text-left">My Library</span>
               </button>
             </div>
 
-            {/* Indented Workspace Collections Tree */}
-            <div className="space-y-0.5 px-1.5">
+            {/* Smart collections: computed views, not stored */}
+            <div className="px-1.5 space-y-0.5" role="group" aria-label="Smart collections">
+              <div className="px-2 pt-1.5 pb-0.5 text-[10px] uppercase font-semibold tracking-wider text-zinc-500">
+                Smart collections
+              </div>
+              {SMART_COLLECTIONS.map(({ id, label, icon: Icon, hint }) => {
+                const isActive = smartView === id;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => {
+                      resetView();
+                      setSmartView(id);
+                      setSelectedDoc(null);
+                    }}
+                    aria-pressed={isActive}
+                    className={`w-full flex items-center gap-1.5 px-2 py-1 rounded text-[11.5px] transition-colors cursor-pointer ${
+                      isActive
+                        ? 'bg-zinc-800 text-zinc-100 font-medium'
+                        : 'text-zinc-400 hover:bg-zinc-800/70 hover:text-zinc-200'
+                    }`}
+                    title={hint}
+                  >
+                    <Icon className={`h-3.5 w-3.5 shrink-0 ${isActive ? 'text-zinc-100' : 'text-zinc-500'}`} />
+                    <span className="truncate flex-1 text-left">{label}</span>
+                  </button>
+                );
+              })}
+
+              {/* Duplicate Items (FR-17.6) */}
+              <button
+                type="button"
+                onClick={() => {
+                  resetView();
+                  setActiveWorkspaceFilter('__duplicates__');
+                  setSelectedDoc(null);
+                  if (duplicateData.groups && duplicateData.groups.length > 0) {
+                    setSelectedDuplicateGroup(duplicateData.groups[0]);
+                  }
+                }}
+                aria-pressed={activeWorkspaceFilter === '__duplicates__'}
+                className={`w-full flex items-center gap-1.5 px-2 py-1 rounded text-[11.5px] transition-colors cursor-pointer ${
+                  activeWorkspaceFilter === '__duplicates__'
+                    ? 'bg-zinc-800 text-zinc-100 font-medium'
+                    : 'text-zinc-400 hover:bg-zinc-800/70 hover:text-zinc-200'
+                }`}
+                title="Scan and merge duplicate bibliographic entries"
+              >
+                <Copy className={`h-3.5 w-3.5 shrink-0 ${activeWorkspaceFilter === '__duplicates__' ? 'text-zinc-100' : 'text-zinc-500'}`} />
+                <span className="truncate flex-1 text-left">Duplicates</span>
+                {duplicateData.total_groups > 0 && (
+                  <span className="text-[10px] font-mono text-zinc-500 shrink-0">{duplicateData.total_groups}</span>
+                )}
+              </button>
+            </div>
+
+            {/* Folders: nested, organisation only */}
+            <div className="px-1.5">
+              <FolderTree
+                folders={folders}
+                activeFolderId={activeFolderId}
+                onSelect={(id) => {
+                  resetView();
+                  setActiveFolderId(id);
+                  setSelectedDoc(null);
+                }}
+                onChanged={refreshFolders}
+                onNotify={setImportNotification}
+                onDropItems={handleAddItemsToFolder}
+              />
+            </div>
+
+            {/* Workspaces: these scope RAG in chat */}
+            <div className="px-1.5 space-y-0.5">
+              <div className="flex items-center justify-between px-2 pt-1.5 pb-0.5">
+                <span className="text-[10px] uppercase font-semibold tracking-wider text-zinc-500">Workspaces</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsCreateCollectionOpen(true);
+                    setTimeout(() => newCollectionInputRef.current?.focus(), 50);
+                  }}
+                  className="p-0.5 rounded text-zinc-500 hover:text-zinc-100 hover:bg-zinc-700/70 cursor-pointer transition-colors"
+                  title="New workspace"
+                  aria-label="New workspace"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                </button>
+              </div>
+
+              {/* Inline New Workspace Creator */}
+              {isCreateCollectionOpen && (
+                <form onSubmit={handleCreateCollection} className="py-1 flex items-center gap-1.5">
+                  <Layers className="h-3.5 w-3.5 text-[var(--theme-accent-primary,#e06c67)] shrink-0" />
+                  <input
+                    ref={newCollectionInputRef}
+                    type="text"
+                    value={newCollectionName}
+                    onChange={(e) => setNewCollectionName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') {
+                        e.stopPropagation();
+                        setIsCreateCollectionOpen(false);
+                        setNewCollectionName('');
+                      }
+                    }}
+                    placeholder="New workspace name..."
+                    aria-label="New workspace name"
+                    disabled={isCreatingCollection}
+                    className="flex-1 min-w-0 bg-zinc-900 border border-zinc-750 rounded px-1.5 py-0.5 text-[11px] text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-zinc-700"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!newCollectionName.trim() || isCreatingCollection}
+                    className="p-1 rounded bg-[var(--theme-accent-primary,#e06c67)] hover:opacity-90 text-white disabled:opacity-40 cursor-pointer"
+                    title="Create Workspace (Enter)"
+                  >
+                    <Check className="h-3 w-3" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsCreateCollectionOpen(false);
+                      setNewCollectionName('');
+                    }}
+                    className="p-1 rounded text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 cursor-pointer"
+                    title="Cancel (Esc)"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </form>
+              )}
+
               {displayedWorkspaces.map((ws) => {
                 const isSelected = activeWorkspaceFilter === ws.id;
                 const isWsExpanded = expandedWorkspaceIds.has(ws.id);
@@ -1057,14 +1364,31 @@ export default function LibraryView({
 
                 return (
                   <div key={ws.id} className="select-none">
-                    {/* Workspace Row: Arrow Chevron + Folder + Name */}
+                    {/* Workspace Row: Arrow Chevron + Icon + Name. Also a drop target for papers. */}
                     <div
                       onClick={() => {
-                        setActiveWorkspaceFilter(isSelected ? null : ws.id);
-                        setActiveTag(null);
+                        resetView();
+                        if (!isSelected) setActiveWorkspaceFilter(ws.id);
+                      }}
+                      onDragOver={(e) => {
+                        if (!hasDragType(e, ITEMS_MIME)) return;
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = 'copy';
+                        setDropWsId(ws.id);
+                      }}
+                      onDragLeave={(e) => {
+                        if (e.currentTarget.contains(e.relatedTarget)) return;
+                        setDropWsId((prev) => (prev === ws.id ? null : prev));
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        setDropWsId(null);
+                        assignToWorkspace(ws.id, parseDraggedIds(e));
                       }}
                       className={`w-full flex items-center gap-1 px-1.5 py-1 rounded text-[11.5px] transition-colors cursor-pointer group ${
-                        isSelected
+                        dropWsId === ws.id
+                          ? 'bg-amber-500/15 text-amber-100 ring-1 ring-amber-500/40'
+                          : isSelected
                           ? 'bg-zinc-800 text-zinc-100 font-medium'
                           : 'text-zinc-300 hover:bg-zinc-800/70 hover:text-zinc-100'
                       }`}
@@ -1085,7 +1409,7 @@ export default function LibraryView({
                         )}
                       </button>
 
-                      <Folder className={`h-3.5 w-3.5 shrink-0 ${isSelected ? 'text-zinc-100' : 'text-zinc-400'}`} />
+                      <Layers className={`h-3.5 w-3.5 shrink-0 ${isSelected ? 'text-zinc-100' : 'text-zinc-400'}`} />
                       <span className="truncate flex-1 text-left">{ws.name}</span>
                     </div>
 
@@ -1122,57 +1446,16 @@ export default function LibraryView({
                             );
                           })
                         ) : (
-                          <div className="px-2 py-1 text-[10px] text-zinc-500 italic">No papers in collection</div>
+                          <div className="px-2 py-1 text-[10px] text-zinc-500 italic">No papers in workspace</div>
                         )}
                       </div>
                     )}
                   </div>
                 );
               })}
-
-              <div className="my-1.5 border-t border-zinc-800/60" />
-
-              {/* Duplicate Items (FR-17.6) */}
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveWorkspaceFilter('__duplicates__');
-                  setActiveTag(null);
-                  setSelectedDoc(null);
-                  if (duplicateData.groups && duplicateData.groups.length > 0) {
-                    setSelectedDuplicateGroup(duplicateData.groups[0]);
-                  }
-                }}
-                className={`w-full flex items-center gap-1.5 px-2 py-1 rounded text-[11.5px] transition-colors cursor-pointer ${
-                  activeWorkspaceFilter === '__duplicates__'
-                    ? 'bg-zinc-800 text-zinc-100 font-medium'
-                    : 'text-zinc-400 hover:bg-zinc-800/70 hover:text-zinc-200'
-                }`}
-                title="Scan and merge duplicate bibliographic entries"
-              >
-                <Copy className={`h-3.5 w-3.5 shrink-0 ${activeWorkspaceFilter === '__duplicates__' ? 'text-zinc-100' : 'text-zinc-400'}`} />
-                <span className="truncate flex-1 text-left">Duplicate Items</span>
-              </button>
-
-              {/* Unfiled Items */}
-              <button
-                type="button"
-                onClick={() => {
-                  // Filter items not in any workspace
-                  setActiveWorkspaceFilter('__unfiled__');
-                  setActiveTag(null);
-                  setSelectedDoc(null);
-                }}
-                className={`w-full flex items-center gap-1.5 px-2 py-1 rounded text-[11.5px] transition-colors cursor-pointer ${
-                  activeWorkspaceFilter === '__unfiled__'
-                    ? 'bg-zinc-800 text-zinc-100 font-medium'
-                    : 'text-zinc-400 hover:bg-zinc-800/70 hover:text-zinc-200'
-                }`}
-                title="Items not assigned to any collection"
-              >
-                <Inbox className="h-3.5 w-3.5 shrink-0 text-zinc-500" />
-                <span className="truncate flex-1 text-left">Unfiled Items</span>
-              </button>
+              {displayedWorkspaces.length === 0 && (
+                <p className="px-2 py-1 text-[10.5px] text-zinc-500 italic">No workspaces yet.</p>
+              )}
             </div>
           </div>
 
@@ -1200,8 +1483,8 @@ export default function LibraryView({
                       key={tag}
                       type="button"
                       onClick={() => {
-                        setActiveTag(isSelected ? null : tag);
-                        setActiveWorkspaceFilter(null);
+                        resetView();
+                        if (!isSelected) setActiveTag(tag);
                       }}
                       className={`w-full flex items-center gap-1.5 px-1.5 py-0.5 rounded text-[11px] text-left transition-colors cursor-pointer truncate ${
                         isSelected
@@ -1220,6 +1503,7 @@ export default function LibraryView({
             </div>
           </div>
         </div>
+        )}
 
         {/* ========================================================================= */}
         {/* PANE 2: HIGH-DENSITY DATA TABLE (Zotero Desktop Table) */}
@@ -1235,7 +1519,16 @@ export default function LibraryView({
             {/* Action Toolbar */}
             <div className="flex items-center gap-1">
               {/* New Item Dropdown Icon */}
-              <div className="relative" ref={newItemMenuRef}>
+              <div
+                className="relative"
+                ref={newItemMenuRef}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape' && isNewItemMenuOpen) {
+                    e.stopPropagation();
+                    setIsNewItemMenuOpen(false);
+                  }
+                }}
+              >
                 <button
                   type="button"
                   onClick={() => setIsNewItemMenuOpen(!isNewItemMenuOpen)}
@@ -1336,6 +1629,8 @@ export default function LibraryView({
                 className="hidden"
               />
 
+              {!compact && (
+              <>
               {/* Add by Identifier Icon (Magic Wand) */}
               <button
                 type="button"
@@ -1377,6 +1672,8 @@ export default function LibraryView({
               >
                 <Download className="h-3.5 w-3.5" />
               </button>
+              </>
+              )}
 
               {/* Refresh Icon */}
               <button
@@ -1387,6 +1684,20 @@ export default function LibraryView({
               >
                 <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin text-zinc-200' : ''}`} />
               </button>
+
+              {/* Select toggle (alternative to long-press) */}
+              {!showCheckboxes && (
+                <button
+                  type="button"
+                  onClick={() => setIsSelectionMode(true)}
+                  className="flex items-center gap-1 p-1.5 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded text-[11px] transition-colors cursor-pointer"
+                  aria-label="Select papers"
+                  title="Select several papers (or Ctrl/Cmd-click rows)"
+                >
+                  <CheckSquare className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Select</span>
+                </button>
+              )}
 
               {/* Batch Selection Action Icons */}
               {showCheckboxes && (
@@ -1409,6 +1720,8 @@ export default function LibraryView({
                     <span className="hidden sm:inline">Done</span>
                   </button>
 
+                  {!compact && (
+                  <>
                   {/* Synthesize Review Icon */}
                   <button
                     type="button"
@@ -1433,7 +1746,7 @@ export default function LibraryView({
                     {isAssignWsMenuOpen && (
                       <div className="absolute left-0 mt-1 w-56 bg-zinc-900 border border-zinc-750 rounded-lg shadow-2xl py-1 z-30 font-sans">
                         <div className="px-3 py-1.5 text-[10px] text-zinc-400 font-semibold uppercase tracking-wider border-b border-zinc-800">
-                          Add {selectedIds.size} item(s) to collection:
+                          Add {selectedIds.size} item(s) to workspace:
                         </div>
 
                         <div className="max-h-48 overflow-y-auto py-1 space-y-0.5">
@@ -1466,7 +1779,7 @@ export default function LibraryView({
                               type="text"
                               value={newWsInlineName}
                               onChange={(e) => setNewWsInlineName(e.target.value)}
-                              placeholder="New collection name..."
+                              placeholder="New workspace name..."
                               className="w-full bg-zinc-900 border border-zinc-750 rounded px-2 py-1 text-[11px] text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-zinc-700"
                             />
                             <button
@@ -1494,6 +1807,8 @@ export default function LibraryView({
                       <FolderMinus className="h-3.5 w-3.5" />
                     </button>
                   )}
+                  </>
+                  )}
                 </div>
               )}
             </div>
@@ -1519,10 +1834,66 @@ export default function LibraryView({
               )}
             </form>
           </header>
+
+          {/* Chat panel toolbar: view picker, add-to-workspace, link to the full page */}
+          {compact && (
+            <div className="px-2.5 py-1.5 border-b border-zinc-800 bg-zinc-950/60 flex items-center gap-2 shrink-0 text-[11px] select-none">
+              <select
+                aria-label="Library view"
+                value={compactViewValue}
+                onChange={(e) => handleCompactViewChange(e.target.value)}
+                className="min-w-0 max-w-[45%] bg-zinc-900 border border-zinc-800 rounded px-1.5 py-1 text-[11px] text-zinc-200 focus:outline-none focus:border-zinc-600 cursor-pointer"
+              >
+                <option value="all">My Library</option>
+                {SMART_COLLECTIONS.map((c) => (
+                  <option key={c.id} value={`smart:${c.id}`}>{c.label}</option>
+                ))}
+                {flatFolders.length > 0 && (
+                  <optgroup label="Folders">
+                    {flatFolders.map(({ node, depth }) => (
+                      <option key={node.id} value={`folder:${node.id}`}>
+                        {'\u00A0\u00A0'.repeat(depth) + node.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                {localWorkspaces.length > 0 && (
+                  <optgroup label="Workspaces">
+                    {localWorkspaces.map((ws) => (
+                      <option key={ws.id} value={`ws:${ws.id}`}>{ws.name}</option>
+                    ))}
+                  </optgroup>
+                )}
+              </select>
+
+              {selectedIds.size > 0 && (
+                <button
+                  type="button"
+                  onClick={() => assignToWorkspace(activeWorkspaceId, Array.from(selectedIds))}
+                  disabled={!activeWorkspaceId}
+                  title={activeWorkspaceId ? undefined : 'This chat has no workspace'}
+                  className="flex items-center gap-1 px-2 py-1 rounded bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-100 font-medium cursor-pointer disabled:opacity-40 disabled:cursor-default"
+                >
+                  <Layers className="h-3 w-3" />
+                  <span>Add to this chat's workspace ({selectedIds.size})</span>
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => onNavigate?.('library')}
+                className="ml-auto flex items-center gap-1 px-1.5 py-1 rounded text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 cursor-pointer shrink-0"
+              >
+                <ExternalLink className="h-3 w-3" />
+                <span>Open full library</span>
+              </button>
+            </div>
+          )}
+
           {/* Drag & Drop Visual Indicator Overlay */}
           {isDraggingOver && (
             <div className="absolute inset-0 z-30 bg-blue-950/85 border-2 border-dashed border-blue-500/80 flex flex-col items-center justify-center pointer-events-none backdrop-blur-[2px]">
-              <FileUp className="h-10 w-10 text-blue-400 mb-2 animate-bounce" />
+              <FileUp className="h-10 w-10 text-blue-400 mb-2 animate-pulse" />
               <p className="text-sm font-semibold text-white">Drop .bib, .ris, or .pdf files to import</p>
               <p className="text-xs text-blue-200 mt-1">Bibliographic metadata will be automatically parsed and added</p>
             </div>
@@ -1679,7 +2050,7 @@ export default function LibraryView({
             ) : sortedItems.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-64 text-zinc-500 space-y-2">
                 <FileText className="h-8 w-8 text-zinc-700 stroke-[1.5]" />
-                <p className="text-xs font-medium text-zinc-400">No items found in this collection.</p>
+                <p className="text-xs font-medium text-zinc-400">No items found here.</p>
                 <p className="text-[11px] text-zinc-600 max-w-sm text-center">
                   Use "New Item" to import PDF papers, "Add by Identifier" for DOI / arXiv lookups, or drag-and-drop / "Import (.bib / .ris)" for bulk imports.
                 </p>
@@ -1695,6 +2066,7 @@ export default function LibraryView({
                           type="button"
                           onClick={handleToggleSelectAll}
                           className="text-zinc-400 hover:text-zinc-200 cursor-pointer align-middle"
+                          aria-label="Select all papers"
                           title="Select All"
                         >
                           {selectedIds.size === sortedItems.length && sortedItems.length > 0 ? (
@@ -1707,7 +2079,9 @@ export default function LibraryView({
                     )}
 
                     {/* Expand / Collapse Chevron */}
+                    {!compact && (
                     <th className="w-5 min-w-[20px] px-0 text-center"></th>
+                    )}
 
                     {/* Item Type Icon */}
                     <th className="w-6 min-w-[24px] px-0 text-center"></th>
@@ -1715,7 +2089,7 @@ export default function LibraryView({
                     {/* Title */}
                     <th
                       onClick={() => toggleSort('title')}
-                      className="w-[62%] px-2 cursor-pointer hover:text-zinc-200"
+                      className={`${compact ? '' : 'w-[62%]'} px-2 cursor-pointer hover:text-zinc-200`}
                     >
                       <div className="flex items-center gap-1">
                         <span>Title</span>
@@ -1724,6 +2098,7 @@ export default function LibraryView({
                     </th>
 
                     {/* Creator / Authors */}
+                    {!compact && (
                     <th
                       onClick={() => toggleSort('authors')}
                       className="w-[38%] px-2 cursor-pointer hover:text-zinc-200"
@@ -1733,6 +2108,7 @@ export default function LibraryView({
                         {sortField === 'authors' && (sortAsc ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />)}
                       </div>
                     </th>
+                    )}
 
                     {/* Year */}
                     <th
@@ -1746,8 +2122,15 @@ export default function LibraryView({
                     </th>
 
                     {/* Attachment Indicator */}
-                    <th className="w-8 min-w-[32px] px-1 pr-2 text-center" title="Has PDF Attachment">
-                      <Paperclip className="h-3 w-3 mx-auto text-zinc-500" />
+                    {!compact && (
+                      <th className="w-8 min-w-[32px] px-1 pr-2 text-center" title="Has PDF Attachment">
+                        <Paperclip className="h-3 w-3 mx-auto text-zinc-500" />
+                      </th>
+                    )}
+
+                    {/* Row actions */}
+                    <th className="w-8 min-w-[32px] px-0 pr-1 text-center">
+                      <span className="sr-only">Actions</span>
                     </th>
                   </tr>
                 </thead>
@@ -1762,13 +2145,17 @@ export default function LibraryView({
                       <React.Fragment key={item.id}>
                         {/* Main Paper Row (Height ~28px - Dense Desktop Style) */}
                         <tr
+                          draggable
+                          onDragStart={(e) => handleRowDragStart(item, e)}
                           onClick={(e) => handleRowClick(item, e)}
                           onPointerDown={(e) => handleRowPointerDown(item, e)}
                           onPointerUp={handleRowPointerUpOrLeave}
                           onPointerLeave={handleRowPointerUpOrLeave}
                           onPointerCancel={handleRowPointerUpOrLeave}
                           onDoubleClick={() => {
-                            if (item.doc_name) {
+                            if (item.doc_name && compact) {
+                              onOpenPdfViewer?.(item.doc_name, 1);
+                            } else if (item.doc_name) {
                               handleOpenPaperTab(item.doc_name, item.title || item.doc_name);
                             } else {
                               setSelectedDoc(item);
@@ -1788,6 +2175,8 @@ export default function LibraryView({
                               <button
                                 type="button"
                                 onClick={(e) => handleToggleSelectItem(item.id, e)}
+                                aria-label={`Select ${item.title || item.doc_name}`}
+                                aria-pressed={isSelected}
                                 className={`cursor-pointer align-middle ${
                                   isInspecting ? 'text-white' : 'text-zinc-500 hover:text-zinc-300'
                                 }`}
@@ -1802,6 +2191,7 @@ export default function LibraryView({
                           )}
 
                           {/* Expand/Collapse Chevron (Shows attached PDF sub-row) */}
+                          {!compact && (
                           <td className="w-5 min-w-[20px] px-0 text-center" onClick={(e) => toggleRowExpansion(item.id, e)}>
                             <button
                               type="button"
@@ -1816,6 +2206,7 @@ export default function LibraryView({
                               )}
                             </button>
                           </td>
+                          )}
 
                           {/* Item Type Icon */}
                           <td className="w-6 min-w-[24px] px-0 text-center">
@@ -1823,7 +2214,7 @@ export default function LibraryView({
                           </td>
 
                           {/* Title & Metadata Badges */}
-                          <td className="w-[62%] px-2 truncate">
+                          <td className={`${compact ? '' : 'w-[62%]'} px-2 truncate`}>
                             <div className="flex items-center gap-1.5 truncate">
                               <span
                                 className={`truncate font-medium text-[12.5px] ${
@@ -1863,6 +2254,7 @@ export default function LibraryView({
                           </td>
 
                           {/* Creator / Authors */}
+                          {!compact && (
                           <td
                             className={`w-[38%] px-2 truncate text-[12px] ${
                               isInspecting ? 'text-zinc-300' : 'text-zinc-400'
@@ -1870,6 +2262,7 @@ export default function LibraryView({
                           >
                             <span className="truncate">{item.authors || '—'}</span>
                           </td>
+                          )}
 
                           {/* Year */}
                           <td
@@ -1881,6 +2274,7 @@ export default function LibraryView({
                           </td>
 
                           {/* Attachment (PDF) Indicator */}
+                          {!compact && (
                           <td className="w-8 min-w-[32px] px-1 pr-2 text-center" onClick={(e) => e.stopPropagation()}>
                             {item.has_pdf ? (
                               <FileText
@@ -1903,7 +2297,7 @@ export default function LibraryView({
                               >
                                 <Download
                                   className={`h-3 w-3 mx-auto ${
-                                    downloadingPdfDocIds.has(item.id) ? 'animate-bounce text-zinc-300' : ''
+                                    downloadingPdfDocIds.has(item.id) ? 'animate-pulse text-zinc-300' : ''
                                   }`}
                                 />
                               </button>
@@ -1911,10 +2305,28 @@ export default function LibraryView({
                               <span className="text-zinc-600 font-mono text-[11px] select-none">—</span>
                             )}
                           </td>
+                          )}
+
+                          {/* Row actions menu (keyboard route to Add to folder) */}
+                          <td className="w-8 min-w-[32px] px-0 pr-1 text-center" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              type="button"
+                              onClick={(e) => openRowMenu(item, e)}
+                              aria-haspopup="menu"
+                              aria-expanded={rowMenu?.anchorId === item.id}
+                              aria-label={`Actions for ${item.title || item.doc_name}`}
+                              title="Actions"
+                              className={`p-0.5 rounded cursor-pointer transition-colors ${
+                                isInspecting ? 'text-zinc-300 hover:text-white' : 'text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800'
+                              }`}
+                            >
+                              <MoreHorizontal className="h-3.5 w-3.5" />
+                            </button>
+                          </td>
                         </tr>
 
                         {/* Zotero Sub-Row (Attached PDF child item) */}
-                        {isExpanded && (
+                        {isExpanded && !compact && (
                           <tr className="bg-zinc-900/60 border-b border-zinc-855/60 text-xs">
                             <td colSpan={showCheckboxes ? 2 : 1}></td>
                             <td className="text-center">
@@ -1924,7 +2336,7 @@ export default function LibraryView({
                                 <Download className="h-3.5 w-3.5 mx-auto text-zinc-500" />
                               )}
                             </td>
-                            <td colSpan={4} className="py-1.5 px-2">
+                            <td colSpan={5} className="py-1.5 px-2">
                               {item.has_pdf ? (
                                 <div className="flex items-center justify-between text-[11.5px]">
                                   <div className="flex items-center gap-2 truncate">
@@ -1974,7 +2386,7 @@ export default function LibraryView({
                                     disabled={downloadingPdfDocIds.has(item.id)}
                                     className="flex items-center gap-1.5 px-2.5 py-0.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-750 rounded text-[10.5px] font-medium transition-colors cursor-pointer disabled:opacity-50"
                                   >
-                                    <Download className={`h-3 w-3 ${downloadingPdfDocIds.has(item.id) ? 'animate-bounce' : ''}`} />
+                                    <Download className={`h-3 w-3 ${downloadingPdfDocIds.has(item.id) ? 'animate-pulse' : ''}`} />
                                     <span>{downloadingPdfDocIds.has(item.id) ? 'Downloading OA PDF...' : 'Download Open-Access PDF'}</span>
                                   </button>
                                 </div>
@@ -1994,6 +2406,7 @@ export default function LibraryView({
         {/* ========================================================================= */}
         {/* PANE 3: RESERVED ZOTERO 7 METADATA INSPECTOR (Always Reserved on Right) */}
         {/* ========================================================================= */}
+        {!compact && (
         <aside className="w-80 xl:w-96 border-l border-zinc-800 bg-zinc-900/40 flex flex-col shrink-0 h-full overflow-hidden select-text">
           {activeWorkspaceFilter === '__duplicates__' && selectedDuplicateGroup ? (
             <DuplicateMerger
@@ -2002,19 +2415,7 @@ export default function LibraryView({
               onMergeComplete={handleMergeComplete}
             />
           ) : selectedDoc ? (
-            <LibraryInspector
-              document={selectedDoc}
-              workspaces={localWorkspaces}
-              onClose={() => setSelectedDoc(null)}
-              onUpdateDocument={(updated) => {
-                setSelectedDoc(updated);
-                fetchLibrary();
-                refreshWorkspaces();
-              }}
-              onOpenPdf={(docName) => handleOpenPaperTab(docName || selectedDoc.doc_name, selectedDoc.title || docName)}
-              onChatWithPaper={onStartChatWithPaper}
-              onDeleteItem={handleDeleteItem}
-            />
+            inspector
           ) : (
             /* Reserved Empty State Placeholder (Ensures right pane stays present at all times) */
             <div className="flex-1 flex flex-col items-center justify-center p-6 text-center select-none text-zinc-500">
@@ -2042,6 +2443,33 @@ export default function LibraryView({
             </div>
           )}
         </aside>
+        )}
+        {/* Chat panel: no inspector column, so it opens over the table */}
+        {compact && selectedDoc && (
+          <div
+            className="absolute inset-0 z-40 flex justify-end bg-black/50"
+            onMouseDown={(e) => {
+              if (e.target === e.currentTarget) setSelectedDoc(null);
+            }}
+          >
+            <aside
+              ref={overlayRef}
+              role="dialog"
+              aria-modal="true"
+              aria-label="Item details"
+              tabIndex={-1}
+              className="w-full max-w-sm h-full border-l border-zinc-800 bg-zinc-900 shadow-2xl outline-none"
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  e.stopPropagation();
+                  setSelectedDoc(null);
+                }
+              }}
+            >
+              {inspector}
+            </aside>
+          </div>
+        )}
       </div>
       ) : (
         /* ========================================================================= */
@@ -2080,7 +2508,15 @@ export default function LibraryView({
       {/* MODAL: ADD BY DOI OR ARXIV IDENTIFIER */}
       {/* ========================================================================= */}
       {isAddIdentifierOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              e.stopPropagation();
+              setIsAddIdentifierOpen(false);
+            }
+          }}
+        >
           <div className="bg-zinc-900 border border-zinc-800 rounded-lg max-w-md w-full p-4 shadow-2xl space-y-3">
             <div className="flex items-center justify-between border-b border-zinc-800 pb-2.5">
               <div className="flex items-center gap-2 text-zinc-100 font-semibold text-xs">
@@ -2162,7 +2598,15 @@ export default function LibraryView({
       {/* MODAL: NEW ITEM FROM SCRATCH (BLANK FORM - FR-17.5) */}
       {/* ========================================================================= */}
       {isManualModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              e.stopPropagation();
+              setIsManualModalOpen(false);
+            }
+          }}
+        >
           <div className="bg-zinc-900 border border-zinc-800 rounded-lg max-w-lg w-full p-4 shadow-2xl space-y-3">
             <div className="flex items-center justify-between border-b border-zinc-800 pb-2.5">
               <div className="flex items-center gap-2 text-zinc-100 font-semibold text-xs">
@@ -2316,6 +2760,68 @@ export default function LibraryView({
             </form>
           </div>
         </div>
+      )}
+
+      {/* Row actions menu. Fixed so the table's scroll area can't clip it. */}
+      {rowMenu && (
+        <>
+          <div className="fixed inset-0 z-[60]" onMouseDown={() => closeRowMenu(false)} />
+          <div
+            ref={rowMenuRef}
+            role={rowMenu.view === 'menu' ? 'menu' : undefined}
+            aria-label="Paper actions"
+            onKeyDown={handleRowMenuKeyDown}
+            style={{ left: rowMenu.x, top: rowMenu.y }}
+            className="fixed z-[61] w-56 max-h-64 overflow-y-auto bg-zinc-900 border border-zinc-700 rounded-md shadow-2xl py-1 text-xs"
+          >
+            {rowMenu.view === 'menu' ? (
+              <>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => setRowMenu((m) => ({ ...m, view: 'folders' }))}
+                  className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 cursor-pointer"
+                >
+                  <Folder className="h-3.5 w-3.5 text-zinc-400" />
+                  <span>Add to folder…</span>
+                </button>
+                {compact && (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    disabled={!activeWorkspaceId || rowMenuInChatWorkspace}
+                    onClick={() => {
+                      const ids = rowMenu.ids;
+                      closeRowMenu();
+                      assignToWorkspace(activeWorkspaceId, ids);
+                    }}
+                    title={activeWorkspaceId ? undefined : 'This chat has no workspace'}
+                    className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 cursor-pointer disabled:opacity-50 disabled:cursor-default disabled:hover:bg-transparent"
+                  >
+                    <Layers className="h-3.5 w-3.5 text-zinc-400" />
+                    <span>{rowMenuInChatWorkspace ? "Already in this chat's workspace" : "Add to this chat's workspace"}</span>
+                  </button>
+                )}
+              </>
+            ) : (
+              <>
+                <div className="px-3 py-1 text-[10px] uppercase font-semibold tracking-wider text-zinc-500 border-b border-zinc-800">
+                  Add {rowMenu.ids.length} paper{rowMenu.ids.length === 1 ? '' : 's'} to folder
+                </div>
+                <FolderPickerList
+                  folders={folders}
+                  emptyText={foldersEmptyText}
+                  excludeIds={rowMenuAllFolderIds}
+                  onPick={(folderId) => {
+                    const ids = rowMenu.ids;
+                    closeRowMenu();
+                    handleAddItemsToFolder(folderId, ids);
+                  }}
+                />
+              </>
+            )}
+          </div>
+        </>
       )}
     </div>
   );

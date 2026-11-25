@@ -11,6 +11,14 @@ LEAK_PATTERNS = [
 ]
 
 
+def redact_secrets(text: str) -> str:
+    """Replaces API-key shaped strings with a placeholder. For model text that bypasses the full rails."""
+    clean = text or ""
+    for pattern, placeholder in LEAK_PATTERNS:
+        clean = re.sub(pattern, placeholder, clean)
+    return clean
+
+
 def check_output_rails(
     generated_text: str,
     extracted_citations: List[Dict[str, Any]],

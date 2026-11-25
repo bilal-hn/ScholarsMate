@@ -29,6 +29,8 @@ import {
   Folder,
   Trash2,
 } from 'lucide-react';
+import { FolderPickerList } from './FolderTree';
+import { foldersOfItem } from './folderTreeUtils';
 import {
   updateLibraryItemAPI,
   getItemCitationsAPI,
@@ -42,6 +44,11 @@ import {
 export default function LibraryInspector({
   document,
   workspaces = [],
+  folders = [],
+  foldersEmptyText,
+  onAddToFolder,
+  onRemoveFromFolder,
+  onWorkspaceMembershipChanged,
   onClose,
   onUpdateDocument,
   onOpenPdf,
@@ -49,6 +56,24 @@ export default function LibraryInspector({
   onDeleteItem,
 }) {
   const [activeTab, setActiveTab] = useState('info'); // 'info' | 'abstract' | 'cite' | 'notes' | 'ai_summary'
+
+  // Folder chips (organisation only; unlike workspaces they never scope chat)
+  const [isAddFolderOpen, setIsAddFolderOpen] = useState(false);
+  const addFolderMenuRef = useRef(null);
+  const docFolders = foldersOfItem(folders, document?.id);
+
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (addFolderMenuRef.current && !addFolderMenuRef.current.contains(e.target)) {
+        setIsAddFolderOpen(false);
+      }
+    };
+    if (isAddFolderOpen) {
+      window.addEventListener('mousedown', handleOutsideClick);
+    }
+    return () => window.removeEventListener('mousedown', handleOutsideClick);
+  }, [isAddFolderOpen]);
+
   
   // Editable form state
   const [formData, setFormData] = useState({
@@ -280,6 +305,7 @@ export default function LibraryInspector({
         if (onUpdateDocument) {
           onUpdateDocument({ ...document, workspaces: updatedWorkspaces });
         }
+        onWorkspaceMembershipChanged?.();
       }
     } catch (err) {
       console.error('Failed to assign workspace:', err);
@@ -294,6 +320,7 @@ export default function LibraryInspector({
         if (onUpdateDocument) {
           onUpdateDocument({ ...document, workspaces: updatedWorkspaces });
         }
+        onWorkspaceMembershipChanged?.();
       }
     } catch (err) {
       console.error('Failed to remove workspace:', err);
@@ -353,20 +380,22 @@ export default function LibraryInspector({
             className="flex-1 min-w-0 flex items-center justify-center gap-1 py-1 px-1.5 bg-zinc-800 hover:bg-zinc-750 text-zinc-200 border border-zinc-700/60 rounded text-[10.5px] font-medium transition-colors cursor-pointer disabled:opacity-50 truncate"
             title="Download Open-Access Full-Text PDF from arXiv or Unpaywall"
           >
-            <Download className={`h-3 w-3 text-zinc-400 shrink-0 ${isDownloadingPdf ? 'animate-bounce' : ''}`} />
+            <Download className={`h-3 w-3 text-zinc-400 shrink-0 ${isDownloadingPdf ? 'animate-pulse' : ''}`} />
             <span className="truncate">{isDownloadingPdf ? '...' : 'Get OA PDF'}</span>
           </button>
         )}
 
-        <button
-          type="button"
-          onClick={() => onChatWithPaper && onChatWithPaper(document.doc_name)}
-          className="flex-1 min-w-0 flex items-center justify-center gap-1 py-1 px-1.5 bg-zinc-800 hover:bg-zinc-750 text-zinc-200 border border-zinc-700/60 rounded text-[10.5px] font-medium transition-colors cursor-pointer truncate"
-          title="Chat with paper in AI assistant"
-        >
-          <MessageSquare className="h-3 w-3 text-zinc-400 shrink-0" />
-          <span className="truncate">Chat</span>
-        </button>
+        {onChatWithPaper && (
+          <button
+            type="button"
+            onClick={() => onChatWithPaper(document.doc_name)}
+            className="flex-1 min-w-0 flex items-center justify-center gap-1 py-1 px-1.5 bg-zinc-800 hover:bg-zinc-750 text-zinc-200 border border-zinc-700/60 rounded text-[10.5px] font-medium transition-colors cursor-pointer truncate"
+            title="Chat with paper in AI assistant"
+          >
+            <MessageSquare className="h-3 w-3 text-zinc-400 shrink-0" />
+            <span className="truncate">Chat</span>
+          </button>
+        )}
 
         <button
           type="button"
@@ -654,6 +683,74 @@ export default function LibraryInspector({
               </span>
             </div>
 
+            {/* Folders */}
+            {onAddToFolder && (
+              <div className="flex items-start gap-2 pt-1 border-t border-zinc-850">
+                <span className="w-18 text-right text-zinc-400 font-medium select-none shrink-0 text-[11px] pt-0.5">
+                  Folders
+                </span>
+                <div className="flex-1 min-w-0 flex flex-wrap items-center gap-1" aria-label="Folders">
+                  {docFolders.length > 0 ? (
+                    docFolders.map((f) => (
+                      <span
+                        key={f.id}
+                        className="inline-flex items-center gap-1 text-[10.5px] bg-zinc-800 text-zinc-300 px-1.5 py-0.5 rounded border border-zinc-700/60 max-w-full"
+                      >
+                        <Folder className="h-2.5 w-2.5 text-zinc-400 shrink-0" />
+                        <span className="truncate max-w-[120px]">{f.name}</span>
+                        <button
+                          type="button"
+                          onClick={() => onRemoveFromFolder?.(f.id, document.id)}
+                          className="text-zinc-500 hover:text-zinc-300 p-0.5 rounded cursor-pointer transition-colors shrink-0"
+                          aria-label={`Remove from folder ${f.name}`}
+                          title={`Remove from folder ${f.name}`}
+                        >
+                          <X className="h-2.5 w-2.5" />
+                        </button>
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-zinc-500 italic text-[11px]">Not in a folder</span>
+                  )}
+
+                  <div className="relative inline-block" ref={addFolderMenuRef}>
+                    <button
+                      type="button"
+                      onClick={() => setIsAddFolderOpen(!isAddFolderOpen)}
+                      aria-haspopup="true"
+                      aria-expanded={isAddFolderOpen}
+                      className="inline-flex items-center gap-0.5 text-[10px] bg-zinc-800 hover:bg-zinc-750 text-zinc-400 hover:text-zinc-200 px-1.5 py-0.5 rounded border border-zinc-700/60 cursor-pointer transition-colors"
+                      title="Add to folder"
+                    >
+                      <Plus className="h-2.5 w-2.5" />
+                      <span>Add to folder…</span>
+                    </button>
+                    {isAddFolderOpen && (
+                      <div
+                        className="absolute right-0 mt-1 w-52 bg-zinc-900 border border-zinc-750 rounded shadow-2xl py-1 z-30 max-h-48 overflow-y-auto"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Escape') {
+                            e.stopPropagation();
+                            setIsAddFolderOpen(false);
+                          }
+                        }}
+                      >
+                        <FolderPickerList
+                          folders={folders}
+                          emptyText={foldersEmptyText}
+                          excludeIds={docFolders.map((f) => f.id)}
+                          onPick={(folderId) => {
+                            setIsAddFolderOpen(false);
+                            onAddToFolder(folderId, [document.id]);
+                          }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Workspaces (Collections) */}
             <div className="flex items-start gap-2 pt-1 border-t border-zinc-850">
               <span className="w-18 text-right text-zinc-400 font-medium select-none shrink-0 text-[11px] pt-0.5">
@@ -842,7 +939,7 @@ export default function LibraryInspector({
                       disabled={isDownloadingPdf}
                       className="w-full flex items-center justify-center gap-1.5 py-1 px-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 rounded text-[11px] font-medium transition-colors cursor-pointer disabled:opacity-50"
                     >
-                      <Download className={`h-3 w-3 text-zinc-300 ${isDownloadingPdf ? 'animate-bounce' : ''}`} />
+                      <Download className={`h-3 w-3 text-zinc-300 ${isDownloadingPdf ? 'animate-pulse' : ''}`} />
                       <span>{isDownloadingPdf ? 'Downloading OA Full-Text...' : 'Download Open-Access PDF'}</span>
                     </button>
                   </div>

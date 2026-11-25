@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Literal
 from pydantic import BaseModel, Field
 
 
@@ -45,6 +45,10 @@ class QueryRequest(BaseModel):
         default=None,
         json_schema_extra={"example": "123e4567-e89b-12d3-a456-426614174000"}
     )
+    regenerate_message_id: Optional[str] = Field(
+        default=None,
+        description="Id of the last bot message to regenerate in place (Try again / Edit)."
+    )
 
 
 class SourceItem(BaseModel):
@@ -61,9 +65,15 @@ class QueryResponse(BaseModel):
     thinking_process: Optional[str] = None
     sources_used: List[SourceItem] = Field(default_factory=list)
     session_id: Optional[str] = None
+    message_id: Optional[str] = None
     model_name: Optional[str] = None
     mode_applied: Optional[str] = None
     meta: Optional[Dict[str, Any]] = None
+
+
+class FeedbackRequest(BaseModel):
+    rating: Optional[Literal["up", "down"]] = None
+    reason: Optional[Literal["hallucinated_citation", "wrong_page", "misquoted", "other"]] = None
 
 
 # =============================================================================
@@ -230,7 +240,7 @@ class CitationCandidate(BaseModel):
     chunk_id: str
     doc_name: str
     page_number: int
-    similarity_score: float = Field(..., description="Cosine similarity confidence percentage (0.0 - 1.0)")
+    similarity_score: Optional[float] = Field(default=None, description="Cosine similarity (0.0 - 1.0); None when the store gave no distance")
     excerpt: str
     formatted_ref: str
     paper_title: Optional[str] = None
@@ -259,6 +269,7 @@ class EditorAskAIResponse(BaseModel):
     result: str
     thinking_process: Optional[str] = None
     sources_used: List[SourceItem] = Field(default_factory=list)
+    blocked: bool = False  # True when an input rail refused; `result` is then the refusal text
 
 
 # =============================================================================
@@ -504,4 +515,75 @@ class MoveWorkspaceDocumentsResponse(BaseModel):
 
 
 
-
+
+
+
+# =============================================================================
+# STANDALONE WRITER DOCUMENTS + LIBRARY FOLDERS
+# =============================================================================
+
+import json
+from typing import Annotated
+from pydantic import AfterValidator, StringConstraints
+
+# Draft endpoint has no cap; 2M characters is the W2 limit for standalone docs.
+WRITER_DOC_MAX_CHARS = 2_000_000
+
+_DocTitle = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
+_FolderName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120)]
+
+
+def _cap_citations_size(v):
+    # The entry-count cap alone would let a few huge entries bypass the content limit.
+    if v is not None and len(json.dumps(v)) > WRITER_DOC_MAX_CHARS:
+        raise ValueError(f"citations_data is larger than {WRITER_DOC_MAX_CHARS} characters")
+    return v
+
+
+_Citations = Annotated[List[Dict[str, Any]], AfterValidator(_cap_citations_size)]
+
+
+class WriterDocCreateRequest(BaseModel):
+    title: _DocTitle = "Untitled Document"
+    content_html: str = Field(default="", max_length=WRITER_DOC_MAX_CHARS)
+    citations_data: _Citations = Field(default_factory=list, max_length=2000)
+
+
+class WriterDocUpdateRequest(BaseModel):
+    title: Optional[_DocTitle] = None
+    content_html: Optional[str] = Field(default=None, max_length=WRITER_DOC_MAX_CHARS)
+    citations_data: Optional[_Citations] = Field(default=None, max_length=2000)
+
+
+class WriterDocMeta(BaseModel):
+    id: str
+    title: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class WriterDocResponse(WriterDocMeta):
+    content_html: str
+    citations_data: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+class FolderCreateRequest(BaseModel):
+    name: _FolderName
+    parent_id: Optional[str] = None
+
+
+class FolderUpdateRequest(BaseModel):
+    """Omit a field to leave it; send parent_id null to move to the root."""
+    name: Optional[_FolderName] = None
+    parent_id: Optional[str] = None
+
+
+class FolderResponse(BaseModel):
+    id: str
+    name: str
+    parent_id: Optional[str] = None
+    item_ids: List[str] = Field(default_factory=list)
+
+
+class FolderItemsRequest(BaseModel):
+    document_ids: List[str] = Field(..., min_length=1, max_length=500)

@@ -1,4 +1,5 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import axios from 'axios';
 import { 
   Loader2, 
   Check, 
@@ -106,6 +107,12 @@ export default function ChatInterface({
   const [attachedDocs, setAttachedDocs] = useState([]);
   const [attachedImages, setAttachedImages] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [input, setInput] = useState('');
+  const [notice, setNotice] = useState(null); // quiet one-line status ("Stopped", failed retry)
+  const [regenText, setRegenText] = useState(null); // question being regenerated in place (Try again / Edit)
+  const abortRef = useRef(null); // AbortController of the in-flight request
+  const startedAtRef = useRef(0);
+  const latestRef = useRef({}); // freshest state for the stable Try again / Edit callbacks
   const [telemetry, setTelemetry] = useState(null); // { responseTime: '1.2s', tokenUsage: 280, docCount: 4 }
   const messagesEndRef = useRef(null);
 
@@ -180,6 +187,12 @@ export default function ChatInterface({
 
   // Fetch session messages and active mode when session changes
   useEffect(() => {
+    // A request still in flight belongs to the previous chat: abort it and ignore its response.
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setLoading(false);
+    setRegenText(null);
+    setNotice(null);
     setActiveSessionId(sessionId || null);
     if (sessionId) {
       setIsSessionLoading(true);
@@ -188,6 +201,7 @@ export default function ChatInterface({
           if (data && data.messages && data.messages.length > 0) {
             const mapped = data.messages.map((m) => ({
               id: m.id,
+              persisted: true,
               sender: m.sender,
               text: m.text,
               thinking_process: m.thinking_process || null,
@@ -239,6 +253,11 @@ export default function ChatInterface({
   // Listen for global clear chat request from top navbar
   useEffect(() => {
     const handleClearChat = () => {
+      abortRef.current?.abort();
+      abortRef.current = null;
+      setLoading(false);
+      setRegenText(null);
+      setNotice(null);
       setMessages([]);
       setAttachedDocs([]);
       setAttachedImages([]);
@@ -332,70 +351,72 @@ export default function ChatInterface({
   const activeModeObj = allAvailableModes.find((m) => m.id === currentMode) || allAvailableModes[0];
   const ActiveModeIcon = activeModeObj.icon;
 
-  const handleSubmit = async (e, submittedImages = null, submittedText = '') => {
-    e?.preventDefault();
-    if (!availableModels || availableModels.length === 0) {
-      if (onOpenSettings) onOpenSettings();
-      return;
-    }
-    const imgsToUse = submittedImages || attachedImages || [];
-    const hasImages = imgsToUse.length > 0;
-    let userMessage = (submittedText || '').trim();
-    if ((!userMessage && !hasImages) || loading) return;
+  const runQuery = async ({
+    text,
+    regenerateId = null,
+    model = currentModel,
+    mode = currentMode,
+    images = [],
+    rawImages = [],
+    restoreText = '', // only text the user actually typed (or edited); put back on Stop / failure
+    baseMessages = messages,
+  }) => {
+    const isRegen = Boolean(regenerateId);
+    const controller = new AbortController();
+    abortRef.current = controller;
+    startedAtRef.current = Date.now();
+    setNotice(null);
 
-    if (!userMessage && hasImages) {
-      userMessage = 'Analyze the attached image and solve the query or explain the data.';
-    }
-
-    // Format clean image objects for RAG backend and user chat bubble
-    const imagesPayload = imgsToUse.map((img) => ({
-      name: img.name,
-      previewUrl: img.previewUrl,
-      extracted_text: img.extractedText || '',
-      suggested_query: img.suggestedQuery || '',
-    }));
-
-    // Reset attached images in active input tray
-    setAttachedImages([]);
-    
     const nowIso = new Date().toISOString();
-    const userMsgObj = { 
-      sender: 'user', 
-      text: userMessage, 
-      mode_applied: currentMode,
+    const userMsgObj = {
+      sender: 'user',
+      text,
+      mode_applied: mode,
       timestamp: nowIso,
       attached_docs: attachedDocs.length > 0 ? [...attachedDocs] : [],
-      attached_images: imagesPayload.length > 0 ? imagesPayload : []
+      attached_images: images.length > 0 ? images : []
     };
-    const newMessages = [...messages, userMsgObj];
-    setMessages(newMessages);
+    const newMessages = isRegen ? baseMessages : [...baseMessages, userMsgObj];
+    if (isRegen) {
+      setRegenText(text);
+    } else {
+      setMessages(newMessages);
+    }
     setLoading(true);
 
     const startTime = performance.now();
+    const putTextBack = () => {
+      if (restoreText) setInput((cur) => (cur.trim() ? cur : restoreText));
+    };
 
     try {
-      const customDirectiveToSend = activeModeObj?.isCustom ? activeModeObj.prompt_directive : null;
+      const modeObj = allAvailableModes.find((m) => m.id === mode) || activeModeObj;
+      const customDirectiveToSend = modeObj?.isCustom ? modeObj.prompt_directive : null;
 
       const result = await sendQuery(
-        userMessage, 
-        selectedDocs, 
-        newMessages, 
+        text,
+        selectedDocs,
+        newMessages,
         activeSessionId,
         10,
-        currentModel,
-        currentMode,
+        model,
+        mode,
         customDirectiveToSend,
-        imagesPayload,
-        workspaceId
+        images,
+        workspaceId,
+        { signal: controller.signal, regenerateId }
       );
+
+      // The chat was switched or cleared while this request was in flight: drop the response.
+      if (abortRef.current !== controller) return;
 
       const endTime = performance.now();
       const durationSec = ((endTime - startTime) / 1000).toFixed(2);
-      const promptTokens = estimateTokens(userMessage) + (selectedDocs.length * 120);
+      const promptTokens = estimateTokens(text) + (selectedDocs.length * 120);
       const completionTokens = estimateTokens(result.answer) + estimateTokens(result.thinking_process || '');
       const totalTokens = promptTokens + completionTokens;
 
-      const appliedMode = result.mode_applied || currentMode;
+      const appliedMode = result.mode_applied || mode;
       if (result.mode_applied && result.mode_applied !== currentMode) {
         setCurrentMode(result.mode_applied);
       }
@@ -403,7 +424,7 @@ export default function ChatInterface({
       const responseMeta = result.meta || {
         responseTime: `${durationSec}s`,
         tokens: totalTokens,
-        model: currentModel,
+        model,
         mode: appliedMode
       };
 
@@ -420,44 +441,160 @@ export default function ChatInterface({
         }
       }
 
-      setMessages((prev) => [
-        ...prev,
-        {
-          sender: 'bot',
-          text: result.answer,
-          thinking_process: result.thinking_process || null,
-          sources: result.sources_used || [],
-          model_name: result.model_name || currentModel,
-          mode_applied: appliedMode,
-          meta: responseMeta,
-          timestamp: new Date().toISOString(),
-        },
-      ]);
-    } catch (err) {
-      const endTime = performance.now();
-      const durationSec = ((endTime - startTime) / 1000).toFixed(2);
-      setTelemetry({
-        responseTime: `${durationSec}s`,
-        tokenUsage: 0,
-        docCount: selectedDocs.length,
+      const botMsg = {
+        id: result.message_id || undefined,
+        persisted: Boolean(result.message_id),
+        sender: 'bot',
+        text: result.answer,
+        thinking_process: result.thinking_process || null,
+        sources: result.sources_used || [],
+        model_name: result.model_name || model,
+        mode_applied: appliedMode,
+        meta: responseMeta,
+        timestamp: new Date().toISOString(),
+      };
+      setMessages((prev) => {
+        if (!isRegen) return [...prev, botMsg];
+        // Replace the regenerated pair by id, not by position.
+        const i = prev.findIndex((m) => m.id === regenerateId);
+        if (i < 1 || prev[i - 1].sender !== 'user') return prev;
+        return [...prev.slice(0, i - 1), { ...prev[i - 1], text }, botMsg, ...prev.slice(i + 1)];
       });
+    } catch (err) {
+      if (abortRef.current !== controller) return; // stale request from a chat we left
+      if (axios.isCancel(err)) {
+        // Stop: drop the optimistic bubble and hand the question back, without overwriting a newer draft.
+        if (!isRegen) {
+          setMessages((prev) => prev.filter((m) => m !== userMsgObj));
+          if (rawImages.length > 0) setAttachedImages((cur) => (cur.length > 0 ? cur : rawImages));
+        }
+        putTextBack();
+        setNotice('Stopped');
+      } else if (isRegen) {
+        putTextBack();
+        setNotice(`Try again failed: ${err.response?.data?.detail || err.message || 'Please check backend connection.'}`);
+      } else {
+        const endTime = performance.now();
+        const durationSec = ((endTime - startTime) / 1000).toFixed(2);
+        setTelemetry({
+          responseTime: `${durationSec}s`,
+          tokenUsage: 0,
+          docCount: selectedDocs.length,
+        });
 
-      setMessages((prev) => [
-        ...prev,
-        {
-          sender: 'bot',
-          text: `Generation failed: ${err.response?.data?.detail || err.message || 'Please check backend connection.'}`,
-          thinking_process: null,
-          sources: [],
-          model_name: currentModel,
-          mode_applied: currentMode,
-          timestamp: new Date().toISOString(),
-        },
-      ]);
+        setMessages((prev) => [
+          ...prev,
+          {
+            sender: 'bot',
+            isError: true,
+            text: `Generation failed: ${err.response?.data?.detail || err.message || 'Please check backend connection.'}`,
+            thinking_process: null,
+            sources: [],
+            model_name: model,
+            mode_applied: mode,
+            timestamp: new Date().toISOString(),
+          },
+        ]);
+      }
     } finally {
-      setLoading(false);
+      if (abortRef.current === controller) {
+        abortRef.current = null;
+        setRegenText(null);
+        setLoading(false);
+      }
     }
   };
+
+  const handleSubmit = async (e, submittedImages = null, submittedText = '') => {
+    e?.preventDefault();
+    if (!availableModels || availableModels.length === 0) {
+      if (onOpenSettings) onOpenSettings();
+      return;
+    }
+    const imgsToUse = submittedImages || attachedImages || [];
+    const hasImages = imgsToUse.length > 0;
+    let userMessage = (submittedText || '').trim();
+    if ((!userMessage && !hasImages) || loading) return;
+
+    const typed = userMessage; // empty for an image-only send: the synthesized text is never restored
+    if (!userMessage && hasImages) {
+      userMessage = 'Analyze the attached image and solve the query or explain the data.';
+    }
+
+    // Format clean image objects for RAG backend and user chat bubble
+    const imagesPayload = imgsToUse.map((img) => ({
+      name: img.name,
+      previewUrl: img.previewUrl,
+      extracted_text: img.extractedText || '',
+      suggested_query: img.suggestedQuery || '',
+    }));
+
+    // Reset attached images in active input tray
+    setAttachedImages([]);
+
+    await runQuery({ text: userMessage, images: imagesPayload, rawImages: imgsToUse, restoreText: typed });
+  };
+
+  // Ignore a Stop that lands within 300 ms of Send, so a double-click on the shared button doesn't cancel the request.
+  const handleStop = () => {
+    if (Date.now() - startedAtRef.current < 300) return;
+    abortRef.current?.abort();
+  };
+
+  // Try again / Edit: stable callbacks (they read the freshest state through latestRef) so React.memo(ChatMessage) holds.
+  useEffect(() => {
+    latestRef.current = { messages, loading, currentModel, currentMode, availableModels, runQuery };
+  });
+
+  // Try again: regenerate the last answer. A local error bubble was never saved, so it is resent as a normal query.
+  const handleRegenerate = useCallback((kind) => {
+    const { messages: msgs, loading: busy, currentModel: curModel, currentMode: curMode, availableModels: models, runQuery: run } = latestRef.current;
+    if (busy) return;
+    const last = msgs[msgs.length - 1];
+    const prev = msgs[msgs.length - 2];
+    if (last?.sender !== 'bot' || prev?.sender !== 'user') return;
+    if (!last.persisted && !last.isError) return;
+
+    let model = curModel;
+    let mode = curMode;
+    if (kind === 'model') {
+      const ids = models.map((m) => m.id);
+      model = ids[(ids.indexOf(curModel) + 1) % ids.length] || curModel;
+    } else if (kind === 'mode') {
+      mode = (last.mode_applied || curMode) === 'general' ? 'assistant' : 'general';
+    }
+    const images = prev.attached_images || [];
+    if (last.persisted && last.id) {
+      run({ text: prev.text, regenerateId: last.id, model, mode, images });
+    } else {
+      run({ text: prev.text, model, mode, images, baseMessages: msgs.slice(0, -2) });
+    }
+  }, []);
+
+  // Edit the last question: regenerates the last answer from the new text.
+  const handleEdit = useCallback((text) => {
+    const { messages: msgs, loading: busy, runQuery: run } = latestRef.current;
+    const last = msgs[msgs.length - 1];
+    const prev = msgs[msgs.length - 2];
+    if (busy || !last?.persisted || !last.id || last.sender !== 'bot' || prev?.sender !== 'user') return;
+    run({ text, regenerateId: last.id, images: prev.attached_images || [], restoreText: text });
+  }, []);
+
+  // Prompt starters from the attached paper titles (file names, no extension). No LLM call.
+  const starters = useMemo(() => {
+    const titles = (selectedDocs || []).slice(0, 2).map((name) => {
+      const t = String(name).replace(/\.[^./\\]+$/, '');
+      return t.length > 70 ? `${t.slice(0, 67)}...` : t;
+    });
+    if (titles.length === 0) return [];
+    const [a, b] = titles;
+    return [
+      `Summarise the methodology of ${a}`,
+      `Which datasets and baselines does ${a} use?`,
+      ...(b ? [`Compare ${a} with ${b}`] : []),
+      `What are the limitations of ${a}?`,
+    ];
+  }, [selectedDocs]);
 
   const handleExportTranscript = () => {
     if (!messages || messages.length === 0) return;
@@ -482,6 +619,10 @@ export default function ChatInterface({
   };
 
   const isHeroEmpty = messages.length === 0;
+  const displayMessages =
+    regenText !== null
+      ? [...messages.slice(0, -2), { ...messages[messages.length - 2], text: regenText }]
+      : messages;
 
   return (
     <main className="flex-1 flex flex-col bg-zinc-950 h-full relative overflow-hidden text-zinc-200 font-sans transition-colors">
@@ -565,21 +706,48 @@ export default function ChatInterface({
                 </p>
               </div>
             ) : (
+              <>
+                {starters.length > 0 && (
+                  <div className="flex flex-col items-stretch gap-1.5 w-full max-w-sm mb-3" role="group" aria-label="Prompt starters">
+                    {starters.map((q) => (
+                      <button
+                        key={q}
+                        type="button"
+                        disabled={loading}
+                        onClick={() => handleSubmit(null, null, q)}
+                        className="px-3 py-1.5 rounded-full border border-zinc-800 bg-zinc-900/60 hover:bg-zinc-800 text-zinc-300 hover:text-zinc-100 text-[11px] text-left truncate cursor-pointer transition-colors outline-none focus-visible:ring-1 focus-visible:ring-zinc-500 disabled:opacity-50"
+                        title={q}
+                      >
+                        {q}
+                      </button>
+                    ))}
+                  </div>
+                )}
               <p className="text-[10.5px] text-zinc-500 max-w-xs leading-relaxed font-mono">
                 Tip: Drag and drop files onto the chat, or type <span className="text-amber-400 font-medium">@</span> to tag a paper.
               </p>
+              </>
             )}
           </div>
         </div>
       ) : (
         /* Messages Feed */
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3.5 max-w-3xl mx-auto w-full">
-          {messages.map((msg, idx) => (
-            <ChatMessage 
-              key={idx} 
-              message={msg} 
+          {displayMessages.map((msg, idx) => (
+            <ChatMessage
+              key={idx}
+              message={msg}
               index={idx}
-              onSelectCitation={onSelectCitation} 
+              isLast={!loading && idx === displayMessages.length - 1 && msg.sender === 'bot' && displayMessages[idx - 1]?.sender === 'user'}
+              canSwitchModel={availableModels.length > 1}
+              onRegenerate={handleRegenerate}
+              onEdit={
+                !loading && idx === displayMessages.length - 2 && msg.sender === 'user' &&
+                displayMessages[idx + 1]?.sender === 'bot' && displayMessages[idx + 1]?.persisted
+                  ? handleEdit
+                  : undefined
+              }
+              onSelectCitation={onSelectCitation}
               onOpenMonograph={onOpenMonograph}
             />
           ))}
@@ -604,9 +772,18 @@ export default function ChatInterface({
         </div>
       )}
 
+      {notice && (
+        <p role="status" className="shrink-0 text-center text-[11px] text-zinc-500 py-1 select-none">
+          {notice}
+        </p>
+      )}
+
       {/* Floating Chat Input with 9-Dots Matrix Menu, Scoped Docs, and Minimal Lens Selector */}
       <ChatInput
+        input={input}
+        setInput={setInput}
         onSubmit={handleSubmit}
+        onStop={handleStop}
         loading={loading}
         availableModels={availableModels}
         currentModel={currentModel}

@@ -1,0 +1,12 @@
+- generic [ref=f4e4]:
+  - complementary "Documents" [ref=f4e5]:
+    - generic [ref=f4e6]:
+      - button "Back to chat" [ref=f4e7] [cursor=pointer]
+      - generic [ref=f4e10]: Documents
+      - button "New document" [ref=f4e11] [cursor=pointer]:
+        - generic [ref=f4e13]: New
+    - list [ref=f4e14]:
+      - listitem [ref=f4e15]: Loading...
+    - navigation "Outline" [ref=f4e16]:
+      - paragraph [ref=f4e22]: Headings (H1 to H3) appear here.
+  - main [ref=f4e23]

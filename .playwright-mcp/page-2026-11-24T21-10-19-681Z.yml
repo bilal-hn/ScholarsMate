@@ -1,0 +1,13 @@
+- generic [ref=f8e235]:
+  - complementary "Documents" [ref=f8e236]:
+    - generic [ref=f8e237]:
+      - button "Back to chat" [ref=f8e238] [cursor=pointer]
+      - generic [ref=f8e241]: Documents
+      - button "New document" [ref=f8e242] [cursor=pointer]:
+        - generic [ref=f8e244]: New
+    - list [ref=f8e245]:
+      - listitem [ref=f8e246]: No documents yet.
+  - main [ref=f8e247]:
+    - generic [ref=f8e248]:
+      - paragraph [ref=f8e252]: You have no documents yet.
+      - button "New document" [ref=f8e253] [cursor=pointer]

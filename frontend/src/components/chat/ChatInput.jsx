@@ -48,6 +48,7 @@ export default function ChatInput({
   input,
   setInput,
   onSubmit,
+  onStop,
   loading,
   availableModels = [],
   currentModel,
@@ -1306,14 +1307,16 @@ export default function ChatInput({
               </button>
             )}
 
-            {/* Submit Button */}
+            {/* One button for Send and Stop, so focus stays put when loading flips */}
             <button
-              type="submit"
-              disabled={loading || (!effectiveInput.trim() && (!effectiveAttachedImages || effectiveAttachedImages.length === 0))}
+              type={loading ? 'button' : 'submit'}
+              onClick={loading ? onStop : undefined}
+              disabled={!loading && !effectiveInput.trim() && (!effectiveAttachedImages || effectiveAttachedImages.length === 0)}
+              aria-label={loading ? 'Stop generating' : 'Send message'}
               className="h-6.5 w-6.5 rounded-full bg-zinc-100 hover:bg-white disabled:bg-zinc-800 disabled:text-zinc-600 text-zinc-950 flex items-center justify-center transition-all cursor-pointer shadow-xs active:scale-95 shrink-0"
-              title="Send Message"
+              title={loading ? 'Stop generating' : 'Send Message'}
             >
-              <ArrowUp className="h-3 w-3 stroke-[2.5]" />
+              {loading ? <Square className="h-2.5 w-2.5 fill-current" /> : <ArrowUp className="h-3 w-3 stroke-[2.5]" />}
             </button>
           </div>
         </div>

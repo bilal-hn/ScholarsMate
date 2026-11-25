@@ -1,0 +1,57 @@
+- generic [ref=e4]:
+  - generic [ref=e5]:
+    - generic [ref=e6]:
+      - button "Scholars Mate" [ref=e7] [cursor=pointer]:
+        - generic [ref=e13]:
+          - generic [ref=e14]: Scholars
+          - generic [ref=e15]: Mate
+      - button "Your Chats" [ref=e16] [cursor=pointer]
+    - button "My Library" [ref=e21] [cursor=pointer]
+  - generic [ref=e26]:
+    - generic [ref=e27]:
+      - generic [ref=e28]:
+        - generic [ref=e29]: Library
+        - generic [ref=e33]:
+          - button "Filter workspaces" [ref=e34] [cursor=pointer]
+          - button "Add / Upload PDF Document" [ref=e38] [cursor=pointer]
+      - generic [ref=e42]:
+        - button "My Library" [ref=e44] [cursor=pointer]
+        - group "Smart collections" [ref=e48]:
+          - button "Unfiled" [ref=e50] [cursor=pointer]
+          - button "Recent" [ref=e55] [cursor=pointer]
+          - button "Has PDF" [ref=e60] [cursor=pointer]
+          - button "Duplicates" [ref=e64] [cursor=pointer]
+        - generic [ref=e70]:
+          - generic [ref=e71]:
+            - generic [ref=e72]: Folders
+            - button "New folder" [ref=e73] [cursor=pointer]
+          - tree "Folders"
+          - paragraph [ref=e76]: No folders yet. Use + to create one.
+        - generic [ref=e77]:
+          - generic [ref=e78]:
+            - generic [ref=e79]: Workspaces
+            - button "New workspace" [ref=e80] [cursor=pointer]
+          - paragraph [ref=e82]: No workspaces yet.
+      - generic [ref=e83]:
+        - textbox "Filter Tags..." [ref=e87]
+        - paragraph [ref=e89]: No tags available
+    - generic [ref=e90]:
+      - banner [ref=e91]:
+        - generic [ref=e92]:
+          - button "New Item (Book, Journal Article, Conference Paper, Upload PDF)" [ref=e94] [cursor=pointer]
+          - button "Add Item by Identifier (DOI, arXiv ID, ISBN, PMID)" [ref=e100] [cursor=pointer]
+          - button "Import References from BibTeX (.bib) or RIS (.ris)" [ref=e104] [cursor=pointer]
+          - button "Export References to BibTeX (.bib)" [ref=e109] [cursor=pointer]
+          - button "Refresh Library" [ref=e113] [cursor=pointer]
+          - button "Select papers" [ref=e119] [cursor=pointer]:
+            - generic [ref=e123]: Select
+        - textbox "Search library..." [ref=e125]
+      - paragraph [ref=e133]: Loading library items...
+    - complementary [ref=e134]:
+      - generic [ref=e135]:
+        - heading "No Item Selected" [level=4] [ref=e139]
+        - paragraph [ref=e140]: Select an item from the library to view bibliographic metadata, abstract, notes, and attached PDF documents.
+        - generic [ref=e141]:
+          - generic [ref=e142]: Double-click an item to open it in a reader tab
+          - generic [ref=e145]: Single-click to inspect bibliographic fields
+          - generic [ref=e148]: Import references via arXiv / DOI with wand

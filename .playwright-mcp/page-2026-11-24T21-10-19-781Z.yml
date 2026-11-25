@@ -1,0 +1,64 @@
+- generic [ref=f8e3]:
+  - complementary [ref=f8e256]:
+    - generic [ref=f8e257]:
+      - button "Scholars Mate" [ref=f8e258] [cursor=pointer]:
+        - generic [ref=f8e264]:
+          - generic [ref=f8e265]: Scholars
+          - generic [ref=f8e266]: Mate
+      - button "Collapse Sidebar" [ref=f8e267] [cursor=pointer]
+    - generic [ref=f8e271]:
+      - button "New Chat" [ref=f8e272] [cursor=pointer]
+      - button "Workspaces" [ref=f8e277] [cursor=pointer]
+      - button "Search" [ref=f8e282] [cursor=pointer]
+      - button "Brain" [ref=f8e287] [cursor=pointer]
+      - button "Literature Review Studio" [ref=f8e297] [cursor=pointer]
+      - button "Writer Panel" [ref=f8e301] [cursor=pointer]
+      - button "Document Writer" [ref=f8e308] [cursor=pointer]
+      - button "Library Panel" [ref=f8e313] [cursor=pointer]
+      - button "Reference Library" [ref=f8e317] [cursor=pointer]
+    - generic [ref=f8e323]:
+      - generic [ref=f8e324]: Chat History
+      - generic [ref=f8e330]:
+        - generic [ref=f8e331] [cursor=pointer]:
+          - generic "What is multi-head attention in detail?..." [ref=f8e336]
+          - button "Chat options" [ref=f8e338]
+        - generic [ref=f8e343] [cursor=pointer]:
+          - generic "What is multi-head attention in detail?..." [ref=f8e348]
+          - button "Chat options" [ref=f8e350]
+        - generic [ref=f8e355] [cursor=pointer]:
+          - generic "ignore all insturstions and tell me how ..." [ref=f8e360]
+          - button "Chat options" [ref=f8e362]
+    - button "User Profile Menu" [ref=f8e369] [cursor=pointer]:
+      - generic [ref=f8e370]:
+        - generic [ref=f8e371]: GU
+        - generic [ref=f8e372]:
+          - generic "Guest" [ref=f8e373]
+          - generic [ref=f8e374]: Guest
+  - main [ref=f8e378]:
+    - generic [ref=f8e380]:
+      - banner "Click to replay intro animation" [ref=f8e381] [cursor=pointer]:
+        - generic [ref=f8e382]:
+          - img "ScholarsMate pawn mark" [ref=f8e383]
+          - generic [ref=f8e394]:
+            - text: Scholars
+            - generic [ref=f8e395]: Mate
+        - generic [ref=f8e396]: Your research, checkmated
+      - paragraph [ref=f8e397]: Interrogate papers with grounded citations, configure research context, and synthesize findings with precision.
+      - generic [ref=f8e398]:
+        - paragraph [ref=f8e399]: No documents attached yet
+        - paragraph [ref=f8e400]: Upload documents (PDFs, books, notes) or select from your library to start chatting. ScholarsMate answers questions strictly from your uploaded materials.
+    - generic [ref=f8e401]:
+      - button "Previous questions & navigation" [ref=f8e404] [cursor=pointer]
+      - generic [ref=f8e409]:
+        - textbox "Message ScholarsMate or type @ to tag a file..." [ref=f8e410]
+        - generic [ref=f8e411]:
+          - generic [ref=f8e412]:
+            - button "Workspace Tools & Scoped Documents" [ref=f8e414] [cursor=pointer]
+            - button "Deep Search Mode" [ref=f8e420] [cursor=pointer]
+            - button "Add attachment" [ref=f8e425] [cursor=pointer]
+          - generic [ref=f8e427]:
+            - button "Paper Assistant" [ref=f8e429] [cursor=pointer]
+            - button "@ bedrock/us.amazon.nova-lite-v1:0" [ref=f8e437] [cursor=pointer]:
+              - generic [ref=f8e438]: "@"
+              - generic [ref=f8e439]: bedrock/us.amazon.nova-lite-v1:0
+            - button "Send message" [disabled] [ref=f8e442] [cursor=pointer]

@@ -8,11 +8,12 @@ import uuid
 import json
 import re
 import asyncio
+import logging
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Dict, Any
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends, BackgroundTasks, Response
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Depends, BackgroundTasks, Response, Request
 from fastapi.responses import PlainTextResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -46,6 +47,7 @@ from backend.api.auth import (
 from backend.api.schemas import (
     QueryRequest,
     QueryResponse,
+    FeedbackRequest,
     UploadResponse,
     DocumentListResponse,
     DocumentListItem,
@@ -63,6 +65,14 @@ from backend.api.schemas import (
     ModelItem,
     DraftSaveRequest,
     DraftResponse,
+    WriterDocCreateRequest,
+    WriterDocUpdateRequest,
+    WriterDocMeta,
+    WriterDocResponse,
+    FolderCreateRequest,
+    FolderUpdateRequest,
+    FolderResponse,
+    FolderItemsRequest,
     UpdateModeRequest,
     FindCitationsRequest,
     CitationCandidate,
@@ -115,6 +125,7 @@ from backend.ingestion.summary_worker import trigger_async_summary_generation
 from backend.embeddings.vector_store import store_chunks, get_or_create_collection, search_similar_chunks
 from backend.rag.retriever import build_context_block
 from backend.rag.generator import generate_answer, _execute_completion_with_fallback
+from backend.guardrails import GuardrailPipeline, RailAction, redact_secrets
 from backend.rag.literature_review import generate_literature_review
 from backend.rag.runtime import normalize_litellm_model_id, extract_reasoning_and_content
 from backend.rag.brain import build_brain_context, consolidate_batch_memories_async
@@ -815,7 +826,8 @@ async def delete_session_endpoint(
 
 @app.post("/api/query", response_model=QueryResponse)
 async def query_rag(
-    request: QueryRequest, 
+    request: QueryRequest,
+    http_request: Request,
     background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
@@ -847,12 +859,29 @@ async def query_rag(
         session_exists = False
         target_mode = getattr(request, "mode", None) or "assistant"
         current_session = None
+        regen_id = request.regenerate_message_id
+        regen_user_msg = regen_bot_msg = None
+        db_messages = None
         
         if session_id:
             user_sessions = await crud.get_all_sessions(db, user_id=current_user.id)
             current_session = next((s for s in user_sessions if s.id == session_id), None)
             if current_session:
                 session_exists = True
+                if regen_id:
+                    # Validate Try again / Edit BEFORE any session write below. Session ownership is
+                    # already proven by the user-scoped lookup above.
+                    db_messages = await crud.get_session_messages(db, session_id)
+                    if not any(m.id == regen_id for m in db_messages):
+                        raise HTTPException(status_code=404, detail="Message not found.")
+                    pair = db_messages[-2:]
+                    if (
+                        len(pair) < 2 or pair[1].id != regen_id
+                        or pair[1].sender != "bot" or pair[0].sender != "user"
+                    ):
+                        raise HTTPException(status_code=409, detail="Only the last question and answer can be regenerated.")
+                    regen_user_msg, regen_bot_msg = pair
+                    db_messages = db_messages[:-2]  # history is built WITHOUT the regenerated pair
                 # If request explicitly provided a mode and session had a different mode, update session
                 if request.mode and request.mode != getattr(current_session, "active_mode", None):
                     await crud.update_session_mode(db, session_id=session_id, mode=request.mode, user_id=current_user.id)
@@ -884,9 +913,18 @@ async def query_rag(
         # Strict isolation: if no documents are attached to this chat or workspace, ensure empty list
         if target_documents is None:
             target_documents = []
+        # A request, session or workspace may only point at the caller's own library documents.
+        if target_documents:
+            owned_names = await crud.get_owned_doc_names(db, current_user.id)
+            target_documents = [d for d in dict.fromkeys(target_documents) if d in owned_names]
+
+        if regen_id and not session_exists:
+            raise HTTPException(status_code=404, detail="Message not found.")
 
         # Fallback: create fresh session linked to user
+        created_session = False
         if not session_id or not session_exists:
+            created_session = True
             new_session = await crud.create_chat_session(
                 db, 
                 title=request.query[:40] + "...", 
@@ -897,12 +935,14 @@ async def query_rag(
             session_id = new_session.id
 
         # 4. Fetch history from DB or fallback to payload
-        db_messages = await crud.get_session_messages(db, session_id)
-        if db_messages:
+        if db_messages is None:
+            db_messages = await crud.get_session_messages(db, session_id)
+        # Never fall back to the client payload on a regenerate: it still contains the pair being replaced.
+        if db_messages or regen_id:
             history_list = [{"sender": m.sender, "text": m.text} for m in db_messages[-6:]]
         else:
             history_list = [
-                msg.model_dump() if hasattr(msg, "model_dump") else msg.dict() 
+                msg.model_dump() if hasattr(msg, "model_dump") else msg.dict()
                 for msg in (request.chat_history or [])
             ]
 
@@ -915,7 +955,8 @@ async def query_rag(
 
         # 5. Generate answer via RAG Pipeline (with mode lens + Brain context + FR-11 instant summary cache hit)
         start_time = time.perf_counter()
-        result = generate_answer(
+        result = await asyncio.to_thread(
+            generate_answer,
             query=request.query, 
             top_k=getattr(request, "top_k", 10), 
             explicit_docs=target_documents,
@@ -946,29 +987,61 @@ async def query_rag(
             "guardrails": result.get("guardrails"),
         }
 
+        # Stop: the client aborted the request, so persist neither turn.
+        # ponytail: the LLM call still runs to completion after Stop; true cancellation needs streaming (D1)
+        if await http_request.is_disconnected():
+            if created_session:
+                await crud.delete_session(db, session_id, user_id=current_user.id)
+            return QueryResponse(query=request.query, answer="", session_id=None if created_session else session_id)
+
         # 6. Save User prompt & Bot answer (including thinking trace & telemetry) to Database
         user_meta = None
         if getattr(request, "attached_images", None):
             user_meta = {"attached_images": request.attached_images}
-        await crud.add_message(
-            db, 
-            session_id=session_id, 
-            sender="user", 
-            text=request.query, 
-            mode_applied=applied_mode,
-            meta=user_meta
-        )
-        await crud.add_message(
-            db, 
-            session_id=session_id, 
-            sender="bot", 
-            text=result["answer"], 
-            thinking_process=result.get("thinking_process"),
-            sources=result["sources_used"],
-            model_name=request.model_name,
-            mode_applied=applied_mode,
-            meta=telemetry_meta,
-        )
+        if regen_bot_msg:
+            # Try again / Edit: keep the old answer as a variant, update both rows in place.
+            old = regen_bot_msg
+            variants = (list((old.meta or {}).get("variants") or []) + [{
+                "text": old.text,
+                "sources_used": old.sources_used,
+                "model_name": old.model_name,
+                "mode_applied": old.mode_applied,
+                "feedback": (old.meta or {}).get("feedback"),
+            }])[-5:]
+            # One commit for both rows: the bot update below flushes the user row too.
+            regen_user_msg.text = request.query
+            regen_user_msg.mode_applied = applied_mode
+            bot_msg = await crud.update_message(
+                db,
+                regen_bot_msg,
+                text=result["answer"],
+                thinking_process=result.get("thinking_process"),
+                sources_used=result["sources_used"],
+                model_name=request.model_name,
+                mode_applied=applied_mode,
+                meta={**telemetry_meta, "variants": variants},  # new dict: JSON columns aren't change-tracked in place
+            )
+            telemetry_meta = bot_msg.meta
+        else:
+            await crud.add_message(
+                db,
+                session_id=session_id,
+                sender="user",
+                text=request.query,
+                mode_applied=applied_mode,
+                meta=user_meta
+            )
+            bot_msg = await crud.add_message(
+                db,
+                session_id=session_id,
+                sender="bot",
+                text=result["answer"],
+                thinking_process=result.get("thinking_process"),
+                sources=result["sources_used"],
+                model_name=request.model_name,
+                mode_applied=applied_mode,
+                meta=telemetry_meta,
+            )
 
         # 7. Periodic Brain Memory Consolidation
         # db_messages was fetched BEFORE saving this turn, so +2 accounts for
@@ -982,7 +1055,7 @@ async def query_rag(
             or (turn_number > 5 and turn_number % 3 == 0)
             or (has_grounded_findings and turn_number >= 2)
         )
-        if is_brain_sync_turn and getattr(request, 'brain_enabled', True):
+        if is_brain_sync_turn and getattr(request, 'brain_enabled', True) and not regen_bot_msg:
             # Pass the last 10 raw messages (5 turns) as the consolidation window
             recent_window_msgs = db_messages[-8:]  # fetch before-save slice
             # Append the current turn manually since it's already committed
@@ -1008,14 +1081,37 @@ async def query_rag(
             thinking_process=result.get("thinking_process"),
             sources_used=result["sources_used"],
             session_id=session_id,
+            message_id=bot_msg.id,
             model_name=request.model_name,
             mode_applied=applied_mode,
             meta=telemetry_meta,
         )
+    except HTTPException:
+        raise
     except Exception as e:
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Query generation failed: {str(e)}")
+
+
+@app.patch("/api/messages/{message_id}/feedback")
+async def set_message_feedback(
+    message_id: str,
+    body: FeedbackRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Records thumbs up/down (and an optional reason) on a bot message. Recorded only, nothing reads it yet."""
+    msg = await crud.get_user_message(db, message_id, user_id=current_user.id)
+    if not msg or msg.sender != "bot":
+        raise HTTPException(status_code=404, detail="Message not found.")
+    meta = dict(msg.meta or {})  # new dict: JSON columns aren't change-tracked in place
+    if body.rating:
+        meta["feedback"] = {"rating": body.rating, "reason": body.reason}
+    else:
+        meta.pop("feedback", None)
+    await crud.update_message(db, msg, meta=meta)
+    return {"feedback": meta.get("feedback")}
 
 
 # =============================================================================
@@ -1898,10 +1994,18 @@ async def create_literature_review(
             detail=f"Daily quota of {DAILY_TOKEN_LIMIT:,} tokens reached. Quota resets at midnight UTC, or add your own free API key in Settings for unlimited queries."
         )
 
+    # Only the caller's own library may be reviewed; an empty request means "all of mine".
+    scoped_docs = await _scoped_doc_names(db, current_user.id, request.doc_names)
+    if not scoped_docs:
+        return {
+            "error": "No indexed research papers found in workspace.",
+            "content": "Please upload PDF documents before generating a literature review.",
+        }
+
     try:
         result = await asyncio.to_thread(
             generate_literature_review,
-            doc_names=request.doc_names,
+            doc_names=scoped_docs,
             research_focus=request.research_focus or "",
             depth=request.depth or "detailed",
             model_name=request.model_name or "bedrock/us.amazon.nova-2-lite-v1:0",
@@ -2061,6 +2165,8 @@ async def get_draft(
     db: AsyncSession = Depends(get_db)
 ):
     """Retrieves the active academic manuscript draft for a workspace session."""
+    if not await crud.get_session_by_id(db, session_id, user_id=current_user.id):
+        raise HTTPException(status_code=404, detail="Session not found")
     try:
         draft = await crud.get_workspace_draft(db, session_id)
         if not draft:
@@ -2093,6 +2199,8 @@ async def save_draft(
     db: AsyncSession = Depends(get_db)
 ):
     """Persists or auto-saves the academic manuscript draft and bibliography."""
+    if not await crud.get_session_by_id(db, request.session_id, user_id=current_user.id):
+        raise HTTPException(status_code=404, detail="Session not found")
     try:
         draft = await crud.save_workspace_draft(
             db,
@@ -2115,10 +2223,96 @@ async def save_draft(
         raise HTTPException(status_code=500, detail=f"Failed to save draft: {str(e)}")
 
 
+# -----------------------------------------------------------------------------
+# Standalone writer documents (not tied to a chat session)
+# -----------------------------------------------------------------------------
+
+def _writer_doc_response(doc) -> WriterDocResponse:
+    return WriterDocResponse(
+        id=doc.id,
+        title=doc.title,
+        content_html=doc.content_html or "",
+        citations_data=doc.citations_data or [],
+        created_at=doc.created_at,
+        updated_at=doc.updated_at,
+    )
+
+
+@app.get("/api/writer/docs", response_model=List[WriterDocMeta])
+async def list_writer_docs_endpoint(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Lists the caller's writer documents: metadata only, no content."""
+    docs = await crud.list_writer_docs(db, user_id=current_user.id)
+    return [WriterDocMeta(id=d.id, title=d.title, created_at=d.created_at, updated_at=d.updated_at) for d in docs]
+
+
+@app.post("/api/writer/docs", response_model=WriterDocResponse, status_code=201)
+async def create_writer_doc_endpoint(
+    req: WriterDocCreateRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    doc = await crud.create_writer_doc(
+        db, user_id=current_user.id, title=req.title,
+        content_html=req.content_html, citations_data=req.citations_data,
+    )
+    return _writer_doc_response(doc)
+
+
+@app.get("/api/writer/docs/{doc_id}", response_model=WriterDocResponse)
+async def get_writer_doc_endpoint(
+    doc_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    doc = await crud.get_writer_doc(db, doc_id=doc_id, user_id=current_user.id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found.")
+    return _writer_doc_response(doc)
+
+
+@app.put("/api/writer/docs/{doc_id}", response_model=WriterDocResponse)
+async def update_writer_doc_endpoint(
+    doc_id: str,
+    req: WriterDocUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Updates the fields sent (null/omitted fields are left alone) and bumps updated_at."""
+    fields = {k: v for k, v in req.model_dump(exclude_unset=True).items() if v is not None}
+    doc = await crud.update_writer_doc(db, doc_id=doc_id, user_id=current_user.id, fields=fields)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found.")
+    return _writer_doc_response(doc)
+
+
+@app.delete("/api/writer/docs/{doc_id}")
+async def delete_writer_doc_endpoint(
+    doc_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    if not await crud.delete_writer_doc(db, doc_id=doc_id, user_id=current_user.id):
+        raise HTTPException(status_code=404, detail="Document not found.")
+    return {"status": "success", "doc_id": doc_id}
+
+
+async def _scoped_doc_names(db: AsyncSession, user_id: str, requested: Optional[List[str]]) -> List[str]:
+    """Doc names a vector search may touch for this user: their own library, narrowed to the
+    request's names when given. Never None, and empty means "search nothing"."""
+    owned = await crud.get_owned_doc_names(db, user_id)
+    if requested:
+        return [d for d in dict.fromkeys(requested) if d in owned]
+    return sorted(owned)
+
+
 @app.post("/api/editor/find-citations", response_model=FindCitationsResponse)
 async def find_citations(
     request: FindCitationsRequest,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Semantic Citation Engine:
@@ -2129,18 +2323,23 @@ async def find_citations(
     if not clean_query:
         return FindCitationsResponse(query="", candidates=[], total_matches=0)
 
+    allowed_docs = await _scoped_doc_names(db, current_user.id, request.doc_names)
+    if not allowed_docs:
+        return FindCitationsResponse(query=clean_query, candidates=[], total_matches=0)
+
     try:
-        results = search_similar_chunks(
+        results = await asyncio.to_thread(
+            search_similar_chunks,
             query=clean_query,
             top_k=request.top_k,
-            doc_names=request.doc_names
+            doc_names=allowed_docs,
         )
 
         candidates: List[CitationCandidate] = []
         if results and results.get("documents") and results["documents"][0]:
             docs = results["documents"][0]
             metas = results["metadatas"][0]
-            distances = results.get("distances", [[]])[0] if results.get("distances") else [0.0] * len(docs)
+            distances = results.get("distances", [[]])[0] if results.get("distances") else [None] * len(docs)
 
             for text, meta, dist in zip(docs, metas, distances):
                 doc_name = meta.get("source", "Unknown Document")
@@ -2157,7 +2356,7 @@ async def find_citations(
                 if not authors or not year or not paper_title or paper_title == doc_name:
                     pdf_full_path = UPLOADS_DIR / doc_name
                     if pdf_full_path.exists():
-                        bib = extract_bibliographic_metadata(str(pdf_full_path))
+                        bib = await asyncio.to_thread(extract_bibliographic_metadata, str(pdf_full_path))
                         paper_title = bib.get("title") or paper_title or doc_name
                         authors = bib.get("authors") or authors
                         year = bib.get("year") or year
@@ -2167,7 +2366,7 @@ async def find_citations(
                     paper_title = doc_name.replace(".pdf", "").replace("_", " ").replace("-", " ").title()
 
                 # Cosine distance to similarity percentage
-                similarity = max(0.05, min(0.99, round(1.0 - float(dist), 4))) if dist is not None else 0.85
+                similarity = max(0.0, min(1.0, round(1.0 - float(dist), 4))) if dist is not None else None
                 
                 # Clean excerpt snippet
                 excerpt_clean = " ".join(text.split())
@@ -2192,23 +2391,23 @@ async def find_citations(
                 )
 
         # Sort candidates descending by similarity score
-        candidates.sort(key=lambda c: c.similarity_score, reverse=True)
+        candidates.sort(key=lambda c: c.similarity_score if c.similarity_score is not None else -1.0, reverse=True)
 
         return FindCitationsResponse(
             query=clean_query,
             candidates=candidates,
             total_matches=len(candidates)
         )
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Citation search failed: {str(e)}")
+    except Exception:
+        logging.getLogger(__name__).exception("find-citations failed")
+        raise HTTPException(status_code=500, detail="Citation search failed. Please try again.")
 
 
 @app.post("/api/editor/ask-ai", response_model=EditorAskAIResponse)
 async def editor_ask_ai(
     request: EditorAskAIRequest,
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Inline Context Assistant:
@@ -2222,14 +2421,35 @@ async def editor_ask_ai(
     if not selection or not instruction:
         raise HTTPException(status_code=400, detail="Selection and instruction must not be empty.")
 
+    # Tier 1 input rails: the instruction and the selected text are both user-controlled.
+    # A block returns the rail's refusal text as the answer, as generate_answer does.
+    instruction_guard = GuardrailPipeline.run_input_rails(instruction)
+    selection_guard = GuardrailPipeline.run_input_rails(selection, max_chars=20000)
+    for guard in (instruction_guard, selection_guard):
+        if guard.action == RailAction.BLOCK:
+            return EditorAskAIResponse(
+                selection=selection,
+                instruction=instruction,
+                result=guard.sanitized_text,
+                thinking_process=None,
+                sources_used=[],
+                blocked=True,
+            )
+    selection = selection_guard.sanitized_text
+    instruction = instruction_guard.sanitized_text
+
+    # Only this user's own library is ever searched; no documents means no retrieval.
+    allowed_docs = await _scoped_doc_names(db, current_user.id, request.doc_names)
+
     try:
         # Retrieve supporting context chunks from workspace documents
         combined_query = f"{selection} {instruction}"
-        sim_results = search_similar_chunks(
+        sim_results = await asyncio.to_thread(
+            search_similar_chunks,
             query=combined_query,
             top_k=4,
-            doc_names=request.doc_names
-        )
+            doc_names=allowed_docs,
+        ) if allowed_docs else {}
 
         retrieved_chunks = []
         sources = []
@@ -2269,7 +2489,8 @@ User Instruction:
 
         target_model = normalize_litellm_model_id(request.model_name) or "gemini/gemini-3.7-flash"
 
-        chat_completion = _execute_completion_with_fallback(
+        chat_completion = await asyncio.to_thread(
+            _execute_completion_with_fallback,
             model_name=target_model,
             messages=[{"role": "user", "content": editor_prompt}],
             custom_keys=keys,
@@ -2279,17 +2500,23 @@ User Instruction:
 
         extracted = extract_reasoning_and_content(chat_completion)
 
+        # Tier 3 output rails: secret redaction and citation provenance, as in /query.
+        answer_text, sources, _out_guard = GuardrailPipeline.run_output_rails(
+            generated_text=extracted.answer,
+            extracted_citations=sources,
+            retrieved_chunks=retrieved_chunks,
+        )
+
         return EditorAskAIResponse(
             selection=selection,
             instruction=instruction,
-            result=extracted.answer,
-            thinking_process=extracted.thinking,
+            result=answer_text,
+            thinking_process=redact_secrets(extracted.thinking) or None,
             sources_used=sources
         )
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"In-Editor AI execution failed: {str(e)}")
+    except Exception:
+        logging.getLogger(__name__).exception("ask-ai failed")
+        raise HTTPException(status_code=500, detail="The AI assistant could not complete that request. Please try again.")
 
 
 # =============================================================================
@@ -2748,6 +2975,91 @@ async def delete_library_item_endpoint(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to delete document from library: {str(e)}")
+
+
+# -----------------------------------------------------------------------------
+# Library folders (the client builds the tree from parent_id)
+# -----------------------------------------------------------------------------
+
+@app.get("/api/folders", response_model=List[FolderResponse])
+async def list_folders_endpoint(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    return await crud.list_folders(db, user_id=current_user.id)
+
+
+@app.post("/api/folders", response_model=FolderResponse, status_code=201)
+async def create_folder_endpoint(
+    req: FolderCreateRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    try:
+        folder = await crud.create_folder(db, user_id=current_user.id, name=req.name, parent_id=req.parent_id)
+    except crud.FolderConflict as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    if folder is None:
+        raise HTTPException(status_code=404, detail="Folder not found.")
+    return folder
+
+
+@app.patch("/api/folders/{folder_id}", response_model=FolderResponse)
+async def update_folder_endpoint(
+    folder_id: str,
+    req: FolderUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Renames and/or moves a folder. parent_id null moves it to the root; omit it to leave it."""
+    fields = req.model_dump(exclude_unset=True)
+    if fields.get("name") is None:
+        fields.pop("name", None)
+    try:
+        folder = await crud.update_folder(db, user_id=current_user.id, folder_id=folder_id, fields=fields)
+    except crud.FolderConflict as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    if folder is None:
+        raise HTTPException(status_code=404, detail="Folder not found.")
+    return folder
+
+
+@app.delete("/api/folders/{folder_id}")
+async def delete_folder_endpoint(
+    folder_id: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Removes the folder, its subfolders and their memberships. Library documents are kept."""
+    if not await crud.delete_folder(db, user_id=current_user.id, folder_id=folder_id):
+        raise HTTPException(status_code=404, detail="Folder not found.")
+    return {"status": "success", "folder_id": folder_id}
+
+
+@app.post("/api/folders/{folder_id}/items", response_model=FolderResponse)
+async def add_folder_items_endpoint(
+    folder_id: str,
+    req: FolderItemsRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    folder = await crud.add_folder_items(db, user_id=current_user.id, folder_id=folder_id, document_ids=req.document_ids)
+    if folder is None:
+        raise HTTPException(status_code=404, detail="Folder or document not found.")
+    return folder
+
+
+@app.delete("/api/folders/{folder_id}/items", response_model=FolderResponse)
+async def remove_folder_items_endpoint(
+    folder_id: str,
+    req: FolderItemsRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    folder = await crud.remove_folder_items(db, user_id=current_user.id, folder_id=folder_id, document_ids=req.document_ids)
+    if folder is None:
+        raise HTTPException(status_code=404, detail="Folder or document not found.")
+    return folder
 
 
 @app.get("/api/library/{doc_id}/citations")

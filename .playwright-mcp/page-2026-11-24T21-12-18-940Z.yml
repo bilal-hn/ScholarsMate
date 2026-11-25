@@ -1,0 +1,57 @@
+- generic [ref=f15e3]:
+  - complementary [ref=f15e4]:
+    - generic [ref=f15e5]:
+      - button "Scholars Mate" [ref=f15e6] [cursor=pointer]:
+        - generic [ref=f15e12]:
+          - generic [ref=f15e13]: Scholars
+          - generic [ref=f15e14]: Mate
+      - button "Collapse Sidebar" [ref=f15e15] [cursor=pointer]
+    - generic [ref=f15e19]:
+      - button "New Chat" [ref=f15e20] [cursor=pointer]
+      - button "Workspaces" [ref=f15e25] [cursor=pointer]
+      - button "Search" [ref=f15e30] [cursor=pointer]
+      - button "Brain" [ref=f15e35] [cursor=pointer]
+      - button "Literature Review Studio" [ref=f15e45] [cursor=pointer]
+      - button "Writer Panel" [ref=f15e49] [cursor=pointer]
+      - button "Document Writer" [ref=f15e56] [cursor=pointer]
+      - button "Library Panel" [ref=f15e61] [cursor=pointer]
+      - button "Reference Library" [ref=f15e65] [cursor=pointer]
+    - generic [ref=f15e71]:
+      - generic [ref=f15e72]: Chat History
+      - generic [ref=f15e78]:
+        - paragraph [ref=f15e81]: No chats yet
+        - paragraph [ref=f15e82]: Click New Chat to begin
+    - button "User Profile Menu" [ref=f15e85] [cursor=pointer]:
+      - generic [ref=f15e86]:
+        - generic [ref=f15e87]: HF
+        - generic [ref=f15e88]:
+          - generic "User" [ref=f15e89]: Academic Scholar
+          - generic [ref=f15e90]: Guest
+  - main [ref=f15e94]:
+    - generic [ref=f15e96]:
+      - banner "Click to replay intro animation" [ref=f15e97] [cursor=pointer]:
+        - generic [ref=f15e98]:
+          - img "ScholarsMate pawn mark" [ref=f15e99]
+          - generic [ref=f15e110]:
+            - text: Scholars
+            - generic [ref=f15e111]: Mate
+        - generic [ref=f15e112]: Your research, checkmated
+      - paragraph [ref=f15e113]: Interrogate papers with grounded citations, configure research context, and synthesize findings with precision.
+      - generic [ref=f15e114]:
+        - paragraph [ref=f15e115]: No documents attached yet
+        - paragraph [ref=f15e116]: Upload documents (PDFs, books, notes) or select from your library to start chatting. ScholarsMate answers questions strictly from your uploaded materials.
+    - generic [ref=f15e117]:
+      - button "Previous questions & navigation" [ref=f15e120] [cursor=pointer]
+      - generic [ref=f15e125]:
+        - textbox "Message ScholarsMate or type @ to tag a file..." [ref=f15e126]
+        - generic [ref=f15e127]:
+          - generic [ref=f15e128]:
+            - button "Workspace Tools & Scoped Documents" [ref=f15e130] [cursor=pointer]
+            - button "Deep Search Mode" [ref=f15e136] [cursor=pointer]
+            - button "Add attachment" [ref=f15e141] [cursor=pointer]
+          - generic [ref=f15e143]:
+            - button "Paper Assistant" [ref=f15e145] [cursor=pointer]
+            - button "@ bedrock/us.amazon.nova-lite-v1:0" [ref=f15e153] [cursor=pointer]:
+              - generic [ref=f15e154]: "@"
+              - generic [ref=f15e155]: bedrock/us.amazon.nova-lite-v1:0
+            - button "Send message" [disabled] [ref=f15e158] [cursor=pointer]

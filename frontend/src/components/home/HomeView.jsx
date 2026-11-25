@@ -202,7 +202,7 @@ export default function HomeView({
 
             {/* Card 3: Academic Writer */}
             <div 
-              onClick={() => onNavigate?.('chat')}
+              onClick={() => onNavigate?.('writer')}
               className="group p-5 rounded-xl bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 hover:border-zinc-700 transition-all cursor-pointer flex flex-col justify-between shadow-lg hover:shadow-xl hover:-translate-y-0.5"
             >
               <div className="space-y-3">

@@ -1,75 +1,33 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import {
-  X,
-  BookOpen,
-  Search,
-  Check,
-  Quote,
-  FileText,
-  ExternalLink,
-  Loader2,
-  Sparkles,
-  Layers,
-  Folder,
-} from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { Search, Quote, ExternalLink, BookOpen } from 'lucide-react';
 import { getLibraryAPI } from '../../services/api';
 import ChessPieceLoader from '../common/ChessPieceLoader';
+import { inTextLabel } from '../../utils/citationFormat';
 
 /**
- * Format helper for in-text author string (e.g. "Vaswani et al." or "Smith & Jones")
+ * The "From library" tab of CiteDrawer: search the reference library and cite a paper.
  */
-function formatInTextAuthor(authorsStr) {
-  if (!authorsStr) return 'Anon';
-  // Split by ';' or 'and' or ','
-  const parts = authorsStr.split(/[;]| and /i).map((p) => p.trim()).filter(Boolean);
-  if (parts.length === 0) return 'Anon';
-
-  const getLastName = (fullName) => {
-    // If "Last, First"
-    if (fullName.includes(',')) {
-      return fullName.split(',')[0].trim();
-    }
-    // If "First Last"
-    const words = fullName.split(/\s+/);
-    return words[words.length - 1];
-  };
-
-  const firstLast = getLastName(parts[0]);
-  if (parts.length === 1) {
-    return firstLast;
-  }
-  if (parts.length === 2) {
-    return `${firstLast} & ${getLastName(parts[1])}`;
-  }
-  return `${firstLast} et al.`;
-}
-
 export default function LibraryCitationDrawer({
-  isOpen,
-  onClose,
   onInsertCitation,
   existingCitations = [],
   workspaceDocs = [],
   onOpenPdfViewer,
+  citationStyle = 'ieee',
 }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterMode, setFilterMode] = useState('all'); // 'all' | 'workspace'
-  const [citationStyle, setCitationStyle] = useState('ieee'); // 'ieee' | 'apa' | 'harvard'
   const [pageInputs, setPageInputs] = useState({});
 
   useEffect(() => {
-    if (isOpen) {
-      setLoading(true);
-      getLibraryAPI()
-        .then((data) => {
-          setItems(data.items || []);
-        })
-        .catch((err) => console.error('Failed to load library papers in writer:', err))
-        .finally(() => setLoading(false));
-    }
-  }, [isOpen]);
+    getLibraryAPI()
+      .then((data) => {
+        setItems(data.items || []);
+      })
+      .catch((err) => console.error('Failed to load library papers in writer:', err))
+      .finally(() => setLoading(false));
+  }, []);
 
   // Compute filtered items
   const filteredItems = useMemo(() => {
@@ -97,81 +55,19 @@ export default function LibraryCitationDrawer({
     return result;
   }, [items, filterMode, searchQuery, workspaceDocs]);
 
-  if (!isOpen) return null;
-
   const handlePageChange = (docId, val) => {
     setPageInputs((prev) => ({ ...prev, [docId]: val }));
   };
 
   const handleInsert = (paper) => {
     const pageNum = pageInputs[paper.id]?.trim() || null;
-    if (onInsertCitation) {
-      onInsertCitation(paper, citationStyle, pageNum);
-    }
+    onInsertCitation?.(paper, pageNum);
   };
 
+  const nextNumber = existingCitations.reduce((m, c) => Math.max(m, c.doc_index || 0), 0) + 1;
+
   return (
-    <div className="fixed inset-y-0 right-0 w-[420px] bg-zinc-950/98 border-l border-zinc-800 shadow-2xl backdrop-blur-2xl z-50 flex flex-col animate-in slide-in-from-right duration-200 select-text">
-      {/* 1. Header */}
-      <div className="p-4 border-b border-zinc-800 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-2.5">
-          <div className="p-2 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-400">
-            <BookOpen className="h-4 w-4" />
-          </div>
-          <div>
-            <h3 className="text-sm font-semibold text-zinc-100">Insert Citation</h3>
-            <p className="text-[11px] text-zinc-400">Search academic library & cite into manuscript</p>
-          </div>
-        </div>
-        <button
-          type="button"
-          onClick={onClose}
-          className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60 transition-colors cursor-pointer"
-        >
-          <X className="h-4 w-4" />
-        </button>
-      </div>
-
-      {/* 2. Citation Style Selector */}
-      <div className="p-3 bg-zinc-900/70 border-b border-zinc-800 flex items-center justify-between gap-2 shrink-0">
-        <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">Style:</span>
-        <div className="flex items-center bg-zinc-950 p-0.5 rounded-lg border border-zinc-800">
-          <button
-            type="button"
-            onClick={() => setCitationStyle('ieee')}
-            className={`px-2.5 py-1 rounded text-xs font-medium transition-colors cursor-pointer ${
-              citationStyle === 'ieee'
-                ? 'bg-amber-500 text-zinc-950 font-semibold'
-                : 'text-zinc-400 hover:text-zinc-200'
-            }`}
-          >
-            IEEE [1]
-          </button>
-          <button
-            type="button"
-            onClick={() => setCitationStyle('apa')}
-            className={`px-2.5 py-1 rounded text-xs font-medium transition-colors cursor-pointer ${
-              citationStyle === 'apa'
-                ? 'bg-amber-500 text-zinc-950 font-semibold'
-                : 'text-zinc-400 hover:text-zinc-200'
-            }`}
-          >
-            APA (Author, Year)
-          </button>
-          <button
-            type="button"
-            onClick={() => setCitationStyle('harvard')}
-            className={`px-2.5 py-1 rounded text-xs font-medium transition-colors cursor-pointer ${
-              citationStyle === 'harvard'
-                ? 'bg-amber-500 text-zinc-950 font-semibold'
-                : 'text-zinc-400 hover:text-zinc-200'
-            }`}
-          >
-            Harvard
-          </button>
-        </div>
-      </div>
-
+    <div className="flex-1 min-h-0 flex flex-col select-text">
       {/* 3. Search & Scope Filter Bar */}
       <div className="p-3 bg-zinc-900/40 border-b border-zinc-800 space-y-2.5 shrink-0">
         <div className="relative">
@@ -230,20 +126,14 @@ export default function LibraryCitationDrawer({
           </div>
         ) : (
           filteredItems.map((paper) => {
-            const authorShort = formatInTextAuthor(paper.authors);
-            const yearStr = paper.year || 'n.d.';
             const isAlreadyCited = existingCitations.some((c) => c.doc_name === paper.doc_name);
             const citedEntry = existingCitations.find((c) => c.doc_name === paper.doc_name);
 
-            // Preview In-Text Citation
-            let inTextPreview = '';
-            if (citationStyle === 'ieee') {
-              inTextPreview = `[${citedEntry?.doc_index || '#'}]`;
-            } else if (citationStyle === 'apa') {
-              inTextPreview = `(${authorShort}, ${yearStr})`;
-            } else {
-              inTextPreview = `(${authorShort} ${yearStr})`;
-            }
+            // Preview of exactly what will be inserted, from the shared formatter.
+            const inTextPreview = inTextLabel(
+              { ...paper, doc_index: citedEntry?.doc_index || nextNumber, page_number: pageInputs[paper.id]?.trim() || null },
+              citationStyle,
+            );
 
             return (
               <div
